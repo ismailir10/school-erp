@@ -49,16 +49,21 @@ export function OverrideModal({
     setCheckInTime("");
   }, [currentStatus, open]);
 
+  // The time input only exists for present-ish statuses; a time typed before
+  // switching to Alpa/Izin/etc. must not leak into the request.
+  const showsTime = status === "PRESENT" || status === "LATE";
+
   async function handleSave() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
     setSaving(true);
+    const sentCheckInTime = showsTime ? checkInTime || undefined : undefined;
 
     if (recordId) {
       // Update existing record
       const res = await fetch(`/api/attendance/${recordId}/override`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, reason, checkInTime: checkInTime || undefined }),
+        body: JSON.stringify({ status, reason, checkInTime: sentCheckInTime }),
       });
       if (res.ok) {
         toast.success("Kehadiran diperbarui");
@@ -73,7 +78,7 @@ export function OverrideModal({
       const res = await fetch(`/api/attendance/${employeeId}/override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, status, reason, checkInTime: checkInTime || undefined }),
+        body: JSON.stringify({ date, status, reason, checkInTime: sentCheckInTime }),
       });
       if (res.ok) {
         toast.success("Kehadiran ditambahkan");
@@ -113,7 +118,7 @@ export function OverrideModal({
               </SelectContent>
             </Select>
           </Field>
-          {(status === "PRESENT" || status === "LATE") && (
+          {showsTime && (
             <Field>
               <FieldLabel>Waktu Masuk</FieldLabel>
               <Input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />

@@ -64,3 +64,23 @@ export function zonedDateTimeToUtc(dateYmd: string, hhmm: string, timezone: stri
   const firstGuess = wallAsUtc - getTimezoneOffsetMs(new Date(wallAsUtc), timezone);
   return new Date(wallAsUtc - getTimezoneOffsetMs(new Date(firstGuess), timezone));
 }
+
+/**
+ * True when the wall-clock `hhmm` on `dateYmd` actually occurs in `timezone`.
+ * A spring-forward gap (e.g. 02:30 on 2026-03-08 in America/New_York) has no
+ * such instant: `zonedDateTimeToUtc` resolves it to a neighbouring time, so we
+ * round-trip the result and compare. Ambiguous fall-back times exist (twice)
+ * and return true.
+ */
+export function localTimeExists(dateYmd: string, hhmm: string, timezone: string): boolean {
+  const instant = zonedDateTimeToUtc(dateYmd, hhmm, timezone);
+  if (getYmdInTimezone(instant, timezone) !== dateYmd) return false;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")}` === hhmm;
+}

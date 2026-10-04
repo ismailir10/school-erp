@@ -105,6 +105,40 @@ describe("OverrideModal request body", () => {
     await waitFor(() => expect(props.onSuccess).toHaveBeenCalledTimes(1));
   });
 
+  it("create: drops a typed time when the status is switched to a non-present one", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    fireEvent.change(await timeInput(), { target: { value: "07:30" } });
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Alpa" }));
+    await user.type(screen.getByPlaceholderText(/Sakit, konfirmasi/), "Tidak hadir");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const { init, body } = lastRequest(fetchMock);
+    expect(init.method).toBe("POST");
+    expect("checkInTime" in body).toBe(false);
+    expect(body).toEqual({ date: DATE, status: "ABSENT", reason: "Tidak hadir" });
+  });
+
+  it("edit: drops a typed time when the status is switched to a non-present one", async () => {
+    const user = userEvent.setup();
+    renderModal({ recordId: "rec1", currentStatus: "LATE" });
+
+    fireEvent.change(await timeInput(), { target: { value: "08:15" } });
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Alpa" }));
+    await user.type(screen.getByPlaceholderText(/Sakit, konfirmasi/), "Koreksi status");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const { init, body } = lastRequest(fetchMock);
+    expect(init.method).toBe("PUT");
+    expect("checkInTime" in body).toBe(false);
+    expect(body).toEqual({ status: "ABSENT", reason: "Koreksi status" });
+  });
+
   it("blank reason: shows an error toast and does not call fetch", async () => {
     const user = userEvent.setup();
     const props = renderModal();

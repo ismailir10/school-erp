@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getTodayInTimezone, getYmdInTimezone, zonedDateTimeToUtc } from "../timezone";
+import {
+  getTodayInTimezone,
+  getYmdInTimezone,
+  localTimeExists,
+  zonedDateTimeToUtc,
+} from "../timezone";
 
 /**
  * Regression coverage for FIND-002 / FIND-016 (UAT 2026-05-14):
@@ -92,5 +97,29 @@ describe("zonedDateTimeToUtc", () => {
     expect(zonedDateTimeToUtc("2026-10-05", "00:00", "Asia/Jakarta").toISOString()).toBe(
       "2026-10-04T17:00:00.000Z"
     );
+  });
+});
+
+describe("localTimeExists", () => {
+  it("is true for an ordinary Asia/Jakarta time", () => {
+    expect(localTimeExists("2026-10-05", "07:30", "Asia/Jakarta")).toBe(true);
+  });
+
+  it("is false inside the America/New_York spring-forward gap", () => {
+    expect(localTimeExists("2026-03-08", "02:30", "America/New_York")).toBe(false);
+  });
+
+  it("is true just after the gap", () => {
+    expect(localTimeExists("2026-03-08", "03:30", "America/New_York")).toBe(true);
+  });
+
+  it("is true for an ambiguous fall-back time (it occurs twice)", () => {
+    expect(localTimeExists("2026-11-01", "01:30", "America/New_York")).toBe(true);
+  });
+
+  it("is true for midnight", () => {
+    expect(localTimeExists("2026-10-05", "00:00", "Asia/Jakarta")).toBe(true);
+    expect(localTimeExists("2026-03-08", "00:00", "America/New_York")).toBe(true);
+    expect(localTimeExists("2026-11-01", "00:00", "America/New_York")).toBe(true);
   });
 });

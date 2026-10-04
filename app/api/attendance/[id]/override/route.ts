@@ -8,7 +8,10 @@ import {
   attendanceOverrideSchema,
   attendanceOverrideUpdateSchema,
 } from "@/lib/validations/attendance";
-import { zonedDateTimeToUtc } from "@/lib/attendance/timezone";
+import { localTimeExists, zonedDateTimeToUtc } from "@/lib/attendance/timezone";
+
+const NONEXISTENT_TIME_ERROR =
+  "Jam itu tidak ada pada tanggal tersebut di zona waktu sekolah. Pilih jam lain.";
 
 // The school's configured timezone for this tenant (same fallback as check-in).
 async function getTenantTimezone(tenantId: string): Promise<string> {
@@ -63,6 +66,9 @@ export async function PUT(
     if (/^\d{2}:\d{2}$/.test(checkInTime)) {
       if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
       const timezone = await getTenantTimezone(session.tenantId!);
+      if (!localTimeExists(existing.date, checkInTime, timezone)) {
+        return NextResponse.json({ error: NONEXISTENT_TIME_ERROR }, { status: 400 });
+      }
       checkInAt = zonedDateTimeToUtc(existing.date, checkInTime, timezone);
     } else {
       checkInAt = new Date(checkInTime);
@@ -128,9 +134,14 @@ export async function POST(
     );
   }
 
-  const checkInAt = checkInTime
-    ? zonedDateTimeToUtc(date, checkInTime, await getTenantTimezone(session.tenantId!))
-    : undefined;
+  let checkInAt: Date | undefined;
+  if (checkInTime) {
+    const timezone = await getTenantTimezone(session.tenantId!);
+    if (!localTimeExists(date, checkInTime, timezone)) {
+      return NextResponse.json({ error: NONEXISTENT_TIME_ERROR }, { status: 400 });
+    }
+    checkInAt = zonedDateTimeToUtc(date, checkInTime, timezone);
+  }
 
   const record = await prisma.attendanceRecord.upsert({
     where: { employeeId_date: { employeeId, date } },

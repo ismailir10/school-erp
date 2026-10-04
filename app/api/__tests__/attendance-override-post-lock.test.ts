@@ -262,4 +262,36 @@ describe("override check-in time (HH:MM in school timezone)", () => {
     );
     expect(attendanceUpdate.mock.calls[0][0].data.checkInTime).toBeUndefined();
   });
+
+  it("POST rejects a nonexistent DST-gap local time with 400 and writes nothing", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-09T00:00:00Z"));
+    try {
+      orgConfigFindUnique.mockResolvedValue({ timezone: "America/New_York" });
+      attendanceFindUnique.mockResolvedValue(null);
+      const { POST } = await import("../attendance/[id]/override/route");
+      const res = await POST(
+        makeReq({ ...validBody, date: "2026-03-08", checkInTime: "02:30" }) as never,
+        { params: Promise.resolve({ id: "emp-1" }) } as never,
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/tidak ada/);
+      expect(attendanceUpsert).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("PUT rejects a nonexistent DST-gap local time with 400 and writes nothing", async () => {
+    orgConfigFindUnique.mockResolvedValue({ timezone: "America/New_York" });
+    attendanceFindUnique.mockResolvedValue({ id: "att-1", date: "2026-03-08", isLocked: false });
+    const { PUT } = await import("../attendance/[id]/override/route");
+    const res = await PUT(
+      putReq({ status: "LATE", reason: "Koreksi", checkInTime: "02:30" }) as never,
+      { params: Promise.resolve({ id: "att-1" }) } as never,
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/tidak ada/);
+    expect(attendanceUpdate).not.toHaveBeenCalled();
+  });
 });
