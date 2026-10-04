@@ -132,6 +132,25 @@
       transform: none;
     }
   }
+
+  /* Aurora backdrop bands — used by components/reactbits/aurora.tsx (opt-in via motion-safe:animate-aurora-*).
+   * Transform-only, slow, alternating, with deliberately mismatched durations so the bands never re-sync. */
+  --animate-aurora-a: aurora-a 26s ease-in-out infinite alternate;
+  --animate-aurora-b: aurora-b 32s ease-in-out infinite alternate;
+  --animate-aurora-c: aurora-c 38s ease-in-out infinite alternate;
+
+  @keyframes aurora-a {
+    from { transform: translate3d(-6%, -4%, 0) scale(1); }
+    to { transform: translate3d(14%, 10%, 0) scale(1.18); }
+  }
+  @keyframes aurora-b {
+    from { transform: translate3d(8%, 6%, 0) scale(1.1); }
+    to { transform: translate3d(-12%, -8%, 0) scale(0.92); }
+  }
+  @keyframes aurora-c {
+    from { transform: translate3d(-10%, 4%, 0) scale(0.95); }
+    to { transform: translate3d(12%, -10%, 0) scale(1.15); }
+  }
 }
 
 /*
