@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { motion, useReducedMotion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { Aurora } from "@/components/reactbits/aurora";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { createClient } from "@/lib/supabase/client";
-import { CalendarCheck2, CreditCard, Loader2, NotebookPen } from "lucide-react";
+import { CalendarCheck2, CreditCard, Loader2, NotebookPen, Pause, Play } from "lucide-react";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { LegalFooter } from "@/components/layout/legal-footer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -74,7 +74,17 @@ export default function LoginPageWrapper() {
         />
       }
     >
-      {isSupabaseConfigured ? <SignInPage /> : <DemoLoginPage />}
+      {isSupabaseConfigured ? (
+        // `reducedMotion="user"` drops the card's slide-up for reduced-motion users while the
+        // server and client keep rendering the same `initial` state. The slide used to be skipped
+        // with `initial={prefersReducedMotion ? false : …}`, which hydrated differently from the
+        // server HTML (the server cannot know the preference) and logged a hydration error.
+        <MotionConfig reducedMotion="user">
+          <SignInPage />
+        </MotionConfig>
+      ) : (
+        <DemoLoginPage />
+      )}
     </Suspense>
   );
 }
@@ -92,9 +102,9 @@ export default function LoginPageWrapper() {
 function SignInPage() {
   const searchParams = useSearchParams();
   const errorCode = searchParams.get("error");
-  const prefersReducedMotion = useReducedMotion();
 
   const [loading, setLoading] = useState(false);
+  const [motionPaused, setMotionPaused] = useState(false);
   const [authError, setAuthError] = useState(
     errorCode ? (LOGIN_ERROR_MESSAGES[errorCode] ?? "") : "",
   );
@@ -123,7 +133,7 @@ function SignInPage() {
       */}
       <section className="order-1 flex flex-col justify-center bg-card px-6 py-10 lg:order-2 lg:px-12 lg:py-12">
         <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.42, ease: "easeOut" }}
           className="mx-auto w-full max-w-sm"
@@ -183,7 +193,23 @@ function SignInPage() {
       {/* Brand panel — below the action on mobile, left column on desktop. */}
       <section className="relative order-2 isolate overflow-hidden bg-secondary px-6 py-10 lg:order-1 lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-12 lg:py-12">
         {/* Soft drifting aurora (React Bits port). Curves only — no tiled or angular shapes. */}
-        <Aurora />
+        <Aurora paused={motionPaused} />
+        {/*
+          WCAG 2.2.2: the drift never ends, so there must be a way to stop it.
+          `motion-reduce:hidden` (CSS, not useReducedMotion) because nothing moves for
+          those users, and branching in JS would mismatch server and client HTML.
+          size-11 = 44px hit area; the focus ring uses --primary-text like the Google button.
+        */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => setMotionPaused((paused) => !paused)}
+          aria-label={motionPaused ? "Putar animasi" : "Jeda animasi"}
+          className="absolute right-3 bottom-3 size-11 rounded-full text-muted-foreground hover:bg-card/60 focus-visible:border-primary-text focus-visible:ring-2 focus-visible:ring-primary-text motion-reduce:hidden"
+        >
+          {motionPaused ? <Play /> : <Pause />}
+        </Button>
 
         <div className="mb-6 hidden items-center gap-3 lg:mb-0 lg:flex">
           <Image

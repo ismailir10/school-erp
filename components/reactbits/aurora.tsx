@@ -43,13 +43,24 @@ const BANDS = [
  * Only `transform` animates (compositor-only, no layout or paint per frame). Smooth curves only:
  * no polygons, stars or tiled shapes.
  */
-export function Aurora({ className }: { className?: string }) {
+export function Aurora({
+  className,
+  paused = false,
+}: {
+  className?: string
+  /**
+   * Freezes the bands in place. The drift runs for as long as the page is open, which WCAG 2.2.2
+   * (Pause, Stop, Hide) requires the user to be able to stop; the host screen supplies the control.
+   */
+  paused?: boolean
+}) {
   return (
     <span
       aria-hidden="true"
       data-slot="aurora"
+      data-paused={paused}
       className={cn(
-        "pointer-events-none absolute inset-0 -z-10 overflow-hidden",
+        "group/aurora pointer-events-none absolute inset-0 -z-10 overflow-hidden",
         className,
       )}
     >
@@ -57,7 +68,10 @@ export function Aurora({ className }: { className?: string }) {
         <span
           key={key}
           data-band={key}
-          className={cn("absolute block rounded-[50%] will-change-transform", band)}
+          className={cn(
+            "absolute block rounded-[50%] will-change-transform group-data-[paused=true]/aurora:[animation-play-state:paused]",
+            band,
+          )}
           style={{
             background: `radial-gradient(closest-side, color-mix(in oklch, ${colour} ${peak}%, transparent), transparent)`,
           }}

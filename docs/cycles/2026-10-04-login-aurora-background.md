@@ -13,10 +13,14 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
 - [ ] Unit test for `Aurora` (aria-hidden, decorative, motion gated). Existing suites stay green.
 - [ ] Header comment cites React Bits upstream (`Backgrounds/Aurora`), MIT + Commons Clause, matching the other `reactbits/` files.
 
+**Added after PR review (scope extended with the user's say-so on the second item):**
+- [ ] WCAG 2.2.2 Pause, Stop, Hide: the drift never ends, so the brand panel gets a visible pause/play control (44px hit area, keyboard reachable, hidden by CSS under `prefers-reduced-motion` because nothing moves then). Raised by the Codex review on the PR (P2); valid, so fixed rather than argued.
+- [ ] Fix the pre-existing hydration mismatch the browser check found: under `prefers-reduced-motion: reduce` the sign-in card's `initial` differed between server and client HTML. Same screen, same file, requested by the user in this session.
+
 ### Non-goals
 - No WebGL, `ogl`, `three`, `gsap` or any new dependency.
 - No change to auth logic, redirects, error codes or the demo-mode screen.
-- No new copy, logo or typography changes.
+- No new copy beyond the two pause-control labels ("Jeda animasi" / "Putar animasi"); no logo or typography changes.
 
 ### Assumptions I'm making
 1. "Relevant React Bits motion background" = **Aurora** (soft, calm, brand-teal). Alternatives I rejected: Particles/Galaxy (busy, heavy), Silk/Liquid Ether (WebGL), Squares/Hexagon-style grids (angular shapes you asked to avoid).
@@ -28,11 +32,15 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
 - [x] **Task 1 — Aurora component.** Add `components/reactbits/aurora.tsx`, blob keyframes/animation tokens in `app/globals.css`, and `components/reactbits/__tests__/aurora.test.tsx`. Accept: renders one `aria-hidden` layer with blob children, animation classes behind `motion-safe:`, test passes. Independent.
 - [x] **Task 2 — Wire into login.** Edit `app/page.tsx`: delete `MOTIF_SVG` and its overlay, mount `<Aurora />` in the brand panel, adjust panel classes if needed. Accept: no star/tile motif left, panel text contrast ≥ AA, build + vitest green. Depends on Task 1.
 - [x] **Task 3 — Verify visually.** Run the app, screenshot desktop + mobile login, confirm contrast and reduced-motion static state; fill Verification (design-system token). Depends on Task 2.
+- [x] **Task 4 — Pause control.** `Aurora` gains a `paused` prop; `SignInPage` gets a pause/play icon button in the brand panel. Accept: pausing freezes all three bands in a real browser and playing resumes them; button is 44px, named, hidden under reduced motion; component and page tests cover it. Depends on Task 2.
+- [x] **Task 5 — Fix reduced-motion hydration mismatch.** Constant `initial` on the sign-in card plus `<MotionConfig reducedMotion="user">` around `SignInPage`. Accept: a server-render-then-hydrate test fails on the old branch and passes on the fix; no hydration error in a reduced-motion browser run. Shares `app/page.tsx` with Task 4, so the two land in one commit.
 
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5 (already the dirty-work tier per CLAUDE.md § Harness Roster; no cheaper tier to fan out to), dirty-work=none. Tasks [1,2,3] sequential and inline: three small interlocking edits (one component, one call-site swap, one verification pass) where a subagent would need the whole plan as context. A general-purpose agent did the independent review pass (`feature-dev:code-reviewer` is not installed in this harness).
 - Task 1: Aurora component — `components/reactbits/aurora.tsx`, `components/reactbits/__tests__/aurora.test.tsx`, `app/globals.css` — server-rendered CSS port of React Bits Aurora: three elliptical radial-gradient bands in `--primary` / `--primary-text` / `--celebration-gold` at 28/10/10% peak, `transform`-only keyframes (26/32/38s, alternating, mismatched so they never re-sync) behind `motion-safe:`. Peaks were chosen from a worst-case contrast calculation (all three bands overlapping at peak on `--secondary`): 4.76:1 muted text, 3.12:1 icons. The first draft (45/22/20) measured 3.69:1 and was rejected.
 - Task 2: Wire into login — `app/page.tsx` — deleted `MOTIF_SVG` (the square + rotated-square + circle tile, i.e. an eight-point star pattern) and its overlay div; mounted `<Aurora />` in the brand panel, which was already `relative isolate overflow-hidden`. Sign-in section, copy, Google flow and `DemoLoginPage` untouched.
+- Task 4: Pause control — `components/reactbits/aurora.tsx`, `components/reactbits/__tests__/aurora.test.tsx`, `app/page.tsx` — `paused` sets `data-paused` on the layer and each band carries `group-data-[paused=true]/aurora:[animation-play-state:paused]`, so pausing is CSS-only and keeps each band's position (a resume continues rather than restarting). The toggle is a ghost icon `Button` (`size-11`, lucide `Pause`/`Play`), label flips between "Jeda animasi" and "Putar animasi" (no `aria-pressed`, which would double-announce a changing label), `motion-reduce:hidden` in CSS rather than `useReducedMotion()` so server and client HTML stay identical. State is per page view, not persisted.
+- Task 5: Hydration fix — `app/page.tsx`, `app/__tests__/page.test.tsx` — removed `initial={prefersReducedMotion ? false : …}` and the `useReducedMotion` import; `LoginPageWrapper` wraps only `SignInPage` in `<MotionConfig reducedMotion="user">` (`DemoLoginPage` stays outside it, unchanged). Reduced-motion users now get the fade without the slide. Tasks 4 and 5 are one commit because both edit `app/page.tsx`; splitting would need interactive staging.
 
 ## Verification
 - design-system: colours are brand tokens via `color-mix` only (no hex), motion is restrained and transform-only, panel layout and type scale untouched (`.claude/standards/design-system.html`, `colors.md`, `ui.md`).
@@ -57,7 +65,7 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
   - Evidence: `docs/cycles/screenshots/2026-10-04-login-aurora-desktop.png`, `docs/cycles/screenshots/2026-10-04-login-aurora-mobile.png`.
   - Blockers: 0 introduced by this change. Findings classified:
     - Minor, environmental: `net::ERR_TUNNEL_CONNECTION_FAILED` for `va.vercel-scripts.com` (Vercel Analytics / Speed Insights), blocked by the sandbox network. Not code.
-    - Minor, pre-existing: under `prefers-reduced-motion: reduce` React logs a hydration mismatch on the sign-in card's `motion.div` (`initial={prefersReducedMotion ? false : …}` renders differently on server and client). In lines this cycle did not touch, and visible only to reduced-motion users. Not fixed here (scope); queued as a follow-up suggestion.
+    - Minor, pre-existing: under `prefers-reduced-motion: reduce` React logs a hydration mismatch on the sign-in card's `motion.div` (`initial={prefersReducedMotion ? false : …}` renders differently on server and client). In lines this cycle did not touch, and visible only to reduced-motion users. Left alone at this SHA; fixed afterwards in Task 5 and re-verified in the follow-up block below.
 
 ## Ship Notes
 - No migrations, no env vars, no new dependencies. `package-lock.json` untouched.

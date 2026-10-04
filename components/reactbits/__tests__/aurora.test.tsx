@@ -34,6 +34,19 @@ describe("Aurora", () => {
     }
   })
 
+  it("freezes every band when paused, and runs by default", () => {
+    const { container, rerender } = render(<Aurora />)
+    const layer = container.querySelector<HTMLElement>('[data-slot="aurora"]')!
+    expect(layer).toHaveAttribute("data-paused", "false")
+    rerender(<Aurora paused />)
+    expect(layer).toHaveAttribute("data-paused", "true")
+    // The pause is a group-data variant on each band, driven by the layer's attribute.
+    expect(layer.className).toContain("group/aurora")
+    for (const band of container.querySelectorAll<HTMLElement>("[data-band]")) {
+      expect(band.className).toContain("group-data-[paused=true]/aurora:[animation-play-state:paused]")
+    }
+  })
+
   it("merges a caller className onto the layer", () => {
     const { container } = render(<Aurora className="opacity-80" />)
     expect(container.querySelector('[data-slot="aurora"]')!.className).toContain("opacity-80")
