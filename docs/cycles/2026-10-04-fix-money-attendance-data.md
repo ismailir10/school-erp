@@ -27,13 +27,16 @@ Job: a bursar sees a parent's remaining balance disappear after paying, and an a
 4. Existing PARTIALLY_PAID invoices with a payment link will be re-checked on the next cron run after deploy. That is intended and idempotent, since it goes through the same payment processor as the webhook.
 
 ## Tasks
-- [ ] **1. Reconcile cron statuses.** Use the shared unpaid-status list (`lib/finance/student-invoice-summary.ts`) in `app/api/cron/reconcile-payments/route.ts`. Fix `app/api/__tests__/cron-reconcile-payments.test.ts:71`. Accept: test fails on the old code, passes on the new.
+- [x] **1. Reconcile cron statuses.** Use the shared unpaid-status list (`lib/finance/student-invoice-summary.ts`) in `app/api/cron/reconcile-payments/route.ts`. Fix `app/api/__tests__/cron-reconcile-payments.test.ts:71`. Accept: test fails on the old code, passes on the new.
 - [ ] **2. Override check-in time.** Accept `HH:MM` in both create and update schemas (`lib/validations/attendance.ts`, `app/api/attendance/[id]/override/route.ts`), convert it with the org timezone using `lib/attendance/timezone.ts`, send it from `components/attendance/override-modal.tsx` on create. Accept: schema and route tests for create and update, both fail on old code.
 - [ ] **3. Jakarta "today".** Replace the UTC copies in `app/admin/assessments/page.tsx`, `app/api/admin/classes/[id]/enrollments/route.ts` and the two employee date pickers with `getTodayInTimezone(JAKARTA_TZ)`. Accept: a test with the clock set to 18:00 UTC shows the next Jakarta day.
 - Dependencies: tasks are independent. Reuse `getTodayInTimezone` and `JAKARTA_TZ` (`lib/attendance/timezone.ts`, `lib/sessions/dates.ts`).
 
 ## Implementation
+- Subagent plan: driver=claude-sonnet-5-5 (CTO session), dirty-work=sonnet; tasks [1,2,3] parallel (disjoint files, one agent each, tests written failing-first); reviews by a general-purpose agent because `feature-dev:code-reviewer` is not installed in this harness. Full build gate is held until the local heuristic-test server (which serves the compiled `.next` of this worktree) is finished, so the build does not overwrite it.
+- Task 1: Reconcile cron statuses — `app/api/cron/reconcile-payments/route.ts`, `app/api/__tests__/cron-reconcile-payments.test.ts` — the sweep now filters with the shared `UNPAID_INVOICE_STATUSES` (SENT, PARTIALLY_PAID, OVERDUE) instead of a retyped list containing the non-existent `"PARTIAL"`; test asserts the shared list and that `PARTIAL` is absent. Reviewer: clear; a PARTIALLY_PAID invoice flows through `reconcileInvoicePayment` / `processPaymentEvent` idempotently (event-id dedup, existing-payment early return, totalPaid recomputed).
 
 ## Verification
+- Task 1: `npx vitest run app/api/__tests__/cron-reconcile-payments.test.ts app/api/__tests__/finance-maintenance.test.ts` → 2 files, 16 tests passed (run by the driver, not only the subagent). Full build gate pending (see Implementation).
 
 ## Ship Notes
