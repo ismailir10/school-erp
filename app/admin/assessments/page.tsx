@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { formatLearningCenter, formatDate } from "@/lib/format";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 type WalasRow = {
   classSectionId: string;
@@ -33,7 +35,7 @@ type Monitor = {
 };
 
 function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
+  return getTodayInTimezone(JAKARTA_TZ);
 }
 
 function CompletionBadge({ assessed, enrolled }: { assessed: number; enrolled: number }) {

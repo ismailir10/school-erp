@@ -31,6 +31,8 @@ import { createEmployeeSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 // ------------------------------------------------------------------
 // Types
@@ -593,7 +595,7 @@ function CreateEmployeeFormBody({
           required
           id="employee-hire-date"
           render={({ field, controlProps }) => (
-            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required max={new Date().toISOString().split("T")[0]} />
+            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required max={getTodayInTimezone(JAKARTA_TZ)} />
           )}
         />
         <FormField

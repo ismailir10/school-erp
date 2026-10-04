@@ -294,4 +294,26 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
     });
     expect(txArg).toBe(tx);
   });
+
+  it("stamps the enrolment start date with the Jakarta calendar day, not the UTC day (01:00 WIB = 18:00Z the day before)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-04T18:00:00Z")); // 2026-10-05 01:00 WIB
+      requirePermission.mockResolvedValue(ALLOW);
+      db.classSection.findFirst.mockResolvedValue(makeClassSection());
+      db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+      const tx = makeTx({ activeCount: 3 });
+      db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
+
+      const res = await POST(req({ studentId: "s1" }), ctx);
+      expect(res.status).toBe(201);
+      expect(tx.studentEnrollment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ enrollDate: "2026-10-05" }),
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -306,4 +306,36 @@ describe("employee profile edit card", () => {
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Data karyawan disimpan"));
   });
+
+  it("caps the hire-date picker at today's Jakarta calendar day, not the UTC day (01:00 WIB = 18:00Z the day before)", async () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          matches: query.includes("coarse"),
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+    const { fn } = stubEditableFetch();
+    vi.stubGlobal("fetch", fn);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-04T18:00:00Z")); // 2026-10-05 01:00 WIB
+      const user = userEvent.setup();
+      render(<EmployeeDetailPage />);
+
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Budi Santoso" })).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Ubah" }));
+
+      expect(screen.getByLabelText("Tanggal Masuk", { exact: false })).toHaveAttribute("max", "2026-10-05");
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
 });

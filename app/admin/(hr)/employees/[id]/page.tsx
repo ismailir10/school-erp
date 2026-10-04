@@ -26,6 +26,8 @@ import { employeeEditFormSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
@@ -430,7 +432,7 @@ export default function EmployeeDetailPage() {
                       label="Tanggal Masuk"
                       id="employee-detail-hire-date"
                       render={({ field, controlProps }) => (
-                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={new Date().toISOString().split("T")[0]} />
+                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={getTodayInTimezone(JAKARTA_TZ)} />
                       )}
                     />
                   </div>
