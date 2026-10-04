@@ -28,15 +28,27 @@ export const ATTENDANCE_STATUSES = [
   "PERMISSION",
 ] as const;
 
+const reasonField = z
+  .string()
+  .trim()
+  .min(1, "Alasan wajib diisi")
+  .max(500, "Alasan maksimal 500 karakter");
+
+// Admin-typed check-in time, 24h `HH:MM`, read as school-local wall-clock time
+// on the record's date (the route converts it with the tenant timezone). A
+// blank string means "no time" and normalises to undefined.
+const hhmmTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format waktu harus HH:MM");
+const blankToUndefined = z.literal("").transform(() => undefined);
+const checkInTimeField = z.union([blankToUndefined, hhmmTime]).optional();
+
 export const attendanceOverrideSchema = z
   .object({
     date: isoDateString,
     status: z.enum(ATTENDANCE_STATUSES),
-    reason: z
-      .string()
-      .trim()
-      .min(1, "Alasan wajib diisi")
-      .max(500, "Alasan maksimal 500 karakter"),
+    checkInTime: checkInTimeField,
+    reason: reasonField,
   })
   .refine(
     (v) => {
@@ -61,6 +73,18 @@ export const attendanceOverrideSchema = z
   );
 
 export type AttendanceOverrideInput = z.infer<typeof attendanceOverrideSchema>;
+
+// PUT /api/attendance/[id]/override — date is immutable (taken from the record).
+// `checkInTime` takes the modal's `HH:MM`; legacy callers sent a full datetime
+// with or without offset (`2026-04-15T07:00:00`, `...000Z`), still accepted.
+export const attendanceOverrideUpdateSchema = z.object({
+  status: z.enum(ATTENDANCE_STATUSES),
+  checkInTime: z
+    .union([blankToUndefined, hhmmTime, z.string().datetime({ local: true })])
+    .optional(),
+  checkOutTime: z.string().datetime({ local: true }).optional(),
+  reason: reasonField,
+});
 
 /**
  * Body schema for self-service check-in / check-out.

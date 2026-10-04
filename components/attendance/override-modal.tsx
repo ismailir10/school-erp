@@ -73,7 +73,7 @@ export function OverrideModal({
       const res = await fetch(`/api/attendance/${employeeId}/override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, status, reason }),
+        body: JSON.stringify({ date, status, reason, checkInTime: checkInTime || undefined }),
       });
       if (res.ok) {
         toast.success("Kehadiran ditambahkan");

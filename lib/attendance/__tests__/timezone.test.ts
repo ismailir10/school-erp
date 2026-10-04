@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getTodayInTimezone, getYmdInTimezone } from "../timezone";
+import { getTodayInTimezone, getYmdInTimezone, zonedDateTimeToUtc } from "../timezone";
 
 /**
  * Regression coverage for FIND-002 / FIND-016 (UAT 2026-05-14):
@@ -54,5 +54,43 @@ describe("getTodayInTimezone / getYmdInTimezone — Asia/Jakarta boundaries", ()
   it("crosses year boundary correctly (31 Dec UTC 23:00 → 1 Jan WIB 06:00)", () => {
     vi.setSystemTime(new Date("2026-12-31T23:00:00.000Z"));
     expect(getTodayInTimezone("Asia/Jakarta")).toBe("2027-01-01");
+  });
+});
+
+describe("zonedDateTimeToUtc", () => {
+  it("converts Asia/Jakarta (UTC+7) local time to the UTC instant", () => {
+    expect(zonedDateTimeToUtc("2026-10-05", "07:30", "Asia/Jakarta").toISOString()).toBe(
+      "2026-10-05T00:30:00.000Z"
+    );
+  });
+
+  it("rolls back a day for Asia/Makassar (UTC+8)", () => {
+    expect(zonedDateTimeToUtc("2026-10-05", "07:30", "Asia/Makassar").toISOString()).toBe(
+      "2026-10-04T23:30:00.000Z"
+    );
+  });
+
+  it("handles Asia/Jayapura (UTC+9) and UTC", () => {
+    expect(zonedDateTimeToUtc("2026-10-05", "07:30", "Asia/Jayapura").toISOString()).toBe(
+      "2026-10-04T22:30:00.000Z"
+    );
+    expect(zonedDateTimeToUtc("2026-10-05", "07:30", "UTC").toISOString()).toBe(
+      "2026-10-05T07:30:00.000Z"
+    );
+  });
+
+  it("honours DST zones (America/New_York: EDT -4 in Oct, EST -5 in Dec)", () => {
+    expect(zonedDateTimeToUtc("2026-10-05", "07:30", "America/New_York").toISOString()).toBe(
+      "2026-10-05T11:30:00.000Z"
+    );
+    expect(zonedDateTimeToUtc("2026-12-05", "07:30", "America/New_York").toISOString()).toBe(
+      "2026-12-05T12:30:00.000Z"
+    );
+  });
+
+  it("handles midnight", () => {
+    expect(zonedDateTimeToUtc("2026-10-05", "00:00", "Asia/Jakarta").toISOString()).toBe(
+      "2026-10-04T17:00:00.000Z"
+    );
   });
 });

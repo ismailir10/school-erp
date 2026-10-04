@@ -13,13 +13,17 @@ import type { SessionUser } from "@/lib/auth";
 
 const attendanceFindUnique = vi.fn();
 const attendanceUpsert = vi.fn();
+const attendanceUpdate = vi.fn();
+const orgConfigFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     attendanceRecord: {
       findUnique: attendanceFindUnique,
       upsert: attendanceUpsert,
+      update: attendanceUpdate,
     },
+    orgConfig: { findUnique: orgConfigFindUnique },
   },
 }));
 
@@ -70,6 +74,7 @@ describe("POST /api/attendance/[id]/override — payroll-lock guard (B4)", () =>
   beforeEach(() => {
     vi.clearAllMocks();
     verifyTenantOwnership.mockResolvedValue(true);
+    orgConfigFindUnique.mockResolvedValue({ timezone: "Asia/Jakarta" });
   });
 
   it("rejects with 400 when the existing record is payroll-locked", async () => {
@@ -137,5 +142,124 @@ describe("POST /api/attendance/[id]/override — payroll-lock guard (B4)", () =>
 
     expect(res.status).toBe(200);
     expect(attendanceUpsert).toHaveBeenCalledOnce();
+  });
+});
+
+describe("override check-in time (HH:MM in school timezone)", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    verifyTenantOwnership.mockResolvedValue(true);
+    orgConfigFindUnique.mockResolvedValue({ timezone: "Asia/Jakarta" });
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+  });
+
+  it("POST persists checkInTime as the UTC instant of local Jakarta time", async () => {
+    attendanceFindUnique.mockResolvedValue(null);
+    attendanceUpsert.mockResolvedValue({ id: "att-new" });
+    const { POST } = await import("../attendance/[id]/override/route");
+    const res = await POST(
+      makeReq({ ...validBody, date: "2026-10-05", checkInTime: "07:30" }) as never,
+      { params: Promise.resolve({ id: "emp-1" }) } as never,
+    );
+    expect(res.status).toBe(200);
+    expect(orgConfigFindUnique).toHaveBeenCalledWith({ where: { tenantId: "tenant-1" } });
+    const arg = attendanceUpsert.mock.calls[0][0];
+    expect(arg.create.checkInTime).toEqual(new Date("2026-10-05T00:30:00.000Z"));
+    expect(arg.update.checkInTime).toEqual(new Date("2026-10-05T00:30:00.000Z"));
+  });
+
+  it("POST uses the tenant timezone when it is not Jakarta", async () => {
+    orgConfigFindUnique.mockResolvedValue({ timezone: "Asia/Makassar" });
+    attendanceFindUnique.mockResolvedValue(null);
+    attendanceUpsert.mockResolvedValue({ id: "att-new" });
+    const { POST } = await import("../attendance/[id]/override/route");
+    await POST(
+      makeReq({ ...validBody, date: "2026-10-05", checkInTime: "07:30" }) as never,
+      { params: Promise.resolve({ id: "emp-1" }) } as never,
+    );
+    const arg = attendanceUpsert.mock.calls[0][0];
+    expect(arg.create.checkInTime).toEqual(new Date("2026-10-04T23:30:00.000Z"));
+  });
+
+  it("POST falls back to Asia/Jakarta when the tenant has no OrgConfig", async () => {
+    orgConfigFindUnique.mockResolvedValue(null);
+    attendanceFindUnique.mockResolvedValue(null);
+    attendanceUpsert.mockResolvedValue({ id: "att-new" });
+    const { POST } = await import("../attendance/[id]/override/route");
+    await POST(
+      makeReq({ ...validBody, date: "2026-10-05", checkInTime: "07:30" }) as never,
+      { params: Promise.resolve({ id: "emp-1" }) } as never,
+    );
+    expect(attendanceUpsert.mock.calls[0][0].create.checkInTime).toEqual(
+      new Date("2026-10-05T00:30:00.000Z"),
+    );
+  });
+
+  it("POST without a time leaves checkInTime unset", async () => {
+    attendanceFindUnique.mockResolvedValue(null);
+    attendanceUpsert.mockResolvedValue({ id: "att-new" });
+    const { POST } = await import("../attendance/[id]/override/route");
+    await POST(
+      makeReq({ ...validBody, checkInTime: "" }) as never,
+      { params: Promise.resolve({ id: "emp-1" }) } as never,
+    );
+    const arg = attendanceUpsert.mock.calls[0][0];
+    expect(arg.create.checkInTime).toBeUndefined();
+    expect(arg.update.checkInTime).toBeUndefined();
+  });
+
+  it("POST rejects a malformed time with 400", async () => {
+    const { POST } = await import("../attendance/[id]/override/route");
+    const res = await POST(
+      makeReq({ ...validBody, checkInTime: "25:00" }) as never,
+      { params: Promise.resolve({ id: "emp-1" }) } as never,
+    );
+    expect(res.status).toBe(400);
+    expect(attendanceUpsert).not.toHaveBeenCalled();
+  });
+
+  function putReq(body: unknown) {
+    return new Request("http://localhost:3000/api/attendance/att-1/override", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("PUT with HH:MM persists the converted instant on the record's date", async () => {
+    attendanceFindUnique.mockResolvedValue({ id: "att-1", date: "2026-10-05", isLocked: false });
+    attendanceUpdate.mockResolvedValue({ id: "att-1" });
+    const { PUT } = await import("../attendance/[id]/override/route");
+    const res = await PUT(
+      putReq({ status: "LATE", reason: "Koreksi", checkInTime: "07:30" }) as never,
+      { params: Promise.resolve({ id: "att-1" }) } as never,
+    );
+    expect(res.status).toBe(200);
+    expect(attendanceUpdate.mock.calls[0][0].data.checkInTime).toEqual(
+      new Date("2026-10-05T00:30:00.000Z"),
+    );
+  });
+
+  it("PUT still rejects a locked record", async () => {
+    attendanceFindUnique.mockResolvedValue({ id: "att-1", date: "2026-10-05", isLocked: true });
+    const { PUT } = await import("../attendance/[id]/override/route");
+    const res = await PUT(
+      putReq({ status: "LATE", reason: "Koreksi", checkInTime: "07:30" }) as never,
+      { params: Promise.resolve({ id: "att-1" }) } as never,
+    );
+    expect(res.status).toBe(400);
+    expect(attendanceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("PUT without a time leaves checkInTime unchanged", async () => {
+    attendanceFindUnique.mockResolvedValue({ id: "att-1", date: "2026-10-05", isLocked: false });
+    attendanceUpdate.mockResolvedValue({ id: "att-1" });
+    const { PUT } = await import("../attendance/[id]/override/route");
+    await PUT(
+      putReq({ status: "LATE", reason: "Koreksi" }) as never,
+      { params: Promise.resolve({ id: "att-1" }) } as never,
+    );
+    expect(attendanceUpdate.mock.calls[0][0].data.checkInTime).toBeUndefined();
   });
 });
