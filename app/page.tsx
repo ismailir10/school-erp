@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
+import { Aurora } from "@/components/reactbits/aurora";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { createClient } from "@/lib/supabase/client";
 import { CalendarCheck2, CreditCard, Loader2, NotebookPen } from "lucide-react";
@@ -29,12 +30,6 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   auth_failed: "Login gagal. Silakan coba lagi.",
   access_denied: "Akun belum terdaftar. Hubungi admin sekolah untuk akses.",
 };
-
-// Eight-point geometric motif for the brand panel, rendered at the subtle
-// opacity the design-system reserves for Islamic geometric accents. Inline so
-// the decorative asset stays local to the only screen that uses it.
-const MOTIF_SVG =
-  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%232F7A7D' stroke-width='1.5'><rect x='30' y='30' width='60' height='60'/><rect x='30' y='30' width='60' height='60' transform='rotate(45 60 60)'/><circle cx='60' cy='60' r='30'/></g></svg>\")";
 
 const CAPABILITIES = [
   {
@@ -187,11 +182,8 @@ function SignInPage() {
 
       {/* Brand panel — below the action on mobile, left column on desktop. */}
       <section className="relative order-2 isolate overflow-hidden bg-secondary px-6 py-10 lg:order-1 lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-12 lg:py-12">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06]"
-          style={{ backgroundImage: MOTIF_SVG, backgroundSize: "120px 120px" }}
-        />
+        {/* Soft drifting aurora (React Bits port). Curves only — no tiled or angular shapes. */}
+        <Aurora />
 
         <div className="mb-6 hidden items-center gap-3 lg:mb-0 lg:flex">
           <Image

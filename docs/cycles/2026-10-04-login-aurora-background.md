@@ -26,15 +26,17 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
 
 ## Tasks
 - [x] **Task 1 — Aurora component.** Add `components/reactbits/aurora.tsx`, blob keyframes/animation tokens in `app/globals.css`, and `components/reactbits/__tests__/aurora.test.tsx`. Accept: renders one `aria-hidden` layer with blob children, animation classes behind `motion-safe:`, test passes. Independent.
-- [ ] **Task 2 — Wire into login.** Edit `app/page.tsx`: delete `MOTIF_SVG` and its overlay, mount `<Aurora />` in the brand panel, adjust panel classes if needed. Accept: no star/tile motif left, panel text contrast ≥ AA, build + vitest green. Depends on Task 1.
+- [x] **Task 2 — Wire into login.** Edit `app/page.tsx`: delete `MOTIF_SVG` and its overlay, mount `<Aurora />` in the brand panel, adjust panel classes if needed. Accept: no star/tile motif left, panel text contrast ≥ AA, build + vitest green. Depends on Task 1.
 - [ ] **Task 3 — Verify visually.** Run the app, screenshot desktop + mobile login, confirm contrast and reduced-motion static state; fill Verification (design-system token). Depends on Task 2.
 
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5 (already the dirty-work tier per CLAUDE.md § Harness Roster; no cheaper tier to fan out to), dirty-work=none. Tasks [1,2,3] sequential and inline: three small interlocking edits (one component, one call-site swap, one verification pass) where a subagent would need the whole plan as context. A general-purpose agent did the independent review pass (`feature-dev:code-reviewer` is not installed in this harness).
 - Task 1: Aurora component — `components/reactbits/aurora.tsx`, `components/reactbits/__tests__/aurora.test.tsx`, `app/globals.css` — server-rendered CSS port of React Bits Aurora: three elliptical radial-gradient bands in `--primary` / `--primary-text` / `--celebration-gold` at 28/10/10% peak, `transform`-only keyframes (26/32/38s, alternating, mismatched so they never re-sync) behind `motion-safe:`. Peaks were chosen from a worst-case contrast calculation (all three bands overlapping at peak on `--secondary`): 4.76:1 muted text, 3.12:1 icons. The first draft (45/22/20) measured 3.69:1 and was rejected.
+- Task 2: Wire into login — `app/page.tsx` — deleted `MOTIF_SVG` (the square + rotated-square + circle tile, i.e. an eight-point star pattern) and its overlay div; mounted `<Aurora />` in the brand panel, which was already `relative isolate overflow-hidden`. Sign-in section, copy, Google flow and `DemoLoginPage` untouched.
 
 ## Verification
 - design-system: colours are brand tokens via `color-mix` only (no hex), motion is restrained and transform-only, panel layout and type scale untouched (`.claude/standards/design-system.html`, `colors.md`, `ui.md`).
 - Task 1: build + vitest + lint + typecheck passed (see end-of-cycle gate below); `aurora.test.tsx` 4/4 (aria-hidden decorative layer, three bands with `motion-safe:`-only animation, tokens and curves only, className merge).
+- Task 2: same gates; independent review pass reported no high-confidence issues (class generation, stacking, reduced motion, tokens, `color-mix` support, non-vacuous tests).
 
 ## Ship Notes
