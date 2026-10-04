@@ -27,7 +27,7 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
 ## Tasks
 - [x] **Task 1 — Aurora component.** Add `components/reactbits/aurora.tsx`, blob keyframes/animation tokens in `app/globals.css`, and `components/reactbits/__tests__/aurora.test.tsx`. Accept: renders one `aria-hidden` layer with blob children, animation classes behind `motion-safe:`, test passes. Independent.
 - [x] **Task 2 — Wire into login.** Edit `app/page.tsx`: delete `MOTIF_SVG` and its overlay, mount `<Aurora />` in the brand panel, adjust panel classes if needed. Accept: no star/tile motif left, panel text contrast ≥ AA, build + vitest green. Depends on Task 1.
-- [ ] **Task 3 — Verify visually.** Run the app, screenshot desktop + mobile login, confirm contrast and reduced-motion static state; fill Verification (design-system token). Depends on Task 2.
+- [x] **Task 3 — Verify visually.** Run the app, screenshot desktop + mobile login, confirm contrast and reduced-motion static state; fill Verification (design-system token). Depends on Task 2.
 
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5 (already the dirty-work tier per CLAUDE.md § Harness Roster; no cheaper tier to fan out to), dirty-work=none. Tasks [1,2,3] sequential and inline: three small interlocking edits (one component, one call-site swap, one verification pass) where a subagent would need the whole plan as context. A general-purpose agent did the independent review pass (`feature-dev:code-reviewer` is not installed in this harness).
@@ -38,5 +38,29 @@ The Google sign-in screen (`app/page.tsx`, `SignInPage`) has a static brand pane
 - design-system: colours are brand tokens via `color-mix` only (no hex), motion is restrained and transform-only, panel layout and type scale untouched (`.claude/standards/design-system.html`, `colors.md`, `ui.md`).
 - Task 1: build + vitest + lint + typecheck passed (see end-of-cycle gate below); `aurora.test.tsx` 4/4 (aria-hidden decorative layer, three bands with `motion-safe:`-only animation, tokens and curves only, className merge).
 - Task 2: same gates; independent review pass reported no high-confidence issues (class generation, stacking, reduced motion, tokens, `color-mix` support, non-vacuous tests).
+- Task 3: verification only — screenshots committed under `docs/cycles/screenshots/`, record below.
+
+### End-of-cycle gate (run on source SHA `93d7fb9678ae4bb924a880e224208af45a59ae28`, the code head)
+- `DEMO_MODE=true DATABASE_URL=postgresql://ci:ci@localhost:5432/schoolerp npm run build` (CI's env; a bare `npm run build` fails in a worktree with no `.env` on `DATABASE_URL is not configured`, not on this change): completed, route table printed, exit 0.
+- `npx vitest run`: `Test Files  479 passed | 2 skipped (481)`, `Tests  4403 passed | 42 todo (4445)`.
+- `npm run typecheck`: no errors. `npm run lint`: `55 problems (0 errors, 55 warnings)`, all pre-existing, none in changed files.
+- `bash scripts/audit-docs.sh`: `13 ok, 1 warn, 0 fail` (the warn is the standing ADR 60-day window notice).
+- Contrast (worst case, all three bands overlapping at peak on `--secondary`): muted text 4.76:1, foreground 10.90:1, `--primary-text` icons 3.12:1.
+- Soft-skip delta: no test files other than the new `aurora.test.tsx` changed, and it adds no skips.
+- Playwright: local run deferred to CI (env cannot execute it: no seeded database for the e2e suite). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red. Note no e2e spec reaches the changed screen: every spec runs `DEMO_MODE=true`, which renders `DemoLoginPage` (untouched), and `SignInPage` only renders when `NEXT_PUBLIC_SUPABASE_URL` is set.
+
+### Verification route (`/ship` Step 3)
+- Changed paths vs `origin/staging`: `app/page.tsx`, `app/globals.css`, `components/reactbits/aurora.tsx`, `components/reactbits/__tests__/aurora.test.tsx`, the cycle doc, two screenshots, and the generated counts block in `CLAUDE.md` (70 → 71 active cycles, regenerated with `audit-docs.sh --write`). Runtime source is present, so documentation-only does not apply. No auth logic, session, cookie, guard or dependency changed: a visual swap inside the brand panel, with the Google handler and redirect URL untouched. Route = **Other code changes → local verification**, no signed-in staging check required.
+- Local verification passed for source SHA `93d7fb9678ae4bb924a880e224208af45a59ae28`: route=`next dev` on :3100 with `NEXT_PUBLIC_SUPABASE_URL` set to a dummy so `SignInPage` renders, `DATABASE_URL` pointed at a disposable local Postgres 16 (`schoolerp`, no schema applied: the login screen makes no database reads). Chromium via Playwright at 1280x800, 390x844, and 1280x800 with `prefers-reduced-motion: reduce`.
+  - Desktop and mobile: `<h1>` "Masuk ke Talib" and the "Masuk dengan Google" button render; Aurora layer present (656x800 desktop, 390x351 mobile); all three bands animating (`aurora-a/b/c`, 26s/32s/38s, live non-identity transforms); no horizontal scroll; no remaining `data:image/svg` background anywhere on the page; zero HTTP 5xx.
+  - Reduced motion: `animation-name: none` and `transform: none` on all three bands (static backdrop).
+  - Evidence: `docs/cycles/screenshots/2026-10-04-login-aurora-desktop.png`, `docs/cycles/screenshots/2026-10-04-login-aurora-mobile.png`.
+  - Blockers: 0 introduced by this change. Findings classified:
+    - Minor, environmental: `net::ERR_TUNNEL_CONNECTION_FAILED` for `va.vercel-scripts.com` (Vercel Analytics / Speed Insights), blocked by the sandbox network. Not code.
+    - Minor, pre-existing: under `prefers-reduced-motion: reduce` React logs a hydration mismatch on the sign-in card's `motion.div` (`initial={prefersReducedMotion ? false : …}` renders differently on server and client). In lines this cycle did not touch, and visible only to reduced-motion users. Not fixed here (scope); queued as a follow-up suggestion.
 
 ## Ship Notes
+- No migrations, no env vars, no new dependencies. `package-lock.json` untouched.
+- Merge is a squash into `staging`; Vercel builds `staging` only, so there is no preview. After merge, a glance at the staging login screen (Aurora visible on the brand panel, Google button works) is a health check, not a gate: this is not an auth-impacting change, so no `needs-staging-verify` label.
+- Rollback: revert the squash commit. The change is purely presentational (`app/page.tsx` swap plus an additive component and keyframes).
+- Scope note: the ask also covered avoiding "Israel-kind-of-shape" imagery. The only angular/star geometry on this screen was the tiled `MOTIF_SVG` pattern, now removed. The new backdrop uses ellipses and gradients only. A `--motif-opacity` token remains in `app/globals.css` unused by this screen and was deliberately left alone.
