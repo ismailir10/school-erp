@@ -2,15 +2,15 @@
  * Browser-side image preparation for the enrollment "Berkas" step.
  *
  * A phone photo is routinely 4-8 MB; the upload route caps at 4 MB (Vercel's
- * request limit is 4.5 MB). Images are downscaled to a 2000 px longest side
+ * request limit is 4.5 MB). Images are downscaled to a 1600 px longest side
  * and re-encoded as JPEG before they leave the browser. PDFs and anything we
  * cannot decode (e.g. HEIC outside Safari) go up untouched and the server
  * decides.
  */
 
-export const MAX_IMAGE_SIDE = 2000;
-export const COMPRESS_ABOVE_BYTES = 1.5 * 1024 * 1024;
-export const JPEG_QUALITY = 0.85;
+export const MAX_IMAGE_SIDE = 1600;
+export const COMPRESS_ABOVE_BYTES = 800 * 1024;
+export const JPEG_QUALITY = 0.8;
 
 /** Scale (w, h) down so the longest side is at most `max`. Never upscales. */
 export function fitWithin(width: number, height: number, max: number): { width: number; height: number } {

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { prepareUpload } from "@/lib/enrollment/compress-image";
 import {
   DOCUMENT_ITEMS,
+  MAX_DOCUMENT_BYTES,
   type DocumentItem,
   type DocumentKey,
   type PublicDocuments,
@@ -103,6 +104,11 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
       setRowBusy(key, "upload");
       try {
         const file = await prepareUpload(picked);
+        // Don't spend a slow uplink on a file the server will refuse anyway.
+        if (file.size > MAX_DOCUMENT_BYTES) {
+          setRowError(key, documentErrorMessage(413));
+          return;
+        }
         const fd = new FormData();
         fd.append("file", file, file.name);
         if (key === "lainnya" && label?.trim()) fd.append("label", label.trim().slice(0, MAX_LABEL));
@@ -218,9 +224,9 @@ export function DocumentsStep({
                 <div className="min-w-0 space-y-1">
                   <p id={titleId} className="text-sm font-medium text-emerald-950">
                     {item.label}
-                    <span className="ml-2 text-xs font-normal text-emerald-900/60">
-                      {item.required ? "Wajib" : "Opsional"}
-                    </span>
+                    {!item.required && (
+                      <span className="ml-2 text-xs font-normal text-emerald-900/60">Jika ada</span>
+                    )}
                   </p>
                   {item.note && <p className="text-xs text-emerald-900/70">{item.note}</p>}
                   {doc ? (

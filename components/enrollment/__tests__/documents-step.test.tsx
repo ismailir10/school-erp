@@ -45,8 +45,9 @@ describe("DocumentsStep", () => {
     for (const item of DOCUMENT_ITEMS) {
       expect(screen.getByText(item.label)).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Wajib")).toHaveLength(DOCUMENT_ITEMS.filter((i) => i.required).length);
-    expect(screen.getAllByText("Opsional").length).toBeGreaterThanOrEqual(2);
+    // No "Wajib" badge (the step is optional); only the optional items are flagged.
+    expect(screen.queryByText("Wajib")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Jika ada")).toHaveLength(DOCUMENT_ITEMS.filter((i) => !i.required).length);
     expect(screen.getByLabelText("Nama berkas")).toBeInTheDocument();
   });
 
@@ -201,5 +202,19 @@ describe("DocumentsStep", () => {
     await user.click(screen.getByText("toggle"));
     await user.click(screen.getByText("toggle"));
     expect(screen.getByRole("button", { name: "Mengunggah Kartu Keluarga (KK)" })).toBeInTheDocument();
+  });
+
+  it("refuses an oversize file on the client without sending anything", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const big = new File([new Uint8Array(4 * 1024 * 1024 + 1)], "kk.pdf", { type: "application/pdf" });
+
+    await user.upload(screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }), big);
+
+    expect(
+      await screen.findByText("Ukuran berkas terlalu besar (maks. 4 MB). Coba foto ulang atau kecilkan PDF."),
+    ).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Unggah Kartu Keluarga (KK)" })).toHaveAttribute("aria-disabled", "false");
   });
 });

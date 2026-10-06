@@ -71,14 +71,21 @@ describe("prepareUpload re-encoding", () => {
     expect(await prepareUpload(f)).toBe(f);
   });
 
-  it("downscales a large PNG to JPEG at 2000px on the longest side", async () => {
+  it("downscales a large PNG to JPEG at 1600px on the longest side", async () => {
     const { canvases, close } = stubDecode(4000, 3000, 400_000);
     const out = await prepareUpload(file(3_000_000, "kk.png", "image/png"));
     expect(out.name).toBe("kk.jpg");
     expect(out.type).toBe("image/jpeg");
-    expect(canvases[0].width).toBe(2000);
-    expect(canvases[0].height).toBe(1500);
+    expect(canvases[0].width).toBe(1600);
+    expect(canvases[0].height).toBe(1200);
     expect(close).toHaveBeenCalled();
+  });
+
+  it("re-encodes a JPEG above 800 KB even when its dimensions are small", async () => {
+    stubDecode(1200, 800, 300_000);
+    const out = await prepareUpload(file(900_000, "a.jpg", "image/jpeg"));
+    expect(out.size).toBe(300_000);
+    expect(out.type).toBe("image/jpeg");
   });
 
   it("returns the original when the resized JPEG would be bigger", async () => {

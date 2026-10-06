@@ -155,6 +155,13 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="space-y-section">
+        {/* Actionable for staff, so it sits right under the header. */}
+        <EnrollmentDocumentsCard
+          applicationId={id}
+          documents={d.documents ?? {}}
+          canEdit={d.canEdit}
+        />
+
         <EnrollmentApplicationView
           application={{
             id,
@@ -163,12 +170,6 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
             ibuData: d.ibuData,
             consentData: d.consentData,
           }}
-        />
-
-        <EnrollmentDocumentsCard
-          applicationId={id}
-          documents={d.documents ?? {}}
-          canEdit={d.canEdit}
         />
 
         {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (

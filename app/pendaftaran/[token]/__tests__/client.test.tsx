@@ -196,4 +196,41 @@ describe("PendaftaranClient", () => {
       { timeout: 4000 },
     );
   });
+
+  it("blocks Kirim while an upload is in flight and explains why on Tinjau", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      String(input).includes("/documents") ? new Promise<Response>(() => undefined) : ok({}),
+    );
+    const user = userEvent.setup();
+    const both = {
+      ...filled,
+      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+    };
+    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    for (let i = 0; i < 4; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+    await user.upload(
+      screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }),
+      new File(["%PDF-1.4"], "kk.pdf", { type: "application/pdf" }),
+    );
+    await screen.findByRole("button", { name: "Mengunggah Kartu Keluarga (KK)" });
+    for (let i = 0; i < 2; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+
+    expect(screen.getByText("Masih ada berkas yang sedang diunggah. Mohon tunggu sebentar.")).toBeInTheDocument();
+    expect(screen.getByText("Sedang diunggah").nextSibling).toHaveTextContent("1");
+    const kirim = screen.getByRole("button", { name: "Menunggu unggahan selesai…" });
+    expect(kirim).toHaveAttribute("aria-disabled", "true");
+    expect(kirim).toHaveAttribute("aria-busy", "true");
+
+    await user.click(kirim);
+    expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).endsWith("/submit"))).toBe(false);
+  });
+
+  it("puts the handover note above the signature pads", async () => {
+    const user = userEvent.setup();
+    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    await gotoConsent(user);
+    const note = screen.getByText("Tanda tangan Ibu belum ada");
+    const pad = screen.getByText("Tanda tangan Ibu: kosong");
+    expect(note.compareDocumentPosition(pad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

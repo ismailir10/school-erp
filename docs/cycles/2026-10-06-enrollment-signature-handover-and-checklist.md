@@ -147,6 +147,15 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 
 - JTBD library: `docs/uat/jobs/parent.md` gets a new `## Area: enrollment-form` with JTBD-PARENT-ENROL-01 (two-device signing) and ENROL-02 (upload berkas from a phone). `docs/uat/jobs/admin.md` gets JTBD-ADMIN-ADM-02 (check Kelengkapan Berkas, open a file, tick papers received). Last-audited lines bumped.
 
+- Usability fixes from the heuristic UAT (`docs/uat/reports/2026-10-06-enrollment-form.md`):
+  - An oversized file is rejected on the client before upload. Before the fix it took 55 s on throttled 4G to show the 413.
+  - Compression is tightened to 1600 px at JPEG quality 0.8, re-encoding anything over 800 KB.
+  - Kirim is blocked while any upload or delete is in flight ("Menunggu unggahan selesai…"), with an in-flight note on Tinjau. Before the fix, a submit during an upload silently lost the file.
+  - The handover note moved above the signature pads.
+  - "Wajib" badges are dropped (the step is optional); optional items read "Jika ada".
+  - The admin Kelengkapan Berkas card moved to the top of the detail page.
+  - Files: `documents-step.tsx`, `compress-image.ts`, `client.tsx`, `app/admin/enrollments/[id]/page.tsx`, plus tests.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -159,6 +168,7 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - design-system: the Berkas step and handover note use existing Shadcn primitives (Button, Alert, Input, Badge, Spinner) and the page's existing emerald brand tokens; no new colors or arbitrary hex beyond what the form already used.
 - Task 8: covered by the combined gate above plus `e2e/enrollment-documents.spec.ts`. The admin card shows "1 / 9", ticking Akta moves it to "2 / 9", and the tick survives a reload.
 - Playwright (local, production build with `DEMO_MODE=true` against disposable local Postgres 16, Chromium via a local-only browser-path shim): `npx playwright test e2e/enrollment-application.spec.ts e2e/enrollment-signature-handover.spec.ts e2e/enrollment-documents.spec.ts e2e/admin-admission-convert-parity.spec.ts e2e/daftar-public.spec.ts` gave **12 passed (19.6s)**, with no retries.
+- After the UAT fixes: `npm run build` exited 0; `npx vitest run` gave 490 files passed / 2 skipped, 4551 tests passed; the enrollment Playwright set gave 12 passed (19.5s). CI on `0532c3b` (all code before the UAT fixes) passed all four required checks, including `Playwright E2E` with the new specs.
 
 ## Ship Notes
 

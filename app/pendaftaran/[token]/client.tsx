@@ -354,7 +354,10 @@ export default function PendaftaranClient({
     }
   }
 
+  const uploadsInFlight = Object.keys(docs.busy).length;
+
   async function submit() {
+    if (uploadsInFlight > 0) return; // an upload finishing after submit would 409
     const all = [0, 1, 2, 3, 4, 5].flatMap(validateStep);
     if (all.length) {
       setErrors(all);
@@ -476,7 +479,7 @@ export default function PendaftaranClient({
             onRefresh={refreshSignatures}
           />
         )}
-        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} />}
+        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} />}
       </div>
 
       <div className="flex items-center justify-between">
@@ -488,8 +491,16 @@ export default function PendaftaranClient({
             Lanjut
           </Button>
         ) : (
-          <Button type="button" onClick={submit} disabled={submitting}>
-            {submitting ? "Mengirim…" : "Kirim Formulir"}
+          <Button
+            type="button"
+            onClick={() => {
+              if (!submitting && uploadsInFlight === 0) void submit();
+            }}
+            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            aria-disabled={submitting || uploadsInFlight > 0}
+            aria-busy={submitting || uploadsInFlight > 0}
+          >
+            {submitting ? "Mengirim…" : uploadsInFlight > 0 ? "Menunggu unggahan selesai…" : "Kirim Formulir"}
           </Button>
         )}
       </div>
@@ -741,6 +752,8 @@ function ConsentStep({
       </label>
 
       <Separator />
+      {/* Above the pads so it is on screen right after the first parent saves. */}
+      <HandoverNote ayahSigned={value.ayahSigned} ibuSigned={value.ibuSigned} onRefresh={onRefresh} />
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
@@ -751,7 +764,6 @@ function ConsentStep({
           <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} onSave={(b) => onUpload("ibu", b)} />
         </div>
       </div>
-      <HandoverNote ayahSigned={value.ayahSigned} ibuSigned={value.ibuSigned} onRefresh={onRefresh} />
     </div>
   );
 }
@@ -866,10 +878,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewStep({
-  student, ayah, ibu, programs, programId, dcareAddon, consent, documents,
+  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading,
 }: {
   student: StudentState; ayah: ParentState; ibu: ParentState; programs: Program[];
-  programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments;
+  programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number;
 }) {
   const programName = programs.find((p) => p.id === programId)?.name ?? "—";
   const uploaded = Object.keys(documents).length;
@@ -902,6 +914,14 @@ function ReviewStep({
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Berkas</h3>
         <Row label="Berkas terunggah" value={String(uploaded)} />
+        {uploading > 0 && (
+          <>
+            <Row label="Sedang diunggah" value={String(uploading)} />
+            <p role="status" className="py-1 text-sm text-emerald-900/80">
+              Masih ada berkas yang sedang diunggah. Mohon tunggu sebentar.
+            </p>
+          </>
+        )}
         {missing.length > 0 ? (
           <p className="py-1 text-sm text-emerald-900/80">
             Belum diunggah — mohon dibawa ke sekolah: {missing.join(", ")}
