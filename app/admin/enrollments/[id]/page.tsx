@@ -10,6 +10,8 @@ import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
 import { EnrollmentApplicationView } from "@/components/admin/enrollment-application-view";
+import { EnrollmentDocumentsCard } from "@/components/admin/enrollment-documents-card";
+import type { AdminDocuments } from "@/lib/enrollment/documents";
 
 type Detail = {
   id: string;
@@ -28,6 +30,8 @@ type Detail = {
   ibuData: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   consentData: any;
+  /** Redacted by the API: file presence + names, never storage tokens. */
+  documents?: AdminDocuments;
   program: { id: string; name: string } | null;
   admission: { id: string; parentName: string; parentPhone: string | null } | null;
 };
@@ -159,6 +163,12 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
             ibuData: d.ibuData,
             consentData: d.consentData,
           }}
+        />
+
+        <EnrollmentDocumentsCard
+          applicationId={id}
+          documents={d.documents ?? {}}
+          canEdit={d.canEdit}
         />
 
         {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (

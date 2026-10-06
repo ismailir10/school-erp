@@ -67,7 +67,7 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - [x] **T5 — Documents domain module.** Add `lib/enrollment/documents.ts` (items, zod, progress, admin redaction that drops `fileToken`). Add Vitest. *Deps:* none.
 - [x] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
 - [x] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
-- [ ] **T8 — Admin documents.** Add the stream route, the PATCH `documentsReceived` carve-out, the GET field (redacted) and the Kelengkapan Berkas card. Add Vitest. *Deps:* T4, T5.
+- [x] **T8 — Admin documents.** Add the stream route, the PATCH `documentsReceived` carve-out, the GET field (redacted) and the Kelengkapan Berkas card. Add Vitest. *Deps:* T4, T5.
 - [ ] **T9 — Docs.** Update the README enrollment row and fill in Ship Notes. *Deps:* T1–T8.
 
 ## Implementation
@@ -128,6 +128,17 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
   - `lib/enrollment/compress-image.ts` (+test): ≤2000px JPEG re-encode, EXIF orientation, white fill, never larger than the original, WebP/GIF/HEIC re-encoded so the server accepts them.
   - `README.md` public form row updated.
 
+- Task 8: Admin documents.
+  - `app/api/enrollments/[id]/route.ts` (+test):
+    - GET returns `toAdminDocuments`, with no tokens.
+    - PATCH `documentsReceived` is merged per key and is allowed on a converted application only as the sole field.
+    - An admin `consentData` edit can no longer set or clear signature tokens: client values are stripped and the stored ones carried over.
+  - `app/api/enrollments/[id]/documents/[key]/route.ts` (+test) streams a file. It requires `admissions.view`, is tenant-scoped, and sends `no-store`, `nosniff` and an ASCII-safe filename.
+  - `components/admin/enrollment-documents-card.tsx` (+test): the card on `/admin/enrollments/[id]`.
+    - Rows show Diunggah/Diterima fisik/Belum, a Lihat link and "x / 9 berkas lengkap".
+    - The tick is optimistic and reverts on failure with mapped copy.
+  - `README.md` admin row updated.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -138,5 +149,6 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - Task 4: applied to the local Postgres with psql, then `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` reported "This is an empty migration".
 - Tasks 3/5/6/7: full gate on the combined tree: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4547 tests passed. Review fixes were checked by the frontend reviewer's follow-up (focus stays on busy buttons, focus after delete, failed-submit re-arm, concurrent uploads, busy state across step changes).
 - design-system: the Berkas step and handover note use existing Shadcn primitives (Button, Alert, Input, Badge, Spinner) and the page's existing emerald brand tokens; no new colors or arbitrary hex beyond what the form already used.
+- Task 8: covered by the combined gate above plus `e2e/enrollment-documents.spec.ts`. The admin card shows "1 / 9", ticking Akta moves it to "2 / 9", and the tick survives a reload.
 
 ## Ship Notes
