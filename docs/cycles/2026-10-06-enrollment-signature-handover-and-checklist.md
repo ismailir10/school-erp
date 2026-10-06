@@ -1,4 +1,4 @@
-# Enrollment form: two-parent signature handover + Kelengkapan Berkas checklist
+# Enrollment form: two-parent signature handover + Kelengkapan Berkas upload
 
 ## Context
 
@@ -27,30 +27,48 @@ Prior cycle in this area: `docs/cycles/archive/2026-06-23-enrollment-application
 - [ ] A new public `GET /api/enrollments/token/[token]/signature` returns `{ ayah: boolean, ibu: boolean }`. It is rate-limited and token-gated like its siblings, and never returns storage tokens.
 - [ ] Vitest covers the signature persist, PATCH preservation, submit-reads-DB and GET status paths.
 
-### B. Kelengkapan Berkas checklist
+### B. Kelengkapan Berkas — parent upload + staff checklist
 
-- [ ] New nullable `documentChecklist Json?` column on `EnrollmentApplication` (one additive migration).
-- [ ] `lib/enrollment/document-checklist.ts` is the single source for the item list, using the paper form's labels and quantity notes. It has eight fixed items plus a free-text "lainnya", a zod schema, and a `checklistProgress()` helper. Surat pindah is marked conditional and is not counted as required.
-- [ ] Admin enrollment detail (`/admin/enrollments/[id]`) gets a **Kelengkapan Berkas** card. Staff with `admissions.edit` tick the items received and fill in "lainnya"; users with `admissions.view` see it read-only. It shows "x / 7 berkas wajib diterima". Saving goes through the existing `PATCH /api/enrollments/[id]` with `documentChecklist`. A checklist-only update is allowed even after the application is converted to a student, because papers often arrive after acceptance. Every other field keeps the existing 409.
-- [ ] The parent form's Tinjau step and the success screen show "Berkas yang perlu dibawa ke sekolah" as a read-only list built from the same source.
-- [ ] Vitest covers the checklist schema, progress helper and admin PATCH (including the converted-application carve-out).
+Revised at the gate (2026-10-06): **parents upload the documents on the form**. Staff can still tick "diterima (fisik)" for anything handed in on paper.
+
+- [ ] New nullable `documents Json?` column on `EnrollmentApplication` (one additive migration). Shape: `{ [key]: { fileToken?, fileName?, mimeType?, uploadedAt?, receivedPhysical?, receivedAt? }, otherLabel? }`.
+- [ ] `lib/enrollment/documents.ts` is the single source for the item list. The keys follow the paper form, split per parent where the form says "@":
+  - `akta` — Akta kelahiran
+  - `kk` — Kartu Keluarga
+  - `kia` — Kartu Identitas Anak
+  - `ktp_ayah`, `ktp_ibu` — KTP Ayah and KTP Ibu
+  - `foto_anak` — Pas foto anak 3×4 (the physical 4 lembar is still noted)
+  - `foto_ayah`, `foto_ibu` — Pas foto orang tua
+  - `surat_sehat` — Surat keterangan sehat
+  - `surat_pindah` — Surat keterangan pindah sekolah (*conditional*: only for children previously registered at another school)
+  - `lainnya` — free-text label plus a file
+
+  The module also holds the zod shape and a `documentProgress()` helper. An item counts as complete when it is uploaded **or** staff marked it received. Surat pindah and lainnya don't count toward the required total (9).
+- [ ] **New form step "Berkas"** between Program and Persetujuan, so the order is Data Anak → Ayah → Ibu → Program → **Berkas** → Persetujuan → Tinjau. Each item has an upload button that accepts a camera photo, gallery image or PDF, and shows the file name with **Ganti** / **Hapus** once uploaded. The step is **optional**: the parent can continue without uploading everything, and a note says the missing documents can be brought to school. Tinjau and the success screen list what is still missing.
+- [ ] Images are compressed in the browser (longest side ≤ 2000 px, JPEG) before upload, so a 6 MB phone photo goes up at ~0.5 MB. The server caps uploads at **4 MB** (Vercel's request limit is 4.5 MB). It accepts JPEG/PNG/PDF, checked by magic bytes, not by the claimed type.
+- [ ] Public `POST /api/enrollments/token/[token]/documents?key=…` uploads a file and `DELETE` removes it. Both are token-gated, rate-limited and `INVITED`-only, with a whitelisted `key`. Each write goes to the row atomically through the same `jsonb_set` helper as the signatures, so autosave can't clobber it. The draft PATCH and submit never touch `documents`. The response returns the file name only; storage tokens never reach the browser.
+- [ ] Admin: `GET /api/enrollments/[id]/documents/[key]` streams a file. It is gated on `admissions.view`, tenant-scoped and `no-store`, mirroring the signature route. A **Kelengkapan Berkas** card on `/admin/enrollments/[id]` shows each item as one of: Diunggah (with Lihat), Diterima fisik (a checkbox for `admissions.edit` users) or Belum. It also shows "x / 9 berkas lengkap". The tick saves through `PATCH /api/enrollments/[id]` `{ documentsReceived: {key: boolean} }`, which is merged server-side and allowed even after conversion; every other field keeps the existing 409.
+- [ ] Vitest covers the documents module, upload/delete (key whitelist, size, magic bytes, status guard, atomic write), the admin stream route and the admin PATCH carve-out.
 
 ### Non-goals
 
-- Parents uploading scans of documents online. This is physical-document tracking only, as on the paper form.
-- Showing the checklist on the student detail rail, or carrying it into the student on convert. This is a possible follow-up.
-- Changing the consent text, `CONSENT_VERSION`, or the admin signature viewer.
-- Any change to the `/daftar` inquiry flow.
+- Copying uploaded KK/KTP into the student's guardian record (`Parent.ktpUrl` / `kkUrl`) on convert. This is a natural follow-up.
+- Showing the documents on the student detail rail.
+- Letting parents upload after they have submitted. The token closes on submit as today, and anything missing goes in on paper and staff tick it.
+- Parent-side preview of uploaded files. The parent sees the file name, and only staff can open the files.
+- Changing the consent text, `CONSENT_VERSION`, the admin signature viewer or the `/daftar` inquiry flow.
 
 ## Tasks
 
-- [ ] **T1 — Signature persists server-side.** Make the signature POST write the token atomically (`$executeRaw` `jsonb_set`, guarded on `status='INVITED'`). Add the GET status endpoint. Add Vitest for both. *Accept:* upload → row has the token; GET reports booleans only; non-INVITED → 409. *Deps:* none.
-- [ ] **T2 — Draft PATCH and submit can't lose signatures.** The PATCH writes `consentData` with stored tokens carried over in one UPDATE. Submit overlays the DB tokens before validation. Add Vitest. *Accept:* a PATCH with empty tokens leaves stored tokens intact; submit with body tokens missing but DB tokens present → 201; DB missing → 422. *Deps:* T1 (shared SQL helper).
-- [ ] **T3 — Client handover UX + autosave fix.** Autosave reads the latest payload from a ref. The signature pad state comes from the server response. Add the handover note with Salin link and Periksa lagi. Add the "berkas yang perlu dibawa" list on Tinjau and the success screen (uses T5's item list). *Accept:* the build passes; local browser check shows the handover flow across two tabs. *Deps:* T1, T2, T5.
-- [ ] **T4 — Migration.** Add the `documentChecklist Json?` column, migration SQL and `prisma generate`. *Accept:* `prisma migrate diff` is clean and the build passes. *Deps:* none.
-- [ ] **T5 — Checklist domain module.** Add `lib/enrollment/document-checklist.ts` (items, zod, progress) with Vitest. *Accept:* tests cover parsing, unknown-key stripping and progress counting. *Deps:* none.
-- [ ] **T6 — Admin API + UI.** `PATCH /api/enrollments/[id]` accepts `documentChecklist` with the converted carve-out, GET returns it, and the Kelengkapan Berkas card goes on the admin detail page (Shadcn Checkbox, design-system tokens). Add Vitest for the route. *Accept:* staff can tick and save; view-only users see it read-only; tests are green. *Deps:* T4, T5.
-- [ ] **T7 — Docs.** Update the README enrollment row with signature handover and checklist. *Deps:* T1–T6.
+- [ ] **T1 — Signature persists server-side.** Add a shared atomic JSON-merge helper (`lib/enrollment/json-merge.ts`, `$executeRaw` `jsonb_set`, guarded on `status='INVITED'`). The signature POST writes the token through it, and a new GET status endpoint reports what is saved. Add Vitest. *Accept:* upload → row has the token; GET returns booleans only; a non-INVITED row → 409. *Deps:* none.
+- [ ] **T2 — Draft PATCH and submit can't lose signatures.** The PATCH carries stored tokens over in one UPDATE, and submit overlays the DB tokens before validation. Add Vitest. *Accept:* a PATCH with empty tokens leaves stored ones intact; submit with tokens missing from the body but present in the DB → 201; tokens missing from the DB → 422. *Deps:* T1.
+- [ ] **T3 — Signature client UX and autosave fix.** Autosave reads the latest state from a ref, and the handover note gets Salin link and Periksa lagi. *Accept:* the build passes, and a local browser check shows the two-tab handover. *Deps:* T1, T2.
+- [ ] **T4 — Migration.** Add the `documents Json?` column, its migration SQL and `prisma generate`. *Accept:* `prisma migrate diff` is clean and the build passes. *Deps:* none.
+- [ ] **T5 — Documents domain module.** Add `lib/enrollment/documents.ts` (items, zod, progress, admin redaction that drops `fileToken`). Add Vitest. *Deps:* none.
+- [ ] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
+- [ ] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
+- [ ] **T8 — Admin documents.** Add the stream route, the PATCH `documentsReceived` carve-out, the GET field (redacted) and the Kelengkapan Berkas card. Add Vitest. *Deps:* T4, T5.
+- [ ] **T9 — Docs.** Update the README enrollment row and fill in Ship Notes. *Deps:* T1–T8.
 
 ## Implementation
 
