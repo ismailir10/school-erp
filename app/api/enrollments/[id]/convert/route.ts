@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { detectSibling } from "@/lib/admission/sibling-detect";
+import { copyEnrollmentDocsToGuardians } from "@/lib/enrollment/guardian-copy";
 import {
   AGAMA_OPTIONS, KEWARGANEGARAAN_OPTIONS, LIVING_WITH_OPTIONS, BIRTH_DELIVERY_OPTIONS,
   BIRTH_TERM_OPTIONS, BLOOD_TYPE_OPTIONS, EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS,
@@ -125,7 +126,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   // Resolve each parent to an existing or new Parent row OUTSIDE the tx is
   // unsafe (sibling-detect reads + tx writes); do it all inside the tx.
-  const { student } = await prisma.$transaction(async (tx) => {
+  const { student, ayahId, ibuId } = await prisma.$transaction(async (tx) => {
     async function resolveParent(p: ParentInput) {
       if (p.email) {
         return tx.parent.upsert({
@@ -177,8 +178,28 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       await tx.admission.update({ where: { id: app.admission.id }, data: { studentId: student.id } });
     }
 
-    return { student };
+    // Ids of the Parent rows actually linked to the student. An Ibu that
+    // resolved to the Ayah's row (shared email) is not a separate guardian.
+    return {
+      student,
+      ayahId: ayah?.id ?? null,
+      ibuId: ibu && ibu.id !== ayah?.id ? ibu.id : null,
+    };
   });
 
-  return NextResponse.json({ student, message: "Siswa berhasil dibuat dari formulir pendaftaran" });
+  // After commit, best-effort: give each guardian their own copy of the KTP/KK
+  // the parent uploaded. Never throws and never overwrites an existing document,
+  // so a storage hiccup cannot undo a conversion that already succeeded.
+  const documentsCopied = await copyEnrollmentDocsToGuardians({
+    tenantId,
+    applicationDocuments: app.documents,
+    ayahId,
+    ibuId,
+  });
+
+  return NextResponse.json({
+    student,
+    message: "Siswa berhasil dibuat dari formulir pendaftaran",
+    documentsCopied,
+  });
 }

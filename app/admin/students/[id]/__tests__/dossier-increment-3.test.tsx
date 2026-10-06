@@ -141,6 +141,18 @@ const APPLICATION = {
     ayahData: { name: "Umar Ramadhan", employerName: "PT Contoh" },
     ibuData: { name: "Fatimah Zahra" },
     consentData: { agreed: true, version: "v1", ayah: { name: "Umar Ramadhan", hasSignature: true } },
+    documents: {
+      kk: {
+        hasFile: true,
+        fileName: "kk-aisyah.pdf",
+        mimeType: "application/pdf",
+        size: 1000,
+        uploadedAt: "2026-05-01T00:00:00.000Z",
+        receivedPhysical: false,
+        receivedAt: null,
+      },
+    },
+    canEditDocuments: true,
     program: { id: "p1", name: "TKIT" },
     admission: { id: "adm1", parentName: "Umar Ramadhan", parentPhone: "0812", parentRelationship: "AYAH" },
   },
@@ -351,6 +363,115 @@ describe("student dossier — increment 3", () => {
       "src",
       "/api/enrollments/app1/signature?which=ayah",
     );
+  });
+
+  it("shows the Kelengkapan Berkas card inside the pendaftaran section", async () => {
+    const user = userEvent.setup();
+    const { fn, calls } = stubFetch();
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
+
+    await user.click(await sectionTrigger("pendaftaran"));
+
+    await waitFor(() => expect(screen.getByText("kk-aisyah.pdf")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "Lihat Kartu Keluarga (KK)" })).toHaveAttribute(
+      "href",
+      "/api/enrollments/app1/documents/kk",
+    );
+    // canEditDocuments: the physical-receipt tick is live.
+    expect(screen.getByRole("checkbox", { name: "Diterima fisik: KTP Ayah" })).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("locks the receipt ticks when the viewer cannot edit documents", async () => {
+    const user = userEvent.setup();
+    const { fn, calls } = stubFetch();
+    const wrapped = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/students/s1/enrollment-application") {
+        calls.push({ url, method: "GET" });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { ...APPLICATION.data, canEditDocuments: false } }),
+        } as Response);
+      }
+      return fn(input, init);
+    });
+    vi.stubGlobal("fetch", wrapped);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
+
+    await user.click(await sectionTrigger("pendaftaran"));
+
+    const tick = await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" });
+    expect(tick).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("adds a Berkas pendaftaran row to the rail checklist for a converted student", async () => {
+    const { fn } = stubFetch({
+      overview: {
+        ...OVERVIEW,
+        documents: { ...OVERVIEW.documents, enrollment: { done: 6, required: 9 } },
+      },
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("refreshes the rail count after a Diterima fisik tick is saved", async () => {
+    const user = userEvent.setup();
+    let done = 6;
+    const { fn, calls } = stubFetch();
+    const wrapped = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/students/s1/overview") {
+        calls.push({ url, method: "GET" });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ...OVERVIEW,
+            documents: { ...OVERVIEW.documents, enrollment: { done, required: 9 } },
+          }),
+        } as Response);
+      }
+      if (url === "/api/enrollments/app1" && init?.method === "PATCH") {
+        done = 7;
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }
+      return fn(input, init);
+    });
+    vi.stubGlobal("fetch", wrapped);
+    render(<StudentDetailPage />);
+    await waitFor(() =>
+      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
+    );
+
+    await user.click(await sectionTrigger("pendaftaran"));
+    await user.click(await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Berkas pendaftaran (7 / 9)").length).toBeGreaterThan(0),
+    );
+    expect(urlsMatching(calls, "/overview").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("omits the Berkas pendaftaran rail row when there is no application", async () => {
+    const { fn } = stubFetch({
+      overview: {
+        ...OVERVIEW,
+        documents: { ...OVERVIEW.documents, enrollment: null },
+        enrollmentApplication: null,
+      },
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+
+    await waitFor(() => expect(screen.getAllByText("15/18").length).toBeGreaterThan(0));
+    expect(screen.queryByText(/Berkas pendaftaran/)).not.toBeInTheDocument();
   });
 
   it("omits the pendaftaran section entirely for a hand-entered student", async () => {

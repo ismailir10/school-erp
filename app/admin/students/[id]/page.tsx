@@ -436,6 +436,15 @@ export default function StudentDetailPage() {
     ...(overview?.enrollmentApplication
       ? [{ label: "Surat persetujuan", present: overview.documents?.consent === true }]
       : []),
+    // Paper-form checklist (x / N). Only for a converted student, same reason.
+    ...(overview?.documents?.enrollment
+      ? [
+          {
+            label: `Berkas pendaftaran (${overview.documents.enrollment.done} / ${overview.documents.enrollment.required})`,
+            present: overview.documents.enrollment.done >= overview.documents.enrollment.required,
+          },
+        ]
+      : []),
   ];
   const docsPresent = docItems.filter((d) => d.present).length;
 
@@ -814,7 +823,11 @@ export default function StudentDetailPage() {
               onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}
               keepMounted
             >
-              <StudentEnrollmentApplicationBlock studentId={id} active={pendaftaranActive} />
+              <StudentEnrollmentApplicationBlock
+                studentId={id}
+                active={pendaftaranActive}
+                onDocumentsChange={fetchOverview}
+              />
             </DossierSection>
           )}
 

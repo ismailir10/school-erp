@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
+import { toAdminDocuments } from "@/lib/enrollment/documents";
 
 /**
  * GET /api/students/[id]/enrollment-application — the original pendaftaran form
@@ -26,7 +28,10 @@ import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
  * `tokenExpiresAt` are the parent's unguessable form credentials and have no
  * business on an admin page payload. `consentData` embeds a signature
  * storage token per parent, redacted to a presence boolean before it leaves
- * this route — see lib/enrollment/sanitize-consent.ts.
+ * this route — see lib/enrollment/sanitize-consent.ts. `documents` is the same
+ * kind of thing: the raw column holds a storage token per file, so it goes out
+ * as `toAdminDocuments(...)` (presence + metadata, never `fileToken`).
+ * `canEditDocuments` tells the page whether to offer the staff tick.
  */
 export async function GET(
   _req: NextRequest,
@@ -54,6 +59,7 @@ export async function GET(
       ayahData: true,
       ibuData: true,
       consentData: true,
+      documents: true,
       program: { select: { id: true, name: true } },
       admission: {
         select: { id: true, parentName: true, parentPhone: true, parentRelationship: true },
@@ -66,6 +72,11 @@ export async function GET(
   }
 
   return NextResponse.json({
-    data: { ...application, consentData: redactConsentSignatures(application.consentData) },
+    data: {
+      ...application,
+      consentData: redactConsentSignatures(application.consentData),
+      documents: toAdminDocuments(application.documents),
+      canEditDocuments: hasPermission(session, "admissions.edit"),
+    },
   });
 }

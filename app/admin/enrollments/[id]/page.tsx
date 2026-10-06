@@ -36,6 +36,25 @@ type Detail = {
   admission: { id: string; parentName: string; parentPhone: string | null } | null;
 };
 
+type CopyStatus = "copied" | "skipped_existing" | "missing" | "failed";
+type DocumentsCopied = { ktpAyah?: CopyStatus; ktpIbu?: CopyStatus; kk?: CopyStatus };
+
+const COPIED_LABELS: [keyof DocumentsCopied, string][] = [
+  ["ktpAyah", "KTP Ayah"],
+  ["ktpIbu", "KTP Ibu"],
+  ["kk", "KK"],
+];
+
+/** Toast copy for the guardian-document copy that runs after convert. */
+function copyOutcomeMessages(copied: DocumentsCopied | undefined) {
+  if (!copied) return { copiedText: "", anyFailed: false };
+  const done = COPIED_LABELS.filter(([k]) => copied[k] === "copied").map(([, l]) => l);
+  return {
+    copiedText: done.length > 0 ? ` ${done.join(", ")} disalin ke data wali.` : "",
+    anyFailed: COPIED_LABELS.some(([k]) => copied[k] === "failed"),
+  };
+}
+
 export default function EnrollmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [d, setD] = useState<Detail | null>(null);
@@ -64,7 +83,12 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     try {
       const res = await fetch(`/api/enrollments/${id}/convert`, { method: "POST" });
       if (res.ok) {
-        toast.success("Siswa berhasil dibuat dari formulir");
+        const body = (await res.json().catch(() => ({}))) as { documentsCopied?: DocumentsCopied };
+        const { copiedText, anyFailed } = copyOutcomeMessages(body.documentsCopied);
+        toast.success(`Siswa berhasil dibuat dari formulir.${copiedText}`);
+        if (anyFailed) {
+          toast.warning("Sebagian berkas gagal disalin ke data wali. Unggah manual dari halaman wali.");
+        }
         void load();
         return;
       }

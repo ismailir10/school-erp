@@ -9,12 +9,14 @@
  * these assertions would fail.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 
 import EnrollmentDetailPage from "../page";
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
 vi.mock("@/components/admin/enrollment-application-view", () => ({
@@ -107,5 +109,79 @@ describe("EnrollmentDetailPage — read-only admissions access", () => {
     expect(await screen.findByText("Aisyah")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Kembali ke Tinjau" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Konversi ke Siswa" })).not.toBeInTheDocument();
+  });
+});
+
+describe("EnrollmentDetailPage — convert toast", () => {
+  const accepted = {
+    id: "ea-1",
+    canEdit: true,
+    status: "ACCEPTED",
+    studentId: null,
+    childName: "Aisyah",
+    dcareAddon: false,
+    studentData: {},
+    ayahData: {},
+    ibuData: {},
+    consentData: {},
+    documents: {},
+    program: { id: "p-1", name: "TK A" },
+  };
+
+  async function convertWith(convertBody: unknown) {
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.warning).mockClear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          json: async () => (init?.method === "POST" ? convertBody : accepted),
+        } as Response),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Konversi ke Siswa" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Konversi ke Siswa")!,
+    );
+  }
+
+  it("names the documents copied to the guardians", async () => {
+    await convertWith({
+      documentsCopied: { ktpAyah: "copied", ktpIbu: "copied", kk: "copied" },
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Siswa berhasil dibuat dari formulir. KTP Ayah, KTP Ibu, KK disalin ke data wali.",
+      ),
+    );
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("warns when some copies failed and lists only what was copied", async () => {
+    await convertWith({
+      documentsCopied: { ktpAyah: "copied", ktpIbu: "failed", kk: "missing" },
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Siswa berhasil dibuat dari formulir. KTP Ayah disalin ke data wali.",
+      ),
+    );
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Sebagian berkas gagal disalin ke data wali. Unggah manual dari halaman wali.",
+    );
+  });
+
+  it("keeps the plain success message when nothing was copied", async () => {
+    await convertWith({
+      documentsCopied: { ktpAyah: "missing", ktpIbu: "skipped_existing", kk: "missing" },
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Siswa berhasil dibuat dari formulir."),
+    );
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

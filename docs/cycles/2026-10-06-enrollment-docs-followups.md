@@ -48,8 +48,8 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
 - [x] **T1 — Migration + config API.** Add `OrgConfig.enrollmentRequiredDocuments`, its migration, and `GET/PUT /api/config/enrollment` with tests. *Deps:* none.
 - [x] **T2 — Settings page.** Add `/admin/settings/pendaftaran` and a nav/hub link, with tests. *Deps:* T1.
 - [x] **T3 — Enforce on the form + submit.** Server 422, `page.tsx` prop, Berkas step validation and copy, tests. *Deps:* T1.
-- [ ] **T4 — Guardian copy on convert.** Storage copy helper, convert route post-transaction copy, `documentsCopied`, toast copy, tests. *Deps:* none.
-- [ ] **T5 — Student page.** `enrollment-application` route documents, Pendaftaran section card, overview counts and rail row, tests. *Deps:* none.
+- [x] **T4 — Guardian copy on convert.** Storage copy helper, convert route post-transaction copy, `documentsCopied`, toast copy, tests. *Deps:* none.
+- [x] **T5 — Student page.** `enrollment-application` route documents, Pendaftaran section card, overview counts and rail row, tests. *Deps:* none.
 - [ ] **T6 — E2E + docs.** Specs, README, UAT jobs, Ship Notes. *Deps:* T1–T5.
 
 ## Implementation
@@ -69,6 +69,14 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
   - **Settings UI:** `/admin/settings/pendaftaran` is a checkbox list. It is read-only when `canEdit` is false and shows a no-access message on a 403. The nav item "Berkas Wajib Pendaftaran" is gated on `admissions.view`.
   - **Parent form:** `page.tsx` passes `requiredDocuments`, falling back to `[]` if the read fails because the server still enforces. The Berkas step shows the "Wajib diunggah" badge and changes its intro, and Lanjut is blocked with "<label> wajib diunggah." until the file is uploaded.
   - README public row updated.
+
+- Tasks 4–5: carry the documents past conversion.
+  - **Guardian copy:** `lib/enrollment/guardian-copy.ts` (+test) copies the stored objects after the convert transaction commits, never inside it. The source is streamed to a buffer and saved as `entity: "parents"`, field `ktp`/`kk`, matching `lib/storage/parent-document.ts`, so the guardian's own GET, replace and delete work on its independent copy.
+  - **No overwrite:** the conditional `updateMany` only writes when `ktpUrl`/`kkUrl` is still null. If it loses the race, the copied object is deleted unless the winner already holds the same token.
+  - **Convert route:** it returns `ayahId`/`ibuId` from the transaction and adds `documentsCopied`. The admin convert toast lists what was copied and warns on failure.
+  - **Student page:** `GET /api/students/[id]/enrollment-application` adds `documents` (via `toAdminDocuments`, no tokens) and `canEditDocuments`, and the overview adds `documents.enrollment {done, required}`.
+  - **Student page UI:** the Pendaftaran block renders `EnrollmentDocumentsCard`, whose new `onChange` refetches the overview. The rail gains a "Berkas pendaftaran (x / N)" row.
+  - README admin row updated.
 
 ## Verification
 
