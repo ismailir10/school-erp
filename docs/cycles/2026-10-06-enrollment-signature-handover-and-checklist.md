@@ -169,6 +169,26 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - Task 8: covered by the combined gate above plus `e2e/enrollment-documents.spec.ts`. The admin card shows "1 / 9", ticking Akta moves it to "2 / 9", and the tick survives a reload.
 - Playwright (local, production build with `DEMO_MODE=true` against disposable local Postgres 16, Chromium via a local-only browser-path shim): `npx playwright test e2e/enrollment-application.spec.ts e2e/enrollment-signature-handover.spec.ts e2e/enrollment-documents.spec.ts e2e/admin-admission-convert-parity.spec.ts e2e/daftar-public.spec.ts` gave **12 passed (19.6s)**, with no retries.
 - After the UAT fixes: `npm run build` exited 0; `npx vitest run` gave 490 files passed / 2 skipped, 4551 tests passed; the enrollment Playwright set gave 12 passed (19.5s). CI on `0532c3b` (all code before the UAT fixes) passed all four required checks, including `Playwright E2E` with the new specs.
+- Heuristic UAT, local DEMO_MODE pre-merge run on emulated mid-range Android (390x844, CPU 4x, 150 ms RTT, 1.6/0.75 Mbps) plus desktop admin. Report: `docs/uat/reports/2026-10-06-enrollment-form.md`.
+  - First run: 2 blockers, 1 major, 6 minors. All 3 JTBDs completed.
+  - After the fixes: **0 blockers, 1 major, 6 minors**.
+    - Oversize PDF error: 54.8 s → 76 ms.
+    - Kirim during an upload: now blocked; the file lands on the row.
+    - Handover note is inside the viewport; admin card at the top.
+  - **Accepted major (driver decision):** a 5 MB 4000x3000 phone photo compresses to 294 KB, and its POST takes 3.3 s on a 750 kbps uplink, which is bound by the uplink. Going below ~200 KB would put the small print on a KK/akta at risk. Busy feedback shows at 86 ms, and the parent can keep working while it uploads.
+  - Remaining minors, not fixed this cycle:
+    - Simpan shifts 196 px when the handover note appears.
+    - The Lanjut-with-one-signature error has no share hint.
+    - The second parent needs 5 Lanjut taps to reach the pads.
+    - Hapus has no confirmation.
+    - The admin card says "Opsional" where the form says "Jika ada".
+- Local verification passed for source SHA 415cff6 (route = demo-auth browser + disposable local Postgres). Flows:
+  - two-device signature handover;
+  - Berkas upload, replace and delete;
+  - submit blocked while an upload is in flight;
+  - admin Kelengkapan Berkas: view, Lihat, tick.
+
+  No console errors and no 5xx; the only 4xx were the intended 409/413/415 probes.
 
 ## Ship Notes
 
