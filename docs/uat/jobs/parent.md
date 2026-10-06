@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Last audited: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
@@ -268,6 +268,49 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Error scenarios to verify:**
   - Child selector shows a child the parent isn't linked to (data bug) → either the child is hidden or tapping it 403s gracefully
   - Deep-link `/parent/invoices?child=<unauthorizedStudentId>` → backend 403, UI lands on "Tidak dapat membuka data anak ini" not a blank list
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+## Area: enrollment-form
+
+> Public, token-gated page `/pendaftaran/[token]` (no login). Persona Pak Budi, Role: public token holder. Needs an `INVITED` enrollment application (admission inquiry → admin invite → form link).
+
+### JTBD-PARENT-ENROL-01 — Sign the enrollment form when Ayah and Ibu are in two different places
+- **Persona:** Pak Budi
+- **Role:** public token holder (no login; the link is the credential)
+- **Preconditions:** An `INVITED` application whose form link has been sent to Pak Budi; Bu Aisyah (Ibu) is at home on another phone and has the same link forwarded via WhatsApp. Ayah/Ibu names and the earlier steps are already filled.
+- **Steps:**
+  1. On his phone, open the form link and go to the Persetujuan step; tick the agreement and sign as Ayah.
+  2. Realise Ibu must sign too and she is not next to him; work out how to get her to sign without losing his signature.
+  3. Ibu opens the same link on her own phone, sees Ayah's signature is already there, signs as Ibu.
+  4. Back on his phone, find out whether Ibu has signed (without reloading and losing his place), then continue to Tinjau and send the form. Either parent may be the one who submits.
+- **Done when:** Each parent's signature shows "Tersimpan" the moment it is saved and survives closing the tab or opening the link elsewhere. When only one signature exists, the page says which one is missing and offers a way to share the link and a way to re-check. The second parent sees the first's signature on opening the link. Whoever finishes can submit, and the school receives both signatures.
+- **Why this job matters:** Parents who live or work apart cannot always sign side by side. A lost signature means a re-do and a call to admissions; this was the 2026-10-06 report from the admissions desk.
+- **Expected perf:** signature save click-to-"Tersimpan" <800ms on mobile 4G; "Periksa lagi" click-to-result <800ms.
+- **Error scenarios to verify:**
+  - "Periksa lagi" while the other parent has not signed yet → the page says so ("Belum ada tanda tangan baru"), not a silent no-op
+  - Clipboard denied on "Salin link" → the link is shown in a field to copy by hand
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-PARENT-ENROL-02 — Upload kelengkapan berkas from a phone and know what still has to be brought to school
+- **Persona:** Pak Budi
+- **Role:** public token holder (no login; the link is the credential)
+- **Preconditions:** An `INVITED` application; a phone with a camera/gallery holding a large phone photo (4000×3000 JPEG, several MB) and a small PDF.
+- **Steps:**
+  1. Reach the Berkas step and decide whether it must be completed now or can be skipped.
+  2. Upload the Kartu Keluarga from a photo and the akta kelahiran from a PDF.
+  3. Notice a wrong upload and replace it; remove one that is not needed.
+  4. Try a file that will be refused (over the size limit, or the wrong file type) and understand what to do next.
+  5. At Tinjau and after sending, find the list of papers still to be brought to school.
+- **Done when:** Each upload gives immediate visible feedback and ends with the file name shown with Ganti / Hapus. A large photo is made small enough automatically. A refused file gets an Indonesian message saying what is wrong and what to do. The step reads as optional; the form can be sent without every file; the missing list appears on Tinjau and on the success screen. Buttons are comfortable to hit with a thumb and nothing needs sideways scrolling at phone width.
+- **Why this job matters:** Berkas is the most phone-hostile part of admission (big camera photos, 4G, shaky hands). If upload feels broken or mandatory, parents abandon the form and fall back to paper and WhatsApp.
+- **Expected perf:** upload click-to-file-name-shown <3s for a compressed phone photo on mobile 4G; each upload API call <2s.
+- **Error scenarios to verify:**
+  - File over 4 MB that cannot be compressed (e.g. a large PDF) → "Ukuran berkas terlalu besar (maks. 4 MB)…"
+  - A `.txt`/`.docx` renamed to `.jpg` → "Format tidak didukung…" in Indonesian
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

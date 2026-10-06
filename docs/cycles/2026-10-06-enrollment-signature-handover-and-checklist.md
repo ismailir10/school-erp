@@ -145,6 +145,8 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
   - New `e2e/enrollment-documents.spec.ts`: Berkas upload, delete, re-upload, the missing list on Tinjau and the success screen, and the admin card tick.
   - New shared setup in `e2e/helpers/enrollment.ts`. `CLAUDE.md` counts regenerated.
 
+- JTBD library: `docs/uat/jobs/parent.md` gets a new `## Area: enrollment-form` with JTBD-PARENT-ENROL-01 (two-device signing) and ENROL-02 (upload berkas from a phone). `docs/uat/jobs/admin.md` gets JTBD-ADMIN-ADM-02 (check Kelengkapan Berkas, open a file, tick papers received). Last-audited lines bumped.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
