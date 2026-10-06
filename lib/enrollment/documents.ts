@@ -188,6 +188,25 @@ export function missingRequiredDocuments(docs: unknown): DocumentKey[] {
   return REQUIRED_KEYS.filter((k) => !isDone(d[k]));
 }
 
+/**
+ * Of the `required` keys, those with no uploaded file, in `DOCUMENT_ITEMS`
+ * order. Unlike `missingRequiredDocuments`, a staff "received physically" tick
+ * does NOT count: this gates the parent's submit, and the parent can only
+ * satisfy it by uploading. Accepts the raw column or either redacted view.
+ */
+export function missingUploads(docs: unknown, required: readonly DocumentKey[]): DocumentKey[] {
+  const root = asRecord(docs);
+  const want = new Set<string>(required);
+  return DOCUMENT_KEYS.filter((k) => {
+    if (!want.has(k)) return false;
+    const entry = root ? asRecord(root[k]) : null;
+    if (!entry) return true;
+    if ("fileToken" in entry) return str(entry.fileToken) === null;
+    if ("hasFile" in entry) return entry.hasFile !== true;
+    return str(entry.fileName) === null; // public view: presence-only
+  });
+}
+
 const MAX_FILE_NAME = 120;
 const MAX_LABEL = 80;
 

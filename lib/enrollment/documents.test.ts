@@ -7,6 +7,7 @@ import {
   documentProgress,
   isDocumentKey,
   missingRequiredDocuments,
+  missingUploads,
   sanitizeDocumentFileName,
   sanitizeDocumentLabel,
   toAdminDocuments,
@@ -149,5 +150,37 @@ describe("sanitizeDocumentFileName / sanitizeDocumentLabel", () => {
     expect(sanitizeDocumentLabel("  Ijazah \n TK  ")).toBe("Ijazah TK");
     expect(sanitizeDocumentLabel("y".repeat(200))).toHaveLength(80);
     for (const bad of ["", "  \t ", null, 3]) expect(sanitizeDocumentLabel(bad)).toBeNull();
+  });
+});
+
+describe("missingUploads", () => {
+  it("returns required keys with no uploaded file, in form order", () => {
+    const raw = { kk: file(), akta: { receivedPhysical: true, receivedAt: "2026-10-06T01:00:00.000Z" } };
+    expect(missingUploads(raw, ["surat_sehat", "kk", "akta"])).toEqual(["akta", "surat_sehat"]);
+  });
+
+  it("is empty when nothing is required or everything required is uploaded", () => {
+    expect(missingUploads(null, [])).toEqual([]);
+    expect(missingUploads({ kk: file() }, ["kk"])).toEqual([]);
+  });
+
+  it("treats a missing / malformed column as everything missing", () => {
+    for (const bad of [null, undefined, "x", [], 5]) expect(missingUploads(bad, ["kk"])).toEqual(["kk"]);
+    expect(missingUploads({ kk: { fileToken: "" } }, ["kk"])).toEqual(["kk"]);
+    expect(missingUploads({ kk: "nope" }, ["kk"])).toEqual(["kk"]);
+  });
+
+  it("a physical-receipt tick never counts, in any shape", () => {
+    expect(missingUploads({ kk: { receivedPhysical: true } }, ["kk"])).toEqual(["kk"]);
+    expect(missingUploads({ kk: { hasFile: false, receivedPhysical: true } }, ["kk"])).toEqual(["kk"]);
+  });
+
+  it("accepts the admin and public views as well as the raw column", () => {
+    expect(missingUploads(toAdminDocuments({ kk: file() }), ["kk", "akta"])).toEqual(["akta"]);
+    expect(missingUploads(toPublicDocuments({ kk: file() }), ["kk", "akta"])).toEqual(["akta"]);
+  });
+
+  it("ignores keys that are not document keys", () => {
+    expect(missingUploads({}, ["kk", "paspor" as never])).toEqual(["kk"]);
   });
 });

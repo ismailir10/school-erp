@@ -239,6 +239,7 @@ describe("GET /api/students/[id]/overview — aggregates", () => {
       ktpPresent: 1,
       ktpTotal: 2,
       consent: true,
+      enrollment: { done: 0, required: 9 },
     });
     expect(body.enrollmentApplication).toMatchObject({ id: "app1", status: "ACCEPTED" });
   });
@@ -247,6 +248,32 @@ describe("GET /api/students/[id]/overview — aggregates", () => {
     const body = await (await GET(req(), ctx())).json();
     expect(body.enrollmentApplication).toBeNull();
     expect(body.documents.consent).toBe(false);
+    expect(body.documents.enrollment).toBeNull();
+  });
+
+  it("reports Kelengkapan Berkas progress from the application, counting uploads and physical receipts", async () => {
+    state.application = {
+      id: "app1",
+      status: "ACCEPTED",
+      submittedAt: null,
+      consentData: {},
+      documents: {
+        kk: { fileToken: "supabase:v1:enrollment/app1/doc-kk-SECRET.pdf", fileName: "kk.pdf" },
+        akta: { receivedPhysical: true },
+        lainnya: { fileToken: "supabase:v1:enrollment/app1/doc-lainnya-SECRET2.pdf", fileName: "x.pdf" }, // optional: not counted
+      },
+    };
+    const res = await GET(req(), ctx());
+    const raw = await res.text();
+    expect(JSON.parse(raw).documents.enrollment).toEqual({ done: 2, required: 9 });
+    expect(raw).not.toContain("SECRET");
+    expect(raw).not.toContain("fileToken");
+  });
+
+  it("counts zero when the application has no documents column value", async () => {
+    state.application = { id: "app1", status: "ACCEPTED", submittedAt: null, consentData: {}, documents: null };
+    const body = await (await GET(req(), ctx())).json();
+    expect(body.documents.enrollment).toEqual({ done: 0, required: 9 });
   });
 });
 

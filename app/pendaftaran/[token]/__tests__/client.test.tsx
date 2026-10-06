@@ -77,6 +77,49 @@ describe("PendaftaranClient", () => {
     ]);
   });
 
+  it("blocks Lanjut on Berkas until every school-required document is uploaded", async () => {
+    const user = userEvent.setup();
+    render(
+      <PendaftaranClient
+        token="tok"
+        programs={programs}
+        prefill={filled}
+        requiredDocuments={["kk", "ktp_ayah"]}
+      />,
+    );
+    // Data Anak -> Ayah -> Ibu -> Program -> Berkas
+    for (let i = 0; i < 4; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+    expect(screen.getAllByText("Wajib diunggah")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Lanjut" }));
+    expect(screen.getByText("Kartu Keluarga (KK) wajib diunggah.")).toBeInTheDocument();
+    expect(screen.getByText("KTP Ayah wajib diunggah.")).toBeInTheDocument();
+    // Still on Berkas, not Persetujuan.
+    expect(screen.getByText("Berkas pendukung")).toBeInTheDocument();
+  });
+
+  it("lets Lanjut through on Berkas once required documents are present", async () => {
+    const user = userEvent.setup();
+    const file = { fileName: "x.png", mimeType: "image/png", size: 3, uploadedAt: "2026-10-06T00:00:00.000Z" };
+    render(
+      <PendaftaranClient
+        token="tok"
+        programs={programs}
+        prefill={{ ...filled, documents: { kk: file, ktp_ayah: file } }}
+        requiredDocuments={["kk", "ktp_ayah"]}
+      />,
+    );
+    await gotoConsent(user);
+    expect(screen.getByText("Tanda tangan Ayah: tersimpan")).toBeInTheDocument();
+  });
+
+  it("keeps Berkas optional when the school requires nothing", async () => {
+    const user = userEvent.setup();
+    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    await gotoConsent(user);
+    expect(screen.getByText("Tanda tangan Ayah: tersimpan")).toBeInTheDocument();
+  });
+
   it("shows a handover note when only one parent has signed, without blocking Lanjut copy", async () => {
     const user = userEvent.setup();
     render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);

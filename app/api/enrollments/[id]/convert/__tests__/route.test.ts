@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 const {
   appFindUnique, studentCreate, parentUpsert, parentCreate, parentUpdate,
-  guardianCreate, appUpdate, admissionUpdate, getSession, isAdminRole, detectSibling,
+  guardianCreate, appUpdate, admissionUpdate, getSession, isAdminRole, detectSibling, copyDocs,
 } = vi.hoisted(() => ({
   appFindUnique: vi.fn(),
   studentCreate: vi.fn(),
@@ -16,6 +16,7 @@ const {
   getSession: vi.fn(),
   isAdminRole: vi.fn(),
   detectSibling: vi.fn(),
+  copyDocs: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -34,6 +35,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
 vi.mock("@/lib/admission/sibling-detect", () => ({ detectSibling }));
+vi.mock("@/lib/enrollment/guardian-copy", () => ({ copyEnrollmentDocsToGuardians: copyDocs }));
 
 import { POST } from "../route";
 
@@ -56,6 +58,7 @@ function app(overrides: Record<string, unknown> = {}) {
     ayahData: { name: "Bapak Ahmad", email: "ahmad@test.com", education: "S1_D4", occupation: "KARYAWAN_SWASTA", income: "4793_7000" },
     ibuData: { name: "Ibu Fatimah", phone: "081234567890" },
     consentData: {},
+    documents: { ktp_ayah: { fileToken: "supabase:v1:enrollment/ea-1/doc-ktp_ayah-1.png" } },
     admission: { id: "adm-1", studentId: null },
     ...overrides,
   };
@@ -73,6 +76,7 @@ beforeEach(() => {
   appUpdate.mockResolvedValue({});
   admissionUpdate.mockResolvedValue({});
   detectSibling.mockResolvedValue(null);
+  copyDocs.mockResolvedValue({ ktpAyah: "copied", ktpIbu: "missing", kk: "missing" });
 });
 
 describe("POST /api/enrollments/[id]/convert", () => {
@@ -146,5 +150,50 @@ describe("POST /api/enrollments/[id]/convert", () => {
     expect(res.status).toBe(200);
     expect(parentUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "par-existing" } }));
     expect(parentCreate).not.toHaveBeenCalled();
+  });
+
+  it("copies the uploaded KTP/KK into the guardians after the transaction and reports the outcome", async () => {
+    appFindUnique.mockResolvedValue(app());
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(200);
+    expect(copyDocs).toHaveBeenCalledTimes(1);
+    expect(copyDocs).toHaveBeenCalledWith({
+      tenantId: "t-1",
+      applicationDocuments: app().documents,
+      ayahId: "par-ayah",
+      ibuId: "par-ibu",
+    });
+    const body = await res.json();
+    expect(body.student.id).toBe("stu-1");
+    expect(body.documentsCopied).toEqual({ ktpAyah: "copied", ktpIbu: "missing", kk: "missing" });
+    // The response never carries storage tokens.
+    expect(JSON.stringify(body)).not.toContain("supabase:v1");
+  });
+
+  it("passes null for an absent parent block", async () => {
+    appFindUnique.mockResolvedValue(app({ ibuData: {} }));
+    await POST(reqx(), ctx());
+    expect(copyDocs.mock.calls[0][0]).toMatchObject({ ayahId: "par-ayah", ibuId: null });
+  });
+
+  it("passes a null ibuId when she resolved to the ayah's own Parent row", async () => {
+    appFindUnique.mockResolvedValue(app());
+    parentCreate.mockResolvedValue({ id: "par-ayah" });
+    await POST(reqx(), ctx());
+    expect(copyDocs.mock.calls[0][0]).toMatchObject({ ayahId: "par-ayah", ibuId: null });
+  });
+
+  it("does not copy anything when the conversion is refused", async () => {
+    appFindUnique.mockResolvedValue(app({ status: "SUBMITTED" }));
+    await POST(reqx(), ctx());
+    expect(copyDocs).not.toHaveBeenCalled();
+  });
+
+  it("still succeeds when every copy failed", async () => {
+    appFindUnique.mockResolvedValue(app());
+    copyDocs.mockResolvedValue({ ktpAyah: "failed", ktpIbu: "failed", kk: "failed" });
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(200);
+    expect((await res.json()).documentsCopied.kk).toBe("failed");
   });
 });

@@ -32,6 +32,8 @@ export function classifyEnrollmentAccess(row: EnrollmentRow | null, now: Date): 
 
 export type ResolvedEnrollment = {
   access: EnrollmentAccess;
+  /** Owning tenant of the matched row (undefined on a token miss) — for per-school config lookups. */
+  tenantId: string | undefined;
   application: {
     id: string;
     status: string;
@@ -88,10 +90,11 @@ export async function programBelongsToTenant(
  * the form. Callers still inspect `access` before trusting it for edits.
  */
 export async function resolveEnrollmentToken(token: string, now: Date): Promise<ResolvedEnrollment> {
-  const application = await prisma.enrollmentApplication.findUnique({
+  const row = await prisma.enrollmentApplication.findUnique({
     where: { accessToken: token },
     select: {
       id: true,
+      tenantId: true,
       status: true,
       childName: true,
       parentEmail: true,
@@ -105,5 +108,9 @@ export async function resolveEnrollmentToken(token: string, now: Date): Promise<
       documents: true,
     },
   });
-  return { access: classifyEnrollmentAccess(application, now), application };
+  if (!row) return { access: classifyEnrollmentAccess(null, now), tenantId: undefined, application: null };
+  // `tenantId` is surfaced separately and kept off `application`, which the page
+  // hands on to the client component.
+  const { tenantId, ...application } = row;
+  return { access: classifyEnrollmentAccess(row, now), tenantId, application };
 }

@@ -9,17 +9,24 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { DocumentsStep, useDocumentUploads } from "../documents-step";
-import { DOCUMENT_ITEMS, type PublicDocuments } from "@/lib/enrollment/documents";
+import { DOCUMENT_ITEMS, type DocumentKey, type PublicDocuments } from "@/lib/enrollment/documents";
 
 vi.mock("@/lib/enrollment/compress-image", () => ({
   prepareUpload: async (f: File) => f,
 }));
 
-function Harness({ initial = {} }: { initial?: PublicDocuments }) {
+function Harness({
+  initial = {},
+  required,
+}: {
+  initial?: PublicDocuments;
+  required?: DocumentKey[];
+}) {
   const docs = useDocumentUploads("tok-1", initial);
   return (
     <DocumentsStep
       documents={docs.documents}
+      required={required}
       busy={docs.busy}
       errors={docs.errors}
       onUpload={docs.upload}
@@ -49,6 +56,23 @@ describe("DocumentsStep", () => {
     expect(screen.queryByText("Wajib")).not.toBeInTheDocument();
     expect(screen.getAllByText("Jika ada")).toHaveLength(DOCUMENT_ITEMS.filter((i) => !i.required).length);
     expect(screen.getByLabelText("Nama berkas")).toBeInTheDocument();
+  });
+
+  it("labels the school's required items and switches the intro", () => {
+    render(<Harness required={["kk", "surat_pindah"]} />);
+    expect(
+      screen.getByText(/Berkas bertanda Wajib diunggah perlu diunggah sebelum formulir dikirim/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/bersifat opsional/i)).not.toBeInTheDocument();
+    // one badge per required item; surat_pindah drops its "Jika ada" hint
+    expect(screen.getAllByText("Wajib diunggah")).toHaveLength(2);
+    expect(screen.getAllByText("Jika ada")).toHaveLength(
+      DOCUMENT_ITEMS.filter((i) => !i.required).length - 1,
+    );
+    const kkRow = screen.getByText("Kartu Keluarga (KK)").closest("li") as HTMLElement;
+    expect(kkRow).toHaveTextContent("Wajib diunggah");
+    const aktaRow = screen.getByText("Akta kelahiran anak").closest("li") as HTMLElement;
+    expect(aktaRow).not.toHaveTextContent("Wajib diunggah");
   });
 
   it("uploads to the keyed route as multipart and shows the file name", async () => {

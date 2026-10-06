@@ -30,10 +30,13 @@ export function EnrollmentDocumentsCard({
   applicationId,
   documents,
   canEdit,
+  onChange,
 }: {
   applicationId: string;
   documents: AdminDocuments;
   canEdit: boolean;
+  /** Called after a tick is saved, so a host showing derived counts can refresh. */
+  onChange?: () => void;
 }) {
   // Optimistic ticks keyed by item; dropped again if the save fails.
   const [overrides, setOverrides] = useState<Partial<Record<DocumentKey, boolean>>>({});
@@ -57,6 +60,7 @@ export function EnrollmentDocumentsCard({
       if (!res.ok) {
         throw new SaveError(res.status);
       }
+      onChange?.();
     } catch (err) {
       setOverrides((o) => {
         const next = { ...o };

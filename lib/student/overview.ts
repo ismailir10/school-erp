@@ -202,6 +202,8 @@ export type StudentOverview = {
     ktpPresent: number;
     ktpTotal: number;
     consent: boolean;
+    /** Kelengkapan Berkas progress from the pendaftaran form; null without an application. */
+    enrollment: { done: number; required: number } | null;
   };
   enrollmentApplication: { id: string; status: string; submittedAt: string | null } | null;
 };

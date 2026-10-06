@@ -115,7 +115,7 @@ describe("adminNav IA — ordering + grouping", () => {
 });
 
 describe("settingsHub — sections + moved items", () => {
-  it("school section covers Kampus, Tahun Ajaran, Semester, Hari Libur, Jam Kerja with original permission codes", () => {
+  it("school section covers Kampus, Tahun Ajaran, Semester, Hari Libur, Jam Kerja, Berkas Wajib Pendaftaran with original permission codes", () => {
     const section = adminNav.settingsHub.find((s) => s.id === "school")!;
     expect(section.label).toBe("Sekolah");
     expect(section.items.map((i) => i.label)).toEqual([
@@ -124,7 +124,12 @@ describe("settingsHub — sections + moved items", () => {
       "Semester",
       "Hari Libur",
       "Jam Kerja",
+      "Berkas Wajib Pendaftaran",
     ]);
+    expect(section.items.find((i) => i.label === "Berkas Wajib Pendaftaran")).toMatchObject({
+      href: "/admin/settings/pendaftaran",
+      permission: "admissions.view",
+    });
     expect(section.items.find((i) => i.label === "Tahun Ajaran")).toMatchObject({
       href: "/admin/academic-years",
       permission: "academic.view",

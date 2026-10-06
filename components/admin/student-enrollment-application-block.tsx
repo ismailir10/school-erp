@@ -8,6 +8,8 @@ import {
   EnrollmentApplicationView,
   type EnrollmentApplicationBlobs,
 } from "@/components/admin/enrollment-application-view";
+import { EnrollmentDocumentsCard } from "@/components/admin/enrollment-documents-card";
+import type { AdminDocuments } from "@/lib/enrollment/documents";
 
 /**
  * Pendaftaran block of the student dossier — the original paper form, read-only.
@@ -30,6 +32,13 @@ type Application = EnrollmentApplicationBlobs & {
   parentEmail: string | null;
   dcareAddon: boolean;
   submittedAt: string | null;
+  /**
+   * Redacted by the API: file presence + names, never storage tokens. `null`
+   * when the viewer lacks `admissions.view`; the card is then not shown.
+   */
+  documents?: AdminDocuments | null;
+  /** `admissions.edit` — gates the "Diterima fisik" tick on the card. */
+  canEditDocuments?: boolean;
   program: { id: string; name: string } | null;
   admission: {
     id: string;
@@ -43,9 +52,12 @@ export const StudentEnrollmentApplicationBlock = memo(
   function StudentEnrollmentApplicationBlock({
     studentId,
     active,
+    onDocumentsChange,
   }: {
     studentId: string;
     active: boolean;
+    /** A "Diterima fisik" tick was saved; the rail's document count is now stale. */
+    onDocumentsChange?: () => void;
   }) {
     const [application, setApplication] = useState<Application | null>(null);
     const [loading, setLoading] = useState(false);
@@ -126,6 +138,15 @@ export const StudentEnrollmentApplicationBlock = memo(
             .filter(Boolean)
             .join(" · ")}
         </p>
+
+        {application.documents && (
+          <EnrollmentDocumentsCard
+            applicationId={application.id}
+            documents={application.documents}
+            canEdit={application.canEditDocuments === true}
+            onChange={onDocumentsChange}
+          />
+        )}
 
         {/* One column: the dossier's main column is already narrower than the
             enrollment page, and two columns of label/value rows inside it
