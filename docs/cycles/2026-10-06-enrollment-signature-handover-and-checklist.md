@@ -68,7 +68,7 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - [x] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
 - [x] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
 - [x] **T8 — Admin documents.** Add the stream route, the PATCH `documentsReceived` carve-out, the GET field (redacted) and the Kelengkapan Berkas card. Add Vitest. *Deps:* T4, T5.
-- [ ] **T9 — Docs.** Update the README enrollment row and fill in Ship Notes. *Deps:* T1–T8.
+- [x] **T9 — Docs.** Update the README enrollment row and fill in Ship Notes. *Deps:* T1–T8.
 
 ## Implementation
 
@@ -159,3 +159,21 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - Playwright (local, production build with `DEMO_MODE=true` against disposable local Postgres 16, Chromium via a local-only browser-path shim): `npx playwright test e2e/enrollment-application.spec.ts e2e/enrollment-signature-handover.spec.ts e2e/enrollment-documents.spec.ts e2e/admin-admission-convert-parity.spec.ts e2e/daftar-public.spec.ts` gave **12 passed (19.6s)**, with no retries.
 
 ## Ship Notes
+
+- **Migration:** `20261006000000_add_enrollment_application_documents` adds the nullable `documents JSONB` column. It is purely additive and is applied automatically by `prisma migrate deploy` in `scripts/vercel-build.sh` on the staging and main builds. No backfill is needed.
+- **Env vars:** none new. The demo storage backend needs no configuration, and on Vercel it is inert because `VERCEL` is set and Supabase storage is configured. Uploads use the existing Supabase `attachments` bucket under `enrollment/<applicationId>/doc-<key>-<hash>.<ext>`.
+- **Verification route:** Local (demo auth + disposable local Postgres). This is not auth-impacting:
+  - `proxy.ts`, session, cookie and auth code are unchanged.
+  - The new public routes sit under the already-public `/api/enrollments/token/` prefix and are gated by the existing access-token check.
+  - The new admin route uses the same `getSession` + `admissions.view` + tenant pattern as the existing signature route.
+  - So no `needs-staging-verify` label.
+- **Behaviour change for in-flight forms:**
+  - Applications still INVITED keep working; their prefilled data loads as before.
+  - A signature that was drawn before this deploy but never reached the row (the reported bug) is not recoverable. That parent signs once more, and it then persists.
+  - Admissions staff can tell Ais: share the same link with the other parent; each signs on their own phone; whoever finishes taps Kirim.
+- **Vercel request limit:** uploads are capped at 4 MB server-side, under Vercel's 4.5 MB body limit. Phone photos are downscaled in the browser first.
+- **Rollback:** revert the PR. The `documents` column can stay; nothing reads it after a revert. Signature tokens written into `consentData` by the new route are the same shape the old submit wrote, so old code reads them fine.
+- **Follow-ups (non-goals, not done):**
+  - Copy uploaded KK/KTP into the guardian record on convert.
+  - Show documents on the student detail rail.
+  - Optionally require specific documents before submit.
