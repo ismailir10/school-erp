@@ -9,6 +9,10 @@ import { submitEnrollmentSchema, flattenSubmitErrors } from "@/lib/enrollment/su
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
 
+function asObject(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const limit = rateLimit(`enroll-submit:${getClientIp(req)}`, RATE_LIMIT_PER_MIN, RATE_WINDOW_MS);
   if (!limit.success) {
@@ -34,53 +38,88 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     );
   }
 
-  const parsed = submitEnrollmentSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "validation_failed", fields: flattenSubmitErrors(parsed.error) },
-      { status: 422 },
-    );
-  }
-  const data = parsed.data;
+  // Everything from the signature read to the INVITED→SUBMITTED flip runs in
+  // ONE transaction holding a row lock. A signature upload replacing a token
+  // mid-submit would otherwise get its OLD token written back; with the lock the
+  // concurrent signature UPDATE waits, then fails its INVITED guard (409) — the
+  // form is closed, which is correct.
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "EnrollmentApplication" WHERE id = ${id} FOR UPDATE`;
+    if (!locked || locked.length === 0) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-  // Guard the chosen program against the application's tenant (IDOR write).
-  if (!(await programBelongsToTenant(data.programId, tenantId))) {
-    return NextResponse.json(
-      { error: "validation_failed", fields: { programId: "Program tidak valid" } },
-      { status: 422 },
-    );
-  }
+    // Signatures live on the row (the signature route persists them the moment
+    // they are drawn), so the parent who submits may never have seen the other
+    // parent's pad. Overlay the stored tokens onto the body BEFORE validation and
+    // ignore whatever the client sent — a missing token then fails the schema's
+    // "Tanda tangan … wajib disimpan" check.
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      const stored = await tx.enrollmentApplication.findUnique({
+        where: { id },
+        select: { consentData: true },
+      });
+      const storedConsent = asObject(stored?.consentData);
+      const b = body as Record<string, unknown>;
+      const consent = { ...asObject(b.consentData) };
+      for (const side of ["ayah", "ibu"] as const) {
+        const token = asObject(storedConsent[side]).signatureToken;
+        consent[side] = {
+          ...asObject(consent[side]),
+          signatureToken: typeof token === "string" ? token : "",
+        };
+      }
+      b.consentData = consent;
+    }
 
-  const nowIso = now.toISOString();
+    const parsed = submitEnrollmentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "validation_failed", fields: flattenSubmitErrors(parsed.error) },
+        { status: 422 },
+      );
+    }
+    const data = parsed.data;
 
-  // Server-stamp the signing time — client-supplied signedAt is not trusted.
-  const consentData = {
-    ...data.consentData,
-    ayah: { ...data.consentData.ayah, signedAt: nowIso },
-    ibu: { ...data.consentData.ibu, signedAt: nowIso },
-  };
+    // Guard the chosen program against the application's tenant (IDOR write).
+    if (!(await programBelongsToTenant(data.programId, tenantId, tx))) {
+      return NextResponse.json(
+        { error: "validation_failed", fields: { programId: "Program tidak valid" } },
+        { status: 422 },
+      );
+    }
 
-  // Guard the INVITED→SUBMITTED transition at the DB layer too: updateMany with
-  // a status predicate makes a double-submit race a no-op (count 0) rather than
-  // overwriting an already-submitted row.
-  const result = await prisma.enrollmentApplication.updateMany({
-    where: { id, status: "INVITED" },
-    data: {
-      status: "SUBMITTED",
-      submittedAt: now,
-      childName: data.studentData.childName,
-      programId: data.programId,
-      dcareAddon: data.dcareAddon,
-      studentData: data.studentData,
-      ayahData: data.ayahData,
-      ibuData: data.ibuData,
-      consentData,
-    },
+    const nowIso = now.toISOString();
+
+    // Server-stamp the signing time — client-supplied signedAt is not trusted.
+    const consentData = {
+      ...data.consentData,
+      ayah: { ...data.consentData.ayah, signedAt: nowIso },
+      ibu: { ...data.consentData.ibu, signedAt: nowIso },
+    };
+
+    // Guard the INVITED→SUBMITTED transition at the DB layer too: updateMany with
+    // a status predicate makes a double-submit race a no-op (count 0) rather than
+    // overwriting an already-submitted row.
+    const result = await tx.enrollmentApplication.updateMany({
+      where: { id, status: "INVITED" },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: now,
+        childName: data.studentData.childName,
+        programId: data.programId,
+        dcareAddon: data.dcareAddon,
+        studentData: data.studentData,
+        ayahData: data.ayahData,
+        ibuData: data.ibuData,
+        consentData,
+      },
+    });
+    if (result.count === 0) {
+      // Lost the race — someone already submitted between resolve and update.
+      return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+    }
+
+    return NextResponse.json({ ok: true, id }, { status: 201 });
   });
-  if (result.count === 0) {
-    // Lost the race — someone already submitted between resolve and update.
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
-  }
-
-  return NextResponse.json({ ok: true, id }, { status: 201 });
 }

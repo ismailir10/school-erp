@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
+import { writeConsentPreservingSignatures } from "@/lib/enrollment/json-merge";
 import { programIdSchema } from "@/lib/validations/program-id";
 
 const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
@@ -13,6 +14,8 @@ const RATE_WINDOW_MS = 60_000;
 // Draft save is intentionally loose — the parent may save a half-filled form.
 // Blobs are stored as-is (validated only at final submit). passthrough() keeps
 // nested keys; the whole blob is replaced per save (client sends current state).
+// Not accepted here, by design: `documents` (owned by the documents routes) —
+// zod strips unknown keys, so a client-sent `documents` never reaches the row.
 const draftSchema = z.object({
   studentData: z.object({}).passthrough().optional(),
   ayahData: z.object({}).passthrough().optional(),
@@ -21,6 +24,25 @@ const draftSchema = z.object({
   programId: z.union([programIdSchema, z.literal(""), z.null()]).optional(),
   dcareAddon: z.boolean().optional(),
 });
+
+/**
+ * Draft consent blob → what we are willing to write. Signatures are owned by
+ * the signature route, so any client-sent `signatureToken`/`signedAt` is
+ * dropped; `ayah`/`ibu` are forced to objects so the SQL carry-over of the
+ * stored tokens has somewhere to land.
+ */
+function normalizeConsentDraft(consent: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...consent };
+  for (const side of ["ayah", "ibu"] as const) {
+    const v = out[side];
+    const block: Record<string, unknown> =
+      v && typeof v === "object" && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : {};
+    delete block.signatureToken;
+    delete block.signedAt;
+    out[side] = block;
+  }
+  return out;
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const limit = rateLimit(`enroll-draft:${getClientIp(req)}`, RATE_LIMIT_PER_MIN, RATE_WINDOW_MS);
@@ -58,7 +80,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   }
   if (d.ayahData !== undefined) data.ayahData = d.ayahData;
   if (d.ibuData !== undefined) data.ibuData = d.ibuData;
-  if (d.consentData !== undefined) data.consentData = d.consentData;
+  // consentData is written separately (below) in one UPDATE that carries the
+  // stored signature tokens over, so autosave can never clear a signature.
   if (d.programId !== undefined) {
     // Drop a cross-tenant program ref silently — this is an autosave, not a
     // hard gate; the final submit re-checks and 422s if still invalid.
@@ -70,6 +93,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   }
   if (d.dcareAddon !== undefined) data.dcareAddon = d.dcareAddon;
 
-  await prisma.enrollmentApplication.update({ where: { id }, data });
+  if (d.consentData !== undefined) {
+    const written = await writeConsentPreservingSignatures(id, normalizeConsentDraft(d.consentData));
+    // Submitted between the access check and the write: leave the row alone.
+    if (!written) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  }
+  if (Object.keys(data).length > 0) {
+    // Same INVITED guard as the consent write: a submit that landed in between
+    // must not be overwritten by a late autosave.
+    const result = await prisma.enrollmentApplication.updateMany({ where: { id, status: "INVITED" }, data });
+    if (result.count === 0) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }
