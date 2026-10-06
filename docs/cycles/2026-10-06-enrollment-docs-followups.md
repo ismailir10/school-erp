@@ -50,7 +50,7 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
 - [x] **T3 — Enforce on the form + submit.** Server 422, `page.tsx` prop, Berkas step validation and copy, tests. *Deps:* T1.
 - [x] **T4 — Guardian copy on convert.** Storage copy helper, convert route post-transaction copy, `documentsCopied`, toast copy, tests. *Deps:* none.
 - [x] **T5 — Student page.** `enrollment-application` route documents, Pendaftaran section card, overview counts and rail row, tests. *Deps:* none.
-- [ ] **T6 — E2E + docs.** Specs, README, UAT jobs, Ship Notes. *Deps:* T1–T5.
+- [x] **T6 — E2E + docs.** Specs, README, UAT jobs, Ship Notes. *Deps:* T1–T5.
 
 ## Implementation
 
@@ -78,6 +78,15 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
   - **Student page UI:** the Pendaftaran block renders `EnrollmentDocumentsCard`, whose new `onChange` refetches the overview. The rail gains a "Berkas pendaftaran (x / N)" row.
   - README admin row updated.
 
+- Task 6:
+  - `e2e/enrollment-docs-followups.spec.ts` covers four flows:
+    - required-before-submit: API 422, then in the UI Lanjut is blocked, the parent uploads and submits;
+    - settings UI save;
+    - convert copy: `documentsCopied` all copied, and the guardian KTP/KK stream as png/pdf;
+    - student page: card plus rail row.
+    The config is reset to `[]` in before/after hooks.
+  - `docs/uat/jobs/admin.md` gets JTBD-ADMIN-ADM-03, and CLAUDE.md counts are regenerated.
+
 ## Verification
 
 - Full gate after review fixes: `npm run build` exit 0; `npx vitest run` (no DEMO_MODE) 495 files passed / 2 skipped, 4645 tests passed; `verify-api-auth` 203/203; `verify-rls-coverage` 42/42; local migration applied, and `prisma migrate diff` reports empty.
@@ -85,3 +94,10 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
 - design-system: the settings page follows the existing work-hours settings layout with Shadcn Checkbox/Button/Alert. The parent badge and the student-page card reuse existing components and tokens; no new colours.
 
 ## Ship Notes
+
+- **Migration:** `20261006010000_add_tenant_enrollment_required_documents` adds `Tenant.enrollmentRequiredDocuments TEXT[] NOT NULL DEFAULT '{}'`. It is additive and applies automatically through `prisma migrate deploy` on the staging/main builds. Every tenant starts with none required, so the parent form behaves exactly as before until staff tick something under Pengaturan → Berkas Wajib Pendaftaran.
+- **Env vars:** none.
+- **Verification route:** Local, because this is not auth-impacting. No proxy/session/cookie changes; the new routes use the existing `getSession` + `isAdminRole` + `hasPermission` + tenant pattern, and the public submit is gated by the existing token.
+- **Convert behaviour:** it now does up to 3 storage copies after the DB transaction. A copy failure is reported in the toast and never rolls back the convert. Existing guardian KTP/KK are never overwritten. Applications converted before this deploy are not backfilled; their files remain viewable on the application and student pages.
+- **Rollback:** revert the PR. The `Tenant` column can stay, since nothing reads it after a revert. Copied guardian files are ordinary guardian uploads and remain valid.
+- **Follow-up (pre-existing, not widened here):** in convert, a parent without email is matched by phone via `detectSibling`. If Ayah and Ibu share a phone, Ibu's details overwrite the Ayah row. The KTP copy then targets that merged row. This is worth its own cycle.
