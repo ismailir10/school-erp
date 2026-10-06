@@ -139,6 +139,12 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
     - The tick is optimistic and reverts on failure with mapped copy.
   - `README.md` admin row updated.
 
+- E2E:
+  - `e2e/enrollment-application.spec.ts` updated. Client-only tokens now return 422; real PNG signatures go through the route; a KK PDF upload returns no token; the admin stream serves `%PDF-`; `documentsReceived` works on a converted application while a status change there returns 409.
+  - New `e2e/enrollment-signature-handover.spec.ts`, the regression: device A signs Ayah; device B, a fresh context, sees it saved and signs Ibu; A taps Periksa lagi and submits; admin streams both PNGs.
+  - New `e2e/enrollment-documents.spec.ts`: Berkas upload, delete, re-upload, the missing list on Tinjau and the success screen, and the admin card tick.
+  - New shared setup in `e2e/helpers/enrollment.ts`. `CLAUDE.md` counts regenerated.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -150,5 +156,6 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - Tasks 3/5/6/7: full gate on the combined tree: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4547 tests passed. Review fixes were checked by the frontend reviewer's follow-up (focus stays on busy buttons, focus after delete, failed-submit re-arm, concurrent uploads, busy state across step changes).
 - design-system: the Berkas step and handover note use existing Shadcn primitives (Button, Alert, Input, Badge, Spinner) and the page's existing emerald brand tokens; no new colors or arbitrary hex beyond what the form already used.
 - Task 8: covered by the combined gate above plus `e2e/enrollment-documents.spec.ts`. The admin card shows "1 / 9", ticking Akta moves it to "2 / 9", and the tick survives a reload.
+- Playwright (local, production build with `DEMO_MODE=true` against disposable local Postgres 16, Chromium via a local-only browser-path shim): `npx playwright test e2e/enrollment-application.spec.ts e2e/enrollment-signature-handover.spec.ts e2e/enrollment-documents.spec.ts e2e/admin-admission-convert-parity.spec.ts e2e/daftar-public.spec.ts` gave **12 passed (19.6s)**, with no retries.
 
 ## Ship Notes
