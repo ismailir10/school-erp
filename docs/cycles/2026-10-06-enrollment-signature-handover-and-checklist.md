@@ -100,6 +100,11 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
     - `GET /api/enrollments/[id]/documents/[key]` streams the file (`admissions.view`, tenant, `no-store`).
     - `PATCH { documentsReceived: { [key]: boolean } }` is allowed on a converted application only when it is the sole field.
 
+- Demo storage (test infra): `lib/storage/index.ts`, `lib/storage/__tests__/demo-storage.test.ts`. Adds the `demo:v1:` disk backend, gated as described above. Its tokens are refused outside demo mode, and the existing `parseToken` traversal guards apply.
+
 ## Verification
+- Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
+- Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
+- Reviews: independent backend security review found no exploitable issue and 5 nits (stale-object cleanup race, an unguarded second write in draft PATCH, names on the signature GET, admin `consentData` able to set tokens, length precheck), all fixed. The driver relaxed the strict 411 so a *missing* `Content-Length` is tolerated, because an HTTP/2 hop may drop it and rejecting would break every upload on that path. The frontend review found focus loss when buttons unmount and lost draft edits after a failed submit, plus minor items; all are being fixed.
 
 ## Ship Notes
