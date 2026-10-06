@@ -72,6 +72,34 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5-5, dirty-work=sonnet. Backend slice (T1, T2, T4, T5, T6, T8-API + demo storage) and frontend slice (T3, T7, T8-UI) run **in parallel** against the frozen contract below. E2E and docs (T9) run sequentially after both. The driver reviews each diff and commits per task.
+- Spec addition (test infra, recorded at build time): storage requires Supabase, and neither CI's Playwright job nor this harness has Supabase credentials. A **demo disk backend** was added to `lib/storage`. Tokens look like `demo:v1:<path>` and files live under `os.tmpdir()/talib-demo-storage`. It is active only when `DEMO_MODE=true`, `SUPABASE_SERVICE_ROLE_KEY` is unset and `VERCEL` is unset, so it can never engage on a deployment. Without it, neither real signature/document uploads in E2E nor local usability checks are possible.
+- Contract (frozen before fan-out):
+  - `lib/enrollment/json-merge.ts`
+    - `mergeJsonKey(id, column: "consentData"|"documents", key, patch: Record<string, unknown>, { requireInvited }) → Promise<boolean>`: one `UPDATE … SET col = COALESCE(col,'{}') || jsonb_build_object(key, COALESCE(col->key,'{}') || patch)`. Returns false when 0 rows match.
+    - `removeJsonFields(id, column, key, fields[], opts)` removes the listed fields from that key.
+  - Signature routes:
+    - `POST /api/enrollments/token/[token]/signature?which=` → `{ saved: true }`, and the token is persisted. A non-INVITED row returns 409.
+    - `GET` on the same path → `{ ayah: boolean, ibu: boolean }`.
+  - Draft PATCH: ignores client `signatureToken`. `consentData` is written in one UPDATE that carries the stored `ayah/ibu.signatureToken` over. `documents` is never accepted.
+  - Submit: overlays the DB `consentData.{ayah,ibu}.signatureToken` onto the body before validation.
+  - Documents routes:
+    - `POST /api/enrollments/token/[token]/documents?key=` (multipart `file`, optional `label` for `lainnya`) → `{ key, fileName, mimeType, size, uploadedAt, label? }`.
+    - `DELETE ?key=` → `{ ok: true }`.
+    - Limits: 4 MB, JPEG/PNG/PDF by magic bytes.
+  - `lib/enrollment/documents.ts`:
+    - `DOCUMENT_ITEMS`
+    - `DocumentKey`
+    - `toPublicDocuments(raw)` → `{ [key]: { fileName, mimeType, size, uploadedAt, label? } }`, with no tokens
+    - `toAdminDocuments(raw)` → `{ [key]: { hasFile, fileName, mimeType, size, uploadedAt, label?, receivedPhysical, receivedAt } }`
+    - `documentProgress(raw)` → `{ done, required }`
+    - `missingRequiredDocuments(publicOrAdmin)` → `DocumentKey[]`
+  - Page prefill: `consentData` becomes `{ agreed, ayah: { name, signed }, ibu: { name, signed } }` (no raw tokens), and a new `documents` prop is the `toPublicDocuments` output.
+  - Admin:
+    - `GET /api/enrollments/[id]` adds `documents: toAdminDocuments(...)`.
+    - `GET /api/enrollments/[id]/documents/[key]` streams the file (`admissions.view`, tenant, `no-store`).
+    - `PATCH { documentsReceived: { [key]: boolean } }` is allowed on a converted application only when it is the sole field.
+
 ## Verification
 
 ## Ship Notes
