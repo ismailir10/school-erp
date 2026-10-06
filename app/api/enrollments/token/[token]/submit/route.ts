@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { submitEnrollmentSchema, flattenSubmitErrors } from "@/lib/enrollment/submit-validation";
+import { DOCUMENT_ITEMS, missingUploads } from "@/lib/enrollment/documents";
+import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
@@ -49,16 +51,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // `documents` is read in the same locked read: an upload racing the submit
+    // waits on the row lock, so the required-documents check below sees every
+    // file that was stored before the form closed.
+    const stored = await tx.enrollmentApplication.findUnique({
+      where: { id },
+      select: { consentData: true, documents: true },
+    });
     // Signatures live on the row (the signature route persists them the moment
     // they are drawn), so the parent who submits may never have seen the other
     // parent's pad. Overlay the stored tokens onto the body BEFORE validation and
     // ignore whatever the client sent — a missing token then fails the schema's
     // "Tanda tangan … wajib disimpan" check.
     if (body && typeof body === "object" && !Array.isArray(body)) {
-      const stored = await tx.enrollmentApplication.findUnique({
-        where: { id },
-        select: { consentData: true },
-      });
       const storedConsent = asObject(stored?.consentData);
       const b = body as Record<string, unknown>;
       const consent = { ...asObject(b.consentData) };
@@ -80,6 +85,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       );
     }
     const data = parsed.data;
+
+    // Documents the school made mandatory (Pengaturan Pendaftaran). A staff
+    // "received physically" tick does not count — only an uploaded file does.
+    const required = await getRequiredDocuments(tenantId, tx);
+    const missing = missingUploads(stored?.documents, required);
+    if (missing.length > 0) {
+      const labels = missing.map((k) => DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k);
+      return NextResponse.json(
+        { error: "validation_failed", fields: { documents: "Berkas wajib belum diunggah: " + labels.join(", ") } },
+        { status: 422 },
+      );
+    }
 
     // Guard the chosen program against the application's tenant (IDOR write).
     if (!(await programBelongsToTenant(data.programId, tenantId, tx))) {

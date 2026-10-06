@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany, programFindFirst, queryRaw, transaction } = vi.hoisted(() => ({
+const { findUnique, updateMany, programFindFirst, queryRaw, transaction, tenantFindUnique } = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  tenantFindUnique: vi.fn(),
   updateMany: vi.fn(),
   programFindFirst: vi.fn(),
   queryRaw: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/lib/db", () => {
   const client = {
     enrollmentApplication: { findUnique, updateMany },
     program: { findFirst: programFindFirst },
+    tenant: { findUnique: tenantFindUnique },
     $queryRaw: queryRaw,
     $transaction: transaction,
   };
@@ -63,11 +65,11 @@ const DB_AYAH = "supabase:v1:enrollment/a/ayah-signature-db.png";
 const DB_IBU = "supabase:v1:enrollment/a/ibu-signature-db.png";
 
 /** resolve looks up by accessToken; the signature overlay reads the row by id. */
-function mockRow(consentData: unknown) {
+function mockRow(consentData: unknown, documents: unknown = null) {
   findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
     arg.where.accessToken
       ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" }
-      : { consentData },
+      : { consentData, documents },
   );
 }
 
@@ -80,6 +82,7 @@ beforeEach(() => {
     return cb(prisma);
   });
   mockRow({ ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } });
+  tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: [] }); // nothing required by default
   updateMany.mockResolvedValue({ count: 1 });
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
 });
@@ -252,3 +255,69 @@ describe("POST /submit — transaction + row lock", () => {
   });
 });
 
+
+describe("POST /submit — required documents", () => {
+  const SIGS = { ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } };
+  const uploaded = (extra: Record<string, unknown> = {}) => ({
+    fileToken: "supabase:v1:enrollment/a/doc-kk-1.pdf",
+    fileName: "kk.pdf",
+    mimeType: "application/pdf",
+    size: 10,
+    uploadedAt: "2026-10-06T01:00:00.000Z",
+    ...extra,
+  });
+
+  it("nothing required → unchanged (201 with no documents at all)", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: [] });
+    mockRow(SIGS, null);
+    expect((await POST(req(validBody()), ctx)).status).toBe(201);
+  });
+
+  it("looks the requirement up by the application's tenant, inside the transaction", async () => {
+    await POST(req(validBody()), ctx);
+    expect(tenantFindUnique.mock.calls[0][0].where).toEqual({ id: "t-1" });
+  });
+
+  it("required + missing → 422 naming the labels in form order; nothing written", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk", "akta"] });
+    mockRow(SIGS, { kk: uploaded() , surat_sehat: uploaded() });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error).toBe("validation_failed");
+    expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak");
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("lists every missing label when several are absent", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["akta", "kk"] });
+    mockRow(SIGS, null);
+    const json = await (await POST(req(validBody()), ctx)).json();
+    expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak, Kartu Keluarga (KK)");
+  });
+
+  it("required + uploaded → 201", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk", "akta"] });
+    mockRow(SIGS, { kk: uploaded(), akta: uploaded({ fileName: "akta.pdf" }) });
+    expect((await POST(req(validBody()), ctx)).status).toBe(201);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("a physical-receipt tick alone does not satisfy a required document", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk"] });
+    mockRow(SIGS, { kk: { receivedPhysical: true, receivedAt: "2026-10-06T01:00:00.000Z" } });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("schema validation errors still win over the documents check", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk"] });
+    mockRow(SIGS, null);
+    const b = validBody();
+    b.studentData.childName = "";
+    const json = await (await POST(req(b), ctx)).json();
+    expect(json.fields["studentData.childName"]).toBeTruthy();
+    expect(json.fields.documents).toBeUndefined();
+  });
+});

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
-import { toPublicDocuments } from "@/lib/enrollment/documents";
+import { toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
+import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import PendaftaranClient from "./client";
 
 export const metadata: Metadata = {
@@ -71,13 +72,24 @@ function MessageCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+async function getRequired(tenantId: string | undefined): Promise<DocumentKey[]> {
+  if (!tenantId) return [];
+  try {
+    return await getRequiredDocuments(tenantId);
+  } catch (err) {
+    // Never block the parent's form on a config read; the server still enforces on submit.
+    console.error("[pendaftaran/page] required documents lookup failed", err);
+    return [];
+  }
+}
+
 export default async function PendaftaranTokenPage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const { access, application } = await resolveEnrollmentToken(token, new Date());
+  const { access, application, tenantId } = await resolveEnrollmentToken(token, new Date());
 
   if (access === "NOT_FOUND") {
     return (
@@ -112,7 +124,10 @@ export default async function PendaftaranTokenPage({
     );
   }
 
-  const programs = await getActivePrograms();
+  const [programs, requiredDocuments] = await Promise.all([
+    getActivePrograms(),
+    getRequired(tenantId),
+  ]);
 
   return (
     <Shell>
@@ -129,6 +144,7 @@ export default async function PendaftaranTokenPage({
       <PendaftaranClient
         token={token}
         programs={programs}
+        requiredDocuments={requiredDocuments}
         prefill={{
           programId: application.programId,
           dcareAddon: application.dcareAddon,

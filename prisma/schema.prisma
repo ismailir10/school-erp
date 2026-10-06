@@ -14,6 +14,9 @@ model Tenant {
   slug      String   @unique
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
+  // Kelengkapan Berkas keys (lib/enrollment/documents.ts) the parent must upload
+  // before the pendaftaran form can be submitted. Empty = every upload optional.
+  enrollmentRequiredDocuments String[] @default([])
 
   users                  User[]
   roles                  Role[]

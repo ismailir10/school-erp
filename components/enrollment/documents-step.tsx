@@ -169,12 +169,15 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
 
 export function DocumentsStep({
   documents,
+  required = [],
   busy,
   errors,
   onUpload,
   onRemove,
 }: {
   documents: PublicDocuments;
+  /** Items the school requires uploaded before the form can be sent. */
+  required?: readonly DocumentKey[];
   busy: Partial<Record<DocumentKey, RowBusy>>;
   errors: Partial<Record<DocumentKey, string>>;
   onUpload: (key: DocumentKey, file: File, label?: string) => void;
@@ -210,8 +213,10 @@ export function DocumentsStep({
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">Berkas pendukung</h2>
       <p className="text-sm text-emerald-900/70">
-        Mengunggah berkas bersifat opsional. Berkas yang belum sempat diunggah dapat dibawa langsung
-        ke sekolah. Foto dari kamera, galeri, atau PDF semuanya bisa.
+        {required.length > 0
+          ? "Berkas bertanda Wajib diunggah perlu diunggah sebelum formulir dikirim. Berkas lainnya boleh diunggah sekarang atau dibawa langsung ke sekolah."
+          : "Mengunggah berkas bersifat opsional. Berkas yang belum sempat diunggah dapat dibawa langsung ke sekolah."}{" "}
+        Foto dari kamera, galeri, atau PDF semuanya bisa.
       </p>
 
       <ul className="space-y-3">
@@ -224,14 +229,21 @@ export function DocumentsStep({
           const titleId = `berkas-${key}-title`;
           const errId = `berkas-${key}-error`;
           const isOther = key === "lainnya";
+          const isRequired = required.includes(key);
           return (
             <li key={key} className="rounded-xl border border-emerald-900/15 bg-white p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-1">
                   <p id={titleId} className="text-sm font-medium text-emerald-950">
                     {item.label}
-                    {!item.required && (
-                      <span className="ml-2 text-xs font-normal text-emerald-900/60">Jika ada</span>
+                    {isRequired ? (
+                      <span className="ml-2 inline-block rounded-full bg-emerald-900/10 px-2 py-0.5 text-xs font-medium text-emerald-900">
+                        Wajib diunggah
+                      </span>
+                    ) : (
+                      !item.required && (
+                        <span className="ml-2 text-xs font-normal text-emerald-900/60">Jika ada</span>
+                      )
                     )}
                   </p>
                   {item.note && <p className="text-xs text-emerald-900/70">{item.note}</p>}

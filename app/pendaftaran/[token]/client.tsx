@@ -15,6 +15,8 @@ import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/docum
 import {
   DOCUMENT_ITEMS,
   missingRequiredDocuments,
+  missingUploads,
+  type DocumentKey,
   type PublicDocuments,
 } from "@/lib/enrollment/documents";
 import {
@@ -161,10 +163,13 @@ export default function PendaftaranClient({
   token,
   programs,
   prefill,
+  requiredDocuments = [],
 }: {
   token: string;
   programs: Program[];
   prefill: Prefill;
+  /** Documents the school requires uploaded before submit (empty = all optional). */
+  requiredDocuments?: DocumentKey[];
 }) {
   const [step, setStep] = useState(0);
   const [student, setStudent] = useState<StudentState>(() => initStudent(prefill.studentData));
@@ -276,7 +281,14 @@ export default function PendaftaranClient({
     if (s === 1 && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
     if (s === 2 && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
     if (s === 3 && !programId) e.push("Program wajib dipilih.");
-    // Step 4 (Berkas) is optional: nothing to validate.
+    // Step 4 (Berkas): only the school-configured required list blocks; the
+    // rest stays optional.
+    if (s === 4) {
+      for (const k of missingUploads(documents, requiredDocuments)) {
+        const label = DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k;
+        e.push(`${label} wajib diunggah.`);
+      }
+    }
     if (s === STEP_CONSENT) {
       if (!consent.agreed) e.push("Persetujuan orang tua wajib dicentang.");
       if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
@@ -474,6 +486,7 @@ export default function PendaftaranClient({
         {step === 4 && (
           <DocumentsStep
             documents={docs.documents}
+            required={requiredDocuments}
             busy={docs.busy}
             errors={docs.errors}
             onUpload={docs.upload}

@@ -45,15 +45,35 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
 
 ## Tasks
 
-- [ ] **T1 — Migration + config API.** Add `OrgConfig.enrollmentRequiredDocuments`, its migration, and `GET/PUT /api/config/enrollment` with tests. *Deps:* none.
-- [ ] **T2 — Settings page.** Add `/admin/settings/pendaftaran` and a nav/hub link, with tests. *Deps:* T1.
-- [ ] **T3 — Enforce on the form + submit.** Server 422, `page.tsx` prop, Berkas step validation and copy, tests. *Deps:* T1.
+- [x] **T1 — Migration + config API.** Add `OrgConfig.enrollmentRequiredDocuments`, its migration, and `GET/PUT /api/config/enrollment` with tests. *Deps:* none.
+- [x] **T2 — Settings page.** Add `/admin/settings/pendaftaran` and a nav/hub link, with tests. *Deps:* T1.
+- [x] **T3 — Enforce on the form + submit.** Server 422, `page.tsx` prop, Berkas step validation and copy, tests. *Deps:* T1.
 - [ ] **T4 — Guardian copy on convert.** Storage copy helper, convert route post-transaction copy, `documentsCopied`, toast copy, tests. *Deps:* none.
 - [ ] **T5 — Student page.** `enrollment-application` route documents, Pendaftaran section card, overview counts and rail row, tests. *Deps:* none.
 - [ ] **T6 — E2E + docs.** Specs, README, UAT jobs, Ship Notes. *Deps:* T1–T5.
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5-5, dirty-work=sonnet.
+  - Parallel: a backend slice (T1, T3 server, T4, T5 API) and a frontend slice (T2, T3 form, T4 toast, T5 UI) against a frozen contract, plus an E2E agent.
+  - The driver reviewed, and an independent review agent checked security and correctness.
+  - Commits are grouped T1–T3 / T4–T5 / E2E, because the commit-msg hook needs a README hunk per `feat` commit touching app/lib and the README has room for two lines.
+- **Review-driven design change:** the setting moved from `OrgConfig` to `Tenant.enrollmentRequiredDocuments`.
+  - Creating an OrgConfig row for a tenant without one would have silently changed attendance lateness (`attendance/check-in`), let payroll run on a 21/20 period nobody chose (`payroll/generate`), and narrowed class working days (`admin/classes`). Those readers treat "no row" differently from "row with defaults".
+  - The migration had not shipped, so the move was free.
+- Tasks 1–3: required-before-submit, configurable per school.
+  - **Data:** `prisma/schema.prisma` adds `Tenant.enrollmentRequiredDocuments String[] @default([])`, with migration `20261006010000_add_tenant_enrollment_required_documents`.
+  - **Reading:** `lib/enrollment/required-documents.ts` `getRequiredDocuments` filters unknown keys and keeps item order. `lib/enrollment/documents.ts` gains `missingUploads`, where a physical tick does not count.
+  - **API:** `app/api/config/enrollment` serves GET (`admissions.view`, plus `canEdit`) and PUT (`admissions.edit`, rate-limited, keys validated then deduped by `lib/validations/enrollment-config.ts`). It only ever does `tenant.update`.
+  - **Submit:** the route enforces the list inside the existing `FOR UPDATE` transaction, returning 422 `fields.documents`.
+  - **Settings UI:** `/admin/settings/pendaftaran` is a checkbox list. It is read-only when `canEdit` is false and shows a no-access message on a 403. The nav item "Berkas Wajib Pendaftaran" is gated on `admissions.view`.
+  - **Parent form:** `page.tsx` passes `requiredDocuments`, falling back to `[]` if the read fails because the server still enforces. The Berkas step shows the "Wajib diunggah" badge and changes its intro, and Lanjut is blocked with "<label> wajib diunggah." until the file is uploaded.
+  - README public row updated.
+
 ## Verification
+
+- Full gate after review fixes: `npm run build` exit 0; `npx vitest run` (no DEMO_MODE) 495 files passed / 2 skipped, 4645 tests passed; `verify-api-auth` 203/203; `verify-rls-coverage` 42/42; local migration applied, and `prisma migrate diff` reports empty.
+- Playwright (local prod build, DEMO_MODE, disposable Postgres): `e2e/enrollment-docs-followups.spec.ts` plus the enrollment set gave **16 passed (27.5s)**, with no retries.
+- design-system: the settings page follows the existing work-hours settings layout with Shadcn Checkbox/Button/Alert. The parent badge and the student-page card reuse existing components and tokens; no new colours.
 
 ## Ship Notes
