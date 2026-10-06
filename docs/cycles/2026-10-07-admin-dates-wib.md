@@ -61,3 +61,9 @@ No UAT report covers these screens within 60 days. This was found in passing; it
 - Disk note: the last build ran with 456 MiB free (below the 1.2 GB floor the driver set; the check printed but did not gate the chained command). It completed; no further builds were attempted.
 
 ## Ship Notes
+
+- **Migrations:** none. No schema or data change; stored values were always right, only display moved.
+- **Env vars:** none.
+- **Behaviour change to eyeball:** timestamps now read on the Asia/Jakarta calendar day everywhere `formatDate` / `formatDateShort` receive an ISO timestamp (admin, parent, teacher). Date-only (`YYYY-MM-DD`) and UTC-midnight values are unchanged. "Tgl Ditugaskan" on class detail now reads "6 Okt 2026" instead of raw `2026-10-06`.
+- **Known gap (follow-up):** three parent-portal sites still pre-truncate before formatting and show the UTC day for 00:00-06:59 WIB timestamps: `app/parent/report-cards-list.tsx:96`, `app/parent/invoices/invoice-detail-sheet.tsx:308,339`. Parent portal was a stated non-goal. Also not covered: a zoneless `T` string (no `Z`/offset) is parsed in the process zone; no caller passes one.
+- **Rollback:** revert the four commits; nothing else to undo.
