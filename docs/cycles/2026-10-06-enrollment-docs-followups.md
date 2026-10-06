@@ -92,6 +92,10 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
 - Full gate after review fixes: `npm run build` exit 0; `npx vitest run` (no DEMO_MODE) 495 files passed / 2 skipped, 4645 tests passed; `verify-api-auth` 203/203; `verify-rls-coverage` 42/42; local migration applied, and `prisma migrate diff` reports empty.
 - Playwright (local prod build, DEMO_MODE, disposable Postgres): `e2e/enrollment-docs-followups.spec.ts` plus the enrollment set gave **16 passed (27.5s)**, with no retries.
 - design-system: the settings page follows the existing work-hours settings layout with Shadcn Checkbox/Button/Alert. The parent badge and the student-page card reuse existing components and tokens; no new colours.
+- Local verification passed for source SHA 22e5cb5 (route = demo-auth browser + disposable local Postgres). Code is unchanged in 99bc60b, which adds the spec and docs.
+  - Flows: required berkas setting save, parent blocked then uploads then submits, convert copy, student page card and rail.
+  - Screenshot check (desktop 1366): `/admin/settings/pendaftaran` renders 11 checkbox rows with explainer and footnote. The student dossier shows the Kelengkapan Berkas card "3 / 9 berkas lengkap" with Lihat links. The rail lists "KK keluarga ✓", "KTP <Ayah> ✓", "KTP <Ibu> ✓" (the guardian copy landed) and "Berkas pendaftaran (3 / 9)".
+  - Console: only the local-only `/_vercel/*` analytics 404s. No app errors, no 5xx.
 
 ## Ship Notes
 
