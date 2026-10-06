@@ -286,6 +286,7 @@ describe("POST /submit — required documents", () => {
     const json = await res.json();
     expect(json.error).toBe("validation_failed");
     expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak");
+    expect(json.missingDocuments).toEqual(["akta"]);
     expect(updateMany).not.toHaveBeenCalled();
   });
 
@@ -294,6 +295,7 @@ describe("POST /submit — required documents", () => {
     mockRow(SIGS, null);
     const json = await (await POST(req(validBody()), ctx)).json();
     expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak, Kartu Keluarga (KK)");
+    expect(json.missingDocuments).toEqual(["akta", "kk"]);
   });
 
   it("required + uploaded → 201", async () => {
@@ -319,5 +321,6 @@ describe("POST /submit — required documents", () => {
     const json = await (await POST(req(b), ctx)).json();
     expect(json.fields["studentData.childName"]).toBeTruthy();
     expect(json.fields.documents).toBeUndefined();
+    expect(json.missingDocuments).toBeUndefined();
   });
 });
