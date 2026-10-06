@@ -383,6 +383,36 @@ describe("student dossier — increment 3", () => {
     expect(screen.getByRole("checkbox", { name: "Diterima fisik: KTP Ayah" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
+  it("hides the Kelengkapan Berkas card when the API withholds documents", async () => {
+    const user = userEvent.setup();
+    const { fn, calls } = stubFetch();
+    const wrapped = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/students/s1/enrollment-application") {
+        calls.push({ url, method: "GET" });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: { ...APPLICATION.data, documents: null, canEditDocuments: false },
+          }),
+        } as Response);
+      }
+      return fn(input, init);
+    });
+    vi.stubGlobal("fetch", wrapped);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
+
+    await user.click(await sectionTrigger("pendaftaran"));
+
+    // The rest of the form still renders; only the card is withheld.
+    await waitFor(() => expect(screen.getByText("PT Contoh")).toBeInTheDocument());
+    // The card's own heading id; the rail's "Kelengkapan Berkas" checklist is a different card.
+    expect(document.getElementById("kelengkapan-berkas-title")).toBeNull();
+    expect(screen.queryByText("kk-aisyah.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Diterima fisik/ })).not.toBeInTheDocument();
+  });
+
   it("locks the receipt ticks when the viewer cannot edit documents", async () => {
     const user = userEvent.setup();
     const { fn, calls } = stubFetch();

@@ -93,14 +93,23 @@ describe("PUT /api/config/enrollment", () => {
     expect((await PUT(put({ requiredDocuments: [] }))).status).toBe(403);
   });
 
-  it("400 for an unknown document key", async () => {
+  it("400 in the standard validateBody shape for an unknown document key, on field requiredDocuments", async () => {
     const res = await PUT(put({ requiredDocuments: ["kk", "paspor"] }));
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Jenis berkas tidak dikenal" });
+    expect(await res.json()).toEqual({
+      error: "Validasi gagal",
+      errors: [{ field: "requiredDocuments", message: "Jenis berkas tidak dikenal" }],
+    });
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("400 for more than 11 distinct entries", async () => {
+  it("400 for a non-string entry, reported on the array field", async () => {
+    const res = await PUT(put({ requiredDocuments: ["kk", 3] }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).errors).toEqual([{ field: "requiredDocuments", message: "Jenis berkas tidak dikenal" }]);
+  });
+
+  it("400 for a long list padded with an unknown key", async () => {
     const res = await PUT(put({ requiredDocuments: [...Array(11).fill("kk"), "akta", "x"] }));
     expect(res.status).toBe(400);
     expect(update).not.toHaveBeenCalled();
@@ -113,7 +122,9 @@ describe("PUT /api/config/enrollment", () => {
   });
 
   it("400 for a non-array body field and for invalid JSON", async () => {
-    expect((await PUT(put({ requiredDocuments: "kk" }))).status).toBe(400);
+    const notArray = await PUT(put({ requiredDocuments: "kk" }));
+    expect(notArray.status).toBe(400);
+    expect((await notArray.json()).error).toBe("Validasi gagal");
     expect((await PUT(put({}))).status).toBe(400);
     expect((await PUT(put("{not json"))).status).toBe(400);
   });

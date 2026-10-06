@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { enrollmentConfigSchema } from "@/lib/validations/enrollment-config";
 import { getRequiredDocuments, normalizeRequiredDocuments } from "@/lib/enrollment/required-documents";
 
@@ -44,11 +45,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Body bukan JSON yang valid" }, { status: 400 });
   }
 
-  const parsed = enrollmentConfigSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Data tidak valid" }, { status: 400 });
-  }
-  const requiredDocuments = normalizeRequiredDocuments(parsed.data.requiredDocuments);
+  const result = await validateBody(enrollmentConfigSchema, body);
+  if (result.error) return result.error;
+  const requiredDocuments = normalizeRequiredDocuments(result.data.requiredDocuments);
 
   const tenant = await prisma.tenant.update({
     where: { id: tenantId },

@@ -128,8 +128,34 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan. Coba lagi."));
+    // Rendered in the form too (FormRootError), not only as a toast.
+    expect(screen.getByRole("alert")).toHaveTextContent("Gagal menyimpan. Coba lagi.");
     expect(screen.getByRole("checkbox", { name: "KTP Ayah" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "Simpan Pengaturan" })).toBeEnabled();
+  });
+
+  it("puts a validation 400 on the checkbox group", async () => {
+    fixture({
+      put: {
+        ok: false,
+        status: 400,
+        body: {
+          error: "Validasi gagal",
+          errors: [{ field: "requiredDocuments", message: "Jenis berkas tidak dikenal" }],
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<EnrollmentSettingsPage />);
+
+    await user.click(await screen.findByRole("checkbox", { name: "KTP Ayah" }));
+    await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+    expect(await screen.findByText("Jenis berkas tidak dikenal")).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan. Periksa kolom yang ditandai.");
+    const group = screen.getByRole("group", { name: "Wajib diunggah sebelum formulir dikirim" });
+    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("offers a retry when the settings cannot be loaded", async () => {

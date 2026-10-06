@@ -87,6 +87,12 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
     The config is reset to `[]` in before/after hooks.
   - `docs/uat/jobs/admin.md` gets JTBD-ADMIN-ADM-03, and CLAUDE.md counts are regenerated.
 
+- Codex PR review fixes (4 findings, all verified real):
+  - (P1) The config PUT uses `validateBody`, giving the standard `{error:"Validasi gagal", errors:[{field:"requiredDocuments"}]}`.
+  - (P1) The settings page is rebuilt on `useZodForm` / `FormField` / `FormRootError` / `sendJson` / `applyServerErrors` (ui.md → Forms).
+  - (P2) The student enrollment-application route returns `documents` only with `admissions.view`, and the card is hidden otherwise. A custom role without it would otherwise have seen file names and Lihat links that 403.
+  - (P2) The guardian copy deletes a saved object when the DB phase throws, unless the column references it.
+
 ## Verification
 
 - Full gate after review fixes: `npm run build` exit 0; `npx vitest run` (no DEMO_MODE) 495 files passed / 2 skipped, 4645 tests passed; `verify-api-auth` 203/203; `verify-rls-coverage` 42/42; local migration applied, and `prisma migrate diff` reports empty.
@@ -96,6 +102,10 @@ PR #605 (`docs/cycles/2026-10-06-enrollment-signature-handover-and-checklist.md`
   - Flows: required berkas setting save, parent blocked then uploads then submits, convert copy, student page card and rail.
   - Screenshot check (desktop 1366): `/admin/settings/pendaftaran` renders 11 checkbox rows with explainer and footnote. The student dossier shows the Kelengkapan Berkas card "3 / 9 berkas lengkap" with Lihat links. The rail lists "KK keluarga ✓", "KTP <Ayah> ✓", "KTP <Ibu> ✓" (the guardian copy landed) and "Berkas pendaftaran (3 / 9)".
   - Console: only the local-only `/_vercel/*` analytics 404s. No app errors, no 5xx.
+- After the Codex fixes:
+  - `npm run build` exited 0.
+  - `npx vitest run` (no DEMO_MODE): 495 files passed / 2 skipped, 4656 tests passed.
+  - Enrollment Playwright set: **16 passed (27.1s)**. The first attempt failed only because the local Postgres had stopped after a container restart ("Can't reach database server"); after a restart it passed with no code change.
 
 ## Ship Notes
 

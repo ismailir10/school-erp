@@ -32,8 +32,11 @@ type Application = EnrollmentApplicationBlobs & {
   parentEmail: string | null;
   dcareAddon: boolean;
   submittedAt: string | null;
-  /** Redacted by the API: file presence + names, never storage tokens. */
-  documents?: AdminDocuments;
+  /**
+   * Redacted by the API: file presence + names, never storage tokens. `null`
+   * when the viewer lacks `admissions.view`; the card is then not shown.
+   */
+  documents?: AdminDocuments | null;
   /** `admissions.edit` — gates the "Diterima fisik" tick on the card. */
   canEditDocuments?: boolean;
   program: { id: string; name: string } | null;
@@ -136,12 +139,14 @@ export const StudentEnrollmentApplicationBlock = memo(
             .join(" · ")}
         </p>
 
-        <EnrollmentDocumentsCard
-          applicationId={application.id}
-          documents={application.documents ?? {}}
-          canEdit={application.canEditDocuments === true}
-          onChange={onDocumentsChange}
-        />
+        {application.documents && (
+          <EnrollmentDocumentsCard
+            applicationId={application.id}
+            documents={application.documents}
+            canEdit={application.canEditDocuments === true}
+            onChange={onDocumentsChange}
+          />
+        )}
 
         {/* One column: the dossier's main column is already narrower than the
             enrollment page, and two columns of label/value rows inside it

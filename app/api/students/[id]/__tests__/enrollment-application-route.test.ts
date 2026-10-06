@@ -72,7 +72,7 @@ const APPLICATION = {
 };
 
 beforeEach(() => {
-  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1" };
+  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
   state.application = { ...APPLICATION };
   state.lastQuery = null;
 });
@@ -155,5 +155,26 @@ describe("GET /api/students/[id]/enrollment-application", () => {
     expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
     state.session = { id: "u1", role: "SUPER_ADMIN", tenantId: "t1" };
     expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
+  });
+
+  it("hides documents from an admin role without admissions.view (null, and canEditDocuments false)", async () => {
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "admissions.edit"] };
+    const res = await GET(req(), ctx());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.documents).toBeNull();
+    expect(body.data.canEditDocuments).toBe(false);
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain("kk.pdf");
+    expect(raw).not.toContain("SECRETKK");
+    // The rest of the form is unchanged.
+    expect(body.data.studentData.foodAllergy).toBe("telur");
+  });
+
+  it("shows documents read-only to an admissions viewer", async () => {
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
+    const body = await (await GET(req(), ctx())).json();
+    expect(body.data.documents.kk).toMatchObject({ hasFile: true });
+    expect(body.data.canEditDocuments).toBe(false);
   });
 });

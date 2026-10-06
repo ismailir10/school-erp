@@ -31,7 +31,8 @@ import { toAdminDocuments } from "@/lib/enrollment/documents";
  * this route — see lib/enrollment/sanitize-consent.ts. `documents` is the same
  * kind of thing: the raw column holds a storage token per file, so it goes out
  * as `toAdminDocuments(...)` (presence + metadata, never `fileToken`).
- * `canEditDocuments` tells the page whether to offer the staff tick.
+ * `canEditDocuments` tells the page whether to offer the staff tick. Both are
+ * gated on `admissions.view` (null / false without it).
  */
 export async function GET(
   _req: NextRequest,
@@ -71,12 +72,17 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // The documents card links to the admissions document routes, which need
+  // `admissions.view`. A custom role that can open the student but not
+  // admissions gets `documents: null` instead of names and links that 403.
+  const canViewDocuments = hasPermission(session, "admissions.view");
+
   return NextResponse.json({
     data: {
       ...application,
       consentData: redactConsentSignatures(application.consentData),
-      documents: toAdminDocuments(application.documents),
-      canEditDocuments: hasPermission(session, "admissions.edit"),
+      documents: canViewDocuments ? toAdminDocuments(application.documents) : null,
+      canEditDocuments: canViewDocuments && hasPermission(session, "admissions.edit"),
     },
   });
 }

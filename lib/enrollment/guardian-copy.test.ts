@@ -146,6 +146,57 @@ describe("copyEnrollmentDocsToGuardians", () => {
     await expect(run()).resolves.toEqual({ ktpAyah: "failed", ktpIbu: "failed", kk: "failed" });
   });
 
+  it("a failed save leaves nothing to clean up", async () => {
+    saveFile.mockRejectedValue(new Error("storage down"));
+    await run();
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("deletes the saved object when the conditional write throws (no sensitive orphan)", async () => {
+    updateMany.mockRejectedValueOnce(new Error("db down"));
+    const out = await run();
+    expect(out).toEqual({ ktpAyah: "failed", ktpIbu: "copied", kk: "copied" });
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(deleteFile).toHaveBeenCalledWith("supabase:v1:parents/p-ayah/ktp-abc.png");
+  });
+
+  it("keeps the object when the write actually landed before throwing (column now references it)", async () => {
+    updateMany.mockImplementationOnce(async () => {
+      columns["p-ayah:ktpUrl"] = "supabase:v1:parents/p-ayah/ktp-abc.png";
+      throw new Error("connection reset after commit");
+    });
+    const out = await run();
+    expect(out.ktpAyah).toBe("failed");
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not delete when the cleanup re-read itself fails (cannot tell whether it is referenced)", async () => {
+    updateMany.mockRejectedValueOnce(new Error("db down"));
+    findFirst
+      .mockResolvedValueOnce({ ktpUrl: null }) // pre-copy read
+      .mockRejectedValueOnce(new Error("db still down")); // cleanup re-read
+    const out = await run();
+    expect(out.ktpAyah).toBe("failed");
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("swallows an error from the cleanup delete itself", async () => {
+    updateMany.mockRejectedValueOnce(new Error("db down"));
+    deleteFile.mockRejectedValueOnce(new Error("storage down"));
+    await expect(run()).resolves.toEqual({ ktpAyah: "failed", ktpIbu: "copied", kk: "copied" });
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("a throwing re-read after a lost race still reports skipped_existing and keeps the object", async () => {
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    findFirst
+      .mockResolvedValueOnce({ ktpUrl: null })
+      .mockRejectedValueOnce(new Error("db down"));
+    const out = await run();
+    expect(out.ktpAyah).toBe("skipped_existing");
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
   it("marks a copy failed when the bytes are not a JPEG, PNG or PDF", async () => {
     streamFile.mockImplementation(async () => ({ stream: streamOf(Buffer.from("MZ not an image")), mimeType: "image/png", filename: "x" }));
     expect(await run()).toEqual({ ktpAyah: "failed", ktpIbu: "failed", kk: "failed" });
