@@ -486,7 +486,7 @@ const columns: ColumnDef<Student>[] = [
     meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
-        {formatDateShort(row.original.createdAt.split("T")[0])}
+        {formatDateShort(row.original.createdAt)}
       </span>
     ),
   },
