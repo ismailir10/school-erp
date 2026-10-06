@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { toPublicDocuments } from "@/lib/enrollment/documents";
 import PendaftaranClient from "./client";
 
 export const metadata: Metadata = {
@@ -20,6 +21,23 @@ async function getActivePrograms() {
     console.error("[pendaftaran/page] program lookup failed", err);
     return [];
   }
+}
+
+/**
+ * Consent blob for the browser: names + a `signed` flag per parent. The raw
+ * storage tokens never leave the server (the signature routes persist them on
+ * the row; submit reads them from there).
+ */
+function toPublicConsent(raw: unknown) {
+  const c = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const side = (v: unknown) => {
+    const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+    return {
+      name: typeof o.name === "string" ? o.name : "",
+      signed: typeof o.signatureToken === "string" && o.signatureToken.length > 0,
+    };
+  };
+  return { agreed: c.agreed === true, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -117,7 +135,8 @@ export default async function PendaftaranTokenPage({
           studentData: application.studentData,
           ayahData: application.ayahData,
           ibuData: application.ibuData,
-          consentData: application.consentData,
+          consentData: toPublicConsent(application.consentData),
+          documents: toPublicDocuments(application.documents),
         }}
       />
     </Shell>

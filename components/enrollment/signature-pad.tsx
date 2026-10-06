@@ -98,20 +98,27 @@ export function SignaturePad({
           </span>
         )}
       </div>
-      <canvas
-        ref={canvasRef}
-        className="h-40 w-full touch-none rounded-lg border border-dashed border-emerald-900/25 bg-[#fbfdfb]"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerLeave={end}
-        aria-label={`Area tanda tangan ${label}`}
-      />
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className="h-40 w-full touch-none rounded-lg border border-dashed border-emerald-900/25 bg-[#fbfdfb]"
+          onPointerDown={start}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerLeave={end}
+          aria-label={`Area tanda tangan ${label}`}
+        />
+        {saved && !hasInk && (
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-emerald-900/70">
+            Tanda tangan sudah tersimpan. Gambar ulang jika ingin mengganti.
+          </p>
+        )}
+      </div>
       <div className="mt-2 flex gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={clear} disabled={!hasInk}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={clear} disabled={!hasInk}>
           <Eraser size={14} /> Hapus
         </Button>
-        <Button type="button" size="sm" onClick={save} disabled={!hasInk}>
+        <Button type="button" size="sm" className="min-h-11 sm:min-h-8" onClick={save} disabled={!hasInk}>
           Simpan tanda tangan
         </Button>
       </div>

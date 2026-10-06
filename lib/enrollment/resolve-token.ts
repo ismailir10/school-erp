@@ -44,6 +44,7 @@ export type ResolvedEnrollment = {
     ayahData: unknown;
     ibuData: unknown;
     consentData: unknown;
+    documents: unknown;
   } | null;
 };
 
@@ -97,6 +98,7 @@ export async function resolveEnrollmentToken(token: string, now: Date): Promise<
       ayahData: true,
       ibuData: true,
       consentData: true,
+      documents: true,
     },
   });
   return { access: classifyEnrollmentAccess(application, now), application };

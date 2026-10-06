@@ -62,11 +62,11 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 
 - [x] **T1 — Signature persists server-side.** Add a shared atomic JSON-merge helper (`lib/enrollment/json-merge.ts`, `$executeRaw` `jsonb_set`, guarded on `status='INVITED'`). The signature POST writes the token through it, and a new GET status endpoint reports what is saved. Add Vitest. *Accept:* upload → row has the token; GET returns booleans only; a non-INVITED row → 409. *Deps:* none.
 - [x] **T2 — Draft PATCH and submit can't lose signatures.** The PATCH carries stored tokens over in one UPDATE, and submit overlays the DB tokens before validation. Add Vitest. *Accept:* a PATCH with empty tokens leaves stored ones intact; submit with tokens missing from the body but present in the DB → 201; tokens missing from the DB → 422. *Deps:* T1.
-- [ ] **T3 — Signature client UX and autosave fix.** Autosave reads the latest state from a ref, and the handover note gets Salin link and Periksa lagi. *Accept:* the build passes, and a local browser check shows the two-tab handover. *Deps:* T1, T2.
+- [x] **T3 — Signature client UX and autosave fix.** Autosave reads the latest state from a ref, and the handover note gets Salin link and Periksa lagi. *Accept:* the build passes, and a local browser check shows the two-tab handover. *Deps:* T1, T2.
 - [x] **T4 — Migration.** Add the `documents Json?` column, its migration SQL and `prisma generate`. *Accept:* `prisma migrate diff` is clean and the build passes. *Deps:* none.
-- [ ] **T5 — Documents domain module.** Add `lib/enrollment/documents.ts` (items, zod, progress, admin redaction that drops `fileToken`). Add Vitest. *Deps:* none.
-- [ ] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
-- [ ] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
+- [x] **T5 — Documents domain module.** Add `lib/enrollment/documents.ts` (items, zod, progress, admin redaction that drops `fileToken`). Add Vitest. *Deps:* none.
+- [x] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
+- [x] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
 - [ ] **T8 — Admin documents.** Add the stream route, the PATCH `documentsReceived` carve-out, the GET field (redacted) and the Kelengkapan Berkas card. Add Vitest. *Deps:* T4, T5.
 - [ ] **T9 — Docs.** Update the README enrollment row and fill in Ship Notes. *Deps:* T1–T8.
 
@@ -114,6 +114,20 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 
 - Task 4: Migration. `prisma/schema.prisma` gets `documents Json?`, and `prisma/migrations/20261006000000_add_enrollment_application_documents/migration.sql` adds `ALTER TABLE "EnrollmentApplication" ADD COLUMN "documents" JSONB;`. The change is additive and nullable.
 
+- Tasks 3, 5, 6 and 7 (one commit, because `client.tsx` carries both the T3 handover and the T7 step and the hunks interleave): parent side of the form.
+  - `lib/enrollment/documents.ts` (+test): item list, parsers that never expose `fileToken`, progress, name/label sanitizers. `resolve-token.ts` now selects `documents`.
+  - `app/api/enrollments/token/[token]/documents/route.ts` (+test): POST/DELETE. Token-gated, rate-limited, key whitelist, 4 MB, magic bytes, INVITED-guarded atomic merge. The old object is deleted only once no key references it.
+  - `app/pendaftaran/[token]/page.tsx` sends signed booleans instead of raw tokens, plus public documents.
+  - `client.tsx`:
+    - 7 steps.
+    - Autosave goes through a latest-payload ref, with a keepalive flush on pagehide/hidden/unmount; a failed submit re-arms it.
+    - Handover note with Salin link / Periksa lagi; the latter refreshes signatures and fills empty names.
+    - Berkas review and success-screen lists.
+  - `components/enrollment/documents-step.tsx` (+`useDocumentUploads` hook, owned by client.tsx so busy state survives leaving the step).
+  - `components/enrollment/signature-pad.tsx`: saved overlay, 44px buttons on mobile.
+  - `lib/enrollment/compress-image.ts` (+test): ≤2000px JPEG re-encode, EXIF orientation, white fill, never larger than the original, WebP/GIF/HEIC re-encoded so the server accepts them.
+  - `README.md` public form row updated.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -122,5 +136,7 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - Task 1: `npx vitest run app/api/enrollments lib/enrollment lib/storage` green (part of the 232-test scoped run); full gate above.
 - Task 2: token-route suites green (67 tests across 4 files after the driver's 411 change).
 - Task 4: applied to the local Postgres with psql, then `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` reported "This is an empty migration".
+- Tasks 3/5/6/7: full gate on the combined tree: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4547 tests passed. Review fixes were checked by the frontend reviewer's follow-up (focus stays on busy buttons, focus after delete, failed-submit re-arm, concurrent uploads, busy state across step changes).
+- design-system: the Berkas step and handover note use existing Shadcn primitives (Button, Alert, Input, Badge, Spinner) and the page's existing emerald brand tokens; no new colors or arbitrary hex beyond what the form already used.
 
 ## Ship Notes
