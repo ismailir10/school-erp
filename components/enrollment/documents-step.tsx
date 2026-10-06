@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { prepareUpload } from "@/lib/enrollment/compress-image";
 import {
   DOCUMENT_ITEMS,
@@ -182,23 +183,28 @@ export function DocumentsStep({
   const [otherLabel, setOtherLabel] = useState(() => documents.lainnya?.label ?? "");
   const fileInputs = useRef<Partial<Record<DocumentKey, HTMLInputElement | null>>>({});
   const uploadButtons = useRef<Partial<Record<DocumentKey, HTMLButtonElement | null>>>({});
-  const focusAfterDelete = useRef<DocumentKey | null>(null);
+  const removeButtons = useRef<Partial<Record<DocumentKey, HTMLButtonElement | null>>>({});
+  const [confirmKey, setConfirmKey] = useState<DocumentKey | null>(null);
+  const restoreFocusTo = useRef<DocumentKey | null>(null);
 
-  // After a delete the Hapus button is gone; hand focus to that row's Unggah
-  // button instead of letting it fall to <body>.
+  // When the confirm dialog closes, put focus somewhere sensible: back on Hapus
+  // if the file is still there (cancelled / failed), otherwise on that row's
+  // Unggah button (Hapus is gone). Deferred a tick so it lands after the
+  // dialog's own focus restoration.
   useEffect(() => {
-    const key = focusAfterDelete.current;
-    if (key && !documents[key]) {
-      uploadButtons.current[key]?.focus();
-      focusAfterDelete.current = null;
-    }
-  }, [documents]);
+    if (confirmKey !== null) return;
+    const key = restoreFocusTo.current;
+    if (!key) return;
+    restoreFocusTo.current = null;
+    const present = !!documents[key];
+    setTimeout(() => {
+      (present ? removeButtons : uploadButtons).current[key]?.focus();
+    }, 0);
+  }, [confirmKey, documents]);
 
-  async function handleRemove(key: DocumentKey) {
-    focusAfterDelete.current = key;
-    const ok = await onRemove(key);
-    if (!ok) focusAfterDelete.current = null;
-  }
+  const confirmItem = confirmKey
+    ? (DOCUMENT_ITEMS as readonly DocumentItem[]).find((i) => i.key === confirmKey)
+    : undefined;
 
   return (
     <div className="space-y-4">
@@ -292,6 +298,9 @@ export function DocumentsStep({
                   </Button>
                   {doc && (
                     <Button
+                      ref={(el: HTMLButtonElement | null) => {
+                        removeButtons.current[key] = el;
+                      }}
                       type="button"
                       size="sm"
                       variant="ghost"
@@ -303,7 +312,10 @@ export function DocumentsStep({
                         state === "delete" ? `Menghapus ${item.label}` : `Hapus ${item.label}`
                       }
                       onClick={() => {
-                        if (!state) void handleRemove(key);
+                        if (!state) {
+                          restoreFocusTo.current = key;
+                          setConfirmKey(key);
+                        }
                       }}
                     >
                       {state === "delete" && <Loader2 size={14} className="animate-spin" aria-hidden />}{" "}
@@ -334,6 +346,25 @@ export function DocumentsStep({
           );
         })}
       </ul>
+
+      <ConfirmDialog
+        open={confirmKey !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmKey(null);
+        }}
+        title="Hapus berkas ini?"
+        description={
+          confirmItem
+            ? `${confirmItem.label} akan dihapus dari formulir. Bapak/Ibu perlu mengunggahnya lagi jika diperlukan.`
+            : undefined
+        }
+        confirmLabel="Hapus"
+        destructive
+        loading={confirmKey ? busy[confirmKey] === "delete" : false}
+        onConfirm={async () => {
+          if (confirmKey) await onRemove(confirmKey);
+        }}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
 import { prisma } from "@/lib/db";
 import { mergeJsonKey } from "@/lib/enrollment/json-merge";
 import { saveFile } from "@/lib/storage";
+import { deleteQuietly, discardIfUnreferenced, randomSegment } from "@/lib/enrollment/stored-files";
 import { detectMime } from "@/lib/storage/mime";
 
 const RATE_LIMIT_PER_MIN = 20;
@@ -124,18 +125,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "UNSUPPORTED_MEDIA_TYPE", detail: mime.error }, { status: 415 });
   }
 
+  // Read BEFORE the write so a replaced signature's object can be cleaned up after it.
+  const before = await prisma.enrollmentApplication.findUnique({
+    where: { id },
+    select: { consentData: true },
+  });
+  const prevBlock = (before?.consentData as Record<string, { signatureToken?: unknown } | null> | null)?.[which];
+  const prevRaw = prevBlock && typeof prevBlock === "object" ? prevBlock.signatureToken : null;
+  const previousToken = typeof prevRaw === "string" && prevRaw ? prevRaw : null;
+
   const { token: signatureToken } = await saveFile({
     entity: "enrollment",
     entityId: id,
-    field: `${which}-signature`,
+    // Unique per upload: a deleted token can never be re-referenced (see stored-files.ts).
+    field: `${which}-signature-${randomSegment()}`,
     file: { bytes, mimeType: mime.mimeType, ext: mime.ext },
   });
 
   const merged = await mergeJsonKey(id, "consentData", which, { signatureToken }, { requireInvited: true });
   if (!merged) {
-    // Submitted between the access check and the write — the stored image is an
-    // orphan (content-addressed, harmless) and the row must stay untouched.
+    // Submitted between the access check and the write — the row must stay
+    // untouched, and the image we just stored (unique path) is unreferenced.
+    await deleteQuietly(signatureToken);
     return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  }
+
+  if (previousToken && previousToken !== signatureToken) {
+    await discardIfUnreferenced(id, "consentData", previousToken);
   }
 
   return NextResponse.json({ saved: true });

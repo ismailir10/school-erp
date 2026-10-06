@@ -9,8 +9,23 @@ import userEvent from "@testing-library/user-event";
 import PendaftaranClient from "../client";
 
 vi.mock("@/components/enrollment/signature-pad", () => ({
-  SignaturePad: ({ label, saved }: { label: string; saved: boolean }) => (
-    <div>{`${label}: ${saved ? "tersimpan" : "kosong"}`}</div>
+  SignaturePad: ({
+    label,
+    saved,
+    saving,
+    onSave,
+  }: {
+    label: string;
+    saved: boolean;
+    saving?: boolean;
+    onSave: (b: Blob) => void;
+  }) => (
+    <div>
+      {`${label}: ${saved ? "tersimpan" : "kosong"}`}
+      <button type="button" aria-busy={saving} onClick={() => onSave(new Blob(["x"], { type: "image/png" }))}>
+        {saving ? `Menyimpan ${label}` : `Simpan ${label}`}
+      </button>
+    </div>
   ),
 }));
 
@@ -233,4 +248,38 @@ describe("PendaftaranClient", () => {
     const pad = screen.getByText("Tanda tangan Ibu: kosong");
     expect(note.compareDocumentPosition(pad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it("blocks Lanjut and Kirim while a signature save is in flight", async () => {
+    let finish!: (r: Response) => void;
+    vi.mocked(fetch).mockImplementation((input) =>
+      String(input).includes("/signature?which=")
+        ? new Promise<Response>((r) => (finish = r))
+        : ok({}),
+    );
+    const user = userEvent.setup();
+    const both = {
+      ...filled,
+      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+    };
+    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    await gotoConsent(user);
+
+    // redraw + save Ayah's signature, POST stays pending
+    await user.click(screen.getByRole("button", { name: "Simpan Tanda tangan Ayah" }));
+    const lanjut = await screen.findByRole("button", { name: "Menyimpan tanda tangan…" });
+    expect(lanjut).toHaveAttribute("aria-disabled", "true");
+    expect(lanjut).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Menyimpan Tanda tangan Ayah" })).toBeInTheDocument();
+
+    // Lanjut does nothing: still on Persetujuan
+    await user.click(lanjut);
+    expect(screen.getByText("Surat Persetujuan Orang Tua")).toBeInTheDocument();
+
+    finish({ ok: true, status: 200, json: async () => ({ saved: true }) } as Response);
+    const next = await screen.findByRole("button", { name: "Lanjut" });
+    expect(next).toHaveAttribute("aria-disabled", "false");
+    await user.click(next);
+    expect(await screen.findByText("Tinjau & Kirim")).toBeInTheDocument();
+  });
+
 });

@@ -124,6 +124,13 @@ describe("DocumentsStep", () => {
     expect(screen.getByText(/kk\.png/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Hapus Kartu Keluarga (KK)" }));
+    // Nothing is sent until the parent confirms.
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await screen.findByText("Hapus berkas ini?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Kartu Keluarga (KK) akan dihapus dari formulir. Bapak/Ibu perlu mengunggahnya lagi jika diperlukan."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hapus" }));
 
     await waitFor(() => expect(screen.queryByText(/kk\.png/)).not.toBeInTheDocument());
     const [url, init] = vi.mocked(fetch).mock.calls[0];
@@ -161,8 +168,26 @@ describe("DocumentsStep", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Hapus Kartu Keluarga (KK)" }));
+    await user.click(await screen.findByRole("button", { name: "Hapus" }));
     const unggah = await screen.findByRole("button", { name: "Unggah Kartu Keluarga (KK)" });
     await waitFor(() => expect(document.activeElement).toBe(unggah));
+  });
+
+  it("cancelling the confirmation deletes nothing and returns focus to Hapus", async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        initial={{ kk: { fileName: "kk.png", mimeType: "image/png", size: 3, uploadedAt: "x" } }}
+      />,
+    );
+    const hapus = screen.getByRole("button", { name: "Hapus Kartu Keluarga (KK)" });
+    await user.click(hapus);
+    await user.click(await screen.findByRole("button", { name: "Batal" }));
+
+    await waitFor(() => expect(screen.queryByText("Hapus berkas ini?")).not.toBeInTheDocument());
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByText(/kk\.png/)).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(hapus));
   });
 
   it("does not drop a finished upload when another one finishes at the same time", async () => {

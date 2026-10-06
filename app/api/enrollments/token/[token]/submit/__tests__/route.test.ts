@@ -2,18 +2,25 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany, programFindFirst } = vi.hoisted(() => ({
+const { findUnique, updateMany, programFindFirst, queryRaw, transaction } = vi.hoisted(() => ({
   findUnique: vi.fn(),
   updateMany: vi.fn(),
   programFindFirst: vi.fn(),
+  queryRaw: vi.fn(),
+  transaction: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
+// The submit route runs read → validate → flip inside ONE interactive
+// transaction (row lock first). The mock hands the callback the same client.
+vi.mock("@/lib/db", () => {
+  const client = {
     enrollmentApplication: { findUnique, updateMany },
     program: { findFirst: programFindFirst },
-  },
-}));
+    $queryRaw: queryRaw,
+    $transaction: transaction,
+  };
+  return { prisma: client };
+});
 
 import { POST } from "../route";
 import { __resetRateLimitForTest } from "@/lib/rate-limit";
@@ -67,6 +74,11 @@ function mockRow(consentData: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
+  queryRaw.mockResolvedValue([{ id: "a" }]);
+  transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
+    const { prisma } = await import("@/lib/db");
+    return cb(prisma);
+  });
   mockRow({ ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } });
   updateMany.mockResolvedValue({ count: 1 });
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
@@ -195,3 +207,48 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
     });
   });
 });
+
+describe("POST /submit — transaction + row lock", () => {
+  it("takes the row lock FOR UPDATE before reading the stored tokens, all inside one transaction", async () => {
+    const order: string[] = [];
+    queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
+      order.push(`lock:${strings.join("?").includes("FOR UPDATE")}`);
+      return [{ id: "a" }];
+    });
+    const realImpl = findUnique.getMockImplementation()!;
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) => {
+      if (!arg.where.accessToken) order.push("read-consent");
+      return realImpl(arg);
+    });
+    updateMany.mockImplementation(async () => {
+      order.push("flip");
+      return { count: 1 };
+    });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(201);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["lock:true", "read-consent", "flip"]);
+  });
+
+  it("404 when the locked row has vanished (nothing written)", async () => {
+    queryRaw.mockResolvedValue([]);
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(404);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("validation failures and lost races return their usual codes from inside the transaction", async () => {
+    const b = validBody();
+    b.studentData.childName = "";
+    expect((await POST(req(b), ctx)).status).toBe(422);
+    updateMany.mockResolvedValue({ count: 0 });
+    expect((await POST(req(validBody()), ctx)).status).toBe(409);
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("a thrown error inside the transaction propagates (so the DB rolls back)", async () => {
+    updateMany.mockRejectedValue(new Error("db down"));
+    await expect(POST(req(validBody()), ctx)).rejects.toThrow("db down");
+  });
+});
+

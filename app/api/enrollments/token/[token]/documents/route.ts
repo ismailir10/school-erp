@@ -12,7 +12,8 @@ import {
   sanitizeDocumentLabel,
   type DocumentKey,
 } from "@/lib/enrollment/documents";
-import { saveFile, deleteFile } from "@/lib/storage";
+import { saveFile } from "@/lib/storage";
+import { deleteQuietly, discardIfUnreferenced, randomSegment } from "@/lib/enrollment/stored-files";
 import { detectMime } from "@/lib/storage/mime";
 
 const RATE_LIMIT_PER_MIN = 30;
@@ -63,24 +64,6 @@ async function readDocuments(id: string): Promise<Record<string, unknown>> {
 /** The stored token for `key`, read BEFORE a write so the old object can be cleaned up after it. */
 async function previousFileToken(id: string, key: DocumentKey): Promise<string | null> {
   return fileTokenOf((await readDocuments(id))[key]);
-}
-
-/**
- * Delete `token` only if the row no longer references it under ANY key. Read
- * AFTER the write: with two overlapping requests the row may already point at
- * the object we are about to remove (e.g. the other request re-uploaded the
- * same bytes), and deleting it would leave a dangling reference. Best-effort:
- * a leaked object is harmless, a failed cleanup must not fail the request.
- */
-async function discardIfUnreferenced(id: string, token: string | null): Promise<void> {
-  if (!token) return;
-  try {
-    const docs = await readDocuments(id);
-    if (Object.values(docs).some((entry) => fileTokenOf(entry) === token)) return;
-    await deleteFile(token);
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -144,7 +127,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { token: fileToken } = await saveFile({
     entity: "enrollment",
     entityId: id,
-    field: `doc-${key}`,
+    // Unique per upload: a deleted token can never be re-referenced (see stored-files.ts).
+    field: `doc-${key}-${randomSegment()}`,
     file: { bytes, mimeType: mime.mimeType, ext: mime.ext },
   });
 
@@ -156,11 +140,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     { requireInvited: true },
   );
   if (!merged) {
-    // Submitted between the access check and the write; row untouched.
+    // Submitted between the access check and the write; row untouched. The
+    // object we just stored has a unique path and no reference — drop it.
+    await deleteQuietly(fileToken);
     return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
   }
 
-  if (previousToken && previousToken !== fileToken) await discardIfUnreferenced(id, previousToken);
+  if (previousToken && previousToken !== fileToken) {
+    await discardIfUnreferenced(id, "documents", previousToken);
+  }
 
   return NextResponse.json({
     key,
@@ -195,6 +183,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
   );
   if (!removed) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
 
-  await discardIfUnreferenced(id, previousToken);
+  await discardIfUnreferenced(id, "documents", previousToken);
   return NextResponse.json({ ok: true });
 }

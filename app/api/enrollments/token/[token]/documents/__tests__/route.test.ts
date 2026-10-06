@@ -88,7 +88,7 @@ describe("POST /api/enrollments/token/[token]/documents", () => {
     expect(saveFile.mock.calls[0][0]).toMatchObject({
       entity: "enrollment",
       entityId: "a",
-      field: "doc-akta",
+      field: expect.stringMatching(/^doc-akta-[a-zA-Z0-9]{10}$/),
       file: { mimeType: "application/pdf", ext: "pdf" },
     });
     expect(mergeJsonKey).toHaveBeenCalledTimes(1);
@@ -196,13 +196,29 @@ describe("POST /api/enrollments/token/[token]/documents", () => {
     expect("label" in mergeJsonKey.mock.calls[0][3]).toBe(false);
   });
 
-  it("409 ALREADY_SUBMITTED when the INVITED-guarded write matches no row, and leaves the old file alone", async () => {
+  it("409 ALREADY_SUBMITTED when the INVITED-guarded write matches no row; drops the NEW object, keeps the old one", async () => {
     mockRow({ status: "INVITED", tokenExpiresAt: future }, { akta: { fileToken: OLD_TOKEN } });
     mergeJsonKey.mockResolvedValue(false);
     const res = await POST(postReq("akta"), ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
-    expect(deleteFile).not.toHaveBeenCalled();
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(deleteFile).toHaveBeenCalledWith(NEW_TOKEN);
+  });
+
+  it("a failing cleanup of the new object on the 409 path does not change the response", async () => {
+    mergeJsonKey.mockResolvedValue(false);
+    deleteFile.mockRejectedValue(new Error("storage down"));
+    expect((await POST(postReq("akta"), ctx)).status).toBe(409);
+  });
+
+  it("every upload gets its own unique storage field (a deleted token can never be re-referenced)", async () => {
+    await POST(postReq("akta"), ctx);
+    await POST(postReq("akta"), ctx);
+    const [a, b] = saveFile.mock.calls.map((c) => c[0].field as string);
+    expect(a).toMatch(/^doc-akta-[a-zA-Z0-9]{10}$/);
+    expect(b).toMatch(/^doc-akta-[a-zA-Z0-9]{10}$/);
+    expect(a).not.toBe(b);
   });
 
   it("409 up front for a submitted application; 404 unknown token; 410 expired", async () => {

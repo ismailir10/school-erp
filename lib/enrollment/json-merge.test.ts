@@ -74,10 +74,26 @@ describe("writeConsentPreservingSignatures", () => {
     const incoming = { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } };
     expect(await writeConsentPreservingSignatures("ea-1", incoming)).toBe(true);
     const { sql, values } = lastSql();
-    expect(sql).toContain("AND status = 'INVITED'");
+    expect(sql).toContain(`"EnrollmentApplication".status = 'INVITED'`);
     expect(sql).toContain(`"consentData" -> 'ayah' -> 'signatureToken'`);
     expect(sql).toContain(`"consentData" -> 'ibu' -> 'signatureToken'`);
     expect(values).toContain(JSON.stringify(incoming));
+  });
+
+  it("also carries the stored ayah/ibu names over when the incoming name is blank (same single UPDATE)", async () => {
+    await writeConsentPreservingSignatures("ea-1", { ayah: { name: "" }, ibu: {} });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    const { sql, values } = lastSql();
+    expect(sql).toContain(`"consentData" -> 'ayah' -> 'name'`);
+    expect(sql).toContain(`"consentData" -> 'ibu' -> 'name'`);
+    expect(sql).toContain(`'{ayah,name}'`);
+    expect(sql).toContain(`'{ibu,name}'`);
+    expect(sql).toMatch(/btrim\(/); // blank = empty after trimming
+    // a non-empty incoming name is tried first, the stored one second
+    expect(sql.indexOf("s.inc -> 'ayah' -> 'name'")).toBeLessThan(sql.indexOf(`"consentData" -> 'ayah' -> 'name'`));
+    // the incoming blob is bound once, never spliced into the SQL text
+    expect(values.filter((v) => v === JSON.stringify({ ayah: { name: "" }, ibu: {} }))).toHaveLength(1);
+    expect(sql).not.toContain("Bapak");
   });
 
   it("returns false on 0 rows", async () => {

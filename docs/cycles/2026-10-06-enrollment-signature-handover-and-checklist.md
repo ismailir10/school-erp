@@ -156,6 +156,15 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
   - The admin Kelengkapan Berkas card moved to the top of the detail page.
   - Files: `documents-step.tsx`, `compress-image.ts`, `client.tsx`, `app/admin/enrollments/[id]/page.tsx`, plus tests.
 
+- Codex PR review fixes (6 findings, all verified real):
+  - (P1) Draft autosave keeps a stored signer name when the incoming one is blank, so a stale tab can't erase the other parent's name. Same single UPDATE.
+  - (P2) Every upload gets a unique storage path (`doc-<key>-<rand>`, `<which>-signature-<rand>`), so check-then-delete cleanup can never remove an object that is referenced again. Shared `lib/enrollment/stored-files.ts`.
+  - (P2) Superseded signature images are deleted once unreferenced, and a 409 after upload deletes the new object (signatures and documents).
+  - (P2) Submit runs lock (`SELECT … FOR UPDATE`), read, validate and transition in one transaction. `programBelongsToTenant` accepts `tx`.
+  - (P2) Hapus asks for confirmation with an AlertDialog, per voice.md.
+  - (P2) An in-flight signature save blocks Lanjut and Kirim.
+  - The e2e documents spec now cancels and then confirms the delete dialog.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -189,6 +198,10 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
   - admin Kelengkapan Berkas: view, Lihat, tick.
 
   No console errors and no 5xx; the only 4xx were the intended 409/413/415 probes.
+- After the Codex fixes:
+  - `npm run build` exited 0, and `npx vitest run` reported 491 files passed / 2 skipped, 4571 tests passed.
+  - Enrollment Playwright set: 12 passed (20.1s), after the documents spec was updated for the new confirm dialog. The first run failed exactly there, as expected.
+  - The backend agent re-verified the name carry-over SQL against real Postgres. It also showed that a `FOR UPDATE` submit transaction blocks a concurrent signature merge, which then returns false with the token unchanged.
 
 ## Ship Notes
 

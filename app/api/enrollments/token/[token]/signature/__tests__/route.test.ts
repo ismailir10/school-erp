@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, saveFile, mergeJsonKey } = vi.hoisted(() => ({
+const { findUnique, saveFile, deleteFile, mergeJsonKey } = vi.hoisted(() => ({
   findUnique: vi.fn(),
   saveFile: vi.fn(),
+  deleteFile: vi.fn(),
   mergeJsonKey: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ prisma: { enrollmentApplication: { findUnique } } }));
-vi.mock("@/lib/storage", () => ({ saveFile }));
+vi.mock("@/lib/storage", () => ({ saveFile, deleteFile }));
 vi.mock("@/lib/enrollment/json-merge", () => ({ mergeJsonKey }));
 
 import { GET, POST } from "../route";
@@ -18,6 +19,7 @@ const ctx = { params: Promise.resolve({ token: "tok" }) };
 const future = new Date(Date.now() + 86_400_000);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
 const STORAGE_TOKEN = "supabase:v1:enrollment/a/ayah-signature-0123456789abcdef.png";
+const OLD_TOKEN = "supabase:v1:enrollment/a/ayah-signature-fedcba9876543210.png";
 
 // Browsers always send Content-Length for FormData; NextRequest in tests does not, so set it.
 function postReq(which: string | null, bytes: Buffer = PNG, headers: Record<string, string> = {}) {
@@ -36,12 +38,16 @@ const getReq = () => new NextRequest("http://localhost/api/enrollments/token/tok
 function mockRow(
   access: { status: string; tokenExpiresAt: Date | null } | null,
   consentData: unknown = null,
+  afterWrite?: unknown,
 ) {
+  let reads = 0;
   findUnique.mockImplementation(async (arg: { where: { accessToken?: string; id?: string } }) => {
     if (arg.where.accessToken) {
       return access ? { id: "a", tenantId: "t-1", ...access } : null;
     }
-    return { consentData };
+    // n-th by-id read: the 1st is the "before" read, later ones the post-write check.
+    reads += 1;
+    return { consentData: reads > 1 && afterWrite !== undefined ? afterWrite : consentData };
   });
 }
 
@@ -49,6 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
   saveFile.mockResolvedValue({ token: STORAGE_TOKEN });
+  deleteFile.mockResolvedValue(undefined);
   mergeJsonKey.mockResolvedValue(true);
   mockRow({ status: "INVITED", tokenExpiresAt: future });
 });
@@ -63,7 +70,7 @@ describe("POST /api/enrollments/token/[token]/signature", () => {
     expect(saveFile.mock.calls[0][0]).toMatchObject({
       entity: "enrollment",
       entityId: "a",
-      field: "ayah-signature",
+      field: expect.stringMatching(/^ayah-signature-[a-zA-Z0-9]{10}$/),
     });
     expect(mergeJsonKey).toHaveBeenCalledWith(
       "a",
@@ -79,11 +86,57 @@ describe("POST /api/enrollments/token/[token]/signature", () => {
     expect(mergeJsonKey.mock.calls[0].slice(1, 3)).toEqual(["consentData", "ibu"]);
   });
 
-  it("409 ALREADY_SUBMITTED when the INVITED-guarded write matches no row", async () => {
+  it("409 ALREADY_SUBMITTED when the INVITED-guarded write matches no row; drops the NEW (unreferenced) object", async () => {
+    mockRow({ status: "INVITED", tokenExpiresAt: future }, { ayah: { signatureToken: OLD_TOKEN } });
     mergeJsonKey.mockResolvedValue(false);
     const res = await POST(postReq("ayah"), ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(deleteFile).toHaveBeenCalledWith(STORAGE_TOKEN);
+  });
+
+  it("a failing cleanup on the 409 path does not change the response", async () => {
+    mergeJsonKey.mockResolvedValue(false);
+    deleteFile.mockRejectedValue(new Error("storage down"));
+    expect((await POST(postReq("ayah"), ctx)).status).toBe(409);
+  });
+
+  it("replacing a signature deletes the previous object after the write, when nothing references it", async () => {
+    mockRow(
+      { status: "INVITED", tokenExpiresAt: future },
+      { ayah: { signatureToken: OLD_TOKEN } },
+      { ayah: { signatureToken: STORAGE_TOKEN } },
+    );
+    expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+    expect(deleteFile).toHaveBeenCalledWith(OLD_TOKEN);
+    expect(mergeJsonKey.mock.invocationCallOrder[0]).toBeLessThan(deleteFile.mock.invocationCallOrder[0]);
+  });
+
+  it("keeps the previous object while the row still references it (under either parent)", async () => {
+    mockRow(
+      { status: "INVITED", tokenExpiresAt: future },
+      { ayah: { signatureToken: OLD_TOKEN } },
+      { ayah: { signatureToken: STORAGE_TOKEN }, ibu: { signatureToken: OLD_TOKEN } },
+    );
+    expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("first signature: nothing to delete; a failing cleanup never fails the request", async () => {
+    expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
+    expect(deleteFile).not.toHaveBeenCalled();
+    mockRow({ status: "INVITED", tokenExpiresAt: future }, { ibu: { signatureToken: OLD_TOKEN } }, {});
+    deleteFile.mockRejectedValue(new Error("storage down"));
+    expect((await POST(postReq("ibu"), ctx)).status).toBe(200);
+  });
+
+  it("every upload gets its own unique storage field", async () => {
+    await POST(postReq("ayah"), ctx);
+    await POST(postReq("ayah"), ctx);
+    const [a, b] = saveFile.mock.calls.map((c) => c[0].field as string);
+    expect(a).not.toBe(b);
   });
 
   it("409 up front when the application is already submitted (nothing stored)", async () => {

@@ -177,6 +177,9 @@ export default function PendaftaranClient({
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // A signature POST in flight per parent. Moving on or submitting meanwhile
+  // would close the row and the late POST would 409, silently losing it.
+  const [sigSaving, setSigSaving] = useState({ ayah: false, ibu: false });
   // Owned here (not by the Berkas step) so an in-flight upload still shows as
   // busy if the parent steps away and comes back.
   const docs = useDocumentUploads(token, prefill.documents ?? {});
@@ -285,6 +288,7 @@ export default function PendaftaranClient({
   }
 
   function next() {
+    if (step === STEP_CONSENT && (sigSaving.ayah || sigSaving.ibu)) return;
     const e = validateStep(step);
     if (e.length) {
       setErrors(e);
@@ -303,6 +307,8 @@ export default function PendaftaranClient({
   }
 
   async function uploadSignature(which: "ayah" | "ibu", blob: Blob) {
+    if (sigSaving[which]) return;
+    setSigSaving((v) => ({ ...v, [which]: true }));
     const fd = new FormData();
     fd.append("file", blob, `${which}-signature.png`);
     try {
@@ -319,6 +325,8 @@ export default function PendaftaranClient({
       setGlobalError(null);
     } catch {
       setGlobalError("Gagal menyimpan tanda tangan. Mohon coba lagi.");
+    } finally {
+      setSigSaving((v) => ({ ...v, [which]: false }));
     }
   }
 
@@ -355,9 +363,10 @@ export default function PendaftaranClient({
   }
 
   const uploadsInFlight = Object.keys(docs.busy).length;
+  const signatureSavingNow = sigSaving.ayah || sigSaving.ibu;
 
   async function submit() {
-    if (uploadsInFlight > 0) return; // an upload finishing after submit would 409
+    if (uploadsInFlight > 0 || signatureSavingNow) return; // late writes after submit would 409
     const all = [0, 1, 2, 3, 4, 5].flatMap(validateStep);
     if (all.length) {
       setErrors(all);
@@ -476,10 +485,11 @@ export default function PendaftaranClient({
             value={consent}
             onChange={(v) => { setConsent(v); scheduleSave(); }}
             onUpload={uploadSignature}
+            saving={sigSaving}
             onRefresh={refreshSignatures}
           />
         )}
-        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} />}
+        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} />}
       </div>
 
       <div className="flex items-center justify-between">
@@ -487,20 +497,32 @@ export default function PendaftaranClient({
           Kembali
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next}>
-            Lanjut
+          <Button
+            type="button"
+            onClick={next}
+            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            aria-disabled={step === STEP_CONSENT && signatureSavingNow}
+            aria-busy={step === STEP_CONSENT && signatureSavingNow}
+          >
+            {step === STEP_CONSENT && signatureSavingNow ? "Menyimpan tanda tangan…" : "Lanjut"}
           </Button>
         ) : (
           <Button
             type="button"
             onClick={() => {
-              if (!submitting && uploadsInFlight === 0) void submit();
+              if (!submitting && uploadsInFlight === 0 && !signatureSavingNow) void submit();
             }}
             className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
-            aria-disabled={submitting || uploadsInFlight > 0}
-            aria-busy={submitting || uploadsInFlight > 0}
+            aria-disabled={submitting || uploadsInFlight > 0 || signatureSavingNow}
+            aria-busy={submitting || uploadsInFlight > 0 || signatureSavingNow}
           >
-            {submitting ? "Mengirim…" : uploadsInFlight > 0 ? "Menunggu unggahan selesai…" : "Kirim Formulir"}
+            {submitting
+              ? "Mengirim…"
+              : uploadsInFlight > 0
+                ? "Menunggu unggahan selesai…"
+                : signatureSavingNow
+                  ? "Menyimpan tanda tangan…"
+                  : "Kirim Formulir"}
           </Button>
         )}
       </div>
@@ -725,11 +747,12 @@ function ProgramStep({
 }
 
 function ConsentStep({
-  value, onChange, onUpload, onRefresh,
+  value, onChange, onUpload, onRefresh, saving,
 }: {
   value: ConsentState;
   onChange: (v: ConsentState) => void;
   onUpload: (which: "ayah" | "ibu", blob: Blob) => void;
+  saving: { ayah: boolean; ibu: boolean };
   onRefresh: () => Promise<"changed" | "unchanged" | "error">;
 }) {
   const set =<K extends keyof ConsentState>(k: K, v: ConsentState[K]) => onChange({ ...value, [k]: v });
@@ -757,11 +780,11 @@ function ConsentStep({
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
-          <SignaturePad label="Tanda tangan Ayah" saved={value.ayahSigned} onSave={(b) => onUpload("ayah", b)} />
+          <SignaturePad label="Tanda tangan Ayah" saved={value.ayahSigned} saving={saving.ayah} onSave={(b) => onUpload("ayah", b)} />
         </div>
         <div className="space-y-2">
           <TextField label="Nama jelas Ibu" value={value.ibuName} onChange={(v) => set("ibuName", v)} required />
-          <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} onSave={(b) => onUpload("ibu", b)} />
+          <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} saving={saving.ibu} onSave={(b) => onUpload("ibu", b)} />
         </div>
       </div>
     </div>
@@ -878,10 +901,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewStep({
-  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading,
+  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading, signatureSaving,
 }: {
   student: StudentState; ayah: ParentState; ibu: ParentState; programs: Program[];
-  programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number;
+  programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number; signatureSaving: boolean;
 }) {
   const programName = programs.find((p) => p.id === programId)?.name ?? "—";
   const uploaded = Object.keys(documents).length;
@@ -935,6 +958,11 @@ function ReviewStep({
         <Row label="Disetujui" value={consent.agreed ? "Ya" : "Belum"} />
         <Row label="Tanda tangan Ayah" value={consent.ayahSigned ? "Tersimpan" : "Belum"} />
         <Row label="Tanda tangan Ibu" value={consent.ibuSigned ? "Tersimpan" : "Belum"} />
+        {signatureSaving && (
+          <p role="status" className="py-1 text-sm text-emerald-900/80">
+            Tanda tangan sedang disimpan. Mohon tunggu sebentar.
+          </p>
+        )}
       </section>
     </div>
   );

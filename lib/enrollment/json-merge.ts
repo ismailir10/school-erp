@@ -91,12 +91,43 @@ export async function removeJsonFields(
   return count > 0;
 }
 
+type ConsentSide = "ayah" | "ibu";
+
 /**
- * Draft-save write for `consentData`: replaces the blob with `incoming` but
- * carries the STORED `ayah.signatureToken` / `ibu.signatureToken` over in the
- * same UPDATE, so an autosave can never clear or swap a signature. `incoming`
- * must already have object-valued `ayah` and `ibu` (the route normalizes) —
- * `jsonb_set` does not create missing parents. Always guarded on INVITED.
+ * SQL for "keep the incoming `<side>.name` unless it is blank, else the stored
+ * one". A stale tab (opened before the other parent typed their name) autosaves
+ * a blank name; without this it would erase the stored one. A non-empty
+ * incoming name always wins. Never yields SQL NULL (jsonb_set is strict and
+ * would null the whole blob): the last resort is the incoming value or "".
+ */
+function nameCarryOver(side: ConsentSide): Prisma.Sql {
+  const path = Prisma.raw(`'{${side},name}'`);
+  const inc = Prisma.raw(`s.inc -> '${side}' -> 'name'`);
+  const incText = Prisma.raw(`s.inc #>> '{${side},name}'`);
+  const stored = Prisma.raw(`"consentData" -> '${side}' -> 'name'`);
+  const storedText = Prisma.raw(`"consentData" #>> '{${side},name}'`);
+  const blank = (text: Prisma.Sql) => Prisma.sql`btrim(COALESCE(${text}, ''), E' \t\r\n') = ''`;
+  return Prisma.sql`
+      ${path},
+      CASE
+        WHEN jsonb_typeof(${inc}) = 'string' AND NOT (${blank(incText)}) THEN ${inc}
+        WHEN jsonb_typeof(${stored}) = 'string' AND NOT (${blank(storedText)}) THEN ${stored}
+        ELSE COALESCE(${inc}, '""'::jsonb)
+      END,
+      true`;
+}
+
+/**
+ * Draft-save write for `consentData`: replaces the blob with `incoming` but, in
+ * the same single UPDATE, carries over what the draft must never lose:
+ *  - the STORED `ayah.signatureToken` / `ibu.signatureToken` (autosave can never
+ *    clear or swap a signature), and
+ *  - the STORED `ayah.name` / `ibu.name` whenever the incoming name is missing or
+ *    blank after trimming (a stale tab can't erase the other parent's name; a
+ *    non-empty incoming name still wins).
+ * `incoming` must already have object-valued `ayah` and `ibu` (the route
+ * normalizes) — `jsonb_set` does not create missing parents. Always guarded on
+ * INVITED.
  */
 export async function writeConsentPreservingSignatures(
   id: string,
@@ -106,17 +137,24 @@ export async function writeConsentPreservingSignatures(
     UPDATE "EnrollmentApplication"
     SET "consentData" = jsonb_set(
       jsonb_set(
-        ${JSON.stringify(incoming)}::jsonb,
-        '{ayah,signatureToken}',
-        COALESCE("consentData" -> 'ayah' -> 'signatureToken', '""'::jsonb),
-        true
+        jsonb_set(
+          jsonb_set(
+            s.inc,
+            '{ayah,signatureToken}',
+            COALESCE("consentData" -> 'ayah' -> 'signatureToken', '""'::jsonb),
+            true
+          ),
+          '{ibu,signatureToken}',
+          COALESCE("consentData" -> 'ibu' -> 'signatureToken', '""'::jsonb),
+          true
+        ),
+        ${nameCarryOver("ayah")}
       ),
-      '{ibu,signatureToken}',
-      COALESCE("consentData" -> 'ibu' -> 'signatureToken', '""'::jsonb),
-      true
+      ${nameCarryOver("ibu")}
     ),
     "updatedAt" = now()
-    WHERE id = ${id} AND status = 'INVITED'
+    FROM (SELECT ${JSON.stringify(incoming)}::jsonb AS inc) AS s
+    WHERE "EnrollmentApplication".id = ${id} AND "EnrollmentApplication".status = 'INVITED'
   `);
   return count > 0;
 }

@@ -70,9 +70,13 @@ export async function resolveEnrollmentAccess(
  * write path that persists a client-supplied programId (admin PATCH, public
  * draft + submit) to prevent a cross-tenant program reference (IDOR write).
  */
-export async function programBelongsToTenant(programId: string, tenantId: string): Promise<boolean> {
+export async function programBelongsToTenant(
+  programId: string,
+  tenantId: string,
+  db: Pick<typeof prisma, "program"> = prisma,
+): Promise<boolean> {
   if (!programId) return false;
-  const prog = await prisma.program.findFirst({
+  const prog = await db.program.findFirst({
     where: { id: programId, tenantId },
     select: { id: true },
   });

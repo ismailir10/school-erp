@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, Eraser } from "lucide-react";
+import { Check, Eraser, Loader2 } from "lucide-react";
 
 /**
  * Drawn-signature pad for the enrollment consent step. The parent draws with a
@@ -16,10 +16,13 @@ import { Check, Eraser } from "lucide-react";
 export function SignaturePad({
   label,
   saved,
+  saving = false,
   onSave,
 }: {
   label: string;
   saved: boolean;
+  /** A save is in flight: Simpan shows a busy state but stays mounted (focus-safe). */
+  saving?: boolean;
   onSave: (blob: Blob) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,7 +85,7 @@ export function SignaturePad({
 
   function save() {
     const canvas = canvasRef.current;
-    if (!canvas || !dirty.current) return;
+    if (!canvas || !dirty.current || saving) return;
     canvas.toBlob((blob) => {
       if (blob) onSave(blob);
     }, "image/png");
@@ -118,8 +121,17 @@ export function SignaturePad({
         <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={clear} disabled={!hasInk}>
           <Eraser size={14} /> Hapus
         </Button>
-        <Button type="button" size="sm" className="min-h-11 sm:min-h-8" onClick={save} disabled={!hasInk}>
-          Simpan tanda tangan
+        <Button
+          type="button"
+          size="sm"
+          className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
+          onClick={save}
+          disabled={!hasInk}
+          aria-disabled={saving}
+          aria-busy={saving}
+        >
+          {saving && <Loader2 size={14} className="animate-spin" aria-hidden />}{" "}
+          {saving ? "Menyimpan tanda tangan…" : "Simpan tanda tangan"}
         </Button>
       </div>
     </div>

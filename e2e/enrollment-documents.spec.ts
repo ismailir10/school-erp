@@ -89,8 +89,16 @@ test.describe("Enrollment form — Kelengkapan Berkas upload and staff checklist
     await expect(page.getByRole("button", { name: `Hapus ${KK_LABEL}` })).toBeVisible();
     await expect(page.getByRole("button", { name: `Ganti ${KK_LABEL}` })).toBeVisible();
 
-    // Remove → gone, back to Unggah.
+    // Remove asks first (destructive AlertDialog); cancel keeps the file.
     await page.getByRole("button", { name: `Hapus ${KK_LABEL}` }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Hapus berkas ini?" });
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "Batal" }).click();
+    await expect(page.getByText(FILE_NAME)).toBeVisible();
+
+    // Confirm → gone, back to Unggah.
+    await page.getByRole("button", { name: `Hapus ${KK_LABEL}` }).click();
+    await page.getByRole("alertdialog", { name: "Hapus berkas ini?" }).getByRole("button", { name: "Hapus" }).click();
     await expect(page.getByText(FILE_NAME)).toHaveCount(0);
     await expect(page.getByRole("button", { name: `Unggah ${KK_LABEL}` })).toBeVisible();
 
