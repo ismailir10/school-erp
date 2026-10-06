@@ -9,6 +9,10 @@ import { submitEnrollmentSchema, flattenSubmitErrors } from "@/lib/enrollment/su
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
 
+function asObject(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const limit = rateLimit(`enroll-submit:${getClientIp(req)}`, RATE_LIMIT_PER_MIN, RATE_WINDOW_MS);
   if (!limit.success) {
@@ -32,6 +36,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       { error: "validation_failed", fields: { _root: "Body bukan JSON yang valid" } },
       { status: 400 },
     );
+  }
+
+  // Signatures live on the row (the signature route persists them the moment
+  // they are drawn), so the parent who submits may never have seen the other
+  // parent's pad. Overlay the stored tokens onto the body BEFORE validation and
+  // ignore whatever the client sent — a missing token then fails the schema's
+  // "Tanda tangan … wajib disimpan" check.
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const stored = await prisma.enrollmentApplication.findUnique({
+      where: { id },
+      select: { consentData: true },
+    });
+    const storedConsent = asObject(stored?.consentData);
+    const b = body as Record<string, unknown>;
+    const consent = { ...asObject(b.consentData) };
+    for (const side of ["ayah", "ibu"] as const) {
+      const token = asObject(storedConsent[side]).signatureToken;
+      consent[side] = {
+        ...asObject(consent[side]),
+        signatureToken: typeof token === "string" ? token : "",
+      };
+    }
+    b.consentData = consent;
   }
 
   const parsed = submitEnrollmentSchema.safeParse(body);

@@ -52,10 +52,22 @@ function req(body: unknown) {
   });
 }
 
+const DB_AYAH = "supabase:v1:enrollment/a/ayah-signature-db.png";
+const DB_IBU = "supabase:v1:enrollment/a/ibu-signature-db.png";
+
+/** resolve looks up by accessToken; the signature overlay reads the row by id. */
+function mockRow(consentData: unknown) {
+  findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
+    arg.where.accessToken
+      ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" }
+      : { consentData },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
-  findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+  mockRow({ ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } });
   updateMany.mockResolvedValue({ count: 1 });
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
 });
@@ -118,5 +130,68 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
     expect(res.status).toBe(422);
     expect((await res.json()).fields.programId).toBe("Program tidak valid");
     expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  describe("signature tokens come from the DB row", () => {
+    function bodyWithoutTokens() {
+      const b = validBody();
+      delete (b.consentData.ayah as { signatureToken?: string }).signatureToken;
+      delete (b.consentData.ibu as { signatureToken?: string }).signatureToken;
+      return b;
+    }
+
+    it("201 when the body carries no tokens but the row has both; written consentData uses the DB tokens", async () => {
+      const res = await POST(req(bodyWithoutTokens()), ctx);
+      expect(res.status).toBe(201);
+      const consent = updateMany.mock.calls[0][0].data.consentData;
+      expect(consent.ayah.signatureToken).toBe(DB_AYAH);
+      expect(consent.ibu.signatureToken).toBe(DB_IBU);
+      expect(consent.ayah.signedAt).toBeTruthy();
+    });
+
+    it("201 even when the body has no ayah/ibu blocks at all (names still required)", async () => {
+      const b = validBody() as { consentData: Record<string, unknown> };
+      delete b.consentData.ayah;
+      delete b.consentData.ibu;
+      const res = await POST(req(b), ctx);
+      // names are required by the schema, so this is a field error, not a crash
+      expect(res.status).toBe(422);
+      expect((await res.json()).fields["consentData.ayah.name"]).toBeTruthy();
+    });
+
+    it("client-sent tokens are always overwritten by the stored ones", async () => {
+      const b = validBody();
+      b.consentData.ayah.signatureToken = "supabase:v1:enrollment/a/ayah-signature-FORGED.png";
+      const res = await POST(req(b), ctx);
+      expect(res.status).toBe(201);
+      const consent = updateMany.mock.calls[0][0].data.consentData;
+      expect(consent.ayah.signatureToken).toBe(DB_AYAH);
+      expect(JSON.stringify(consent)).not.toContain("FORGED");
+    });
+
+    it("a client-sent token cannot stand in for a signature the row lacks → 422", async () => {
+      mockRow({ ayah: { signatureToken: DB_AYAH } }); // ibu never signed
+      const res = await POST(req(validBody()), ctx); // body still claims an ibu token
+      expect(res.status).toBe(422);
+      const json = await res.json();
+      expect(json.error).toBe("validation_failed");
+      expect(json.fields["consentData.ibu.signatureToken"]).toBeTruthy();
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it("422 when the row has no consentData at all", async () => {
+      mockRow(null);
+      const res = await POST(req(bodyWithoutTokens()), ctx);
+      expect(res.status).toBe(422);
+      const fields = (await res.json()).fields;
+      expect(fields["consentData.ayah.signatureToken"]).toBeTruthy();
+      expect(fields["consentData.ibu.signatureToken"]).toBeTruthy();
+    });
+
+    it("does not touch `documents`", async () => {
+      await POST(req({ ...validBody(), documents: { akta: { fileToken: "evil" } } }), ctx);
+      expect(JSON.stringify(updateMany.mock.calls[0][0])).not.toContain("evil");
+      expect("documents" in updateMany.mock.calls[0][0].data).toBe(false);
+    });
   });
 });
