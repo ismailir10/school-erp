@@ -63,7 +63,7 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 - [x] **T1 — Signature persists server-side.** Add a shared atomic JSON-merge helper (`lib/enrollment/json-merge.ts`, `$executeRaw` `jsonb_set`, guarded on `status='INVITED'`). The signature POST writes the token through it, and a new GET status endpoint reports what is saved. Add Vitest. *Accept:* upload → row has the token; GET returns booleans only; a non-INVITED row → 409. *Deps:* none.
 - [x] **T2 — Draft PATCH and submit can't lose signatures.** The PATCH carries stored tokens over in one UPDATE, and submit overlays the DB tokens before validation. Add Vitest. *Accept:* a PATCH with empty tokens leaves stored ones intact; submit with tokens missing from the body but present in the DB → 201; tokens missing from the DB → 422. *Deps:* T1.
 - [ ] **T3 — Signature client UX and autosave fix.** Autosave reads the latest state from a ref, and the handover note gets Salin link and Periksa lagi. *Accept:* the build passes, and a local browser check shows the two-tab handover. *Deps:* T1, T2.
-- [ ] **T4 — Migration.** Add the `documents Json?` column, its migration SQL and `prisma generate`. *Accept:* `prisma migrate diff` is clean and the build passes. *Deps:* none.
+- [x] **T4 — Migration.** Add the `documents Json?` column, its migration SQL and `prisma generate`. *Accept:* `prisma migrate diff` is clean and the build passes. *Deps:* none.
 - [ ] **T5 — Documents domain module.** Add `lib/enrollment/documents.ts` (items, zod, progress, admin redaction that drops `fileToken`). Add Vitest. *Deps:* none.
 - [ ] **T6 — Parent upload API.** Add POST and DELETE on `/api/enrollments/token/[token]/documents`, reusing `saveFile`, `detectMime`, the T1 helper and the rate limit. Add Vitest. *Deps:* T1, T4, T5.
 - [ ] **T7 — Berkas step in the form.** Add the step UI, browser image compression, the missing-items list on Tinjau and the success screen, and the `design-system` check. *Accept:* the build passes, and a local browser check covers upload, replace and remove. *Deps:* T3, T6.
@@ -112,6 +112,8 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
   - The remaining fields go through `updateMany` guarded on INVITED (409 when lost); `documents` is never accepted.
   - Submit overlays the DB tokens before validation, so client tokens are ignored and a missing one returns 422.
 
+- Task 4: Migration. `prisma/schema.prisma` gets `documents Json?`, and `prisma/migrations/20261006000000_add_enrollment_application_documents/migration.sql` adds `ALTER TABLE "EnrollmentApplication" ADD COLUMN "documents" JSONB;`. The change is additive and nullable.
+
 ## Verification
 - Baseline (unchanged staging, before this cycle): build exited 0. Vitest with `DEMO_MODE=true` leaked into the runner had 22 failures across 3 files (xendit-client-classifier, auth-rate-limit, storage); without it they all pass, as in CI's unit job. Unit gates here therefore run without `DEMO_MODE`, matching `.github/workflows/ci.yml`. Build and Playwright run with it.
 - Full gate after both slices landed, before review fixes: `npm run build` exited 0, `npx vitest run` gave 490 files passed / 2 skipped, 4522 tests passed.
@@ -119,5 +121,6 @@ Revised at the gate (2026-10-06): **parents upload the documents on the form**. 
 
 - Task 1: `npx vitest run app/api/enrollments lib/enrollment lib/storage` green (part of the 232-test scoped run); full gate above.
 - Task 2: token-route suites green (67 tests across 4 files after the driver's 411 change).
+- Task 4: applied to the local Postgres with psql, then `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` reported "This is an empty migration".
 
 ## Ship Notes

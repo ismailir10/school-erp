@@ -707,6 +707,7 @@ model EnrollmentApplication {
   ayahData    Json? // father block
   ibuData     Json? // mother block
   consentData Json? // { agreed, version, ayah:{name,signatureToken,signedAt}, ibu:{...} }
+  documents   Json? // { [key]: { fileToken, fileName, mimeType, size, uploadedAt, label?, receivedPhysical?, receivedAt? } } — Kelengkapan Berkas, see lib/enrollment/documents.ts
 
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
