@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
   Banknote,
@@ -12,16 +12,18 @@ import {
   Landmark,
   MessageCircle,
   Phone,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
 import { paymentLinkState } from "@/lib/parent-invoice-link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
-import { getYmdInTimezone } from "@/lib/attendance/timezone";
+import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
+import { parentPaymentMethodLabel } from "@/lib/parent-payment-method";
 import { telHref, whatsappHrefWithText } from "@/lib/contact";
 
 type InvoiceLine = {
@@ -66,16 +68,6 @@ type InvoiceDetail = {
   };
 };
 
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "Tunai",
-  BANK_TRANSFER: "Transfer Bank",
-  XENDIT: "Virtual Account",
-  // Gateway-paid rows carry the active gateway as their method. Without an
-  // entry here a DOKU payment renders a blank label to the parent.
-  DOKU: "Virtual Account",
-  OTHER: "Lainnya",
-};
-
 const METHOD_ICONS: Record<string, LucideIcon> = {
   CASH: Banknote,
   BANK_TRANSFER: Landmark,
@@ -88,10 +80,27 @@ export function InvoiceDetailSheet({
   open,
   onOpenChange,
   invoiceId,
+  paymentPending = false,
+  listStateKey,
+  onRefreshStatus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoiceId: string | null;
+  /**
+   * The gateway just sent the parent back with "sedang diperiksa" for this
+   * invoice and nothing has changed since. The pay button is replaced by a note
+   * so a second payment is not invited.
+   */
+  paymentPending?: boolean;
+  /**
+   * Opaque fingerprint of the list's view of this invoice (status + paid so
+   * far). When it changes while the sheet is open the detail is re-fetched, so
+   * a webhook that lands is reflected here without closing the sheet.
+   */
+  listStateKey?: string;
+  /** Re-reads the invoice list from the server (the pending note's "Muat ulang status"). */
+  onRefreshStatus?: () => void;
 }) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -122,6 +131,32 @@ export function InvoiceDetailSheet({
     setInvoice(null);
     setLoading(false);
   }
+
+  // Silent re-fetch when the list learns something new about the open invoice.
+  const seenStateRef = useRef<{ id: string | null; key: string | undefined }>({ id: null, key: undefined });
+  useEffect(() => {
+    if (!open || !invoiceId) {
+      seenStateRef.current = { id: null, key: undefined };
+      return;
+    }
+    const seen = seenStateRef.current;
+    if (seen.id !== invoiceId) {
+      seenStateRef.current = { id: invoiceId, key: listStateKey };
+      return;
+    }
+    if (seen.key === listStateKey) return;
+    seenStateRef.current = { id: invoiceId, key: listStateKey };
+    let cancelled = false;
+    fetch(`/api/guardian/invoices/${invoiceId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setInvoice(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, invoiceId, listStateKey]);
 
   if (!invoiceId) return null;
 
@@ -154,6 +189,8 @@ export function InvoiceDetailSheet({
   // amount differed. Give the state its own label so the payment they already
   // made is visibly acknowledged.
   const isPartiallyPaid = !isPaid && !isCancelled && invoice.totalPaid > 0;
+  // Same rule as the list rows: outstanding and due before today (Jakarta).
+  const isOverdue = isPayable && invoice.dueDate.slice(0, 10) < getTodayInTimezone("Asia/Jakarta");
   const hasPaymentLink = !!invoice.xenditPaymentUrl;
   const linkState = paymentLinkState(hasPaymentLink, invoice.sentAt);
   const focalAmount = isPaid ? invoice.totalDue : remaining;
@@ -204,6 +241,7 @@ export function InvoiceDetailSheet({
               ) : isPartiallyPaid ? (
                 <>
                   <AmountStatus tone="partial">Dibayar sebagian</AmountStatus>
+                  {isOverdue ? <AmountStatus tone="overdue">Lewat tempo</AmountStatus> : null}
                   <span>
                     Jatuh tempo{" "}
                     <b className="text-foreground">
@@ -213,7 +251,11 @@ export function InvoiceDetailSheet({
                 </>
               ) : (
                 <>
-                  <AmountStatus tone="due">Belum dibayar</AmountStatus>
+                  {isOverdue ? (
+                    <AmountStatus tone="overdue">Lewat tempo</AmountStatus>
+                  ) : (
+                    <AmountStatus tone="due">Belum dibayar</AmountStatus>
+                  )}
                   <span>
                     Jatuh tempo{" "}
                     <b className="text-foreground">
@@ -268,8 +310,10 @@ export function InvoiceDetailSheet({
             </dl>
           </section>
 
-          {/* Cara bayar — unpaid only, single Xendit card */}
-          {isPayable ? (
+          {/* Cara bayar — only with a live payment link. Without one the card named
+              Virtual Account banks but there was no VA number to pay to; the
+              "hubungi admin" note below is the guidance then (PARX-1). */}
+          {isPayable && hasPaymentLink && !paymentPending ? (
             <section>
               <SectionLabel>Cara bayar</SectionLabel>
               <div className="rounded-xl border border-border bg-card p-4">
@@ -331,7 +375,7 @@ export function InvoiceDetailSheet({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-foreground">
-                          {METHOD_LABELS[p.method] ?? p.method}
+                          {parentPaymentMethodLabel(p.method)}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {/* The admin's reference ("Cicilan-1", transfer no.) is
@@ -356,7 +400,26 @@ export function InvoiceDetailSheet({
                                      completed (UAT 2026-05-12 parent MINOR-02). */}
           {isPayable ? (
             <div className="space-y-2">
-              {linkState === "ready" ? (
+              {paymentPending ? (
+                <div
+                  role="status"
+                  className="space-y-3 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground"
+                  data-testid="payment-pending"
+                >
+                  <div className="flex items-start gap-2">
+                    <Info size={14} className="mt-0.5 shrink-0" />
+                    <span>
+                      Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.
+                    </span>
+                  </div>
+                  {onRefreshStatus ? (
+                    <Button type="button" variant="outline" className="w-full" onClick={onRefreshStatus}>
+                      <RefreshCw size={16} className="mr-2" />
+                      Muat ulang status
+                    </Button>
+                  ) : null}
+                </div>
+              ) : linkState === "ready" ? (
                 <a
                   href={invoice.xenditPaymentUrl!}
                   target="_blank"
@@ -414,8 +477,6 @@ export function InvoiceDetailSheet({
               )}
             </div>
           ) : null}
-
-          <SheetClose render={<Button variant="outline" className="w-full">Tutup</Button>} />
         </div>
       </SheetContent>
     </Sheet>
