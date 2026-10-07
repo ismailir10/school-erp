@@ -7,13 +7,20 @@
  * (`<p className="p-6 …">Formulir tidak ditemukan.</p>`) there is no
  * `EmptyState` title/description pairing and no way back to the list, so
  * these assertions would fail.
+ *
+ * Also covers the convert action (header placement, "Lihat siswa" link, toast action).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
 import EnrollmentDetailPage from "../page";
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
@@ -183,5 +190,91 @@ describe("EnrollmentDetailPage — convert toast", () => {
       expect(toast.success).toHaveBeenCalledWith("Siswa berhasil dibuat dari formulir."),
     );
     expect(toast.warning).not.toHaveBeenCalled();
+  });
+});
+
+describe("EnrollmentDetailPage — convert action placement", () => {
+  const base = {
+    id: "ea-1",
+    canEdit: true,
+    status: "ACCEPTED",
+    studentId: null as string | null,
+    childName: "Aisyah",
+    dcareAddon: false,
+    studentData: {},
+    ayahData: {},
+    ibuData: {},
+    consentData: {},
+    documents: {},
+    program: { id: "p-1", name: "TK A" },
+  };
+
+  function serve(detail: Record<string, unknown>, convertBody: unknown = {}) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          json: async () => (init?.method === "POST" ? convertBody : detail),
+        } as Response),
+      ),
+    );
+  }
+
+  it("ACCEPTED shows exactly one Konversi ke Siswa button, in the header, beside Kembali ke Tinjau", async () => {
+    serve(base);
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    const convert = await screen.findByRole("button", { name: "Konversi ke Siswa" });
+    expect(screen.getAllByRole("button", { name: "Konversi ke Siswa" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Kembali ke Tinjau" })).toBeInTheDocument();
+    // The bottom bar and its sentence are gone.
+    expect(screen.queryByText(/Konversi menjadi data siswa \+ orang tua/)).not.toBeInTheDocument();
+    // Header buttons live before the page body (the documents card).
+    expect(convert.compareDocumentPosition(screen.getByText("Isi formulir")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("the header Konversi ke Siswa opens the confirm dialog", async () => {
+    serve(base);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Konversi ke Siswa" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Konversi menjadi siswa?")).toBeInTheDocument();
+  });
+
+  it("shows no convert button for statuses other than ACCEPTED", async () => {
+    serve({ ...base, status: "UNDER_REVIEW" });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("button", { name: "Konversi ke Siswa" })).not.toBeInTheDocument();
+  });
+
+  it("a converted form links to the student", async () => {
+    serve({ ...base, studentId: "stu-9" });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    const link = await screen.findByRole("link", { name: "Lihat siswa" });
+    expect(link).toHaveAttribute("href", "/admin/students/stu-9");
+    expect(screen.queryByRole("button", { name: "Konversi ke Siswa" })).not.toBeInTheDocument();
+  });
+
+  it("the convert success toast offers the same link as an action", async () => {
+    vi.mocked(toast.success).mockClear();
+    push.mockClear();
+    serve(base, { student: { id: "stu-9" }, documentsCopied: {} });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Konversi ke Siswa" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Konversi ke Siswa")!,
+    );
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const [message, options] = vi.mocked(toast.success).mock.calls[0] as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe("Siswa berhasil dibuat dari formulir.");
+    expect(options.action.label).toBe("Lihat siswa");
+    options.action.onClick();
+    expect(push).toHaveBeenCalledWith("/admin/students/stu-9");
   });
 });
