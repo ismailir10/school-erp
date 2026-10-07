@@ -40,15 +40,20 @@ Report source: persona agent run on `origin/staging @ bb6941a`, kept in this cyc
 3. A teacher with no class assignment may still assess every sentra (the center page already allows it; only the index hid it).
 
 ## Tasks
-- [ ] **T1 — Session roster: dirty-only save, masuk/pulang rules, status control.** `app/teacher/sessions/[id]/client.tsx` (+ tests). TCHX-1, TCHX-8, TCH-15. Independent.
-- [ ] **T2 — Class attendance errors + consistency.** New `lib/teacher/fetch-error-copy.ts` (+ unit test), `app/teacher/class-attendance/page.tsx` (+ tests). TCHX-4/15/X-18, TCH-10, TCH-11. Independent.
+- [x] **T1 — Session roster: dirty-only save, masuk/pulang rules, status control.** `app/teacher/sessions/[id]/client.tsx` (+ tests). TCHX-1, TCHX-8, TCH-15. Independent.
+- [x] **T2 — Class attendance errors + consistency.** New `lib/teacher/fetch-error-copy.ts` (+ unit test), `app/teacher/class-attendance/page.tsx` (+ tests). TCHX-4/15/X-18, TCH-10, TCH-11. Independent.
 - [ ] **T3 — Leave sheet + assessments.** `components/teacher/leave-sheet.tsx`, `app/teacher/assessments/page.tsx`, `app/teacher/assessments/center/[center]/client.tsx`, `app/teacher/assessments/weekly/client.tsx` (+ tests). TCHX-2, TCHX-3, TCHX-5, TCHX-12, TCH-6, TCH-5. Independent.
 - [ ] **T4 — Journal.** `components/student-journal/class-bulk-sheet.tsx`, `app/teacher/student-journal/entry/page.tsx`, `lib/student-journal/coalesce-writes.ts`, `components/student-journal/note-compose-dialog.tsx` (+ tests). TCHX-7, TCH-8, TCHX-17, TCHX-16. Independent.
 - [ ] **T5 — Slips + seed.** `app/teacher/slips/**`, `prisma/seed.ts`. TCH-16, TCHX-10, TCHX-6. Independent.
 - [ ] **T6 — End-of-cycle gate, browser verification, Ship Notes.** Depends on T1–T5.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4,T5] parallel (disjoint file sets, one subagent each, no git writes), T6 sequential by the driver. The driver reviews each diff and commits per task.
+- T1 (TCHX-1, TCHX-8, TCH-15): `app/teacher/sessions/[id]/client.tsx` keeps a per-row baseline (`rowKey`/`baselineOf`) instead of one roster key; save POSTs only rows that differ from it, so an untouched row can no longer overwrite a status written on class attendance, and untouched students no longer get rows. No change → no POST, "Tidak ada perubahan untuk disimpan." After a save only the submitted rows move into the baseline (a row edited mid-flight stays dirty). Masuk/pulang and the pickup form exist only for Hadir rows; cycling away from Hadir clears them; recorded times are chips with a 44 px × to clear before saving. The status control is a bordered pill with a chevron and cycles Hadir → Sakit → Izin → Alpa like class attendance. Tests: `app/teacher/sessions/[id]/__tests__/client.test.tsx` (17).
+- T2 (TCHX-4/15, X-18, TCH-11, TCH-10): new `lib/teacher/fetch-error-copy.ts` maps failures to Indonesian copy + whether retry makes sense (401 → "Sesi Anda sudah berakhir…" with "Masuk lagi" link and no retry; 403 → permission copy; network → "Koneksi terputus…"; 429; 5xx; 4xx uses the API's prose only when it is a sentence — machine codes such as `student_not_enrolled` and `message`-vs-`error` bodies are handled). Class attendance routes every load/save/bulk failure through it. The bulk bar shows "Menyimpan…" until the confirmed counts land, so it never says "Semua siswa sudah dicatat" beside "N belum". Names wrap to two lines. Tests: helper unit tests (19), page tests.
 
 ## Verification
+- Frontend diffs were checked against `.claude/standards/design-system.html` tokens (pill/border/ghost buttons, 44 px targets); no new colours.
+- T1/T2: targeted suites green — `npx vitest run app/teacher/sessions` 17/17, `npx vitest run app/teacher/class-attendance lib/teacher/__tests__/fetch-error-copy.test.ts` all pass. Full `npm run build && npx vitest run` runs once all five parallel slices are in (T6), because the slices share one worktree.
 
 ## Ship Notes
