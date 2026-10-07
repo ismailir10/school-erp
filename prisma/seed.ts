@@ -1210,6 +1210,11 @@ async function main() {
         withdrawalReason: "Pindah domisili (demo fixture)",
       },
     });
+    // Mirror app/api/students/[id]/withdraw: the active enrollment ends with the student.
+    await prisma.studentEnrollment.updateMany({
+      where: { studentId: withdrawTarget.id, status: "ACTIVE" },
+      data: { status: "WITHDRAWN" },
+    });
     console.log(`✅ Student WITHDRAWN: ${withdrawTarget.name}`);
   }
 

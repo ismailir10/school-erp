@@ -7,11 +7,10 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Download, FileText, Clock } from "lucide-react";
-import { formatDateShort } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { toast } from "sonner";
-import { hasSlipInMonth, priorMonthLabel } from "./helpers";
+import { formatPeriodRange, periodMonthLabel, slipBanner, type SlipBanner } from "./helpers";
 
 type SlipItem = {
   id: string;
@@ -19,18 +18,14 @@ type SlipItem = {
 };
 
 /** "Last month's slip isn't out yet" notice. Rendered from two branches. */
-function PendingSlipCard({ label }: { label: string }) {
+function PendingSlipCard({ banner }: { banner: SlipBanner }) {
   return (
     <Card className="p-card border-dashed bg-muted/30">
       <div className="flex items-start gap-3">
         <Clock size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">
-            Slip {label} akan tersedia setelah tanggal 5
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Hubungi admin jika belum tersedia setelah tanggal tersebut.
-          </p>
+          <p className="text-sm font-medium text-foreground">{banner.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{banner.description}</p>
         </div>
       </div>
     </Card>
@@ -67,9 +62,7 @@ export default function TeacherSlipsPage() {
     void loadSlips();
   }, [loadSlips]);
 
-  const today = new Date();
-  const prior = priorMonthLabel(today);
-  const showPlaceholder = !loading && !hasSlipInMonth(slips, prior.year, prior.month);
+  const banner = loading ? null : slipBanner(slips, new Date());
 
   return (
     <div>
@@ -93,25 +86,27 @@ export default function TeacherSlipsPage() {
             onAction={loadSlips}
           />
         </div>
-      ) : slips.length === 0 && !showPlaceholder ? (
+      ) : slips.length === 0 && !banner ? (
         <EmptyState
           icon={FileText}
           title="Belum ada slip gaji"
           description="Slip akan muncul setelah penggajian disetujui admin."
         />
-      ) : slips.length === 0 && showPlaceholder ? (
+      ) : slips.length === 0 && banner ? (
         <div className="space-y-3">
-          <PendingSlipCard label={prior.label} />
+          <PendingSlipCard banner={banner} />
           <p className="text-center text-xs text-muted-foreground">
             Belum ada riwayat slip sebelumnya.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {showPlaceholder && <PendingSlipCard label={prior.label} />}
+          {banner && <PendingSlipCard banner={banner} />}
 
           {slips.map((slip) => {
-            const periodLabel = `${formatDateShort(slip.payrollRun.periodStart)} — ${formatDateShort(slip.payrollRun.periodEnd)}`;
+            const monthLabel = periodMonthLabel(slip.payrollRun.periodEnd);
+            const rangeLabel = formatPeriodRange(slip.payrollRun.periodStart, slip.payrollRun.periodEnd);
+            const periodLabel = `${monthLabel} (${rangeLabel})`;
             return (
               <Card key={slip.id} className="p-card transition-colors hover:bg-muted/50">
                 <div className="flex items-center gap-3">
@@ -121,7 +116,8 @@ export default function TeacherSlipsPage() {
                     className="flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                     aria-label={`Lihat slip ${periodLabel}`}
                   >
-                    <p className="text-sm font-medium">{periodLabel}</p>
+                    <p className="text-sm font-medium">{monthLabel}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{rangeLabel}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge status="APPROVED" label="Tersedia" />
                     </div>

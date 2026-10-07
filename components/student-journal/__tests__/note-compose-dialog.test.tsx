@@ -121,3 +121,36 @@ describe("NoteComposeDialog discard guard (TCH-3)", () => {
     expect(screen.queryByText("Buang catatan?")).toBeNull();
   });
 });
+
+describe("NoteComposeDialog length cap (TCHX-16)", () => {
+  it("tells the teacher when a paste was cut to 2000 characters", () => {
+    setup();
+    type("a".repeat(2580));
+
+    expect(screen.getByLabelText("Isi catatan")).toHaveValue("a".repeat(2000));
+    expect(screen.getByText("2000/2000")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Catatan dipotong ke 2000 karakter.");
+  });
+
+  it("does not warn for text within the limit, and clears the warning once it is edited down", () => {
+    setup();
+    type("a".repeat(2000));
+    expect(screen.queryByText("Catatan dipotong ke 2000 karakter.")).toBeNull();
+
+    type("a".repeat(2500));
+    expect(screen.getByText("Catatan dipotong ke 2000 karakter.")).toBeInTheDocument();
+
+    type("a".repeat(1990));
+    expect(screen.queryByText("Catatan dipotong ke 2000 karakter.")).toBeNull();
+  });
+
+  it("caps the textarea height so the counter stays visible", () => {
+    setup();
+    const box = screen.getByLabelText("Isi catatan");
+    expect(box).toHaveClass("max-h-48");
+    expect(box).toHaveClass("overflow-y-auto");
+    // A long unbroken string wraps in the box rather than widening the dialog (PARX-3).
+    expect(box).toHaveClass("min-w-0");
+    expect(box.className).toContain("[overflow-wrap:anywhere]");
+  });
+});

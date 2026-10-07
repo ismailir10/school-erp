@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { LogIn, LogOut, Users } from "lucide-react";
+import { ChevronDown, LogIn, LogOut, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
@@ -22,7 +22,9 @@ import {
 import { formatDate, formatTime } from "@/lib/format";
 
 // Prisma enum values — do NOT translate in code, only display labels.
-const ROTATION = ["PRESENT", "ABSENT", "SICK", "PERMISSION"] as const;
+// Tap order matches class attendance (H · S · I · A) so one muscle memory
+// serves both screens (TCH-15).
+const ROTATION = ["PRESENT", "SICK", "PERMISSION", "ABSENT"] as const;
 type Status = (typeof ROTATION)[number];
 
 // Labels come from status-badge's STATUS_MAP — the single source of truth.
@@ -67,20 +69,22 @@ export type RosterRow = {
 };
 
 /**
- * What "saved" means for a roster: the fields the save request carries. The
+ * What "saved" means for one row: the fields the save request carries. The
  * name is compared as text so null and "" (an untouched vs. cleared box) agree.
+ * Only rows whose key differs from the last-saved baseline are sent (TCHX-1).
  */
-function rosterKey(rows: RosterRow[]): string {
-  return JSON.stringify(
-    rows.map((r) => [
-      r.studentId,
-      r.status,
-      r.checkInTime,
-      r.checkOutTime,
-      r.pickedUpByRelation,
-      (r.pickedUpByName ?? "").trim(),
-    ]),
-  );
+function rowKey(r: RosterRow): string {
+  return JSON.stringify([
+    r.status,
+    r.checkInTime,
+    r.checkOutTime,
+    r.pickedUpByRelation,
+    (r.pickedUpByName ?? "").trim(),
+  ]);
+}
+
+function baselineOf(rows: RosterRow[]): Record<string, string> {
+  return Object.fromEntries(rows.map((r) => [r.studentId, rowKey(r)]));
 }
 
 export function SessionRosterClient({
@@ -100,10 +104,16 @@ export function SessionRosterClient({
   const [saving, setSaving] = useState(false);
   // Masuk / pulang / penjemput only reach the server on "Simpan absensi", so
   // the page has to say so — a reload used to drop taps silently (TCH-2).
-  const [savedKey, setSavedKey] = useState(() => rosterKey(roster));
+  // Per-row baseline: what the server last held, as far as this tab knows. A
+  // save sends only rows that differ from it, so an untouched row can never
+  // overwrite a status written meanwhile on class attendance (TCHX-1).
+  const [baseline, setBaseline] = useState(() => baselineOf(roster));
   const [savedOnce, setSavedOnce] = useState(false);
-  const rowsKey = useMemo(() => rosterKey(rows), [rows]);
-  const dirty = rowsKey !== savedKey;
+  const changedRows = useMemo(
+    () => rows.filter((r) => baseline[r.studentId] !== rowKey(r)),
+    [rows, baseline],
+  );
+  const dirty = changedRows.length > 0;
   const guard = useUnsavedChangesGuard(dirty);
 
   const update = useCallback(
@@ -118,7 +128,19 @@ export function SessionRosterClient({
   function cycleStatus(studentId: string, current: string) {
     const idx = ROTATION.indexOf(current as Status);
     const next = ROTATION[(idx + 1) % ROTATION.length];
-    update(studentId, { status: next });
+    // Masuk / pulang / penjemput only make sense for a child who is there.
+    update(
+      studentId,
+      next === "PRESENT"
+        ? { status: next }
+        : {
+            status: next,
+            checkInTime: null,
+            checkOutTime: null,
+            pickedUpByRelation: null,
+            pickedUpByName: null,
+          },
+    );
   }
 
   function tapIn(studentId: string) {
@@ -129,12 +151,31 @@ export function SessionRosterClient({
     update(studentId, { checkOutTime: new Date().toISOString() });
   }
 
+  // A mistap must be undoable before saving. Pulang (and its pickup form)
+  // goes with it only when pulang itself is cleared.
+  function clearIn(studentId: string) {
+    update(studentId, { checkInTime: null });
+  }
+
+  function clearOut(studentId: string) {
+    update(studentId, {
+      checkOutTime: null,
+      pickedUpByRelation: null,
+      pickedUpByName: null,
+    });
+  }
+
   async function handleSave() {
     if (saving) return;
 
     // Client-side guard for the OTHER-requires-name rule so the teacher gets
     // an instant, row-specific message instead of a generic 400.
-    const missingName = rows.find(
+    if (changedRows.length === 0) {
+      toast.info("Tidak ada perubahan untuk disimpan.");
+      return;
+    }
+
+    const missingName = changedRows.find(
       (r) =>
         r.pickedUpByRelation === "OTHER" &&
         (!r.pickedUpByName || r.pickedUpByName.trim().length === 0),
@@ -147,7 +188,7 @@ export function SessionRosterClient({
     }
 
     setSaving(true);
-    const submitted = rows;
+    const submitted = changedRows;
     try {
       const res = await fetch(
         `/api/teacher/sessions/${sessionId}/attendance`,
@@ -176,9 +217,11 @@ export function SessionRosterClient({
         return;
       }
       const body = await res.json().catch(() => ({ saved: 0, total: 0 }));
-      setSavedKey(rosterKey(submitted));
+      // Only the submitted rows move forward; a row edited while the request
+      // was in flight keeps differing from its baseline and stays unsaved.
+      setBaseline((prev) => ({ ...prev, ...baselineOf(submitted) }));
       setSavedOnce(true);
-      toast.success(`Absensi tersimpan · ${body.total} siswa`);
+      toast.success(`Absensi tersimpan · ${body.total ?? submitted.length} siswa`);
     } catch {
       toast.error("Koneksi terputus. Coba lagi sebentar ya.");
     } finally {
@@ -226,48 +269,99 @@ export function SessionRosterClient({
                     <button
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
-                      className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      aria-label={`Ubah status ${r.name}, saat ini ${getStatusConfig(status).label}. Ketuk untuk mengubah status.`}
+                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border border-border bg-background py-1 pl-1 pr-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label={`Status ${r.name}: ${getStatusConfig(status).label}. Ketuk untuk ganti.`}
                     >
                       <StatusBadge status={status} />
+                      <ChevronDown
+                        size={16}
+                        className="text-muted-foreground"
+                        aria-hidden="true"
+                      />
                     </button>
                   </div>
 
-                  <div className="mt-2 flex items-center gap-2">
-                    {/*
-                      "Tap Masuk" used the English verb in an Indonesian
-                      portal; voice.md's glossary and every other tap
-                      affordance in the app say "Ketuk".
-                    */}
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="tap-target"
-                      variant={r.checkInTime ? "secondary" : "outline"}
-                      onClick={() => tapIn(r.studentId)}
-                      disabled={!!r.checkInTime}
-                    >
-                      <LogIn size={16} aria-hidden="true" />
-                      {r.checkInTime
-                        ? `Masuk ${formatTime(r.checkInTime)}`
-                        : "Ketuk masuk"}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="tap-target"
-                      variant={r.checkOutTime ? "secondary" : "outline"}
-                      onClick={() => tapOut(r.studentId)}
-                      disabled={!r.checkInTime || !!r.checkOutTime}
-                    >
-                      <LogOut size={16} aria-hidden="true" />
-                      {r.checkOutTime
-                        ? `Pulang ${formatTime(r.checkOutTime)}`
-                        : "Ketuk pulang"}
-                    </Button>
-                  </div>
+                  {/*
+                    Masuk / pulang only exist for a child who is Hadir. A row
+                    that already carries a time (older data) still shows it,
+                    with a way to clear it, but offers no new taps.
+                  */}
+                  {(status === "PRESENT" || r.checkInTime || r.checkOutTime) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {/*
+                        "Tap Masuk" used the English verb in an Indonesian
+                        portal; voice.md's glossary and every other tap
+                        affordance in the app say "Ketuk".
+                      */}
+                      {r.checkInTime ? (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground">
+                            <LogIn size={16} aria-hidden="true" />
+                            Masuk {formatTime(r.checkInTime)}
+                          </span>
+                          {!r.checkOutTime && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="tap-target min-w-11"
+                              aria-label={`Hapus jam masuk ${r.name}`}
+                              onClick={() => clearIn(r.studentId)}
+                            >
+                              <X size={16} aria-hidden="true" />
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        status === "PRESENT" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="tap-target"
+                            variant="outline"
+                            onClick={() => tapIn(r.studentId)}
+                          >
+                            <LogIn size={16} aria-hidden="true" />
+                            Ketuk masuk
+                          </Button>
+                        )
+                      )}
+                      {r.checkOutTime ? (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-secondary px-2.5 text-sm font-medium text-secondary-foreground">
+                            <LogOut size={16} aria-hidden="true" />
+                            Pulang {formatTime(r.checkOutTime)}
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="tap-target min-w-11"
+                            aria-label={`Hapus jam pulang ${r.name}`}
+                            onClick={() => clearOut(r.studentId)}
+                          >
+                            <X size={16} aria-hidden="true" />
+                          </Button>
+                        </div>
+                      ) : (
+                        status === "PRESENT" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="tap-target"
+                            variant="outline"
+                            onClick={() => tapOut(r.studentId)}
+                            disabled={!r.checkInTime}
+                          >
+                            <LogOut size={16} aria-hidden="true" />
+                            Ketuk pulang
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  )}
 
-                  {r.checkOutTime && (
+                  {status === "PRESENT" && r.checkOutTime && (
                     <div className="mt-2 space-y-2 rounded-md bg-card/60 p-2">
                       <p className="text-sm font-medium text-foreground">
                         Dijemput oleh
@@ -347,12 +441,16 @@ export function SessionRosterClient({
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? "Menyimpan absensi…" : `Simpan absensi · ${rows.length} siswa`}
+              {saving
+                ? "Menyimpan absensi…"
+                : dirty
+                  ? `Simpan absensi · ${changedRows.length} perubahan`
+                  : "Simpan absensi"}
             </Button>
           </div>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Ketuk badge status untuk mengubah (Hadir → Alpa → Sakit → Izin)
+            Ketuk status untuk mengganti (Hadir → Sakit → Izin → Alpa)
           </p>
         </>
       )}

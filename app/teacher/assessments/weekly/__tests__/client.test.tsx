@@ -183,3 +183,25 @@ describe("WeeklyClient radio groups", () => {
     });
   });
 });
+
+describe("WeeklyClient with no IKTP for the week (TCH-5)", () => {
+  it("shows the empty state only: no level chips and no save hint", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    render(
+      <WeeklyClient
+        initialDate="2026-05-11"
+        week={week}
+        classSection={{ id: "class-1", name: "TK-B Anggur", ageGroup: "B" }}
+        students={[{ id: "student-1", name: "Aisyah", nickname: null, status: "ACTIVE" }]}
+        indicators={[]}
+        initialEntries={[]}
+      />,
+    );
+
+    expect(screen.getByText(/Belum ada IKTP untuk tema pekan ini/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /untuk Aisyah/ })).toBeNull();
+    expect(screen.queryByTestId("weekly-roster")).toBeNull();
+    expect(screen.queryByText(/Ketuk tingkat untuk menyimpan/)).toBeNull();
+  });
+});
+
