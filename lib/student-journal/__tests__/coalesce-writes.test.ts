@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   JournalWriteCoalescer,
+  bindFlushOnPageHide,
   type FlushBatch,
 } from "@/lib/student-journal/coalesce-writes";
 
@@ -158,5 +159,76 @@ describe("JournalWriteCoalescer", () => {
 
     await c.flushNow();
     expect(flush).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("flush on page hide (TCHX-17)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function harness() {
+    const win = new EventTarget();
+    const doc = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
+    const flush = vi.fn<(b: FlushBatch) => Promise<void>>().mockResolvedValue();
+    const c = new JournalWriteCoalescer(flush, 500);
+    const unbind = bindFlushOnPageHide(c, win as unknown as Window, doc as unknown as Document);
+    return { win, doc, flush, c, unbind };
+  }
+
+  it("flushes a buffered tap on pagehide, flagged keepalive, before the window closes", async () => {
+    const { win, flush, c } = harness();
+    c.add(write("s1", "i1", true));
+    expect(flush).not.toHaveBeenCalled();
+
+    win.dispatchEvent(new Event("pagehide"));
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]![0].keepalive).toBe(true);
+    expect(flush.mock.calls[0]![0].entries).toEqual([{ studentId: "s1", indicatorId: "i1", checked: true }]);
+    // The armed timer was cleared: nothing is sent twice.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushes on visibilitychange only when the page became hidden", () => {
+    const { doc, flush, c } = harness();
+    c.add(write("s1", "i1", true));
+
+    doc.dispatchEvent(new Event("visibilitychange"));
+    expect(flush).not.toHaveBeenCalled();
+
+    doc.visibilityState = "hidden";
+    doc.dispatchEvent(new Event("visibilitychange"));
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]![0].keepalive).toBe(true);
+  });
+
+  it("sends immediately even when an earlier flush is still in flight", async () => {
+    const { win, flush, c } = harness();
+    flush.mockImplementationOnce(() => new Promise(() => {})); // never settles
+    c.add(write("s1", "i1", true));
+    void c.flushNow();
+    await vi.advanceTimersByTimeAsync(0); // let the first flush start and hang
+    c.add(write("s1", "i2", true));
+
+    win.dispatchEvent(new Event("pagehide"));
+
+    expect(flush).toHaveBeenCalledTimes(2);
+    expect(flush.mock.calls[1]![0].keepalive).toBe(true);
+  });
+
+  it("does nothing when nothing is buffered, and stops listening after cleanup", () => {
+    const { win, flush, c, unbind } = harness();
+    win.dispatchEvent(new Event("pagehide"));
+    expect(flush).not.toHaveBeenCalled();
+
+    unbind();
+    c.add(write("s1", "i1", true));
+    win.dispatchEvent(new Event("pagehide"));
+    expect(flush).not.toHaveBeenCalled();
   });
 });

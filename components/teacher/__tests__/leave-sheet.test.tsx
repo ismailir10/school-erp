@@ -2,6 +2,7 @@ import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "../leave-sheet";
 
 vi.mock("sonner", () => ({
@@ -30,14 +31,14 @@ const requests: LeaveRequest[] = [
   },
 ];
 
-function Harness() {
+function Harness({ list = requests }: { list?: LeaveRequest[] }) {
   const [open, setOpen] = useState(true);
   return (
     <LeaveSheet
       open={open}
       onOpenChange={setOpen}
       prefetchedBalance={balance}
-      prefetchedRequests={requests}
+      prefetchedRequests={list}
       prefetchState="ready"
     />
   );
@@ -129,5 +130,55 @@ describe("LeaveSheet", () => {
 
     await user.click(screen.getByRole("button", { name: "Coba lagi" }));
     expect(onRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  describe("network failure (TCHX-2)", () => {
+    beforeEach(() => {
+      vi.mocked(toast.error).mockClear();
+      vi.unstubAllGlobals();
+    });
+
+    it("re-enables both buttons, toasts, and keeps the form when submit cannot reach the server", async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<Harness />);
+      await user.click(screen.getByRole("button", { name: "Ajukan cuti" }));
+      const start = await screen.findByLabelText("Tanggal mulai");
+      fireEvent.change(start, { target: { value: "2026-10-12" } });
+      fireEvent.change(screen.getByLabelText("Tanggal selesai"), { target: { value: "2026-10-13" } });
+      fireEvent.change(screen.getByLabelText("Alasan"), { target: { value: "Urusan keluarga" } });
+
+      await user.click(screen.getByRole("button", { name: "Ajukan" }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Koneksi terputus. Pengajuan belum terkirim — coba lagi."),
+      );
+      expect(screen.getByRole("button", { name: "Ajukan" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Batal" })).toBeEnabled();
+      expect(screen.queryByText("Mengirim…")).toBeNull();
+      expect(screen.getByLabelText("Alasan")).toHaveValue("Urusan keluarga");
+      expect(screen.getByLabelText("Tanggal mulai")).toHaveValue("2026-10-12");
+    });
+
+    it("re-enables the confirm dialog and toasts when cancel cannot reach the server", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+      const pending: LeaveRequest = { ...requests[0]!, id: "leave-2", status: "PENDING" };
+
+      render(<Harness list={[pending]} />);
+      await user.click(screen.getByRole("button", { name: "Batalkan" }));
+      const confirm = await screen.findByRole("button", { name: "Batalkan pengajuan" });
+      await user.click(confirm);
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Koneksi terputus. Pembatalan belum terkirim — coba lagi."),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Batalkan pengajuan" })).toBeEnabled(),
+      );
+      expect(screen.getByRole("button", { name: "Batal" })).toBeEnabled();
+    });
   });
 });
