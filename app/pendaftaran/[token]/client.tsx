@@ -36,10 +36,20 @@ import {
 import {
   CONSENT_CLAUSES,
   CONSENT_INTRO,
-  CONSENT_CLOSING,
   CONSENT_VERSION,
 } from "@/lib/enrollment/consent-clauses";
 import { formatDateShort } from "@/lib/format";
+import {
+  STEPS,
+  STEP_CONSENT,
+  describeServerIssue,
+  parentContactIssues,
+  resumeStep,
+  stepLabel,
+  type ContactFieldKey,
+  type ContactIssue,
+  type ParentSide,
+} from "./form-logic";
 
 type Program = { id: string; name: string };
 type Prefill = {
@@ -158,29 +168,65 @@ function initConsent(p: unknown): ConsentState {
   };
 }
 
-const STEPS = ["Data Anak", "Data Ayah", "Data Ibu", "Program", "Berkas", "Persetujuan", "Tinjau"] as const;
-const STEP_CONSENT = 5;
+/**
+ * One line in the step alert. `step` is set for issues that belong to another
+ * step (a rejected submit); the alert then offers a button that jumps there.
+ */
+type FormIssue = { text: string; step?: number; field?: ContactFieldKey };
+
+const plain = (texts: string[]): FormIssue[] => texts.map((text) => ({ text }));
+const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
+  a.length === b.length && a.every((x, i) => x.text === b[i].text && x.step === b[i].step);
+
+// Public-form controls: 44px / 16px, scoped here so the shared ui/* stay as-is.
+const INPUT_CLASS = "h-11 text-base md:text-base";
+const SELECT_CLASS = "h-11 text-base";
+const AREA_CLASS = "text-base md:text-base";
+const BTN_CLASS = "h-11 min-w-28 px-5 text-base";
 
 export default function PendaftaranClient({
   token,
   programs,
   prefill,
   requiredDocuments = [],
+  initialStep,
 }: {
   token: string;
   programs: Program[];
   prefill: Prefill;
   /** Documents the school requires uploaded before submit (empty = all optional). */
   requiredDocuments?: DocumentKey[];
+  /** Overrides the resume calculation (tests). */
+  initialStep?: number;
 }) {
-  const [step, setStep] = useState(0);
+  // The draft stores no step index, so a returning parent resumes at the first
+  // step that still lacks required data rather than tapping through from 1.
+  const [startStep] = useState(
+    () =>
+      initialStep ??
+      resumeStep({
+        student: initStudent(prefill.studentData),
+        ayah: initParent(prefill.ayahData),
+        ibu: initParent(prefill.ibuData),
+        programId: prefill.programId ?? "",
+        documents: prefill.documents ?? {},
+        requiredDocuments,
+        consent: initConsent(prefill.consentData),
+      }),
+  );
+  const [step, setStep] = useState(startStep);
+  // Furthest step reached; the stepper lets the parent tap back to any of them.
+  const [reached, setReached] = useState(startStep);
   const [student, setStudent] = useState<StudentState>(() => initStudent(prefill.studentData));
   const [ayah, setAyah] = useState<ParentState>(() => ({ ...EMPTY_PARENT, ...initParent(prefill.ayahData) }));
   const [ibu, setIbu] = useState<ParentState>(() => ({ ...EMPTY_PARENT, ...initParent(prefill.ibuData) }));
   const [programId, setProgramId] = useState(prefill.programId ?? "");
   const [dcareAddon, setDcareAddon] = useState(prefill.dcareAddon);
   const [consent, setConsent] = useState<ConsentState>(() => initConsent(prefill.consentData));
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<FormIssue[]>([]);
+  // Contact inputs whose format error is showing. The message itself is derived
+  // from the current value, so it clears the moment the parent corrects it.
+  const [flagged, setFlagged] = useState<ContactFieldKey[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -309,34 +355,65 @@ export default function PendaftaranClient({
     return e;
   }
 
-  // While the Berkas errors are showing, keep them honest: uploading (or
-  // dropping) a file updates the list, and the Alert disappears once nothing
-  // is left. An effect, not an upload callback, so it also covers the state
-  // change from a rejected submit.
+  function contactIssuesFor(s: number): ContactIssue[] {
+    if (s === 1) return parentContactIssues("ayah", ayah);
+    if (s === 2) return parentContactIssues("ibu", ibu);
+    return [];
+  }
+
+  // While a step's required-field alert is showing, keep it honest: fixing (or
+  // uploading) something updates the list, and the Alert disappears once nothing
+  // is left. An effect, not an onChange callback, so it also covers the state
+  // change from a rejected submit. Issues that belong to other steps (a rejected
+  // submit) are left alone; they clear when their step is opened.
   useEffect(() => {
-    if (step !== 4) return;
-    setErrors((prev) =>
-      prev.length === 0 ? prev : documentErrors(missingUploads(documents, required)),
-    );
-    // documentErrors only reads constants.
+    if (step > STEP_CONSENT) return;
+    setErrors((prev) => {
+      if (!prev.some((i) => i.step === undefined)) return prev;
+      const next = [...plain(validateStep(step)), ...prev.filter((i) => i.step !== undefined)];
+      return sameIssues(prev, next) ? prev : next;
+    });
+    // validateStep/documentErrors read the state listed here and constants.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, documents, requiredKey]);
+  }, [step, student, ayah, ibu, programId, consent, documents, requiredKey]);
+
+  function focusField(key: ContactFieldKey) {
+    document.querySelector<HTMLElement>(`[data-field="${key}"]`)?.focus();
+  }
+
+  /** Open a step without validating the current one (stepper, "Buka langkah"). */
+  function go(i: number, flag: ContactFieldKey[] = []) {
+    // Drop the alert lines for the step being left and the one being opened;
+    // lines for other steps stay so the parent can still jump to them.
+    setErrors((prev) => prev.filter((x) => x.step !== undefined && x.step !== i));
+    setFlagged(flag);
+    setStep(i);
+    setReached((r) => Math.max(r, i));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   function next() {
     if (step === STEP_CONSENT && (sigSaving.ayah || sigSaving.ibu)) return;
     const e = validateStep(step);
-    if (e.length) {
-      setErrors(e);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    const contact = contactIssuesFor(step);
+    if (e.length || contact.length) {
+      setErrors(plain(e));
+      setFlagged(contact.map((c) => c.key));
+      if (contact.length) focusField(contact[0].key);
+      else window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setErrors([]);
+    setFlagged([]);
     scheduleSave();
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    const to = Math.min(step + 1, STEPS.length - 1);
+    setStep(to);
+    setReached((r) => Math.max(r, to));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function back() {
     setErrors([]);
+    setFlagged([]);
     setStep((s) => Math.max(s - 1, 0));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -402,7 +479,12 @@ export default function PendaftaranClient({
 
   async function submit() {
     if (uploadsInFlight > 0 || signatureSavingNow) return; // late writes after submit would 409
-    const all = [0, 1, 2, 3, 4, 5].flatMap(validateStep);
+    // A parent can reach Tinjau by tapping the stepper without ever pressing
+    // Lanjut on a step, so name the step and offer a way back to it.
+    const all: FormIssue[] = [0, 1, 2, 3, 4, 5].flatMap((s) => [
+      ...validateStep(s).map((text) => ({ text: `${stepLabel(s)} — ${text}`, step: s })),
+      ...contactIssuesFor(s).map((c) => ({ text: `${stepLabel(s)} — ${c.message}`, step: s, field: c.key })),
+    ]);
     if (all.length) {
       setErrors(all);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -431,10 +513,17 @@ export default function PendaftaranClient({
         if (gone.length > 0) {
           docs.markMissing(gone);
           setServerRequired((prev) => [...new Set([...prev, ...gone])]);
-          setErrors(documentErrors(gone));
+          setErrors(plain(documentErrors(gone)));
           setStep(4);
+          setReached((r) => Math.max(r, 4));
         } else {
-          setErrors(Object.values(d.fields ?? { _: "Mohon periksa kembali isian formulir." }));
+          // Name the step ("Langkah 2 · Data Ayah — …") and keep a way back to it.
+          const entries = Object.entries(d.fields ?? {});
+          const issues: FormIssue[] = entries.map(([path, message]) => {
+            const x = describeServerIssue(path, message);
+            return x.step === null ? { text: x.text } : { text: x.text, step: x.step, field: x.field };
+          });
+          setErrors(issues.length ? issues : plain(["Mohon periksa kembali isian formulir."]));
         }
         window.scrollTo({ top: 0, behavior: "smooth" });
         scheduleSave(); // submit failed: the latest edits must still reach the draft
@@ -480,14 +569,28 @@ export default function PendaftaranClient({
 
   return (
     <div className="space-y-5">
-      <Stepper step={step} />
+      <Stepper step={step} reached={reached} onGo={(i) => go(i)} />
 
       {errors.length > 0 && (
         <Alert variant="destructive">
           <AlertDescription>
             <ul className="list-disc pl-4">
               {errors.map((e, i) => (
-                <li key={i}>{e}</li>
+                <li key={i}>
+                  {e.text}
+                  {e.step !== undefined && e.step !== step && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                        onClick={() => go(e.step as number, e.field ? [e.field] : [])}
+                      >
+                        Buka langkah {e.step + 1}
+                      </button>
+                    </>
+                  )}
+                </li>
               ))}
             </ul>
           </AlertDescription>
@@ -502,10 +605,10 @@ export default function PendaftaranClient({
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
-          <ParentStep title="Data Ayah" value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }} />
+          <ParentStep title="Data Ayah" side="ayah" flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }} />
         )}
         {step === 2 && (
-          <ParentStep title="Data Ibu" value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }} />
+          <ParentStep title="Data Ibu" side="ibu" flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }} />
         )}
         {step === 3 && (
           <ProgramStep
@@ -539,14 +642,14 @@ export default function PendaftaranClient({
       </div>
 
       <div className="flex items-center justify-between">
-        <Button type="button" variant="outline" onClick={back} disabled={step === 0 || submitting}>
+        <Button type="button" variant="outline" className={BTN_CLASS} onClick={back} disabled={step === 0 || submitting}>
           Kembali
         </Button>
         {step < STEPS.length - 1 ? (
           <Button
             type="button"
             onClick={next}
-            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
             aria-disabled={step === STEP_CONSENT && signatureSavingNow}
             aria-busy={step === STEP_CONSENT && signatureSavingNow}
           >
@@ -558,7 +661,7 @@ export default function PendaftaranClient({
             onClick={() => {
               if (!submitting && uploadsInFlight === 0 && !signatureSavingNow) void submit();
             }}
-            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
             aria-disabled={submitting || uploadsInFlight > 0 || signatureSavingNow}
             aria-busy={submitting || uploadsInFlight > 0 || signatureSavingNow}
           >
@@ -572,47 +675,105 @@ export default function PendaftaranClient({
           </Button>
         )}
       </div>
+      <p className="text-center text-xs text-emerald-900/70">
+        Data ananda kami jaga sesuai{" "}
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+          Kebijakan Privasi
+        </a>{" "}
+        dan{" "}
+        <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+          Syarat &amp; Ketentuan
+        </a>{" "}
+        (terbuka di tab baru).
+      </p>
     </div>
   );
 }
 
-function Stepper({ step }: { step: number }) {
+function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo: (i: number) => void }) {
   return (
-    <ol className="flex flex-wrap gap-2 text-xs">
-      {STEPS.map((label, i) => (
-        <li
-          key={label}
-          className={
-            "rounded-full px-3 py-1 " +
-            (i === step
-              ? "bg-[#0C5C3F] text-white"
-              : i < step
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-emerald-50 text-emerald-900/50")
-          }
-        >
-          {i + 1}. {label}
-        </li>
-      ))}
+    <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
+      {STEPS.map((label, i) => {
+        const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
+        const text = `${i + 1}. ${label}`;
+        if (i === step) {
+          return (
+            <li key={label} aria-current="step">
+              <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
+            </li>
+          );
+        }
+        if (i <= reached) {
+          // Already-visited steps are real buttons: bordered, darker text, focus ring.
+          return (
+            <li key={label}>
+              <button
+                type="button"
+                onClick={() => onGo(i)}
+                className={
+                  base +
+                  "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
+                }
+              >
+                {text}
+              </button>
+            </li>
+          );
+        }
+        return (
+          <li key={label}>
+            <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
 function TextField({
-  label, value, onChange, type = "text", placeholder, description, required,
+  label, value, onChange, type = "text", placeholder, description, required, error, fieldKey,
 }: {
   label: string; value: string; onChange: (v: string) => void; type?: string;
   placeholder?: string; description?: string; required?: boolean;
+  /** Format error to show under the input. */
+  error?: string | null;
+  /** `data-field` hook so the form can focus this input. */
+  fieldKey?: string;
 }) {
   const id = useId();
+  const descId = `${id}-desc`;
+  const errId = `${id}-err`;
+  const describedBy = [description ? descId : null, error ? errId : null].filter(Boolean).join(" ") || undefined;
   return (
-    <Field>
+    <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={id}>
         {label}
         {required && <span className="text-destructive" aria-hidden> *</span>}
       </FieldLabel>
-      <Input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      {description && <FieldDescription>{description}</FieldDescription>}
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        className={INPUT_CLASS}
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        data-field={fieldKey}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {description && <FieldDescription id={descId}>{description}</FieldDescription>}
+      {error && <FieldError id={errId}>{error}</FieldError>}
+    </Field>
+  );
+}
+
+function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Textarea id={id} className={AREA_CLASS} value={value} onChange={(e) => onChange(e.target.value)} rows={2} />
     </Field>
   );
 }
@@ -622,13 +783,21 @@ function SelectField({
 }: {
   label: string; value: string; onChange: (v: string) => void; options: Option[]; required?: boolean; placeholder?: string;
 }) {
+  const id = useId();
   return (
     <Field>
-      <FieldLabel>
+      <FieldLabel htmlFor={id}>
         {label}
-        {required && <span className="text-destructive"> *</span>}
+        {required && <span className="text-destructive" aria-hidden> *</span>}
       </FieldLabel>
-      <NativeSelect className="w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect
+        id={id}
+        className="w-full"
+        selectClassName={SELECT_CLASS}
+        aria-required={required || undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         <NativeSelectOption value="">{placeholder}</NativeSelectOption>
         {options.map((o) => (
           <NativeSelectOption key={o.value} value={o.value}>
@@ -703,19 +872,13 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
         <TextField label="Lingkar kepala (cm)" type="number" value={value.headCircumferenceCm} onChange={(v) => set("headCircumferenceCm", v)} />
         <SelectField label="Golongan darah" value={value.bloodType} onChange={(v) => set("bloodType", v)} options={BLOOD_TYPE_OPTIONS} />
       </div>
-      <Field>
-        <FieldLabel>Alergi makanan</FieldLabel>
-        <Textarea value={value.foodAllergy} onChange={(e) => set("foodAllergy", e.target.value)} rows={2} />
-      </Field>
-      <Field>
-        <FieldLabel>Penyakit berat yang pernah diderita</FieldLabel>
-        <Textarea value={value.seriousIllness} onChange={(e) => set("seriousIllness", e.target.value)} rows={2} />
-      </Field>
+      <TextAreaField label="Alergi makanan" value={value.foodAllergy} onChange={(v) => set("foodAllergy", v)} />
+      <TextAreaField label="Penyakit berat yang pernah diderita" value={value.seriousIllness} onChange={(v) => set("seriousIllness", v)} />
 
       <Separator />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-emerald-900">Keluarga yang pernah bersekolah di An Nisaa&apos;</h3>
-        <Button type="button" variant="outline" size="sm" onClick={addFamily} disabled={value.priorFamilyAttendees.length >= MAX_PRIOR_FAMILY_ATTENDEES}>
+        <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base" onClick={addFamily} disabled={value.priorFamilyAttendees.length >= MAX_PRIOR_FAMILY_ATTENDEES}>
           Tambah
         </Button>
       </div>
@@ -729,8 +892,19 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
   );
 }
 
-function ParentStep({ title, value, onChange }: { title: string; value: ParentState; onChange: (v: ParentState) => void }) {
+function ParentStep({
+  title, side, flagged, value, onChange,
+}: {
+  title: string; side: ParentSide; flagged: ContactFieldKey[]; value: ParentState; onChange: (v: ParentState) => void;
+}) {
   const set = <K extends keyof ParentState>(k: K, v: ParentState[K]) => onChange({ ...value, [k]: v });
+  // Only inputs the parent has already been told about show a message, and it
+  // follows the current value, so correcting the field clears it immediately.
+  const issues = parentContactIssues(side, value);
+  const err = (k: "phone" | "email" | "employerPhone") => {
+    const key: ContactFieldKey = `${side}.${k}`;
+    return flagged.includes(key) ? (issues.find((i) => i.key === key)?.message ?? null) : null;
+  };
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">{title}</h2>
@@ -739,8 +913,8 @@ function ParentStep({ title, value, onChange }: { title: string; value: ParentSt
         <TextField label="Tempat lahir" value={value.birthPlace} onChange={(v) => set("birthPlace", v)} />
         <TextField label="Tanggal lahir" type="date" value={value.dateOfBirth} onChange={(v) => set("dateOfBirth", v)} />
         <SelectField label="Agama" value={value.agama} onChange={(v) => set("agama", v)} options={AGAMA_OPTIONS} />
-        <TextField label="No. HP" type="tel" value={value.phone} onChange={(v) => set("phone", v)} />
-        <TextField label="Email" type="email" value={value.email} onChange={(v) => set("email", v)} />
+        <TextField label="No. HP" type="tel" value={value.phone} onChange={(v) => set("phone", v)} error={err("phone")} fieldKey={`${side}.phone`} />
+        <TextField label="Email" type="email" value={value.email} onChange={(v) => set("email", v)} error={err("email")} fieldKey={`${side}.email`} />
         <SelectField label="Pendidikan terakhir" value={value.education} onChange={(v) => set("education", v)} options={EDUCATION_OPTIONS} />
         <SelectField label="Pekerjaan" value={value.occupation} onChange={(v) => set("occupation", v)} options={OCCUPATION_OPTIONS} />
         <SelectField label="Penghasilan" value={value.income} onChange={(v) => set("income", v)} options={INCOME_OPTIONS} />
@@ -752,12 +926,9 @@ function ParentStep({ title, value, onChange }: { title: string; value: ParentSt
       <h3 className="text-sm font-semibold text-emerald-900">Pekerjaan</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama kantor" value={value.employerName} onChange={(v) => set("employerName", v)} />
-        <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} />
+        <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} error={err("employerPhone")} fieldKey={`${side}.employerPhone`} />
       </div>
-      <Field>
-        <FieldLabel>Alamat kantor</FieldLabel>
-        <Textarea value={value.employerAddress} onChange={(e) => set("employerAddress", e.target.value)} rows={2} />
-      </Field>
+      <TextAreaField label="Alamat kantor" value={value.employerAddress} onChange={(v) => set("employerAddress", v)} />
     </div>
   );
 }
@@ -767,14 +938,23 @@ function ProgramStep({
 }: {
   programs: Program[]; programId: string; dcareAddon: boolean; onProgram: (v: string) => void; onDcare: (v: boolean) => void;
 }) {
+  const programSelectId = useId();
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">Pilihan Program</h2>
       <Field>
-        <FieldLabel>
-          Program <span className="text-destructive">*</span>
+        <FieldLabel htmlFor={programSelectId}>
+          Program <span className="text-destructive" aria-hidden>*</span>
         </FieldLabel>
-        <NativeSelect className="w-full" value={programId} onChange={(e) => onProgram(e.target.value)}>
+        <NativeSelect
+          id={programSelectId}
+          className="w-full"
+          selectClassName={SELECT_CLASS}
+          aria-required
+          aria-describedby={programs.length === 0 ? `${programSelectId}-err` : undefined}
+          value={programId}
+          onChange={(e) => onProgram(e.target.value)}
+        >
           <NativeSelectOption value="">Pilih program…</NativeSelectOption>
           {programs.map((p) => (
             <NativeSelectOption key={p.id} value={p.id}>
@@ -782,10 +962,10 @@ function ProgramStep({
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        {programs.length === 0 && <FieldError>Belum ada program tersedia. Mohon hubungi sekolah.</FieldError>}
+        {programs.length === 0 && <FieldError id={`${programSelectId}-err`}>Belum ada program tersedia. Mohon hubungi sekolah.</FieldError>}
       </Field>
-      <label className="flex items-center gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
-        <Checkbox checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
+      <label className="flex min-h-11 items-center gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+        <Checkbox className="size-5" checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
         <span className="text-sm text-emerald-950">Tambahan Dcare (penitipan)</span>
       </label>
     </div>
@@ -811,10 +991,10 @@ function ConsentStep({
           <li key={i}>{c}</li>
         ))}
       </ol>
-      <p className="text-sm font-medium text-emerald-950">{CONSENT_CLOSING}</p>
 
-      <label className="flex items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
-        <Checkbox checked={value.agreed} onCheckedChange={(c) => set("agreed", c === true)} className="mt-0.5" />
+      {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}
+      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+        <Checkbox checked={value.agreed} onCheckedChange={(c) => set("agreed", c === true)} className="mt-0.5 size-5" />
         <span className="text-sm text-emerald-950">
           Kami sudah membaca, memahami, dan menyetujui seluruh isi surat persetujuan ini.
         </span>
@@ -901,10 +1081,10 @@ function HandoverNote({
               tersimpan otomatis, dan tanda tangan {ayahSigned ? "Ayah" : "Ibu"} tidak akan hilang.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={copy}>
+              <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base" onClick={copy}>
                 <Copy size={14} aria-hidden /> Salin link
               </Button>
-              <Button type="button" variant="outline" size="sm" className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8" onClick={check} aria-disabled={checking} aria-busy={checking}>
+              <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base aria-disabled:pointer-events-none aria-disabled:opacity-50" onClick={check} aria-disabled={checking} aria-busy={checking}>
                 <RefreshCw size={14} aria-hidden className={checking ? "animate-spin" : undefined} />{" "}
                 {checking ? "Memeriksa…" : "Periksa lagi"}
               </Button>
@@ -915,7 +1095,7 @@ function HandoverNote({
                 readOnly
                 aria-label="Link formulir"
                 value={fallbackUrl}
-                className="mt-3"
+                className={INPUT_CLASS + " mt-3"}
                 onFocus={(e) => e.currentTarget.select()}
               />
             )}

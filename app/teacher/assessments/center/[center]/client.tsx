@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -93,6 +95,13 @@ export function CenterSessionClient({
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
   const loadRequestId = useRef(0);
+  // TCHX-3: set by any teacher edit (activity, IKTP pick, level, note), cleared
+  // when a payload hydrates or a save succeeds. Drives the leave guard and the
+  // date / age-group confirm below.
+  const [dirty, setDirty] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<(() => void) | null>(null);
+  const guard = useUnsavedChangesGuard(dirty);
+  const today = getTodayInTimezone(JAKARTA_TZ);
 
   // Fetch payload whenever date/ageGroup changes.
   useEffect(() => {
@@ -108,6 +117,7 @@ export function CenterSessionClient({
       setPickedIndicatorIds([]);
       setCells(new Map());
       setOpenNotes(new Set());
+      setDirty(false);
       try {
         const res = await fetch(
           `/api/teacher/assessment-entries/center/${center}?date=${date}&ageGroup=${ageGroup}`,
@@ -159,6 +169,28 @@ export function CenterSessionClient({
     };
   }, [center, date, ageGroup, reloadKey]);
 
+  /**
+   * Changing date or age group reloads the grid and drops every unsaved pick,
+   * so with unsaved work it asks first (same wording family as the leave guard).
+   */
+  function switchGrid(apply: () => void): void {
+    if (dirty) setPendingSwitch(() => apply);
+    else apply();
+  }
+
+  function handleDateChange(value: string): void {
+    // A future day cannot be assessed and would load a future week (TCHX-12).
+    // `max` stops the native picker; this covers typed input. An empty value
+    // (field cleared mid-typing) keeps the current date.
+    if (!value || value > today || value === date) return;
+    switchGrid(() => setDate(value));
+  }
+
+  function handleAgeGroupChange(next: "A" | "B"): void {
+    if (next === ageGroup) return;
+    switchGrid(() => setAgeGroup(next));
+  }
+
   const indicators = payload?.ok ? payload.indicators : [];
   const students = payload?.ok ? payload.students : [];
   const isWritable = payload?.ok && payload.writable;
@@ -189,7 +221,7 @@ export function CenterSessionClient({
     }
     event.preventDefault();
     const next = values[nextIndex]!;
-    setAgeGroup(next);
+    handleAgeGroupChange(next);
     event.currentTarget
       .closest('[role="radiogroup"]')
       ?.querySelector<HTMLInputElement>(`input[value="${next}"]`)
@@ -254,6 +286,7 @@ export function CenterSessionClient({
         : null;
 
   function toggleIndicator(id: string): void {
+    setDirty(true);
     setPickedIndicatorIds((curr) => {
       if (curr.includes(id)) return curr.filter((x) => x !== id);
       if (curr.length >= MAX_PICKED_INDICATORS) {
@@ -270,6 +303,7 @@ export function CenterSessionClient({
     level: Level,
   ): void {
     const key = cellKey(studentId, indicatorId);
+    setDirty(true);
     setCells((curr) => {
       const next = new Map(curr);
       const existing = next.get(key);
@@ -284,6 +318,7 @@ export function CenterSessionClient({
     note: string,
   ): void {
     const key = cellKey(studentId, indicatorId);
+    setDirty(true);
     setCells((curr) => {
       const next = new Map(curr);
       const existing = next.get(key);
@@ -343,6 +378,7 @@ export function CenterSessionClient({
       }
       const body = await res.json();
       toast.success(`Penilaian tersimpan · ${body.written} entri`);
+      setDirty(false);
       router.refresh();
     } catch (err) {
       const message = userMessage(
@@ -387,7 +423,8 @@ export function CenterSessionClient({
             className="tap-target"
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => handleDateChange(e.target.value)}
+            max={today}
             required
           />
         </Field>
@@ -417,7 +454,7 @@ export function CenterSessionClient({
                   name="center-age-group"
                   value={g}
                   checked={ageGroup === g}
-                  onChange={() => setAgeGroup(g)}
+                  onChange={() => handleAgeGroupChange(g)}
                   onKeyDown={handleAgeGroupKeyDown}
                   data-testid={`agegroup-${g}`}
                   aria-label={`TK ${g}`}
@@ -439,7 +476,10 @@ export function CenterSessionClient({
           className="tap-target"
           type="text"
           value={activity}
-          onChange={(e) => setActivity(e.target.value)}
+          onChange={(e) => {
+            setActivity(e.target.value);
+            setDirty(true);
+          }}
           disabled={!isWritable}
           maxLength={200}
           placeholder="Doa pagi dan asmaul husna"
@@ -454,25 +494,33 @@ export function CenterSessionClient({
           <Skeleton className="h-10 w-full" />
         </div>
       ) : payload && !payload.ok ? (
-        <div role="alert" className="space-y-3">
-          <EmptyState
-            icon={CalendarOff}
-            title={
-              payload.reason === "no_active_week"
-                ? "Belum ada pekan aktif"
-                : "Tidak bisa memuat sentra"
-            }
-            description={payload.reason === "no_active_week" ? `${payload.error} Pilih tanggal dalam pekan belajar yang sudah disiapkan, atau hubungi admin sekolah untuk menyiapkan pekan belajar.` : payload.error}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="tap-target"
-            onClick={() => setReloadKey((key) => key + 1)}
-          >
-            Coba lagi
-          </Button>
-        </div>
+        payload.reason === "no_active_week" ? (
+          // Expected state (weekend, holiday, before the first Pekan), not a
+          // failure: say it once and offer no retry — only another date helps.
+          <div role="status">
+            <EmptyState
+              icon={CalendarOff}
+              title="Belum ada pekan aktif untuk tanggal ini"
+              description="Pilih hari sekolah lain. Bila hari ini hari sekolah, minta admin menyiapkan pekan belajarnya."
+            />
+          </div>
+        ) : (
+          <div role="alert" className="space-y-3">
+            <EmptyState
+              icon={CalendarOff}
+              title="Tidak bisa memuat sentra"
+              description={payload.error}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-target"
+              onClick={() => setReloadKey((key) => key + 1)}
+            >
+              Coba lagi
+            </Button>
+          </div>
+        )
       ) : (
         <>
           {!isWritable && (
@@ -671,6 +719,35 @@ export function CenterSessionClient({
         ) : null}
       </div>
       )}
+
+      <ConfirmDialog
+        open={guard.confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) guard.stay();
+        }}
+        title="Keluar tanpa menyimpan?"
+        description="Kegiatan dan tingkat yang belum disimpan akan hilang."
+        confirmLabel="Keluar tanpa menyimpan"
+        cancelLabel="Tetap di sini"
+        destructive
+        onConfirm={guard.confirmLeave}
+      />
+      <ConfirmDialog
+        open={pendingSwitch !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSwitch(null);
+        }}
+        title="Ganti tanpa menyimpan?"
+        description="Penilaian yang belum disimpan akan hilang jika Anda mengganti tanggal atau kelompok usia."
+        confirmLabel="Ganti tanpa menyimpan"
+        cancelLabel="Tetap di sini"
+        destructive
+        onConfirm={() => {
+          const apply = pendingSwitch;
+          setPendingSwitch(null);
+          apply?.();
+        }}
+      />
     </div>
   );
 }

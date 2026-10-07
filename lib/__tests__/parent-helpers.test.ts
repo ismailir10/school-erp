@@ -5,6 +5,8 @@ import {
   getParentWithChildren,
   getStudentInvoices,
   mondayOfWeek,
+  resolveSelectedChild,
+  resolveSelectedChildWithStatus,
 } from "../parent-helpers";
 import type { SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -588,5 +590,34 @@ describe("countAttendanceThisWeek", () => {
     ];
     const counts = countAttendanceThisWeek(records, now);
     expect(counts).toEqual({ PRESENT: 0, SICK: 0, PERMISSION: 0, ABSENT: 5 });
+  });
+});
+
+describe("resolveSelectedChildWithStatus (PAR-11)", () => {
+  const kids = [
+    { studentId: "a", studentName: "A" },
+    { studentId: "b", studentName: "B" },
+  ] as unknown as Parameters<typeof resolveSelectedChildWithStatus>[0];
+
+  it("returns the requested linked child with no rejection", () => {
+    const r = resolveSelectedChildWithStatus(kids, "b");
+    expect(r.child?.studentId).toBe("b");
+    expect(r.rejectedChildId).toBeNull();
+  });
+
+  it("falls back to the first child and reports a foreign id as rejected", () => {
+    const r = resolveSelectedChildWithStatus(kids, "foreign-id");
+    expect(r.child?.studentId).toBe("a");
+    expect(r.rejectedChildId).toBe("foreign-id");
+  });
+
+  it("does not report a missing param as rejected", () => {
+    expect(resolveSelectedChildWithStatus(kids, undefined)).toMatchObject({ rejectedChildId: null });
+  });
+
+  it("returns null child for an empty family and keeps resolveSelectedChild unchanged", () => {
+    expect(resolveSelectedChildWithStatus([], "x")).toEqual({ child: null, rejectedChildId: null });
+    expect(resolveSelectedChild(kids, "nope")?.studentId).toBe("a");
+    expect(resolveSelectedChild(kids, "b")?.studentId).toBe("b");
   });
 });

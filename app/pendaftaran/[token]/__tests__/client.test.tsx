@@ -64,7 +64,7 @@ describe("PendaftaranClient", () => {
   });
 
   it("has the Berkas step between Program and Persetujuan", () => {
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     const labels = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(labels).toEqual([
       "1. Data Anak",
@@ -81,6 +81,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     render(
       <PendaftaranClient
+        initialStep={0}
         token="tok"
         programs={programs}
         prefill={filled}
@@ -103,6 +104,7 @@ describe("PendaftaranClient", () => {
     const file = { fileName: "x.png", mimeType: "image/png", size: 3, uploadedAt: "2026-10-06T00:00:00.000Z" };
     render(
       <PendaftaranClient
+        initialStep={0}
         token="tok"
         programs={programs}
         prefill={{ ...filled, documents: { kk: file, ktp_ayah: file } }}
@@ -115,14 +117,14 @@ describe("PendaftaranClient", () => {
 
   it("keeps Berkas optional when the school requires nothing", async () => {
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
     expect(screen.getByText("Tanda tangan Ayah: tersimpan")).toBeInTheDocument();
   });
 
   it("shows a handover note when only one parent has signed, without blocking Lanjut copy", async () => {
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
 
     expect(screen.getByText("Tanda tangan Ibu belum ada")).toBeInTheDocument();
@@ -139,7 +141,7 @@ describe("PendaftaranClient", () => {
       String(input).endsWith("/signature") ? ok({ ayah: true, ibu: true }) : ok({}),
     );
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
 
     await user.click(screen.getByRole("button", { name: /Periksa lagi/ }));
@@ -154,7 +156,7 @@ describe("PendaftaranClient", () => {
       String(input).endsWith("/signature") ? ok({ ayah: true, ibu: false }) : ok({}),
     );
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
 
     await user.click(screen.getByRole("button", { name: /Periksa lagi/ }));
@@ -164,7 +166,7 @@ describe("PendaftaranClient", () => {
 
   it("autosave sends the latest typed value and never signature tokens", async () => {
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
 
     const name = screen.getByLabelText(/^Nama lengkap/);
     await user.clear(name);
@@ -186,7 +188,7 @@ describe("PendaftaranClient", () => {
 
   it("flushes a pending autosave with keepalive when the page is hidden", async () => {
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
 
     const name = screen.getByLabelText(/^Nama lengkap/);
     await user.clear(name);
@@ -210,7 +212,7 @@ describe("PendaftaranClient", () => {
       ...filled,
       consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "", signed: false } },
     };
-    render(<PendaftaranClient token="tok" programs={programs} prefill={prefill} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={prefill} />);
     await gotoConsent(user);
 
     await user.click(screen.getByRole("button", { name: /Periksa lagi/ }));
@@ -225,7 +227,7 @@ describe("PendaftaranClient", () => {
       String(input).endsWith("/signature") ? ok({ ayah: true, ibu: true }) : ok({}),
     );
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
 
     await user.click(screen.getByRole("button", { name: /Periksa lagi/ }));
@@ -243,7 +245,7 @@ describe("PendaftaranClient", () => {
       ...filled,
       consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
-    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
     vi.mocked(fetch).mockClear();
 
@@ -264,7 +266,7 @@ describe("PendaftaranClient", () => {
       ...filled,
       consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
-    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 4; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
     await user.upload(
       screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }),
@@ -289,7 +291,7 @@ describe("PendaftaranClient", () => {
       ...filled,
       consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
-    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
 
     expect(await screen.findByText("Bogor, 1 Jan 2021")).toBeInTheDocument();
@@ -298,7 +300,7 @@ describe("PendaftaranClient", () => {
 
   it("puts the handover note above the signature pads", async () => {
     const user = userEvent.setup();
-    render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     await gotoConsent(user);
     const note = screen.getByText("Tanda tangan Ibu belum ada");
     const pad = screen.getByText("Tanda tangan Ibu: kosong");
@@ -317,7 +319,7 @@ describe("PendaftaranClient", () => {
       ...filled,
       consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
-    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     await gotoConsent(user);
 
     // redraw + save Ayah's signature, POST stays pending
@@ -366,7 +368,7 @@ describe("PendaftaranClient", () => {
     }
 
     async function submitFromTinjau(user: ReturnType<typeof userEvent.setup>) {
-      render(<PendaftaranClient token="tok" programs={programs} prefill={signed} requiredDocuments={["akta"]} />);
+      render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={signed} requiredDocuments={["akta"]} />);
       for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
       await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
     }
@@ -407,7 +409,7 @@ describe("PendaftaranClient", () => {
     it("keeps a server-rejected key required, so Lanjut stays blocked, even if the page's own list omitted it", async () => {
       rejectAkta();
       const user = userEvent.setup();
-      render(<PendaftaranClient token="tok" programs={programs} prefill={signed} />);
+      render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={signed} />);
       for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
       await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
       await screen.findByText("Akta kelahiran anak wajib diunggah.");

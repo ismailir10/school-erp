@@ -82,8 +82,10 @@ describe("ClassAttendancePage recovery", () => {
     fireEvent.click(await pick("Aisyah", "Izin"));
     expect(screen.getByRole("status")).toHaveTextContent("Menyimpan absensi");
     expect(screen.getByText("Izin 0")).toBeInTheDocument();
-    await act(async () => { pending.reject(Error("offline")); });
-    expect(screen.getByRole("alert")).toHaveTextContent("Absensi belum tersimpan");
+    await act(async () => { pending.reject(new TypeError("Failed to fetch")); });
+    expect(screen.getByRole("alert")).toHaveTextContent("Absensi belum tersimpan. Koneksi terputus. Periksa internet, lalu coba lagi.");
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+    expect(toastError).toHaveBeenCalledWith("Koneksi terputus. Periksa internet, lalu coba lagi.");
     expect(await pick("Aisyah", "Izin")).toHaveAttribute("aria-checked", "false");
     fireEvent.click(screen.getByRole("button", {name:"Coba lagi"}));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan"));
@@ -121,12 +123,12 @@ describe("ClassAttendancePage recovery", () => {
       if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
       if (url.includes("student-attendance?")) return Promise.resolve(ok(classOfThree));
       return ++saves === 1
-        ? Promise.resolve({ ok: false, json: async () => ({ error: "Terlalu banyak permintaan" }) })
+        ? Promise.resolve({ ok: false, status: 429, json: async () => ({ error: "Terlalu banyak permintaan" }) })
         : Promise.resolve(ok({ saved: 2 }));
     }));
     render(<ClassAttendancePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Absensi belum tersimpan. Terlalu banyak permintaan");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Absensi belum tersimpan. Terlalu banyak permintaan. Tunggu sebentar, lalu coba lagi.");
     expect(await pick("Aisyah", "Hadir")).toHaveAttribute("aria-checked", "false");
     expect(screen.getByText("Hadir 0")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
@@ -261,5 +263,104 @@ describe("class attendance never offers a future day (TCH-9)", () => {
     const input = screen.getByLabelText("Tanggal kehadiran") as HTMLInputElement;
     expect(input.value).toBe(input.max);
     expect(input.value).not.toBe("2999-01-01");
+  });
+});
+
+describe("class attendance failure copy (TCHX-4/15, TCH-10, TCH-11)", () => {
+  const mockApi = (mark: () => Promise<unknown>, rosterData: unknown = roster, rosterRes?: () => Promise<unknown>) =>
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
+      if (url.includes("student-attendance?")) return rosterRes ? rosterRes() : Promise.resolve(ok(rosterData));
+      return mark();
+    }));
+  const resetAll = () => { vi.unstubAllGlobals(); toastError.mockClear(); navigation.params = new URLSearchParams(); navigation.replace.mockClear(); };
+
+  it("401 on a row save: Indonesian copy, a sign-in link, no Coba lagi, no raw 'Unauthorized'", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve({ ok: false, status: 401, json: async () => ({ error: "Unauthorized" }) }));
+    render(<ClassAttendancePage />);
+    fireEvent.click(await pick("Aisyah", "Izin"));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Absensi belum tersimpan. Sesi Anda sudah berakhir. Masuk lagi, lalu simpan ulang.");
+    expect(screen.getByRole("link", { name: "Masuk lagi" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+    expect(screen.queryByText(/Unauthorized/)).toBeNull();
+    expect(toastError).toHaveBeenCalledWith("Sesi Anda sudah berakhir. Masuk lagi, lalu simpan ulang.");
+  });
+
+  it("403 on a row save: permission copy and no retry or sign-in link", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve({ ok: false, status: 403, json: async () => ({ error: "Forbidden" }) }));
+    render(<ClassAttendancePage />);
+    fireEvent.click(await pick("Aisyah", "Hadir"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Anda tidak punya akses ke kelas ini. Hubungi admin sekolah.");
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Masuk lagi" })).toBeNull();
+  });
+
+  it("401 on the bulk save shows Masuk lagi and hides the useless bulk button", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve({ ok: false, status: 401, json: async () => ({ error: "Unauthorized" }) }), classOfThree);
+    render(<ClassAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi Anda sudah berakhir");
+    expect(screen.getByRole("link", { name: "Masuk lagi" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Tandai/ })).toBeNull();
+  });
+
+  it("403 on roster load says it is a permission problem, not the connection", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve(ok({ saved: 1 })), roster, () => Promise.resolve({ ok: false, status: 403, json: async () => ({ error: "Forbidden" }) }));
+    render(<ClassAttendancePage />);
+    await screen.findByText("Data siswa tidak bisa dimuat");
+    expect(screen.getByText("Anda tidak punya akses ke kelas ini. Hubungi admin sekolah.")).toBeInTheDocument();
+    expect(screen.queryByText(/Periksa koneksi/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+  });
+
+  it("401 on roster load offers Masuk lagi", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve(ok({ saved: 1 })), roster, () => Promise.resolve({ ok: false, status: 401, json: async () => ({ error: "Unauthorized" }) }));
+    render(<ClassAttendancePage />);
+    await screen.findByText("Data siswa tidak bisa dimuat");
+    expect(screen.getByRole("link", { name: "Masuk lagi" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+  });
+
+  it("offline roster load keeps Coba lagi with Indonesian copy", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve(ok({ saved: 1 })), roster, () => Promise.reject(new TypeError("Failed to fetch")));
+    render(<ClassAttendancePage />);
+    await screen.findByText("Data siswa tidak bisa dimuat");
+    expect(screen.getByText("Koneksi terputus. Periksa internet, lalu coba lagi.")).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+  });
+
+  it("bulk bar says Menyimpan… (not 'Semua siswa sudah dicatat') until the counts catch up", async () => {
+    resetAll();
+    const pending = deferred<ReturnType<typeof ok>>();
+    mockApi(() => pending.promise, classOfThree);
+    render(<ClassAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
+    expect(await screen.findByText("Menyimpan…")).toBeInTheDocument();
+    expect(screen.queryByText("Semua siswa sudah dicatat")).toBeNull();
+    expect(screen.getByText("2 belum")).toBeInTheDocument();
+    await act(async () => { pending.resolve(ok({ saved: 2 })); });
+    await screen.findByText("Semua siswa sudah dicatat");
+    expect(screen.getByText("Hadir 2")).toBeInTheDocument();
+    expect(screen.queryByText(/belum$/)).toBeNull();
+    expect(screen.queryByText("Menyimpan…")).toBeNull();
+  });
+
+  it("lets a long name wrap to two lines instead of truncating, keeping 44px status chips", async () => {
+    resetAll();
+    mockApi(() => Promise.resolve(ok({ saved: 1 })), [{ student: { id: "s1", name: "Abdul Zahra Maulana Ibrahim", nickname: null, gender: null }, attendance: null }]);
+    render(<ClassAttendancePage />);
+    const name = await screen.findByText("Abdul Zahra Maulana Ibrahim");
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).toContain("break-words");
+    expect(name.className).not.toContain("truncate");
+    expect(screen.getAllByRole("radio")[0].className).toContain("size-11");
   });
 });

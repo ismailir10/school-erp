@@ -138,6 +138,52 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
     expect(props.programName).toBe("TKIT");
   });
 
+  it("prints Indonesian method labels in Riwayat Pembayaran, never raw enum names (PARX-9)", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
+    const payment = (id: string, method: string) => ({
+      id,
+      amount: 100_000,
+      method,
+      reference: null,
+      paidAt: new Date("2026-04-15"),
+    });
+    db.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "April 2026",
+      dueDate: new Date("2026-04-30"),
+      totalDue: 500_000,
+      totalPaid: 500_000,
+      status: "PAID",
+      paidAt: new Date("2026-04-15"),
+      lines: [],
+      payments: [
+        payment("p1", "CASH"),
+        payment("p2", "BANK_TRANSFER"),
+        payment("p3", "XENDIT"),
+        payment("p4", "DOKU"),
+        payment("p5", "OTHER"),
+      ],
+      student: { name: "Anak", nickname: "Nak", enrollments: [] },
+    });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    const props = renderToBuffer.mock.calls[0]![0].props.data;
+    expect(props.payments.map((p: { method: string }) => p.method)).toEqual([
+      "Tunai",
+      "Transfer Bank",
+      "Virtual Account",
+      "Virtual Account",
+      "Lainnya",
+    ]);
+  });
+
   it("404 for a non-PAID invoice — no unpaid receipt leaks", async () => {
     getSession.mockResolvedValue(guardianSession());
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });

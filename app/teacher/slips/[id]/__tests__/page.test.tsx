@@ -30,7 +30,7 @@ describe("SlipDetailPage", () => {
   it("uses the shared header with a deterministic accessible back and PDF action", async () => {
     render(await SlipDetailPage({ params: Promise.resolve({ id: "slip-1" }) }));
     expect(screen.getByRole("heading", { name: "Maret 2026" })).toBeInTheDocument();
-    expect(screen.getByText("1 Maret 2026 s/d 31 Maret 2026")).toBeInTheDocument();
+    expect(screen.getByText("1 Maret – 31 Maret 2026")).toBeInTheDocument();
     const back = screen.getByRole("link", { name: /Kembali ke slip gaji/ });
     expect(back).toHaveAttribute("href", "/teacher/slips");
     expect(back).toHaveClass("min-h-11", "focus-visible:ring-2");
@@ -38,6 +38,23 @@ describe("SlipDetailPage", () => {
     expect(pdf).toHaveAttribute("href", "/api/slips/slip-1/pdf");
     expect(pdf).toHaveAttribute("target", "_blank");
     expect(pdf).toHaveClass("min-h-11", "focus-visible:ring-2");
+  });
+
+  it("names a 21–20 cycle by its end month and prints the range without ISO dates", async () => {
+    payrollItemFindFirst.mockResolvedValue({
+      ...slip,
+      payrollRun: { ...slip.payrollRun, periodStart: "2026-08-21", periodEnd: "2026-09-20" },
+    });
+    render(await SlipDetailPage({ params: Promise.resolve({ id: "slip-1" }) }));
+    expect(screen.getByRole("heading", { name: "September 2026" })).toBeInTheDocument();
+    expect(screen.getByText("21 Agustus – 20 September 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/s\/d/)).toBeNull();
+  });
+
+  it("names the product Talib in the footer", async () => {
+    render(await SlipDetailPage({ params: Promise.resolve({ id: "slip-1" }) }));
+    expect(screen.getByText(/Talib by An Nisaa' Sekolahku/)).toBeInTheDocument();
+    expect(screen.queryByText(/An Nisaa' ERP/)).toBeNull();
   });
 
   it("keeps long salary labels flexible while keeping amounts readable", async () => {
