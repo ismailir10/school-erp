@@ -6,7 +6,7 @@ import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import PendaftaranClient from "./client";
 
 export const metadata: Metadata = {
-  title: "Formulir Pendaftaran Murid Baru — Talib",
+  title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
   description: "Lengkapi formulir penerimaan murid baru An Nisaa' Sekolahku.",
   robots: { index: false, follow: false }, // tokenized — keep out of search
 };
