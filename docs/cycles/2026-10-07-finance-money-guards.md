@@ -35,7 +35,7 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - [x] **T2 — Invoice PUT guard.** `app/api/invoices/[id]/route.ts` (+ tests). FINX-3. Independent.
 - [x] **T3 — Billing run.** `lib/finance/build-billing-run.ts`, `lib/finance/materialize-billing-run.ts`, billing-run routes under `app/api/billing-runs/[id]/**`, `components/admin/invoices/billing-run-wizard/**` except `line-editor.tsx` (+ tests). FINX-4/5/6, FINX-2 (lines), wizard footer + due date. Independent of T1 except the line editor (T1 owns it).
 - [x] **T4 — Payroll.** `lib/validations/payroll.ts`, `app/api/payroll/**`, `app/admin/(hr)/payroll/**` (+ tests). HRX-3/4/5, FINX-2 (payroll), HR-8, HR-11, HR-19 (payroll). Independent.
-- [ ] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
+- [x] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
 
 ## Implementation
 - Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4] parallel (disjoint files, one subagent each, no git writes), T5 sequential by the driver, who reviews each diff and commits per task.
@@ -49,5 +49,15 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - Frontend diffs (rupiah input, line editor, payroll pages) checked against `.claude/standards/design-system.html` (existing tokens, destructive ConfirmDialog, sheet padding scale); no new colours.
 - T1: `npx vitest run components/admin/invoices/billing-run-wizard/__tests__/line-editor.test.tsx components/ui/__tests__/rupiah-input.test.tsx` → 63 passed; other RupiahInput consumers (fees, employee detail, invoices components) → 56 passed. T2: `npx vitest run app/api/__tests__/invoices-put-guard.test.ts app/api/__tests__/invoices-detail.test.ts` → 19 passed. T4: `npx vitest run "app/admin/(hr)/payroll" app/api/payroll lib/validations/__tests__/payroll.test.ts lib/validations/__tests__/form-api-roundtrip.test.ts` → 143 passed. T3: `npx vitest run lib/finance lib/validations/__tests__/billing-run.test.ts app/api/__tests__/billing-runs app/api/__tests__/billing-run components/admin/invoices app/admin/invoices` → 434 passed + 1 mock fix re-run 17/17. Full gate at T5.
 - CI run 1 on #613: `Playwright E2E` 172 passed / 1 failed — `e2e/admin.spec.ts` billing-run line edit read the amount with `Number(inputValue)`, which is 850 for the now-grouped "850.000" (FINX-1 intended change), so the expected total was off. Spec now reads digits only.
+- End-of-cycle gate: `npm run build` passed locally (production build served for the checks below). Full `npx vitest run` and Playwright are taken from the required CI checks on head `a6e1657` (staging merged in): `Lint, Typecheck & Test`, `Build`, `Playwright E2E`, `Docs sync` all green. A local Playwright run on a fresh seed (`talib_c4b`) passed its first 35 specs with no failure before I stopped it in favour of the identical CI run.
+- Ship verification route: app behaviour, non-auth → local demo-auth production build (`DEMO_MODE=true next start`, disposable Postgres `talib_c4b`), source SHA `a6e1657`. Results:
+  - FINX-3: `PUT /api/invoices/:id` on a PARTIALLY_PAID invoice with `status` CANCELLED / PAID / DRAFT → 409 each with Indonesian guidance; status unchanged.
+  - FINX-1: typing `1.500.000,50` into the manual-invoice amount → `1.500.000`, dialog total "Rp 1.500.000"; no console errors.
+  - HRX-5: approving the current DRAFT payroll run (period ends 2026-10-20) → 409 "Periode belum selesai. Penggajian bisa disetujui mulai 21 Oktober 2026."; `actualWorkDays: 999` → 400 "harus antara 1 dan 30 hari".
+  - FINX-6: billing run `sep 2026` against classes already billed "September 2026" → 19/19 students skipped as already invoiced, 0 pending (was a second invoice per child).
+- Auth impact: none (no auth/session/proxy files). No `needs-staging-verify`.
 
 ## Ship Notes
+- No schema migration, no new dependency, no env var.
+- Behaviour changes users will notice: invoice PUT refuses status changes except on SENT invoices (use Catat Pembayaran / Batalkan tagihan); billing runs normalise period labels ("sep 2026" → "September 2026"), skip inactive students and Rp 0 rows; payroll cannot be approved before the period ends; manual invoice lines may be negative (discounts).
+- Rollback: revert the squash commit on `staging`; no data shape changed.
