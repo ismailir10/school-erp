@@ -17,6 +17,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatClassOptionLabel } from "@/lib/format";
@@ -39,6 +40,13 @@ function label(s: ClassSection) {
     enrolled: s._count.enrollments,
     capacity: s.capacity,
   });
+}
+
+// A class at capacity cannot take another student (the enrol and promote
+// routes both refuse it), so the single-select shows it disabled instead of
+// letting the admin pick it and bounce off a server error.
+function isFull(s: ClassSection) {
+  return s._count.enrollments >= s.capacity;
 }
 
 // Class names are campus-free ("TK B 3", not "TK B Metland 3") — kampus was
@@ -107,6 +115,17 @@ export function ClassSectionCombobox({
       // the group heading, but once collapsed there is no other cue.
       getTriggerLabel={(s) => `${label(s)} · ${s.campus.name}`}
       getGroup={(s) => s.campus.name}
+      isItemDisabled={isFull}
+      renderItem={(s) => (
+        <>
+          <span className="truncate">{label(s)}</span>
+          {isFull(s) && (
+            <Badge variant="secondary" className="ml-auto shrink-0">
+              Penuh
+            </Badge>
+          )}
+        </>
+      )}
       placeholder={placeholder}
       searchPlaceholder="Cari kelas..."
       emptyText="Tidak ada kelas yang cocok."

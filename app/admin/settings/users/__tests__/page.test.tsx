@@ -46,6 +46,19 @@ vi.mock("@/components/ui/data-table-row-actions", () => ({
   ),
 }));
 
+/**
+ * Routes `/api/auth/me` (who is signed in) to a fixed session so the
+ * positional `mockResolvedValueOnce` chains below keep describing only the
+ * roles / users / PUT traffic.
+ */
+function withSession(chain: (url: string, init?: unknown) => unknown, sessionId = "admin-0") {
+  return vi.fn((url: string, init?: unknown) =>
+    url === "/api/auth/me"
+      ? Promise.resolve({ ok: true, json: async () => ({ id: sessionId }) })
+      : chain(url, init),
+  );
+}
+
 function usersListResponse(rows: Array<Record<string, unknown>>) {
   return {
     ok: true,
@@ -84,7 +97,7 @@ describe("UsersPage deactivate/activate confirmation", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       // refetch after success
       .mockResolvedValueOnce(usersListResponse([{ ...activeUser, status: "INACTIVE" }]));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
 
     render(<UsersPage />);
 
@@ -132,7 +145,7 @@ describe("UsersPage deactivate/activate confirmation", () => {
       .mockResolvedValueOnce(usersListResponse([inactiveUser]))
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       .mockResolvedValueOnce(usersListResponse([{ ...inactiveUser, status: "ACTIVE" }]));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
 
     render(<UsersPage />);
 
@@ -179,7 +192,7 @@ describe("UsersPage deactivate/activate confirmation", () => {
           },
         ]),
       );
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
 
     render(<UsersPage />);
 
@@ -218,7 +231,7 @@ describe("UsersPage edit dialog", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       // refetch after success
       .mockResolvedValueOnce(usersListResponse([{ ...editUser, customRoleId: role.id, customRole: role }]));
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("fetch", withSession(fetchMock));
     const user = userEvent.setup();
 
     render(<UsersPage />);
@@ -240,5 +253,34 @@ describe("UsersPage edit dialog", () => {
       });
     });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Pengguna diperbarui"));
+  });
+});
+
+describe("UsersPage own row (ADM-16)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const base = { role: "SCHOOL_ADMIN", status: "ACTIVE", lastLoginAt: null, customRoleId: null, customRole: null };
+
+  it("offers Nonaktifkan on other users but not on the signed-in user's own row", async () => {
+    const me = { ...base, id: "admin-0", name: "Ibu Kepala", email: "kepala@example.com" };
+    const other = { ...base, id: "user-5", name: "Pak Guru", email: "guru@example.com", role: "TEACHER" };
+    const chain = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce(usersListResponse([me, other]));
+    vi.stubGlobal("fetch", withSession(chain, "admin-0"));
+
+    render(<UsersPage />);
+
+    await screen.findByText("Pak Guru");
+    // Own row loses the action once /api/auth/me resolves; the other stays.
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Nonaktifkan" })).toHaveLength(1);
+    });
+    // Both rows keep Edit.
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(2);
   });
 });

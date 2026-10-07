@@ -16,6 +16,9 @@ const state = {
   session: null as Session | null,
   lastCreate: null as Record<string, unknown> | null,
   lastFindMany: null as Record<string, unknown> | null,
+  /** Rows prisma.student.findFirst resolves, consumed in call order (NIS lookup, then twin lookup). */
+  findFirstQueue: [] as Array<Record<string, unknown> | null>,
+  findFirstCalls: [] as Array<Record<string, unknown>>,
 };
 
 vi.mock("@/lib/auth", () => ({
@@ -35,6 +38,10 @@ vi.mock("@/lib/db", () => ({
         return [];
       }),
       count: vi.fn(async () => 0),
+      findFirst: vi.fn(async (args: Record<string, unknown>) => {
+        state.findFirstCalls.push(args);
+        return state.findFirstQueue.shift() ?? null;
+      }),
     },
     parent: { upsert: vi.fn(), create: vi.fn() },
     studentGuardian: { createMany: vi.fn(async () => ({ count: 0 })) },
@@ -74,6 +81,8 @@ beforeEach(() => {
   state.session = adminSession();
   state.lastCreate = null;
   state.lastFindMany = null;
+  state.findFirstQueue = [];
+  state.findFirstCalls = [];
 });
 
 describe("GET /api/students — Wali column source", () => {
@@ -175,5 +184,87 @@ describe("POST /api/students — full field set (T2)", () => {
   it("rejects an invalid status enum value", async () => {
     const res = await POST(postReq({ name: "Dewi", status: "PENDING" }) as never);
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/students — duplicate guards (ADM-2)", () => {
+  it("409 NIS_TAKEN with field nis when another student in the tenant has the same NIS", async () => {
+    state.findFirstQueue = [{ id: "s-old", name: "Aisyah" }];
+    const res = await POST(postReq({ name: "Budi", nis: " 2024001 " }) as never);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "NIS sudah dipakai oleh Aisyah.",
+      code: "NIS_TAKEN",
+      field: "nis",
+    });
+    // Tenant-scoped, trimmed, any status.
+    expect(state.findFirstCalls[0]).toEqual(
+      expect.objectContaining({ where: { tenantId: "t1", nis: "2024001" } }),
+    );
+    expect(state.lastCreate).toBeNull();
+  });
+
+  it("skips the NIS lookup when NIS is empty", async () => {
+    const res = await POST(postReq({ name: "Budi", nis: "   " }) as never);
+    expect(res.status).toBe(201);
+    expect(state.findFirstCalls).toHaveLength(0);
+  });
+
+  it("409 DUPLICATE_STUDENT for the same name (case-insensitive) + date of birth, naming the NIS", async () => {
+    state.findFirstQueue = [{ id: "s-twin", name: "Aisyah Putri", nis: "2024001", status: "ACTIVE" }];
+    const res = await POST(postReq({ name: " aisyah putri ", dateOfBirth: "2020-03-01" }) as never);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "Siswa dengan nama dan tanggal lahir yang sama sudah ada: Aisyah Putri (2024001).",
+      code: "DUPLICATE_STUDENT",
+      existingId: "s-twin",
+    });
+    expect(state.findFirstCalls[0]).toEqual(
+      expect.objectContaining({
+        where: {
+          tenantId: "t1",
+          dateOfBirth: "2020-03-01",
+          name: { equals: "aisyah putri", mode: "insensitive" },
+        },
+      }),
+    );
+    expect(state.lastCreate).toBeNull();
+  });
+
+  it("names the status label when the existing twin has no NIS", async () => {
+    state.findFirstQueue = [{ id: "s-twin", name: "Aisyah", nis: null, status: "WITHDRAWN" }];
+    const res = await POST(postReq({ name: "Aisyah", dateOfBirth: "2020-03-01" }) as never);
+    const body = await res.json();
+    expect(body.error).toBe("Siswa dengan nama dan tanggal lahir yang sama sudah ada: Aisyah (Keluar).");
+  });
+
+  it("confirmDuplicate: true skips the name + date of birth check and creates", async () => {
+    state.findFirstQueue = [{ id: "s-twin", name: "Aisyah", nis: "1", status: "ACTIVE" }];
+    const res = await POST(
+      postReq({ name: "Aisyah", dateOfBirth: "2020-03-01", confirmDuplicate: true }) as never,
+    );
+
+    expect(res.status).toBe(201);
+    expect(state.findFirstCalls).toHaveLength(0);
+    expect(state.lastCreate).toEqual(expect.objectContaining({ name: "Aisyah" }));
+    // The flag is not a column — it must never reach Prisma.
+    expect(state.lastCreate).not.toHaveProperty("confirmDuplicate");
+  });
+
+  it("confirmDuplicate does NOT bypass a taken NIS", async () => {
+    state.findFirstQueue = [{ id: "s-old", name: "Aisyah" }];
+    const res = await POST(
+      postReq({ name: "Budi", nis: "2024001", confirmDuplicate: true }) as never,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("NIS_TAKEN");
+  });
+
+  it("does not look for a twin when the date of birth is missing", async () => {
+    const res = await POST(postReq({ name: "Aisyah" }) as never);
+    expect(res.status).toBe(201);
+    expect(state.findFirstCalls).toHaveLength(0);
   });
 });

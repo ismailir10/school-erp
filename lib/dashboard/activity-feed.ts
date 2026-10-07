@@ -17,35 +17,123 @@ type WhitelistedEntity =
   | "LeaveRequest"
   | "PayrollRun"
   | "Invoice"
+  | "Payment"
   | "Admission"
-  | "StudentEnrollment";
+  | "StudentEnrollment"
+  | "ReportCardEntry"
+  | "ClassSection";
 
 type VerbKey = `${WhitelistedEntity}.${string}`;
 
-type VerbBuilder = (target: string) => { verb: string; href: string };
+/** The audit row's `before`/`after` JSON, for verbs that quote a detail from it. */
+type AuditContext = { before: unknown; after: unknown };
 
+type VerbBuilder = (target: string, ctx: AuditContext) => { verb: string; href: string };
+
+function payloadString(json: unknown, key: string): string | undefined {
+  if (json && typeof json === "object" && !Array.isArray(json)) {
+    const v = (json as Record<string, unknown>)[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+// Keys are `${entity}.${action}` exactly as the app writes them through
+// `recordAudit` (lib/audit.ts) — several actions are namespaced strings such
+// as `class.enrollment.add`, not bare create/update. Pairs the app has never
+// written (e.g. `LeaveRequest.approve`) stay listed so they light up the day
+// a route starts auditing them. Rows whose target no longer exists
+// (`class.delete`, `class.teacher.remove` — hard deletes) and data-entry
+// noise (assessment entries, curriculum edits, age-override side rows) are
+// deliberately absent: the feed skips any pair not listed here.
 const VERB_MAP: Record<VerbKey, VerbBuilder> = {
   "LeaveRequest.create": (t) => ({ verb: `mengajukan cuti untuk ${t}`, href: "/admin/leave-requests" }),
   "LeaveRequest.approve": (t) => ({ verb: `menyetujui cuti ${t}`, href: "/admin/leave-requests" }),
   "LeaveRequest.reject": (t) => ({ verb: `menolak cuti ${t}`, href: "/admin/leave-requests" }),
+  "LeaveRequest.cancel": (t) => ({ verb: `membatalkan cuti ${t}`, href: "/admin/leave-requests" }),
   "Employee.create": (t) => ({ verb: `menambah karyawan ${t}`, href: "/admin/employees" }),
   "Employee.update": (t) => ({ verb: `memperbarui data ${t}`, href: "/admin/employees" }),
+  "Employee.deactivate": (t) => ({ verb: `menonaktifkan karyawan ${t}`, href: "/admin/employees" }),
+  "Employee.restore": (t) => ({ verb: `mengaktifkan kembali karyawan ${t}`, href: "/admin/employees" }),
   "PayrollRun.create": (t) => ({ verb: `membuat penggajian ${t}`, href: "/admin/payroll" }),
   "PayrollRun.approve": (t) => ({ verb: `menyetujui penggajian ${t}`, href: "/admin/payroll" }),
+  "PayrollRun.cancel": (t) => ({ verb: `membatalkan penggajian ${t}`, href: "/admin/payroll" }),
   "Invoice.create": (t) => ({ verb: `membuat tagihan ${t}`, href: "/admin/invoices" }),
   "Invoice.payment": (t) => ({ verb: `mencatat pembayaran ${t}`, href: "/admin/invoices" }),
+  "Invoice.void": (t) => ({ verb: `membatalkan tagihan ${t}`, href: "/admin/invoices" }),
+  "Payment.record": (t) => ({ verb: `mencatat pembayaran ${t}`, href: "/admin/invoices" }),
+  "Payment.reverse": (t) => ({ verb: `membatalkan pembayaran ${t}`, href: "/admin/invoices" }),
   "Admission.create": (t) => ({ verb: `pendaftaran baru: ${t}`, href: "/admin/admissions" }),
   "Admission.update": (t) => ({ verb: `memperbarui pendaftaran ${t}`, href: "/admin/admissions" }),
   "StudentEnrollment.create": (t) => ({ verb: `mendaftarkan siswa ${t}`, href: "/admin/classes" }),
+  "StudentEnrollment.class.enrollment.add": (t, { after }) => {
+    const cls = payloadString(after, "className");
+    return {
+      verb: cls ? `memasukkan ${t} ke kelas ${cls}` : `memasukkan ${t} ke sebuah kelas`,
+      href: "/admin/classes",
+    };
+  },
+  "StudentEnrollment.class.enrollment.remove": (t) => ({
+    verb: `mengeluarkan ${t} dari kelasnya`,
+    href: "/admin/classes",
+  }),
+  "ReportCardEntry.publish": (t) => ({ verb: `menerbitkan rapor ${t}`, href: "/admin/report-cards" }),
+  "ReportCardEntry.unpublish": (t) => ({ verb: `menarik kembali rapor ${t}`, href: "/admin/report-cards" }),
+  "ClassSection.class.create": (t) => ({ verb: `membuat kelas ${t}`, href: "/admin/classes" }),
 };
 
-const ENTITY_NAME_FIELD: Record<WhitelistedEntity, string> = {
-  Employee: "nama",
-  LeaveRequest: "id",
-  PayrollRun: "periodStart",
-  Invoice: "invoiceNumber",
-  Admission: "childName",
-  StudentEnrollment: "id",
+/**
+ * Indonesian verb + link for one audit row, or `null` when the
+ * `(entity, action)` pair is not shown in the feed.
+ */
+export function describeAuditEntry(
+  entity: string,
+  action: string,
+  target: string,
+  ctx: AuditContext = { before: null, after: null }
+): { verb: string; href: string } | null {
+  const builder = (VERB_MAP as Record<string, VerbBuilder | undefined>)[`${entity}.${action}`];
+  return builder ? builder(target, ctx) : null;
+}
+
+type TargetSpec = {
+  /** Prisma `select` for the delegate; always includes `id`. */
+  select: Record<string, unknown>;
+  /** The human-readable label for the row, or undefined to skip the event. */
+  pick: (row: Record<string, unknown>) => string | undefined;
+};
+
+const field = (name: string): TargetSpec => ({
+  select: { id: true, [name]: true },
+  pick: (row) => (typeof row[name] === "string" && row[name] ? (row[name] as string) : undefined),
+});
+
+const nested = (relation: string, name: string): TargetSpec => ({
+  select: { id: true, [relation]: { select: { [name]: true } } },
+  pick: (row) => {
+    const rel = row[relation] as Record<string, unknown> | null | undefined;
+    const v = rel?.[name];
+    return typeof v === "string" && v ? v : undefined;
+  },
+});
+
+const ENTITY_TARGET: Record<WhitelistedEntity, TargetSpec> = {
+  Employee: field("nama"),
+  // Falls back to the id so a row stays visible if the employee is gone.
+  LeaveRequest: {
+    select: { id: true, employee: { select: { nama: true } } },
+    pick: (row) => {
+      const emp = row.employee as { nama?: unknown } | null | undefined;
+      return typeof emp?.nama === "string" && emp.nama ? emp.nama : (row.id as string);
+    },
+  },
+  PayrollRun: field("periodStart"),
+  Invoice: field("invoiceNumber"),
+  Payment: nested("invoice", "invoiceNumber"),
+  Admission: field("childName"),
+  StudentEnrollment: nested("student", "name"),
+  ReportCardEntry: nested("student", "name"),
+  ClassSection: field("name"),
 };
 
 function initialsFor(name: string | null | undefined): string {
@@ -83,8 +171,7 @@ async function fetchRecentActivityImpl(
     }),
     ...Array.from(grouped.entries()).map(([entity, ids]) => {
       const idArr = Array.from(ids);
-      const nameField = ENTITY_NAME_FIELD[entity];
-      return resolveEntityNames(entity, idArr, nameField).then(
+      return resolveEntityNames(entity, idArr).then(
         (map) => [entity, map] as const
       );
     }),
@@ -96,8 +183,7 @@ async function fetchRecentActivityImpl(
   const events: ActivityEvent[] = [];
   for (const row of rows) {
     const key = `${row.entity}.${row.action}` as VerbKey;
-    const builder = VERB_MAP[key];
-    if (!builder) continue;
+    if (!(key in VERB_MAP)) continue;
     const ent = row.entity as WhitelistedEntity;
     const targetName = entityMaps.get(ent)?.get(row.entityId);
     if (!targetName) continue;
@@ -107,7 +193,12 @@ async function fetchRecentActivityImpl(
         : targetName;
     const user = userMap.get(row.actorId);
     const actorName = user?.name?.trim() || user?.email?.split("@")[0] || "Pengguna";
-    const { verb, href } = builder(displayName);
+    const described = describeAuditEntry(row.entity, row.action, displayName, {
+      before: row.before,
+      after: row.after,
+    });
+    if (!described) continue;
+    const { verb, href } = described;
     events.push({
       id: row.id,
       actorName,
@@ -124,23 +215,21 @@ async function fetchRecentActivityImpl(
 
 async function resolveEntityNames(
   entity: WhitelistedEntity,
-  ids: string[],
-  nameField: string
+  ids: string[]
 ): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
+  const spec = ENTITY_TARGET[entity];
   const delegate = (prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<Array<Record<string, unknown>>> }>)[
     entity.charAt(0).toLowerCase() + entity.slice(1)
   ];
   const rows = await delegate.findMany({
     where: { id: { in: ids } },
-    select: { id: true, [nameField]: true },
+    select: spec.select,
   });
   const map = new Map<string, string>();
   for (const row of rows) {
-    const val = row[nameField];
-    if (typeof val === "string" && val.length > 0) {
-      map.set(row.id as string, val);
-    }
+    const label = spec.pick(row);
+    if (label) map.set(row.id as string, label);
   }
   return map;
 }

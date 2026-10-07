@@ -151,7 +151,7 @@ describe("Enrolment door parity — AGE_OUT_OF_RANGE", () => {
     requirePermission.mockResolvedValue({ session: { tenantId: "t1", id: "u1", role: "SUPER_ADMIN" } });
 
     const sectionRow = makeSectionRow({ startDate: "2026-07-01", ageMin: 36, ageMax: 72 });
-    db.student.findFirst.mockResolvedValue({ id: "s1", tenantId: "t1", name: "Anak", dateOfBirth: "2024-06-01" });
+    db.student.findFirst.mockResolvedValue({ id: "s1", tenantId: "t1", name: "Anak", status: "ACTIVE", dateOfBirth: "2024-06-01" });
     db.classSection.findFirst.mockResolvedValue(sectionRow);
 
     const studentRes = await enrollPOST(studentReq({ classSectionId: "cs1" }), { params: studentParams });
@@ -180,7 +180,7 @@ describe("Enrolment door parity — ALREADY_ENROLLED", () => {
     requirePermission.mockResolvedValue({ session: { tenantId: "t1", id: "u1", role: "SUPER_ADMIN" } });
 
     const sectionRow = makeSectionRow({ academicYearId: "ay-2025-2026", programType: "SEMESTER" });
-    db.student.findFirst.mockResolvedValue({ id: "s1", tenantId: "t1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", tenantId: "t1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     db.classSection.findFirst.mockResolvedValue(sectionRow);
 
     const conflict = {

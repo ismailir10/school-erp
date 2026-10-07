@@ -11,6 +11,7 @@ import { promoteStudentSchema, withdrawStudentSchema } from "@/lib/validations/s
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
 
 /**
@@ -42,6 +43,8 @@ export function StudentLifecycleDialogs({
   onGraduateOpenChange,
   withdrawOpen,
   onWithdrawOpenChange,
+  reactivateOpen = false,
+  onReactivateOpenChange,
   onChanged,
 }: {
   studentId: string;
@@ -59,7 +62,10 @@ export function StudentLifecycleDialogs({
   onGraduateOpenChange: (open: boolean) => void;
   withdrawOpen: boolean;
   onWithdrawOpenChange: (open: boolean) => void;
-  /** Called after any of the three actions succeeds, so the page can refetch. */
+  /** Aktifkan kembali — only offered for a WITHDRAWN student. */
+  reactivateOpen?: boolean;
+  onReactivateOpenChange?: (open: boolean) => void;
+  /** Called after any of the actions succeeds, so the page can refetch. */
   onChanged: () => void;
 }) {
   // ---------- Promote (Naik Kelas) ----------
@@ -93,8 +99,20 @@ export function StudentLifecycleDialogs({
     } catch (err) {
       // Rethrow so ConfirmDialog's own catch keeps the dialog open instead of
       // closing it the same way a success would.
-      const message = err instanceof Error ? err.message : "Gagal meluluskan";
-      toast.error(message);
+      toast.error(userMessage(err, "Gagal meluluskan"));
+      throw err;
+    }
+  }
+
+  // ---------- Reactivate (Aktifkan kembali) ----------
+  async function handleReactivate() {
+    try {
+      await sendJson(`/api/students/${studentId}`, { method: "PUT", body: { status: "ACTIVE" } }, "Gagal mengaktifkan siswa");
+      toast.success("Siswa aktif kembali");
+      onChanged();
+    } catch (err) {
+      // Rethrow so ConfirmDialog keeps itself open on failure, like Graduate.
+      toast.error(userMessage(err, "Gagal mengaktifkan siswa"));
       throw err;
     }
   }
@@ -192,6 +210,16 @@ export function StudentLifecycleDialogs({
         description={`Luluskan ${studentName}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`}
         onConfirm={handleGraduate}
         confirmLabel="Luluskan"
+      />
+
+      {/* Reactivate Confirm — enrolments are not restored; the admin re-enrols */}
+      <ConfirmDialog
+        open={reactivateOpen}
+        onOpenChange={(o) => onReactivateOpenChange?.(o)}
+        title={`Aktifkan kembali ${studentName}?`}
+        description="Status siswa kembali Aktif. Daftarkan ke kelas setelahnya."
+        confirmLabel="Aktifkan kembali"
+        onConfirm={handleReactivate}
       />
 
       {/* ---------- Withdraw (destructive — a failed submit keeps this open) ---------- */}

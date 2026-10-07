@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { validateBody } from "@/lib/api/validate";
 import { enrollStudentSchema } from "@/lib/validations/student";
@@ -10,17 +10,25 @@ import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
 import { findStreamConflict, findWithdrawnEnrollment } from "@/lib/enrollment/active";
 import { recordAudit } from "@/lib/audit";
 import { isUniqueViolation } from "@/app/api/admin/classes/_helpers";
+import { studentNotActiveResponse } from "@/lib/students/guards";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { success } = rateLimit(`enroll-student:${getClientIp(req)}`, 5, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // Keyed per admin, not per IP: every admin behind the school NAT shares one
+  // IP, so the old 5/min-per-IP budget was exhausted by a single enrolment
+  // session (X-9).
+  const { success } = rateLimit(`enroll-student:${session.id}`, 30, 60_000);
+  if (!success) {
+    return NextResponse.json(
+      { error: "Terlalu banyak pendaftaran dalam satu menit. Tunggu sebentar, lalu coba lagi." },
+      { status: 429 },
+    );
   }
   // Narrowed to non-null locals — `session.tenantId` doesn't stay narrowed
   // inside the $transaction closure below, since TS can't prove the
@@ -35,6 +43,9 @@ export async function POST(
   // Verify student belongs to tenant
   const student = await prisma.student.findFirst({ where: { id: studentId, tenantId: session.tenantId } });
   if (!student) return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
+  // ADM-1: withdrawn / graduated / inactive students must be reactivated first.
+  const notActive = studentNotActiveResponse(student.status);
+  if (notActive) return notActive;
 
   // Tenant-guard the section lookup — a caller from tenant A must not be able to enroll into
   // a tenant B section by passing its id. Also loads the program (age bounds + stream type)
@@ -53,6 +64,26 @@ export async function POST(
     "Pilih kelas pada tahun ajaran yang aktif.",
   );
   if (yearGuard instanceof NextResponse) return yearGuard;
+
+  // ADM-10: answer "already enrolled" before the age-fit override. Otherwise
+  // the dialog first demands an override reason and only then reports that
+  // the student is already in a class. The in-transaction check below stays
+  // for race safety.
+  const existingConflict = await findStreamConflict(prisma, {
+    studentId,
+    academicYearId: sectionInfo.academicYearId,
+    programType: sectionInfo.program.type,
+  });
+  if (existingConflict) {
+    return NextResponse.json(
+      {
+        error: `Siswa sudah terdaftar di kelas ${existingConflict.classSection.name} pada tahun ajaran ini.`,
+        code: "ALREADY_ENROLLED",
+        existingClassSectionId: existingConflict.classSectionId,
+      },
+      { status: 409 },
+    );
+  }
 
   // Age band is advisory, never a hard block. Both bounds are checked
   // independently against the child's age at the target year's start

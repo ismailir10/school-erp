@@ -90,6 +90,23 @@ describe("DatePicker", () => {
       expect(options.length).toBeGreaterThan(0);
     });
 
+    it("lists years from today − 20 to today + 5 and labels the popover in Indonesian (ADM-8)", async () => {
+      mockPointer(false);
+      render(<DatePicker value="" onChange={vi.fn()} />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button"));
+
+      const yearSelect = (await screen.findByRole("combobox", { name: "Pilih tahun" })) as HTMLSelectElement;
+      const years = Array.from(yearSelect.options).map((o) => Number(o.value));
+      const thisYear = new Date().getFullYear();
+      expect(years[0]).toBe(thisYear - 20);
+      expect(years[years.length - 1]).toBe(thisYear + 5);
+      expect(screen.getByRole("combobox", { name: "Pilih bulan" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Bulan sebelumnya" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Bulan berikutnya" })).toBeInTheDocument();
+    });
+
     it("forwards aria-label and data-testid to the trigger", () => {
       mockPointer(false);
       render(<DatePicker value="" onChange={vi.fn()} aria-label="Dari tanggal" data-testid="from" />);
