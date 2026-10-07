@@ -5,7 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
 import { validateBody } from "@/lib/api/validate";
 import { fieldErrorResponse, isUniqueViolation } from "@/lib/api/field-errors";
-import { updateAcademicYearSchema } from "@/lib/validations/academic-year";
+import { academicYearOverlapMessage, updateAcademicYearSchema } from "@/lib/validations/academic-year";
 
 // Shared archive guard: block transition-to-ARCHIVED (whether via PUT
 // status update or DELETE soft-delete) if any class section under the
@@ -42,6 +42,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.status === "ARCHIVED") {
     const blocker = await getActiveEnrollmentBlocker(id);
     if (blocker) return blocker;
+  }
+
+  // ADM-13: validate the effective range (body value, else the stored one)
+  // when dates change or an archived year is being brought back — a plain
+  // rename or status flip never trips on older overlapping data. An archived
+  // year holds no dates anyone else must avoid, so it is never checked.
+  const effectiveStatus = body.status ?? existing.status;
+  const revivesArchived = existing.status === "ARCHIVED" && effectiveStatus !== "ARCHIVED";
+  const datesChanged = body.startDate !== undefined || body.endDate !== undefined;
+  if (effectiveStatus !== "ARCHIVED" && (datesChanged || revivesArchived)) {
+    const startDate = body.startDate ?? existing.startDate;
+    const endDate = body.endDate ?? existing.endDate;
+    if (endDate < startDate) {
+      return fieldErrorResponse("endDate", "Tanggal selesai harus setelah tanggal mulai", 400);
+    }
+    const overlapping = await prisma.academicYear.findFirst({
+      where: {
+        tenantId: session.tenantId,
+        id: { not: id },
+        status: { not: "ARCHIVED" },
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+      },
+      select: { name: true },
+    });
+    if (overlapping) {
+      return fieldErrorResponse("startDate", academicYearOverlapMessage(overlapping.name));
+    }
   }
 
   // Undefined keys are omitted by Prisma — partial update preserves untouched

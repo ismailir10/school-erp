@@ -51,7 +51,11 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - [ ] **T9 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T8.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; [T1], [T2+T3], [T4+T6], [T5], [T7] in parallel on disjoint files; T8 and T9 sequential by the driver after #614 merges. The driver reviews each diff and commits per task.
+- T2 (ADM-13): POST and PUT `/api/academic-years` refuse an inclusive overlap with another non-ARCHIVED year in the tenant (409, `startDate` field error "Rentang tanggal bertumpuk dengan tahun ajaran <nama>."). PUT checks the effective range (body, else stored), excludes itself, and checks only when dates change or an archived year is revived, so a rename or archive never trips on legacy overlapping rows. `createAcademicYearSchema` / `updateAcademicYearSchema` reject end < start; the form schema reuses the create schema. StatusBadge renders ARCHIVED as neutral "Diarsipkan".
 
 ## Verification
+- Frontend diffs checked against `.claude/standards/design-system.html` (ConfirmDialog for publish/decisions, inline FieldError, neutral muted status pill); no new colours.
+- T2+T3: `npx vitest run app/api/__tests__/academic-years-overlap.test.ts lib/validations/__tests__/{raport-measurement,academic-year}.test.ts components/ui/__tests__/status-badge.test.tsx lib/enrollment/submit-validation.test.ts app/admin/report-cards app/api/__tests__/predictable-input-errors.test.ts` → all passed (the one red in that run, `form-api-roundtrip` › record payment, belonged to T5's in-flight `lib/validations/invoice.ts` edit).
 
 ## Ship Notes
