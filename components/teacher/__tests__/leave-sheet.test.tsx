@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "../leave-sheet";
 
 vi.mock("sonner", () => ({
@@ -110,6 +111,28 @@ describe("LeaveSheet", () => {
     expect(screen.getByLabelText("Alasan")).toBeInTheDocument();
   });
 
+  it("blocks past start dates for annual leave and izin but allows them for sick leave", async () => {
+    const user = userEvent.setup();
+    const today = getTodayInTimezone("Asia/Jakarta");
+
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Ajukan cuti" }));
+    const start = await screen.findByLabelText("Tanggal mulai");
+
+    // Default type is annual leave: date inputs are bounded to today.
+    expect(start).toHaveAttribute("min", today);
+    expect(screen.getByLabelText("Tanggal selesai")).toHaveAttribute("min", today);
+
+    fireEvent.change(start, { target: { value: "2020-01-06" } });
+    expect(screen.getByText("Tanggal mulai tidak boleh sebelum hari ini.")).toBeInTheDocument();
+
+    // Sick leave may be filed retroactively: no min, no message.
+    await user.click(screen.getByRole("combobox", { name: "Jenis cuti" }));
+    await user.click(await screen.findByRole("option", { name: /Cuti sakit/ }));
+    expect(screen.getByLabelText("Tanggal mulai")).not.toHaveAttribute("min");
+    expect(screen.queryByText("Tanggal mulai tidak boleh sebelum hari ini.")).toBeNull();
+  });
+
   it("shows a retryable error instead of an empty state when leave prefetch fails", async () => {
     const onRefetch = vi.fn();
     const user = userEvent.setup();
@@ -146,8 +169,8 @@ describe("LeaveSheet", () => {
       render(<Harness />);
       await user.click(screen.getByRole("button", { name: "Ajukan cuti" }));
       const start = await screen.findByLabelText("Tanggal mulai");
-      fireEvent.change(start, { target: { value: "2026-10-12" } });
-      fireEvent.change(screen.getByLabelText("Tanggal selesai"), { target: { value: "2026-10-13" } });
+      fireEvent.change(start, { target: { value: "2099-10-12" } });
+      fireEvent.change(screen.getByLabelText("Tanggal selesai"), { target: { value: "2099-10-13" } });
       fireEvent.change(screen.getByLabelText("Alasan"), { target: { value: "Urusan keluarga" } });
 
       await user.click(screen.getByRole("button", { name: "Ajukan" }));
@@ -159,7 +182,7 @@ describe("LeaveSheet", () => {
       expect(screen.getByRole("button", { name: "Batal" })).toBeEnabled();
       expect(screen.queryByText("Mengirim…")).toBeNull();
       expect(screen.getByLabelText("Alasan")).toHaveValue("Urusan keluarga");
-      expect(screen.getByLabelText("Tanggal mulai")).toHaveValue("2026-10-12");
+      expect(screen.getByLabelText("Tanggal mulai")).toHaveValue("2099-10-12");
     });
 
     it("re-enables the confirm dialog and toasts when cancel cannot reach the server", async () => {

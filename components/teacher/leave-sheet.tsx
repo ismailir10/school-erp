@@ -30,6 +30,7 @@ import { Plus, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export type LeaveBalance = {
   annual: { total: number; used: number; remaining: number };
@@ -57,6 +58,7 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 const SHEET_CLOSE_TRANSITION_MS = 240;
+const PAST_START_MESSAGE = "Tanggal mulai tidak boleh sebelum hari ini.";
 
 /** Count weekdays between two ISO date strings (inclusive). Matches API logic. */
 function countWeekdays(start: string, end: string): number {
@@ -175,6 +177,10 @@ export function LeaveSheet({
       toast.error("Lengkapi tanggal dan alasan dulu ya.");
       return;
     }
+    if (startsInPast) {
+      toast.error(PAST_START_MESSAGE);
+      return;
+    }
     setSaving(true);
     // TCHX-2: a dropped connection makes fetch() reject, which used to skip
     // setSaving(false) and leave both buttons disabled forever. The form values
@@ -224,6 +230,9 @@ export function LeaveSheet({
   }
 
   const dayCount = countWeekdays(form.startDate, form.endDate);
+  // Only sick leave may be filed after the fact; other types start today or later.
+  const minDate = form.leaveType === "SICK" ? undefined : getTodayInTimezone("Asia/Jakarta");
+  const startsInPast = !!minDate && !!form.startDate && form.startDate < minDate;
 
   function openAfterSheetCloses(openNext: () => void) {
     if (pendingOverlayTimerRef.current) {
@@ -424,6 +433,7 @@ export function LeaveSheet({
               id="leave-start-date"
               className="tap-target"
               type="date"
+              min={minDate}
               value={form.startDate}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
             />
@@ -434,11 +444,13 @@ export function LeaveSheet({
               id="leave-end-date"
               className="tap-target"
               type="date"
+              min={form.startDate || minDate}
               value={form.endDate}
               onChange={(e) => setForm({ ...form, endDate: e.target.value })}
             />
           </Field>
         </div>
+        {startsInPast && <p className="text-xs text-destructive">{PAST_START_MESSAGE}</p>}
         {dayCount > 0 && (
           <p className="text-xs text-muted-foreground">
             {dayCount} hari kerja (tidak termasuk akhir pekan)
