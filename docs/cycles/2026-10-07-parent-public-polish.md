@@ -59,5 +59,6 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - T2: `npx vitest run app/parent/invoices lib/__tests__/parent-payment-method.test.ts app/api/__tests__/guardian-invoice-pdf-route.test.ts` → 5 files, 64 tests passed (subagent run, re-checked at T6).
 - T3: subagent ran 23 files / 165 tests across components/parent, sonner, app/parent/{profile,student-journal}, lib/parent (re-checked at T6).
 - T4: `npx vitest run app/daftar app/api/admission lib/validations lib/admission` → 42 files, 756 tests passed (subagent run, re-checked at T6).
+- CI run 1 on #611: `Playwright E2E` 172 passed / 1 failed — `e2e/parent.spec.ts` "attendance page loads" looked for the old "Hadir" row label that X-13 renamed to "Status"; spec updated. `Docs sync` failed on the stale counts block; regenerated with `audit-docs.sh --write`.
 
 ## Ship Notes
