@@ -79,30 +79,54 @@ export function maskBankAccount(accountNo: string): string {
 }
 
 /**
- * Format date string (YYYY-MM-DD) to Indonesian locale.
+ * School wall-clock zone. Every timestamp the UI shows is read in WIB, never
+ * the process zone: SSR on Vercel runs in UTC, the teacher's phone in WIB, and
+ * a zoneless `toLocale*String` renders "00.02" on the server and "07.02" in the
+ * browser — a React #418 hydration error on every load, and wrong times for
+ * any device that is not on WIB.
+ */
+export const DISPLAY_TIME_ZONE = "Asia/Jakarta";
+
+/**
+ * Parse a full ISO timestamp (anything containing "T"). Returns null for a
+ * date-only `YYYY-MM-DD` string or an unparseable value, so callers fall back
+ * to the calendar-date path.
+ */
+function parseTimestamp(dateStr: string): Date | null {
+  if (!dateStr.includes("T")) return null;
+  const d = new Date(dateStr);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Format a date to Indonesian locale. Accepts either a `YYYY-MM-DD` calendar
+ * date or an ISO timestamp (2026-04-10T14:30:45.123Z).
+ *
+ * A timestamp is an instant and renders on the Asia/Jakarta calendar day, so a
+ * row created at 05:00 WIB reads as today, not as the UTC day before. A
+ * date-only string is already a calendar day and is never shifted.
  */
 export function formatDate(dateStr: string, options?: Intl.DateTimeFormatOptions): string {
-  const defaults: Intl.DateTimeFormatOptions = {
+  const resolved: Intl.DateTimeFormatOptions = options ?? {
     day: "numeric",
     month: "long",
     year: "numeric",
   };
-  // Handle both YYYY-MM-DD and ISO datetime (2026-04-10T14:30:45.123Z)
-  const dateOnly = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
-  return new Date(dateOnly + "T00:00:00").toLocaleDateString("id-ID", options ?? defaults);
+  const instant = parseTimestamp(dateStr);
+  if (instant) {
+    return instant.toLocaleDateString("id-ID", { ...resolved, timeZone: DISPLAY_TIME_ZONE });
+  }
+  const dateOnly = dateStr.split("T")[0];
+  return new Date(dateOnly + "T00:00:00").toLocaleDateString("id-ID", resolved);
 }
 
 /**
- * Format date string to short format (e.g., "8 Apr 2026")
+ * Format a date to short form (e.g., "8 Apr 2026"). Same input rules as
+ * `formatDate`: a timestamp renders on the Asia/Jakarta day, a `YYYY-MM-DD`
+ * string never shifts.
  */
 export function formatDateShort(dateStr: string): string {
-  // Handle both YYYY-MM-DD and ISO datetime (2026-04-10T14:30:45.123Z)
-  const dateOnly = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
-  return new Date(dateOnly + "T00:00:00").toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(dateStr, { day: "numeric", month: "short", year: "numeric" });
 }
 
 /**
@@ -156,15 +180,6 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
     timeZone: DISPLAY_TIME_ZONE,
   });
 }
-
-/**
- * School wall-clock zone. Every timestamp the UI shows is read in WIB, never
- * the process zone: SSR on Vercel runs in UTC, the teacher's phone in WIB, and
- * a zoneless `toLocale*String` renders "00.02" on the server and "07.02" in the
- * browser — a React #418 hydration error on every load, and wrong times for
- * any device that is not on WIB.
- */
-export const DISPLAY_TIME_ZONE = "Asia/Jakarta";
 
 /**
  * Format time from ISO datetime string, always in Asia/Jakarta (see

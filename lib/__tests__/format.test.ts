@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  formatDate,
+  formatDateShort,
   formatDateTime,
   formatRelativeTime,
   formatRupiah,
@@ -130,5 +132,56 @@ describe("formatTime / formatDateTime — pinned to Asia/Jakarta (TCH-1)", () =>
   it("formatRelativeTime's old-date fallback uses the WIB calendar day", () => {
     const now = new Date("2026-12-31T00:00:00.000Z");
     expect(formatRelativeTime("2026-09-28T17:30:00.000Z", now)).toBe("29 Sep 2026");
+  });
+});
+
+describe("formatDate / formatDateShort — Asia/Jakarta day for timestamps", () => {
+  it("a 22:04Z timestamp is already the next day in Jakarta", () => {
+    expect(formatDateShort("2026-10-06T22:04:00.000Z")).toBe("7 Okt 2026");
+    expect(formatDate("2026-10-06T22:04:00.000Z")).toBe("7 Oktober 2026");
+  });
+
+  it("stays on the same day up to 16:59:59Z (23:59:59 WIB)", () => {
+    expect(formatDateShort("2026-10-06T16:59:59.000Z")).toBe("6 Okt 2026");
+    expect(formatDateShort("2026-10-06T17:00:00.000Z")).toBe("7 Okt 2026");
+  });
+
+  it("keeps a UTC-midnight value on its own day", () => {
+    expect(formatDateShort("2026-10-06T00:00:00.000Z")).toBe("6 Okt 2026");
+  });
+
+  it("never shifts a date-only value", () => {
+    expect(formatDateShort("2026-10-06")).toBe("6 Okt 2026");
+    expect(formatDate("2026-10-06")).toBe("6 Oktober 2026");
+  });
+
+  it("honours caller options for both input kinds", () => {
+    const opts = { day: "numeric", month: "short" } as const;
+    expect(formatDate("2026-10-06T22:04:00.000Z", opts)).toBe("7 Okt");
+    expect(formatDate("2026-10-06", opts)).toBe("6 Okt");
+  });
+
+  it("falls back to the date part when the timestamp is unparseable", () => {
+    expect(formatDateShort("2026-10-06Tgarbage")).toBe("6 Okt 2026");
+  });
+
+  it("gives the same string under UTC, WIB and LA process zones", () => {
+    const original = process.env.TZ;
+    try {
+      for (const [input, expected] of [
+        ["2026-10-06T22:04:00.000Z", "7 Okt 2026"],
+        ["2026-10-06", "6 Okt 2026"],
+      ] as const) {
+        const out = ["UTC", "Asia/Jakarta", "America/Los_Angeles"].map((tz) => {
+          process.env.TZ = tz;
+          return formatDateShort(input);
+        });
+        expect(new Set(out).size).toBe(1);
+        expect(out[0]).toBe(expected);
+      }
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 });

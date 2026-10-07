@@ -21,7 +21,8 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { employeeEditFormSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -430,7 +431,7 @@ export default function EmployeeDetailPage() {
                       label="Tanggal Masuk"
                       id="employee-detail-hire-date"
                       render={({ field, controlProps }) => (
-                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={new Date().toISOString().split("T")[0]} />
+                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={getTodayInTimezone(DISPLAY_TIME_ZONE)} />
                       )}
                     />
                   </div>
