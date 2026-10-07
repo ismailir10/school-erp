@@ -142,6 +142,8 @@ test.describe("Back after sign-out does not restore the signed-in page (PAR-1)",
   test("profile-page Keluar button", async ({ page }) => {
     await openProfileInApp(page, guardianUserId);
     await page.locator("button", { hasText: /^Keluar$/ }).click();
+    // PARX-7: the profile button now asks "Keluar dari Talib?" first.
+    await page.getByRole("alertdialog").getByRole("button", { name: "Keluar", exact: true }).click();
     await expectSignedOutAfterBack(page);
   });
 

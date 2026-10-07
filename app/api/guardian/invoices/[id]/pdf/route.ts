@@ -6,6 +6,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceReceiptPdf, InvoiceReceiptData } from "@/lib/pdf/invoice-receipt";
 import React from "react";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
+import { parentPaymentMethodLabel } from "@/lib/parent-payment-method";
 
 /**
  * GET /api/guardian/invoices/[id]/pdf
@@ -165,7 +166,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     remaining: Math.max(0, totalDue - totalPaid),
     payments: invoice.payments.map((p) => ({
       paidAt: fmtIdDateShort(p.paidAt),
-      method: p.method,
+      method: parentPaymentMethodLabel(p.method),
       reference: p.reference,
       amount: Number(p.amount),
     })),

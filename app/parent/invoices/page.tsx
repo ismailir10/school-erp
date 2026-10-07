@@ -53,6 +53,7 @@ export default async function ParentInvoicesPage({
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
     studentName: c.studentName,
+    studentNickname: c.studentNickname,
     className: c.className,
   }));
 

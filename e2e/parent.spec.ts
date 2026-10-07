@@ -110,7 +110,8 @@ test.describe("Parent flows", () => {
     await expect(
       page.locator("text=Pekan ini belum dimulai")
         .or(page.locator("text=Belum ada catatan kehadiran"))
-        .or(page.getByRole("cell", { name: /^Hadir$/ }))
+        // The status row is labelled "Status" (X-13): it holds ✓/S/I/A.
+        .or(page.getByRole("cell", { name: /^Status$/ }))
         .first()
     ).toBeVisible({ timeout: 10_000 });
   });
