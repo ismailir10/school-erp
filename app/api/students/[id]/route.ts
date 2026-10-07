@@ -4,6 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { validateBody } from "@/lib/api/validate";
 import { updateStudentSchema } from "@/lib/validations/student";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { findStudentConflict } from "@/lib/students/guards";
 
 export async function GET(
   _req: NextRequest,
@@ -163,6 +164,20 @@ export async function PUT(
     );
   }
 
+  // ADM-2: a changed NIS must not collide with another student in the tenant.
+  // Name + date-of-birth twins are only flagged on create — editing a record
+  // must never be blocked by the sibling it was (knowingly) duplicated from.
+  const nextNis = body.nis?.trim();
+  if (nextNis && nextNis !== (existing.nis ?? "").trim()) {
+    const conflict = await findStudentConflict({
+      tenantId: session.tenantId,
+      nis: nextNis,
+      excludeId: id,
+      skipDuplicateName: true,
+    });
+    if (conflict) return conflict;
+  }
+
   // Distinguish "not provided" (preserve existing) from "explicitly null" (clear).
   // Zod loses this distinction for nullable+optional fields, so consult raw body.
   const metadataProvided = Object.prototype.hasOwnProperty.call(rawBody, "metadata");
@@ -171,6 +186,11 @@ export async function PUT(
       ? null
       : JSON.stringify(body.metadata)
     : existing.metadata;
+
+  // ADM-1: bringing a WITHDRAWN student back clears the exit record so the
+  // detail page stops showing "Keluar sejak …". Enrollments are not re-created
+  // — the admin re-enrols through "Daftarkan ke Kelas".
+  const reactivating = body.status === "ACTIVE" && existing.status === "WITHDRAWN";
 
   const data = {
     name: body.name?.trim(),
@@ -189,7 +209,8 @@ export async function PUT(
     status: body.status ?? existing.status,
     // Inline edit from Student detail "Riwayat Status" sub-card (T5).
     // Undefined → Prisma skips the column; date stays owned by /withdraw API.
-    withdrawalReason: body.withdrawalReason,
+    withdrawalReason: reactivating ? null : body.withdrawalReason,
+    withdrawalDate: reactivating ? null : undefined,
   };
 
   // Cascade: withdraw enrollments + cancel draft/sent invoices when student is
