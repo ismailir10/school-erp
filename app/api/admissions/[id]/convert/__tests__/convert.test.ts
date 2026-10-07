@@ -10,6 +10,7 @@ const {
   parentCreate,
   studentGuardianCreate,
   admissionUpdate,
+  queryRaw,
 } = vi.hoisted(() => ({
   admissionFindUnique: vi.fn(),
   // T10: pre-tx email-conflict gate calls prisma.parent.findUnique outside
@@ -22,6 +23,8 @@ const {
   parentCreate: vi.fn(),
   studentGuardianCreate: vi.fn(),
   admissionUpdate: vi.fn(),
+  // STR-1: in-tx row lock (SELECT ... FOR UPDATE) + studentId/status re-read.
+  queryRaw: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -30,6 +33,7 @@ vi.mock("@/lib/db", () => ({
     parent: { findUnique: parentFindUnique, findFirst: parentFindFirst },
     $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
+        $queryRaw: queryRaw,
         student: { create: studentCreate },
         parent: { upsert: parentUpsert, create: parentCreate },
         studentGuardian: { create: studentGuardianCreate },
@@ -87,6 +91,7 @@ beforeEach(() => {
   parentCreate.mockResolvedValue({ id: "par-1" });
   studentGuardianCreate.mockResolvedValue({ id: "sg-1" });
   admissionUpdate.mockResolvedValue({});
+  queryRaw.mockResolvedValue([{ studentId: null, status: "ADMITTED" }]);
 });
 
 describe("POST /api/admissions/[id]/convert", () => {
@@ -340,5 +345,70 @@ describe("POST /api/admissions/[id]/convert — merge into detected parent (X-1)
     await POST(postReq({ mergeWithDetected: false }), params);
     expect(parentFindFirst).not.toHaveBeenCalled();
     expect(parentCreate).toHaveBeenCalledTimes(1);
+  });
+  // STR-1 — single-winner convert.
+  it("pre-tx already-converted check is a 409 with the Indonesian message", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ studentId: "stu-x" }));
+    const res = await POST(postReq(undefined), params);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pendaftaran ini sudah dikonversi menjadi siswa.");
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("row-locks the admission (FOR UPDATE) inside the tx before creating any row", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    const order: string[] = [];
+    queryRaw.mockImplementation(async () => {
+      order.push("lock");
+      return [{ studentId: null, status: "ADMITTED" }];
+    });
+    studentCreate.mockImplementation(async () => {
+      order.push("student");
+      return { id: "stu-1" };
+    });
+    parentUpsert.mockImplementation(async () => {
+      order.push("parent");
+      return { id: "par-1" };
+    });
+    const res = await POST(postReq(undefined), params);
+    expect(res.status).toBe(200);
+    expect(order).toEqual(["lock", "student", "parent"]);
+    const sql = (queryRaw.mock.calls[0][0] as TemplateStringsArray).join("?");
+    expect(sql).toContain('FROM "Admission"');
+    expect(sql).toContain("FOR UPDATE");
+  });
+
+  it("loser of a race (pre-tx read stale, locked row already converted) gets 409 and creates nothing", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ADMITTED" }]);
+    const res = await POST(postReq(undefined), params);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pendaftaran ini sudah dikonversi menjadi siswa.");
+    expect(studentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(studentGuardianCreate).not.toHaveBeenCalled();
+    expect(admissionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("locked row whose status changed since the pre-tx read is a 400 and creates nothing", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([{ studentId: null, status: "CANCELLED" }]);
+    const res = await POST(postReq(undefined), params);
+    expect(res.status).toBe(400);
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("locked row gone (deleted mid-flight) is a 404", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([]);
+    expect((await POST(postReq(undefined), params)).status).toBe(404);
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("non-conversion errors inside the tx still propagate", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    studentCreate.mockRejectedValue(new Error("db down"));
+    await expect(POST(postReq(undefined), params)).rejects.toThrow("db down");
   });
 });

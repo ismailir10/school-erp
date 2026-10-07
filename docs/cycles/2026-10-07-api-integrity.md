@@ -52,6 +52,6 @@ Permission guards changed (STR-2/3) → auth-impacting route: local demo-auth ve
 
 ## Verification
 - No frontend files in this cycle (API + validation only); `.claude/standards/design-system.html` not applicable.
-- T1: `npx vitest run app/api/__tests__/staff-attendance-scoping.test.ts app/api/__tests__/admin-penilaian-route.test.ts app/api/__tests__/hr-permission-gate.test.ts app/api/__tests__/attendance-export-validation.test.ts lib/payroll/__tests__/bsi-export.test.ts` → 52 passed. T2: convert suites 39 passed + live 8-way race. T5: 60 passed. Full gate at T6.
+- T1: `npx vitest run app/api/__tests__/staff-attendance-scoping.test.ts app/api/__tests__/admin-penilaian-route.test.ts app/api/__tests__/hr-permission-gate.test.ts app/api/__tests__/attendance-export-validation.test.ts lib/payroll/__tests__/bsi-export.test.ts` → 52 passed. T2: convert suites 39 passed + live 8-way race (driver localised the 404 copy). T5: 60 passed. Full gate at T6.
 
 ## Ship Notes

@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+
+const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
+
+// Thrown inside the transaction to abort it with a specific HTTP response.
+class ConvertError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 // Convert admission to student record
 export async function POST(
@@ -38,7 +48,7 @@ export async function POST(
     console.error(
       `[admin-admissions CONVERT] already converted id=${id} studentId=${admission.studentId}`,
     );
-    return NextResponse.json({ error: "Pendaftaran ini sudah dikonversi menjadi siswa" }, { status: 400 });
+    return NextResponse.json({ error: ALREADY_CONVERTED }, { status: 409 });
   }
   if (admission.status !== "ADMITTED") {
     console.error(
@@ -107,7 +117,24 @@ export async function POST(
   //   childAge             — legacy free-text, derived from dateOfBirth at
   //                          display time; never written on new admissions
   //                          (see lib/admission/age.ts)
-  const { student } = await prisma.$transaction(async (tx) => {
+  //
+  // STR-1: the studentId/status reads above are outside the transaction, so N
+  // parallel converts all pass them. The tx therefore opens by row-locking the
+  // admission (FOR UPDATE) and re-reading studentId/status: concurrent converts
+  // queue on the lock, and each loser — which sees the winner's committed
+  // studentId — aborts with 409 before creating any Student/Parent row.
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const locked = await tx.$queryRaw<Array<{ studentId: string | null; status: string }>>`
+      SELECT "studentId", "status" FROM "Admission"
+      WHERE "id" = ${id} AND "tenantId" = ${session.tenantId!}
+      FOR UPDATE
+    `;
+    if (locked.length === 0) throw new ConvertError("Pendaftaran tidak ditemukan.", 404);
+    if (locked[0].studentId) throw new ConvertError(ALREADY_CONVERTED, 409);
+    if (locked[0].status !== "ADMITTED") {
+      throw new ConvertError("Hanya pendaftaran dengan status ADMITTED yang bisa dikonversi", 400);
+    }
+
     const studentMetadata = admission.campusPreference
       ? JSON.stringify({ campusPreference: admission.campusPreference })
       : null;
@@ -187,7 +214,14 @@ export async function POST(
     });
 
     return { student };
+  }).catch((e: unknown) => {
+    if (e instanceof ConvertError) return e;
+    throw e;
   });
+  if (result instanceof ConvertError) {
+    return NextResponse.json({ error: result.message }, { status: result.status });
+  }
+  const { student } = result;
 
   return NextResponse.json({ student, message: "Siswa berhasil dibuat dari data pendaftaran" });
 }
