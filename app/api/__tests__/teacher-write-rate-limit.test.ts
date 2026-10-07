@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     teachingAssignment: { findFirst: vi.fn() },
     classSection: { findFirst: vi.fn() },
+    studentEnrollment: { findMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -53,13 +54,12 @@ describe("POST /api/student-attendance/mark — rate limit", () => {
     __resetRateLimitForTest();
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.teachingAssignment.findFirst).mockResolvedValue({ id: "ta" } as never);
+    // Enrollment is validated before the transaction opens (api-integrity T5).
+    vi.mocked(prisma.studentEnrollment.findMany).mockImplementation((async ({ where }: { where: { studentId: { in: string[] } } }) =>
+      where.studentId.in.map((studentId) => ({ studentId }))) as never);
     vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) =>
       cb({
-        studentEnrollment: {
-          findMany: vi.fn(async ({ where }: { where: { studentId: { in: string[] } } }) =>
-            where.studentId.in.map((studentId) => ({ studentId })),
-          ),
-        },
+        $executeRaw: vi.fn().mockResolvedValue(1),
         classSession: { findMany: vi.fn().mockResolvedValue([]) },
         studentAttendance: {
           findFirst: vi.fn().mockResolvedValue(null),
