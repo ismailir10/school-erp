@@ -4,7 +4,7 @@ import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import DaftarClient from "./client";
 
 export const metadata: Metadata = {
-  title: "Pendaftaran Siswa Baru — Talib",
+  title: "Pendaftaran Siswa Baru", // root layout template appends " · Talib"
   description:
     "Daftarkan ananda di An Nisaa' Sekolahku. Isi data anak, orang tua, dan preferensi program — tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja.",
   robots: { index: true, follow: true },

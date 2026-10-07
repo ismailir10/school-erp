@@ -93,7 +93,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (missing.length > 0) {
       const labels = missing.map((k) => DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k);
       return NextResponse.json(
-        { error: "validation_failed", fields: { documents: "Berkas wajib belum diunggah: " + labels.join(", ") } },
+        {
+          error: "validation_failed",
+          fields: { documents: "Berkas wajib belum diunggah: " + labels.join(", ") },
+          // Public whitelist keys (DocumentKey) so the form can reset exactly
+          // those rows instead of showing a stale "Terunggah".
+          missingDocuments: missing,
+        },
         { status: 422 },
       );
     }

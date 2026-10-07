@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -57,6 +59,7 @@ function copyOutcomeMessages(copied: DocumentsCopied | undefined) {
 
 export default function EnrollmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [d, setD] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -83,9 +86,20 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     try {
       const res = await fetch(`/api/enrollments/${id}/convert`, { method: "POST" });
       if (res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { documentsCopied?: DocumentsCopied };
+        const body = (await res.json().catch(() => ({}))) as {
+          student?: { id?: string };
+          documentsCopied?: DocumentsCopied;
+        };
         const { copiedText, anyFailed } = copyOutcomeMessages(body.documentsCopied);
-        toast.success(`Siswa berhasil dibuat dari formulir.${copiedText}`);
+        const message = `Siswa berhasil dibuat dari formulir.${copiedText}`;
+        const studentId = body.student?.id;
+        if (studentId) {
+          toast.success(message, {
+            action: { label: "Lihat siswa", onClick: () => router.push(`/admin/students/${studentId}`) },
+          });
+        } else {
+          toast.success(message);
+        }
         if (anyFailed) {
           toast.warning("Sebagian berkas gagal disalin ke data wali. Unggah manual dari halaman wali.");
         }
@@ -144,7 +158,17 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   // Tinjau" is the preliminary step (move into review before deciding), so
   // it goes to the overflow menu; the two actual decisions (Terima / Tolak)
   // stay visible, same as they already are in UNDER_REVIEW.
-  const transitions: Record<string, { label: string; to: string; variant?: "outline"; menu?: boolean }[]> = {
+  //
+  // ACCEPTED leads with the filled "Konversi ke Siswa" (the one next step),
+  // which opens the confirm instead of changing status.
+  type Transition = {
+    label: string;
+    to?: string;
+    variant?: "default" | "outline";
+    menu?: boolean;
+    convert?: boolean;
+  };
+  const transitions: Record<string, Transition[]> = {
     SUBMITTED: [
       { label: "Mulai Tinjau", to: "UNDER_REVIEW", variant: "outline", menu: true },
       { label: "Terima", to: "ACCEPTED" },
@@ -154,14 +178,18 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       { label: "Terima", to: "ACCEPTED" },
       { label: "Tolak", to: "REJECTED", variant: "outline" },
     ],
-    ACCEPTED: [{ label: "Kembali ke Tinjau", to: "UNDER_REVIEW", variant: "outline" }],
+    ACCEPTED: [
+      { label: "Konversi ke Siswa", variant: "default", convert: true },
+      { label: "Kembali ke Tinjau", to: "UNDER_REVIEW", variant: "outline" },
+    ],
     REJECTED: [{ label: "Tinjau Ulang", to: "UNDER_REVIEW", variant: "outline" }],
   };
   const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
   const toAction = (a: (typeof actions)[number]): DetailPageHeaderAction => ({
     label: a.label,
-    onClick: () => transition(a.to),
+    onClick: a.convert ? () => setConvertOpen(true) : () => transition(a.to!),
     disabled: busy,
+    variant: a.variant,
   });
   const primaryEnrollmentActions = actions.filter((a) => !a.menu).map(toAction);
   const menuEnrollmentActions = actions.filter((a) => a.menu).map(toAction);
@@ -196,25 +224,17 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
           }}
         />
 
-        {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (
-          <>
-            <Separator />
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-              <p className="text-sm text-muted-foreground">
-                Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
-              </p>
-              <Button onClick={() => setConvertOpen(true)} disabled={busy}>
-                Konversi ke Siswa
-              </Button>
-            </div>
-          </>
-        )}
         {d.studentId && (
           <>
             <Separator />
-            <p className="text-sm text-status-present-text">
-              Formulir ini sudah dikonversi menjadi data siswa.
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-status-present-text">
+                Formulir ini sudah dikonversi menjadi data siswa.
+              </p>
+              <Button variant="outline" size="sm" render={<Link href={`/admin/students/${d.studentId}`} />}>
+                Lihat siswa
+              </Button>
+            </div>
           </>
         )}
       </div>

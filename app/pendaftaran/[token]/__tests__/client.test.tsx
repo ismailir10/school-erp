@@ -3,7 +3,7 @@
  * the autosave stale-closure fix.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
@@ -336,6 +336,87 @@ describe("PendaftaranClient", () => {
     expect(next).toHaveAttribute("aria-disabled", "false");
     await user.click(next);
     expect(await screen.findByText("Tinjau & Kirim")).toBeInTheDocument();
+  });
+
+  describe("server rejects a required document that this tab still shows", () => {
+    const file = { fileName: "akta.pdf", mimeType: "application/pdf", size: 3, uploadedAt: "2026-10-06T00:00:00.000Z" };
+    const signed = {
+      ...filled,
+      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      documents: { akta: file },
+    };
+
+    function rejectAkta(extra?: (input: RequestInfo | URL) => Promise<Response> | undefined) {
+      vi.mocked(fetch).mockImplementation((input) => {
+        const custom = extra?.(input);
+        if (custom) return custom;
+        if (String(input).endsWith("/submit")) {
+          return Promise.resolve({
+            ok: false,
+            status: 422,
+            json: async () => ({
+              error: "validation_failed",
+              fields: { documents: "Berkas wajib belum diunggah: Akta kelahiran anak" },
+              missingDocuments: ["akta"],
+            }),
+          } as Response);
+        }
+        return ok({});
+      });
+    }
+
+    async function submitFromTinjau(user: ReturnType<typeof userEvent.setup>) {
+      render(<PendaftaranClient token="tok" programs={programs} prefill={signed} requiredDocuments={["akta"]} />);
+      for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+      await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
+    }
+
+    it("422 with missingDocuments jumps to Berkas and resets those rows", async () => {
+      rejectAkta();
+      const user = userEvent.setup();
+      await submitFromTinjau(user);
+
+      expect(await screen.findByText("Berkas pendukung")).toBeInTheDocument();
+      expect(screen.getByText("Akta kelahiran anak wajib diunggah.")).toBeInTheDocument();
+      expect(screen.queryByText("akta.pdf", { exact: false })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Unggah Akta kelahiran anak" })).toBeInTheDocument();
+      const row = screen.getByText("Akta kelahiran anak", { selector: "p" }).closest("li") as HTMLElement;
+      expect(within(row).getByText("Belum diunggah")).toBeInTheDocument();
+    });
+
+    it("the Berkas error disappears once the missing file is uploaded", async () => {
+      rejectAkta((input) =>
+        String(input).includes("/documents?key=akta")
+          ? ok({ key: "akta", fileName: "baru.pdf", mimeType: "application/pdf", size: 8, uploadedAt: "2026-10-07T00:00:00.000Z" })
+          : undefined,
+      );
+      const user = userEvent.setup();
+      await submitFromTinjau(user);
+      await screen.findByText("Akta kelahiran anak wajib diunggah.");
+
+      await user.upload(
+        screen.getByLabelText(/Akta kelahiran anak/, { selector: "input" }),
+        new File(["%PDF-1.4"], "baru.pdf", { type: "application/pdf" }),
+      );
+
+      await waitFor(() => expect(screen.queryByText("Akta kelahiran anak wajib diunggah.")).not.toBeInTheDocument());
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByText("baru.pdf", { exact: false })).toBeInTheDocument();
+    });
+
+    it("keeps a server-rejected key required, so Lanjut stays blocked, even if the page's own list omitted it", async () => {
+      rejectAkta();
+      const user = userEvent.setup();
+      render(<PendaftaranClient token="tok" programs={programs} prefill={signed} />);
+      for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+      await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
+      await screen.findByText("Akta kelahiran anak wajib diunggah.");
+
+      await user.click(screen.getByRole("button", { name: "Lanjut" }));
+      // Still on Berkas, not Persetujuan.
+      expect(screen.getByText("Berkas pendukung")).toBeInTheDocument();
+      expect(screen.getByText("Akta kelahiran anak wajib diunggah.")).toBeInTheDocument();
+    });
   });
 
 });

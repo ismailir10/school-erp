@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
   const rel = admission.parentRelationship;
   const parentPrefill = {
     name: admission.parentName,
-    phone: admission.parentPhone ?? undefined,
+    // Staff often fill only the WhatsApp field of the inquiry; `||` also skips
+    // a blank phone string.
+    phone: admission.parentPhone || admission.parentWhatsapp || undefined,
     email: admission.parentEmail ?? undefined,
   };
   const ayahData = rel === "AYAH" ? parentPrefill : undefined;

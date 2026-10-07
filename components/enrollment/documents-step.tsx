@@ -164,7 +164,25 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
     [url, setRowBusy, setRowError],
   );
 
-  return { documents, busy, errors, upload, remove };
+  // The server says these required files are gone (removed from another
+  // device, or by staff). Drop them locally so the rows stop claiming
+  // "Terunggah" and the parent has something to fix.
+  const markMissing = useCallback((keys: readonly DocumentKey[]) => {
+    if (keys.length === 0) return;
+    setDocuments((prev) => {
+      const next = { ...prev };
+      for (const k of keys) delete next[k];
+      return next;
+    });
+    // A leftover upload/delete failure on these rows no longer applies.
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const k of keys) delete next[k];
+      return next;
+    });
+  }, []);
+
+  return { documents, busy, errors, upload, remove, markMissing };
 }
 
 export function DocumentsStep({

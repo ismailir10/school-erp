@@ -105,7 +105,8 @@ function StructuredActions({
           >
             <MoreHorizontal size={16} aria-hidden="true" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          {/* Sizes to content: the anchor is a 32px icon button, so the primitive's w-(--anchor-width) made 128px menus that wrapped labels word by word. */}
+          <DropdownMenuContent align="end" className="w-auto min-w-40">
             {nonDestructive.map((action, i) => (
               <MenuActionItem key={action.label + i} action={action} />
             ))}
