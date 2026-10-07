@@ -66,6 +66,11 @@ test.describe("Enrollment form — signature handover between two devices", () =
   /** Open the form and click Lanjut until the Persetujuan step is showing. */
   async function openConsentStep(page: Page) {
     await page.goto(`/pendaftaran/${token}`);
+    // A prefilled draft resumes at its first incomplete step (PUBX-4); start
+    // the walk from Data Anak through the stepper.
+    await expect(page.getByRole("list", { name: "Langkah formulir" })).toBeVisible();
+    const toDataAnak = page.getByRole("button", { name: "1. Data Anak" });
+    if (await toDataAnak.isVisible()) await toDataAnak.click();
     await expect(page.getByRole("heading", { name: "Data Anak", exact: true })).toBeVisible();
     for (const heading of ["Data Ayah", "Data Ibu", "Pilihan Program", "Berkas pendukung", "Surat Persetujuan Orang Tua"]) {
       await page.getByRole("button", { name: "Lanjut" }).click();

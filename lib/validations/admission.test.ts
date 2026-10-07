@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createAdmissionSchema, updateAdmissionSchema } from "./admission";
+import {
+  createAdmissionSchema,
+  updateAdmissionSchema,
+  admissionDobBounds,
+  admissionDobError,
+  todayInJakarta,
+} from "./admission";
 
 const VALID = {
   childName: "Aisyah",
@@ -78,5 +84,42 @@ describe("updateAdmissionSchema — partial + status enum", () => {
   it("accepts a fully blank payload (every field optional)", () => {
     const result = updateAdmissionSchema.safeParse({});
     expect(result.success).toBe(true);
+  });
+});
+
+describe("admission birth-date bounds (PUBX-2)", () => {
+  const TODAY = "2026-10-07";
+
+  it("computes inclusive min/max for ages 1–8", () => {
+    expect(admissionDobBounds(TODAY)).toEqual({ min: "2017-10-08", max: "2025-10-07" });
+  });
+
+  it("clamps 29 Feb on non-leap years", () => {
+    expect(admissionDobBounds("2028-02-29").max).toBe("2027-02-28");
+  });
+
+  it.each([
+    ["2025-10-07", null], // turned 1 today
+    ["2017-10-08", null], // turns 9 tomorrow
+    ["2020-03-15", null],
+  ])("accepts %s", (dob, expected) => {
+    expect(admissionDobError(dob, TODAY)).toBe(expected);
+  });
+
+  it.each([
+    ["2035-01-01", "Tanggal lahir tidak boleh di masa depan"],
+    ["2026-10-08", "Tanggal lahir tidak boleh di masa depan"],
+    ["2025-10-08", "Usia ananda minimal 1 tahun"],
+    ["2017-10-07", "Usia ananda maksimal 8 tahun"],
+    ["1900-01-01", "Usia ananda maksimal 8 tahun"],
+    ["2020-02-31", "Tanggal lahir tidak valid"],
+    ["15/03/2020", "Tanggal lahir tidak valid"],
+  ])("rejects %s", (dob, message) => {
+    expect(admissionDobError(dob, TODAY)).toBe(message);
+  });
+
+  it("todayInJakarta uses the Jakarta calendar day (UTC+7)", () => {
+    expect(todayInJakarta(new Date("2026-10-06T18:30:00Z"))).toBe("2026-10-07");
+    expect(todayInJakarta(new Date("2026-10-06T16:59:00Z"))).toBe("2026-10-06");
   });
 });

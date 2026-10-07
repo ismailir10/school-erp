@@ -371,7 +371,7 @@ export function InvoiceReceiptPdf({ data }: { data: InvoiceReceiptData }) {
         <View style={s.footer}>
           <Text style={s.footerText}>Diterbitkan: {data.generatedDate}</Text>
           <Text style={s.footerText}>
-            Kuitansi ini diterbitkan secara otomatis oleh sistem An Nisaa&apos; ERP.
+            Kuitansi ini diterbitkan secara otomatis oleh sistem Talib by An Nisaa&apos; Sekolahku.
           </Text>
         </View>
       </Page>

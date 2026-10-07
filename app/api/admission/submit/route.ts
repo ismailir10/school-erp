@@ -10,6 +10,11 @@ import { resolveAppOrigin } from "@/lib/payments/session";
 
 const RATE_LIMIT_PER_MIN = 5;
 const RATE_WINDOW_MS = 60_000;
+// An identical submission inside this window is a double-tap / retry, not a
+// second child — answered with the existing row (PUBX-2).
+const DUPLICATE_WINDOW_MS = 10 * 60_000;
+
+const digitsOnly = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
 
 /**
  * Public admission submit. NO auth, NO session check — see proxy.ts public
@@ -74,6 +79,33 @@ export async function POST(req: NextRequest) {
   let programId: string | null = data.programId ?? null;
   if (programId && !(await programBelongsToTenant(programId, tenantId))) {
     programId = null;
+  }
+
+  // Idempotency: same parent phone (digits only) + child name (trimmed,
+  // case-insensitive) + date of birth inside the last 10 minutes returns the
+  // existing inquiry. Phone formats vary ("0812-34…" vs "081234…"), so the
+  // phone is compared in JS after the indexed-ish DB narrowing. A failed
+  // lookup must never block a genuine submission — fall through to create.
+  try {
+    const recent = await prisma.admission.findMany({
+      where: {
+        tenantId,
+        source: "WEBSITE",
+        dateOfBirth: data.dateOfBirth,
+        childName: { equals: data.childName, mode: "insensitive" },
+        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, parentPhone: true },
+    });
+    const phone = digitsOnly(data.parentPhone);
+    const existing = recent.find((row: { parentPhone: string | null }) => digitsOnly(row.parentPhone) === phone);
+    if (existing) {
+      return NextResponse.json({ id: existing.id }, { status: 201 });
+    }
+  } catch (err) {
+    console.error("[admission-submit] Duplicate lookup failed", err);
   }
 
   let admissionId: string;

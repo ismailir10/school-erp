@@ -54,3 +54,14 @@ it("labels conflicting classroom records explicitly and offers the child's atten
  expect(screen.queryByText("Belum dicatat")).not.toBeInTheDocument();
  expect(screen.getByRole("link",{name:"Lihat kehadiran"})).toHaveAttribute("href","/parent/attendance?child=child");
 });
+
+describe("KidCard tap targets (PAR-14)", () => {
+  it("gives the Rapor link a 44px-wide and tall hit area", () => {
+    render(
+      <KidCard id="s1" name="Alya" className="TK A" todayStatus="PRESENT" teacherNote={null} foot={{ tone: "ok", text: "ok" }} />,
+    );
+    const link = screen.getByRole("link", { name: "Rapor" });
+    expect(link).toHaveClass("min-h-11");
+    expect(link).toHaveClass("min-w-11");
+  });
+});
