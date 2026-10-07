@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 const {
   appFindUnique, studentCreate, parentUpsert, parentCreate, parentUpdate,
-  guardianCreate, appUpdate, admissionUpdate, queryRaw, getSession, isAdminRole, detectSibling, copyDocs,
+  guardianCreate, appUpdate, admissionUpdate, queryRaw, getSession, isAdminRole, detectSibling, copyDocs, recordAudit,
 } = vi.hoisted(() => ({
   appFindUnique: vi.fn(),
   studentCreate: vi.fn(),
@@ -19,6 +19,7 @@ const {
   isAdminRole: vi.fn(),
   detectSibling: vi.fn(),
   copyDocs: vi.fn(),
+  recordAudit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
+vi.mock("@/lib/audit", () => ({ recordAudit }));
 vi.mock("@/lib/admission/sibling-detect", () => ({ detectSibling }));
 vi.mock("@/lib/enrollment/guardian-copy", () => ({ copyEnrollmentDocsToGuardians: copyDocs }));
 
@@ -82,7 +84,7 @@ beforeEach(() => {
   queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
     strings.join("?").includes('"EnrollmentApplication"')
       ? [{ studentId: null, status: "ACCEPTED" }]
-      : [{ studentId: null }],
+      : [{ studentId: null, status: "INQUIRY" }],
   );
   detectSibling.mockResolvedValue(null);
   copyDocs.mockResolvedValue({ ktpAyah: "copied", ktpIbu: "missing", kk: "missing" });
@@ -152,6 +154,50 @@ describe("POST /api/enrollments/[id]/convert", () => {
     // Links application + originating admission
     expect(appUpdate.mock.calls[0][0].data.studentId).toBe("stu-1");
     expect(admissionUpdate.mock.calls[0][0].data.studentId).toBe("stu-1");
+  });
+
+  it("ADM-6: advances the linked admission from INQUIRY to ADMITTED alongside studentId", async () => {
+    appFindUnique.mockResolvedValue(app());
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(admissionUpdate).toHaveBeenCalledWith({
+      where: { id: "adm-1" },
+      data: { studentId: "stu-1", status: "ADMITTED" },
+    });
+  });
+
+  it.each(["ADMITTED", "CANCELLED"])("ADM-6: never regresses a %s admission (links studentId only)", async (status) => {
+    appFindUnique.mockResolvedValue(app());
+    queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes('"EnrollmentApplication"')
+        ? [{ studentId: null, status: "ACCEPTED" }]
+        : [{ studentId: null, status }],
+    );
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(admissionUpdate).toHaveBeenCalledWith({ where: { id: "adm-1" }, data: { studentId: "stu-1" } });
+  });
+
+  it("writes a convert audit row inside the transaction", async () => {
+    appFindUnique.mockResolvedValue(app());
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(recordAudit).toHaveBeenCalledTimes(1);
+    expect(recordAudit).toHaveBeenCalledWith(
+      {
+        tenantId: "t-1",
+        actorId: "u-1",
+        entity: "EnrollmentApplication",
+        entityId: "ea-1",
+        action: "convert",
+        after: { studentId: "stu-1" },
+      },
+      expect.objectContaining({ $queryRaw: queryRaw }),
+    );
+  });
+
+  it("writes no audit row when the conversion is refused", async () => {
+    appFindUnique.mockResolvedValue(app());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ACCEPTED" }]);
+    expect((await POST(reqx(), ctx())).status).toBe(409);
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("links an email-less ibu to a detected sibling parent instead of creating", async () => {
@@ -256,7 +302,7 @@ describe("POST /api/enrollments/[id]/convert", () => {
     queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
       strings.join("?").includes('"EnrollmentApplication"')
         ? [{ studentId: null, status: "ACCEPTED" }]
-        : [{ studentId: "stu-from-admission-route" }],
+        : [{ studentId: "stu-from-admission-route", status: "ADMITTED" }],
     );
     expect((await POST(reqx(), ctx())).status).toBe(200);
     expect(appUpdate).toHaveBeenCalledTimes(1);

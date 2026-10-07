@@ -278,3 +278,73 @@ describe("EnrollmentDetailPage — convert action placement", () => {
     expect(push).toHaveBeenCalledWith("/admin/students/stu-9");
   });
 });
+
+describe("EnrollmentDetailPage — Terima / Tolak confirm", () => {
+  const review = {
+    id: "ea-1",
+    canEdit: true,
+    status: "UNDER_REVIEW",
+    studentId: null as string | null,
+    childName: "Aisyah",
+    dcareAddon: false,
+    studentData: {},
+    ayahData: {},
+    ibuData: {},
+    consentData: {},
+    documents: {},
+    program: { id: "p-1", name: "TK A" },
+  };
+
+  function serve() {
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: async () => (init?.method === "PATCH" ? { ok: true } : review),
+      } as Response),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  const patches = (f: ReturnType<typeof serve>) => f.mock.calls.filter(([, init]) => init?.method === "PATCH");
+
+  it("Terima opens a confirm and only changes the status once confirmed", async () => {
+    const fetchMock = serve();
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    await user.click(await screen.findByRole("button", { name: "Terima" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Terima pendaftaran Aisyah?")).toBeInTheDocument();
+    expect(patches(fetchMock)).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Terima" }));
+    await waitFor(() => expect(patches(fetchMock)).toHaveLength(1));
+    expect(JSON.parse(patches(fetchMock)[0][1]!.body as string)).toEqual({ status: "ACCEPTED" });
+  });
+
+  it("Tolak opens a destructive confirm; cancelling sends nothing", async () => {
+    const fetchMock = serve();
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    await user.click(await screen.findByRole("button", { name: "Tolak" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Tolak pendaftaran Aisyah?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/keluarga diberi tahu/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Batal" }));
+    expect(patches(fetchMock)).toHaveLength(0);
+  });
+
+  it("Tolak confirm sends REJECTED", async () => {
+    const fetchMock = serve();
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    await user.click(await screen.findByRole("button", { name: "Tolak" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Tolak" }));
+    await waitFor(() => expect(patches(fetchMock)).toHaveLength(1));
+    expect(JSON.parse(patches(fetchMock)[0][1]!.body as string)).toEqual({ status: "REJECTED" });
+  });
+});

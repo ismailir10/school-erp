@@ -10,6 +10,7 @@ import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { AdminLinkTabs } from "@/components/admin/admin-tabs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { Plus, Users, PhoneCall, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -87,6 +88,8 @@ export default function AdmissionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
+  // "Terima" (→ ADMITTED) is the one pipeline step that commits the family; confirm it.
+  const [admitTarget, setAdmitTarget] = useState<Admission | null>(null);
   // T10: convert-confirm + email-conflict UI state.
   const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
   const [emailConflict, setEmailConflict] = useState<EmailConflict | null>(null);
@@ -267,6 +270,11 @@ export default function AdmissionsPage() {
     }
   }, [fetchAdmissions, fetchStats]);
 
+  const requestAdvance = useCallback((a: Admission) => {
+    if (NEXT_STATUS[a.status]?.status === "ADMITTED") setAdmitTarget(a);
+    else void advanceStatus(a);
+  }, [advanceStatus]);
+
   async function handleCancel() {
     if (!cancelTarget) return;
     const res = await fetch(`/api/admissions/${cancelTarget.id}`, {
@@ -317,11 +325,11 @@ export default function AdmissionsPage() {
         canEdit,
         onEdit: handleEditRow,
         onCancelRequest: handleCancelRequest,
-        onAdvanceStatus: advanceStatus,
+        onAdvanceStatus: requestAdvance,
         onConvertToStudent: convertToStudent,
         onSendEnrollmentForm: sendEnrollmentForm,
       }),
-    [canEdit, handleEditRow, handleCancelRequest, advanceStatus, convertToStudent, sendEnrollmentForm],
+    [canEdit, handleEditRow, handleCancelRequest, requestAdvance, convertToStudent, sendEnrollmentForm],
   );
 
   return (
@@ -416,6 +424,17 @@ export default function AdmissionsPage() {
         entityName={cancelTarget ? `pendaftaran ${cancelTarget.childName}` : ""}
         action="cancel"
         onConfirm={handleCancel}
+      />
+
+      <ConfirmDialog
+        open={!!admitTarget}
+        onOpenChange={(o) => !o && setAdmitTarget(null)}
+        title={`Terima pendaftaran ${admitTarget?.childName ?? "anak ini"}?`}
+        description="Keluarga bisa melanjutkan ke tahap berikutnya, dan pendaftaran ini siap dikonversi menjadi data siswa."
+        confirmLabel="Terima"
+        onConfirm={async () => {
+          if (admitTarget) await advanceStatus(admitTarget);
+        }}
       />
 
       <AdmissionConvertDialog

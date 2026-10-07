@@ -11,6 +11,7 @@ const {
   studentGuardianCreate,
   admissionUpdate,
   queryRaw,
+  recordAudit,
 } = vi.hoisted(() => ({
   admissionFindUnique: vi.fn(),
   // T10: pre-tx email-conflict gate calls prisma.parent.findUnique outside
@@ -25,6 +26,7 @@ const {
   admissionUpdate: vi.fn(),
   // STR-1: in-tx row lock (SELECT ... FOR UPDATE) + studentId/status re-read.
   queryRaw: vi.fn(),
+  recordAudit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -42,6 +44,8 @@ vi.mock("@/lib/db", () => ({
     ),
   },
 }));
+
+vi.mock("@/lib/audit", () => ({ recordAudit }));
 
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn().mockResolvedValue({
@@ -95,6 +99,34 @@ beforeEach(() => {
 });
 
 describe("POST /api/admissions/[id]/convert", () => {
+  it("writes a convert audit row inside the transaction", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const res = await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(recordAudit).toHaveBeenCalledTimes(1);
+    expect(recordAudit).toHaveBeenCalledWith(
+      {
+        tenantId: "t-1",
+        actorId: "u-1",
+        entity: "Admission",
+        entityId: "adm-1",
+        action: "convert",
+        after: { studentId: "stu-1" },
+      },
+      expect.objectContaining({ $queryRaw: queryRaw }),
+    );
+  });
+
+  it("writes no audit row when a racing convert already won (409)", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ADMITTED" }]);
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const res = await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(409);
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
   it("copies parentEducation, parentOccupation, parentIncome to Parent", async () => {
     admissionFindUnique.mockResolvedValue(makeAdmission());
 

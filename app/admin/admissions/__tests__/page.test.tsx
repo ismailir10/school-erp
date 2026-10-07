@@ -144,3 +144,71 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
     expect(body.parentName).toBe("Ibu Fatimah");
   });
 });
+
+// "Terima" (VISITED → ADMITTED) commits the family, so it asks first; the
+// earlier pipeline steps stay one-click.
+describe("AdmissionsPage — Terima confirm", () => {
+  const row = (id: string, childName: string, status: string) => ({
+    id, childName, status, childAge: null, dateOfBirth: null, childGender: null,
+    parentName: "Ibu Fatimah", parentPhone: null, parentWhatsapp: null, parentEmail: null,
+    parentEducation: null, parentOccupation: null, parentIncome: null, parentRelationship: null,
+    programId: null, campusPreference: null, source: "WHATSAPP", notes: null, followUpDate: null,
+    studentId: null, createdAt: "2026-10-01T00:00:00.000Z", program: null,
+    detectedParentId: null, detectedParent: null,
+  });
+
+  function serve(status: string) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/admissions") && init?.method === "PUT") {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }
+      if (url.includes("/api/admissions")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: [row("a1", "Aisyah", status)],
+            pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+            canEdit: true,
+          }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  const puts = (f: ReturnType<typeof serve>) => f.mock.calls.filter(([, init]) => init?.method === "PUT");
+
+  async function openAdvance(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByText("Aisyah");
+    await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
+  }
+
+  it("asks before moving a VISITED inquiry to ADMITTED", async () => {
+    const fetchMock = serve("VISITED");
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await openAdvance(user);
+    await user.click(await screen.findByRole("menuitem", { name: /Lanjutkan ke Terima/ }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Terima pendaftaran Aisyah?")).toBeInTheDocument();
+    expect(puts(fetchMock)).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Terima" }));
+    await waitFor(() => expect(puts(fetchMock)).toHaveLength(1));
+    expect(JSON.parse(puts(fetchMock)[0][1]!.body as string)).toEqual({ status: "ADMITTED" });
+  });
+
+  it("keeps earlier steps one-click (no confirm for Jadwalkan Kunjungan)", async () => {
+    const fetchMock = serve("INQUIRY");
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await openAdvance(user);
+    await user.click(await screen.findByRole("menuitem", { name: /Lanjutkan ke Jadwalkan Kunjungan/ }));
+
+    await waitFor(() => expect(puts(fetchMock)).toHaveLength(1));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+});

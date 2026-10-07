@@ -22,6 +22,7 @@ const h = vi.hoisted(() => ({
   attendanceUpsert: vi.fn(),
   executeRaw: vi.fn(),
   transaction: vi.fn(),
+  recordAudit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/lib/db", () => ({
     $transaction: h.transaction,
   },
 }));
+vi.mock("@/lib/audit", () => ({ recordAudit: h.recordAudit }));
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };
@@ -148,12 +150,31 @@ describe("approve — single winner (conditional update)", () => {
     );
   });
 
+  it("writes an approve audit row inside the transaction", async () => {
+    const res = await call("{}");
+    expect(res.status).toBe(200);
+    expect(h.recordAudit).toHaveBeenCalledTimes(1);
+    expect(h.recordAudit).toHaveBeenCalledWith(
+      {
+        tenantId: "t1",
+        actorId: "approver-1",
+        entity: "LeaveRequest",
+        entityId: "lr-1",
+        action: "approve",
+        before: { status: "PENDING" },
+        after: { status: "APPROVED", days: 10 },
+      },
+      expect.objectContaining({ leaveRequest: expect.anything() }),
+    );
+  });
+
   it("409 'sudah diproses' and no attendance rows when the conditional update matches nothing", async () => {
     h.leaveUpdateMany.mockResolvedValueOnce({ count: 0 });
     const res = await call("{}");
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Pengajuan ini sudah diproses.");
     expect(h.attendanceUpsert).not.toHaveBeenCalled();
+    expect(h.recordAudit).not.toHaveBeenCalled();
   });
 
   it("takes a per-employee advisory lock before checking the balance", async () => {

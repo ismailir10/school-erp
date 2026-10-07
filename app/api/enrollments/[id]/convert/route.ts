@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { recordAudit } from "@/lib/audit";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { copyEnrollmentDocsToGuardians } from "@/lib/enrollment/guardian-copy";
 import {
@@ -10,6 +11,9 @@ import {
   BIRTH_TERM_OPTIONS, BLOOD_TYPE_OPTIONS, EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS,
   type Option,
 } from "@/lib/enrollment/constants";
+
+// Admission statuses that still sit before ADMITTED in the pipeline.
+const ADMISSION_PRE_ADMIT = new Set(["INQUIRY", "VISIT_SCHEDULED", "VISITED"]);
 
 const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
 
@@ -204,13 +208,32 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Lock + re-read: the admission's own convert route may have linked it
     // since the pre-tx read, and an unconditional update would overwrite that.
     if (app.admission) {
-      const adm = await tx.$queryRaw<Array<{ studentId: string | null }>>`
-        SELECT "studentId" FROM "Admission" WHERE "id" = ${app.admission.id} FOR UPDATE
+      const adm = await tx.$queryRaw<Array<{ studentId: string | null; status: string }>>`
+        SELECT "studentId", "status" FROM "Admission" WHERE "id" = ${app.admission.id} FOR UPDATE
       `;
       if (adm.length > 0 && !adm[0].studentId) {
-        await tx.admission.update({ where: { id: app.admission.id }, data: { studentId: student.id } });
+        // ADM-6: an accepted application means the family is admitted — move
+        // an early-pipeline inquiry to ADMITTED so the funnel doesn't leave a
+        // converted child stuck at INQUIRY. ADMITTED/CANCELLED never regress.
+        const advance = ADMISSION_PRE_ADMIT.has(adm[0].status);
+        await tx.admission.update({
+          where: { id: app.admission.id },
+          data: advance ? { studentId: student.id, status: "ADMITTED" } : { studentId: student.id },
+        });
       }
     }
+
+    await recordAudit(
+      {
+        tenantId,
+        actorId: session.id,
+        entity: "EnrollmentApplication",
+        entityId: id,
+        action: "convert",
+        after: { studentId: student.id },
+      },
+      tx,
+    );
 
     // Ids of the Parent rows actually linked to the student. An Ibu that
     // resolved to the Ayah's row (shared email) is not a separate guardian.

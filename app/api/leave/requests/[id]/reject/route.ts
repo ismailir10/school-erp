@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { validateBody } from "@/lib/api/validate";
+import { recordAudit } from "@/lib/audit";
 import { rejectLeaveRequestSchema } from "@/lib/validations/leave";
 
 export async function POST(
@@ -40,19 +41,35 @@ export async function POST(
 
   // Conditional update: a concurrent approve/reject/cancel that already moved
   // the row leaves count 0, so the loser gets 409 instead of a second 200.
-  const claimed = await prisma.leaveRequest.updateMany({
-    where: { id, status: "PENDING" },
-    data: {
-      status: "REJECTED",
-      reviewedBy: session.id,
-      reviewedAt: new Date(),
-      reviewNote: note,
-    },
+  // The audit row rides the same tx so a reject is never recorded half-way.
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.leaveRequest.updateMany({
+      where: { id, status: "PENDING" },
+      data: {
+        status: "REJECTED",
+        reviewedBy: session.id,
+        reviewedAt: new Date(),
+        reviewNote: note,
+      },
+    });
+    if (claimed.count === 0) return null;
+
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "LeaveRequest",
+        entityId: id,
+        action: "reject",
+        before: { status: "PENDING" },
+        after: { status: "REJECTED", reason: note ?? null },
+      },
+      tx,
+    );
+    return tx.leaveRequest.findUnique({ where: { id } });
   });
-  if (claimed.count === 0) {
+  if (!updated) {
     return NextResponse.json({ error: "Pengajuan ini sudah diproses." }, { status: 409 });
   }
-
-  const updated = await prisma.leaveRequest.findUnique({ where: { id } });
   return NextResponse.json(updated);
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { recordAudit } from "@/lib/audit";
 
 const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
 
@@ -212,6 +213,18 @@ export async function POST(
       where: { id },
       data: { studentId: student.id },
     });
+
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "Admission",
+        entityId: id,
+        action: "convert",
+        after: { studentId: student.id },
+      },
+      tx,
+    );
 
     return { student };
   }).catch((e: unknown) => {
