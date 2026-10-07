@@ -1,10 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { addYears, endOfYear, startOfYear } from "date-fns"
+import { id as idLocale } from "date-fns/locale"
 import {
   DayPicker,
   getDefaultClassNames,
   type DayButton,
+  type Labels,
   type Locale,
 } from "react-day-picker"
 
@@ -12,20 +15,75 @@ import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
 
+// react-day-picker's built-in aria-labels are English ("Choose the Month",
+// "Go to the Next Month", "Today, …"); its date-fns locales carry none of
+// them, so the Indonesian copy lives here and a caller can still override any.
+const ID_LABELS: Partial<Labels> = {
+  labelMonthDropdown: () => "Pilih bulan",
+  labelYearDropdown: () => "Pilih tahun",
+  labelPrevious: () => "Bulan sebelumnya",
+  labelNext: () => "Bulan berikutnya",
+  labelDayButton: (date, modifiers, options, dateLib) => {
+    const base = dateLib
+      ? dateLib.format(date, "PPPP")
+      : date.toLocaleDateString(options?.locale?.code ?? "id", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+    let label = modifiers.today ? `Hari ini, ${base}` : base
+    if (modifiers.selected) label = `${label}, dipilih`
+    return label
+  },
+  labelWeekNumber: (weekNumber) => `Minggu ${weekNumber}`,
+}
+
+/** Year window for the dropdown caption when the caller sets no bounds. */
+const DEFAULT_YEARS_BACK = 20
+const DEFAULT_YEARS_AHEAD = 5
+
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "ghost",
-  locale,
+  locale = idLocale,
   formatters,
   components,
+  labels,
+  startMonth,
+  endMonth,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+
+  // The dropdown lists every year between the nav bounds, and the library's
+  // default reaches back a century. Unless the caller set any bound, offer
+  // a window around today instead.
+  const hasBounds = Boolean(
+    startMonth ||
+      endMonth ||
+      props.fromYear ||
+      props.toYear ||
+      props.fromMonth ||
+      props.toMonth
+  )
+  const dropdown = captionLayout.startsWith("dropdown")
+  const today = new Date()
+  const navStart =
+    startMonth ??
+    (dropdown && !hasBounds
+      ? startOfYear(addYears(today, -DEFAULT_YEARS_BACK))
+      : undefined)
+  const navEnd =
+    endMonth ??
+    (dropdown && !hasBounds
+      ? endOfYear(addYears(today, DEFAULT_YEARS_AHEAD))
+      : undefined)
 
   return (
     <DayPicker
@@ -38,6 +96,9 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       locale={locale}
+      labels={{ ...ID_LABELS, ...labels }}
+      startMonth={navStart}
+      endMonth={navEnd}
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString(locale?.code, { month: "short" }),
