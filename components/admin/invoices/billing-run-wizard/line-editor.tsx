@@ -196,30 +196,24 @@ function EditLineDialog({
         <FieldError>{errors.label}</FieldError>
       </Field>
 
-      {/* T8 date/money sweep: deliberately kept as a native number input,
-          not RupiahInput. A MANUAL-source line's finalAmount may legally go
-          negative (a correction after an overcharge — see handleSubmit's
+      {/* A MANUAL-source line's finalAmount may legally go negative (a
+          correction after an overcharge, or a "Tambah potongan" line, which
+          is stored as a negative — see handleSubmit's
           `line.source !== "MANUAL" && parsedAmount < 0` branch and
-          resolveLineEdit in lib/finance/billing-run-lines.ts), and
-          RupiahInput's contract explicitly rejects negative values (every
-          other caller — fees, keringanan, invoices, salary — treats a
-          negative as invalid). Swapping this one would silently remove the
-          admin's ability to enter a negative correction. */}
+          resolveLineEdit in lib/finance/billing-run-lines.ts), so only those
+          lines get `allowNegative`; every other source stays non-negative. A
+          native number input could not read "1.500.000" or "1500000,50". */}
       <Field data-invalid={errors.amount ? "true" : undefined}>
         <FieldLabel required htmlFor={`line-edit-amount-${line.id}`}>
           Jumlah Akhir
         </FieldLabel>
-        <Input
+        <RupiahInput
           id={`line-edit-amount-${line.id}`}
           required
           aria-required="true"
-          type="number"
-          min={line.source === "MANUAL" ? undefined : 0}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="font-currency"
+          allowNegative={line.source === "MANUAL"}
+          value={amount === "" ? null : Number(amount)}
+          onChange={(v) => setAmount(v === null ? "" : String(v))}
         />
         <FieldDescription>Jumlah yang ditagih ke keluarga untuk komponen ini (Rupiah).</FieldDescription>
         <FieldError>{errors.amount}</FieldError>

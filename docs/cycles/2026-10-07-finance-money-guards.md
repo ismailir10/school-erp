@@ -31,14 +31,20 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 3. Period normalisation maps `jan/januari, feb/februari, mar/maret, apr/april, mei, jun/juni, jul/juli, agu/agt/agustus, sep/sept/september, okt/oktober, nov/november, des/desember`.
 
 ## Tasks
-- [ ] **T1 — Rupiah input.** `components/ui/rupiah-input.tsx`, `components/admin/invoices/billing-run-wizard/line-editor.tsx` (+ tests). FINX-1. Independent.
-- [ ] **T2 — Invoice PUT guard.** `app/api/invoices/[id]/route.ts` (+ tests). FINX-3. Independent.
+- [x] **T1 — Rupiah input.** `components/ui/rupiah-input.tsx`, `components/admin/invoices/billing-run-wizard/line-editor.tsx` (+ tests). FINX-1. Independent.
+- [x] **T2 — Invoice PUT guard.** `app/api/invoices/[id]/route.ts` (+ tests). FINX-3. Independent.
 - [ ] **T3 — Billing run.** `lib/finance/build-billing-run.ts`, `lib/finance/materialize-billing-run.ts`, billing-run routes under `app/api/billing-runs/[id]/**`, `components/admin/invoices/billing-run-wizard/**` except `line-editor.tsx` (+ tests). FINX-4/5/6, FINX-2 (lines), wizard footer + due date. Independent of T1 except the line editor (T1 owns it).
-- [ ] **T4 — Payroll.** `lib/validations/payroll.ts`, `app/api/payroll/**`, `app/admin/(hr)/payroll/**` (+ tests). HRX-3/4/5, FINX-2 (payroll), HR-8, HR-11, HR-19 (payroll). Independent.
+- [x] **T4 — Payroll.** `lib/validations/payroll.ts`, `app/api/payroll/**`, `app/admin/(hr)/payroll/**` (+ tests). HRX-3/4/5, FINX-2 (payroll), HR-8, HR-11, HR-19 (payroll). Independent.
 - [ ] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4] parallel (disjoint files, one subagent each, no git writes), T5 sequential by the driver, who reviews each diff and commits per task.
+- T1 (FINX-1): `components/ui/rupiah-input.tsx` gains the pure `parseRupiahText` (comma = decimal separator, dropped with its fraction; a trailing `.`+1–2 digits with no comma is a decimal point; `.` otherwise thousands; "Rp", spaces, letters ignored). While typing the field keeps the typed tail (`1.500.000,5`) so the next digit is read in context and never multiplies the value; blur settles to the grouped integer; caret logic unchanged. New optional `allowNegative` (default false). The billing-run line editor now uses `RupiahInput`; MANUAL lines (stored negative, e.g. "Tambah potongan") pass `allowNegative` — a deliberate deviation from the spec's "no minus" line, because a plain RupiahInput would silently flip a potongan's sign on save. Tests: 31 `parseRupiahText` cases, typing/paste/caret component tests, line-editor saves (63).
+- T2 (FINX-3): `PUT /api/invoices/[id]` performs only DRAFT → SENT (SENT → SENT idempotent); CANCELLED → 409 "Gunakan Batalkan tagihan…", PAID/PARTIALLY_PAID → 409 "Status lunas mengikuti pembayaran…", any other → 409 "Status tagihan tidak bisa diubah langsung.", before any write. No UI caller sends other statuses. Tests: new `invoices-put-guard.test.ts` (11).
+- T4 (HRX-3/4/5, FINX-2 payroll, HR-8, HR-11, HR-19 payroll): `actualWorkDays` is an integer 1..calendar days of the period (route-checked, inline field error) and the edit card says the change does not recalculate slips; line adjustments are integers within ±Rp 1.000.000.000 and may not make a component negative (400); attendance variables are bounded to the period's days; approve is refused until the day after `periodEnd` (Asia/Jakarta) with "Periode belum selesai. Penggajian bisa disetujui mulai <tanggal>." (driver accepted `>=`: the last day of the period still counts as worked); the item sheet body has padding; DRAFT runs get "Batalkan draf" with a destructive confirm wired to the existing cancel API; payroll copy is Indonesian ("Ubah", "Draf", specific failure toasts). Tests: 9 files (143).
 
 ## Verification
+- Frontend diffs (rupiah input, line editor, payroll pages) checked against `.claude/standards/design-system.html` (existing tokens, destructive ConfirmDialog, sheet padding scale); no new colours.
+- T1: `npx vitest run components/admin/invoices/billing-run-wizard/__tests__/line-editor.test.tsx components/ui/__tests__/rupiah-input.test.tsx` → 63 passed; other RupiahInput consumers (fees, employee detail, invoices components) → 56 passed. T2: 19 passed. T4: 143 passed. Full gate at T5.
 
 ## Ship Notes
