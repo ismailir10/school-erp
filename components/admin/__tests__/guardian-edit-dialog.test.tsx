@@ -101,10 +101,52 @@ describe("GuardianFormBody — accessible names (AC1)", () => {
     expect(screen.queryByLabelText("Anak ke-")).not.toBeInTheDocument();
   });
 
-  it("gives the Email field a description saying a blank value keeps the existing one (Assumption 1)", () => {
+  // CORE-11: the create dialog used to show the edit-only hint too.
+  it("shows no 'kosongkan' hint on the Email field in create mode (empty form)", () => {
     render(<Harness showRelationship={false} />);
-    const email = screen.getByLabelText("Email");
-    expect(email).toHaveAccessibleDescription(/kosongkan/i);
+    expect(screen.getByLabelText("Email")).not.toHaveAccessibleDescription(/kosongkan/i);
+    expect(screen.queryByText(/Kosongkan untuk mempertahankan/)).not.toBeInTheDocument();
+  });
+
+  it("explains a blank value keeps the existing one in edit mode when an email is already stored (Assumption 1)", () => {
+    render(
+      <Harness
+        showRelationship={false}
+        defaultValues={{ ...EMPTY_GUARDIAN_FORM, name: "Siti", email: "siti@example.com" }}
+      />,
+    );
+    expect(screen.getByLabelText("Email")).toHaveAccessibleDescription(/kosongkan/i);
+  });
+
+  it("shows no hint in edit mode when the guardian has no stored email", () => {
+    render(
+      <Harness showRelationship={false} defaultValues={{ ...EMPTY_GUARDIAN_FORM, name: "Siti", email: "" }} />,
+    );
+    expect(screen.queryByText(/Kosongkan untuk mempertahankan/)).not.toBeInTheDocument();
+  });
+});
+
+describe("GuardianFormBody — email hint follows reset() (edit dialogs reset after open)", () => {
+  function ResetHarness() {
+    const form = useForm<GuardianForm, unknown, GuardianForm>({ defaultValues: EMPTY_GUARDIAN_FORM });
+    return (
+      <form>
+        <GuardianFormBody control={form.control} showRelationship={false} />
+        <button type="button" onClick={() => form.reset({ ...EMPTY_GUARDIAN_FORM, email: "siti@example.com" })}>
+          Muat wali
+        </button>
+      </form>
+    );
+  }
+
+  it("shows the hint once the form is reset with a stored email", async () => {
+    const user = userEvent.setup();
+    render(<ResetHarness />);
+    expect(screen.queryByText(/Kosongkan untuk mempertahankan/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Muat wali" }));
+
+    expect(await screen.findByText(/Kosongkan untuk mempertahankan/)).toBeInTheDocument();
   });
 });
 

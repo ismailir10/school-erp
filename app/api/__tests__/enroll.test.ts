@@ -22,8 +22,11 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
+const { rateLimit } = vi.hoisted(() => ({
+  rateLimit: vi.fn((..._args: unknown[]) => ({ success: true })),
+}));
 vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: () => ({ success: true }),
+  rateLimit,
   getClientIp: () => "127.0.0.1",
 }));
 
@@ -139,7 +142,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
       makeSectionInfo({ academicYearId: "ay-2025-2026", programType: "SEMESTER" }) as never,
     );
@@ -169,7 +172,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
     const tx = makeTx({ sectionRow: [{ id: "cs1", capacity: 10 }], activeCount: 10 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,7 +193,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) =>
@@ -207,7 +210,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
       makeSectionInfo({ academicYearId: "ay-2025-2026", programType: "YEAR_ROUND", programName: "Day Care" }) as never,
     );
@@ -237,7 +240,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
       makeSectionInfo({ academicYearId: "ay-2025-2026", programType: "SEMESTER" }) as never,
     );
@@ -271,7 +274,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
     const tx = makeTx({ existingRow: { id: "e-withdrawn", status: "WITHDRAWN" }, activeCount: 2 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,7 +296,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
     const tx = makeTx({ existingRow: { id: "e-grad", status: "GRADUATED" } });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -312,6 +315,7 @@ describe("POST /api/students/[id]/enroll", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
       dateOfBirth: "2024-06-01",
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
@@ -336,6 +340,7 @@ describe("POST /api/students/[id]/enroll", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
       dateOfBirth: "2021-07-01",
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
@@ -360,6 +365,7 @@ describe("POST /api/students/[id]/enroll", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
       dateOfBirth: "2024-06-01",
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
@@ -400,7 +406,7 @@ describe("POST /api/students/[id]/enroll", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status: "ACTIVE", dateOfBirth: null } as never);
     // findFirst with tenantId filter returns null → cross-tenant access blocked
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue(null);
 
@@ -408,5 +414,117 @@ describe("POST /api/students/[id]/enroll", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toMatch(/tidak ditemukan/i);
+  });
+});
+
+describe("POST /api/students/[id]/enroll — lifecycle + ordering guards", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    ["WITHDRAWN", "Keluar"],
+    ["GRADUATED", "Lulus"],
+    ["INACTIVE", "Tidak Aktif"],
+  ])("409 STUDENT_NOT_ACTIVE for a %s student, before any class lookup or write (ADM-1)", async (status, label) => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", status, dateOfBirth: null } as never);
+
+    const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: `Siswa berstatus ${label} tidak bisa didaftarkan ke kelas. Aktifkan kembali dulu.`,
+      code: "STUDENT_NOT_ACTIVE",
+    });
+    expect(prisma.classSection.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("answers ALREADY_ENROLLED before demanding an age-override reason (ADM-10)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    // 25 months at year start vs ageMin 36 → would be AGE_OUT_OF_RANGE.
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s1",
+      tenantId: "t1",
+      status: "ACTIVE",
+      dateOfBirth: "2024-06-01",
+    } as never);
+    vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
+      makeSectionInfo({ startDate: "2026-07-01", ageMin: 36, ageMax: 72 }) as never,
+    );
+    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValueOnce({
+      id: "e-old",
+      classSectionId: "cs-old",
+      classSection: { name: "KB Lama" },
+    } as never);
+
+    const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("ALREADY_ENROLLED");
+    expect(body.error).toMatch(/KB Lama/);
+    expect(body.existingClassSectionId).toBe("cs-old");
+    // Scoped to the target class's year + program type, like the in-tx check.
+    expect(prisma.studentEnrollment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          studentId: "s1",
+          status: "ACTIVE",
+          classSection: { academicYearId: "ay-2025-2026", program: { type: "SEMESTER" } },
+        }),
+      }),
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("still asks for the age override when the student is not yet enrolled", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s1",
+      tenantId: "t1",
+      status: "ACTIVE",
+      dateOfBirth: "2024-06-01",
+    } as never);
+    vi.mocked(prisma.classSection.findFirst).mockResolvedValue(
+      makeSectionInfo({ startDate: "2026-07-01", ageMin: 36, ageMax: 72 }) as never,
+    );
+    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue(null as never);
+
+    const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("AGE_OUT_OF_RANGE");
+  });
+
+  it("rate-limits per admin user at 30/min, not per IP (X-9)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue(null as never);
+
+    await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+
+    expect(rateLimit).toHaveBeenCalledWith("enroll-student:u1", 30, 60_000);
+  });
+
+  it("429 with the friendly Indonesian message when the per-user budget is spent", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    rateLimit.mockReturnValueOnce({ success: false });
+
+    const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toBe(
+      "Terlalu banyak pendaftaran dalam satu menit. Tunggu sebentar, lalu coba lagi.",
+    );
+    expect(prisma.student.findFirst).not.toHaveBeenCalled();
   });
 });

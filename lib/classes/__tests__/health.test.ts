@@ -78,10 +78,14 @@ describe("computeHealthBadge", () => {
     ).toBe("Libur");
   });
 
-  it("returns Kritis when roster is empty", () => {
+  it("returns the neutral Belum ada siswa (not Kritis) when roster is empty", () => {
     expect(
       computeHealthBadge({ ...base, enrolledCount: 0 }),
-    ).toBe("Kritis");
+    ).toBe("Belum ada siswa");
+    // Even with a bad attendance signal there is no roster to be critical about.
+    expect(
+      computeHealthBadge({ ...base, enrolledCount: 0, attendance7dPct: 10 }),
+    ).toBe("Belum ada siswa");
   });
 
   it("returns Kritis when attendance7dPct < 70", () => {
@@ -164,7 +168,7 @@ describe("computeHealthBadge", () => {
         attendance7dPct: null,
         enrolledCount: 0,
       }),
-    ).toBe("Kritis");
+    ).toBe("Belum ada siswa");
   });
 
   it("Sehat requires Held today (not Missing, not Holiday handled earlier)", () => {
@@ -179,7 +183,7 @@ describe("computeHealthBadge", () => {
     ).toBe("Perhatian");
   });
 
-  it("Libur wins over Kritis (no roster) for an ACTIVE class on a holiday", () => {
+  it("Libur wins over Belum ada siswa (no roster) for an ACTIVE class on a holiday", () => {
     expect(
       computeHealthBadge({
         ...base,

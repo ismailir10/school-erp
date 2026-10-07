@@ -115,14 +115,15 @@ export function DatePicker({
   // The dropdown caption only offers years between startMonth and endMonth,
   // and react-day-picker's default end is the current year — which would
   // make next year's semester end or due date unreachable on a mouse. Span
-  // min/max when given, else a generous window around today, always wide
-  // enough to include the current value.
+  // min/max when given, else today − 20 … + 5 years (every caller — birth
+  // dates of children, hire dates, billing and attendance ranges — sits
+  // inside it), always wide enough to include the current value.
   const today = new Date()
   const rangeStart = startOfYear(
-    earliest([minDate ?? addYears(today, -100), ...(selectedDate ? [selectedDate] : [])])
+    earliest([minDate ?? addYears(today, -20), ...(selectedDate ? [selectedDate] : [])])
   )
   const rangeEnd = endOfYear(
-    latest([maxDate ?? addYears(today, 10), ...(selectedDate ? [selectedDate] : [])])
+    latest([maxDate ?? addYears(today, 5), ...(selectedDate ? [selectedDate] : [])])
   )
 
   return (

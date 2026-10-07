@@ -61,6 +61,7 @@ type Pagination = {
 // ------------------------------------------------------------------
 
 function buildColumns(
+  currentUserId: string | null,
   onEdit: (user: UserRow) => void,
   onRequestDeactivate: (user: UserRow) => void,
   onRequestActivate: (user: UserRow) => void
@@ -126,8 +127,12 @@ function buildColumns(
         return (
           <DataTableRowActions
             onEdit={() => onEdit(u)}
+            // The API refuses self-deactivation ("Tidak bisa menonaktifkan akun
+            // sendiri"), so don't offer it on the signed-in user's own row.
             onDeactivate={
-              u.status === "ACTIVE" ? () => onRequestDeactivate(u) : undefined
+              u.status === "ACTIVE" && u.id !== currentUserId
+                ? () => onRequestDeactivate(u)
+                : undefined
             }
             onActivate={
               u.status === "INACTIVE" ? () => onRequestActivate(u) : undefined
@@ -166,6 +171,15 @@ export default function UsersPage() {
   const editForm = useZodForm(userEditFormSchema, {
     defaultValues: { customRoleId: "none", status: "ACTIVE" },
   });
+
+  // Who is signed in — their own row never offers "Nonaktifkan".
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setCurrentUserId(typeof me?.id === "string" ? me.id : null))
+      .catch((err) => console.error("[users] session fetch failed", err));
+  }, []);
 
   // Fetch roles once
   useEffect(() => {
@@ -320,8 +334,8 @@ export default function UsersPage() {
   });
 
   const columns = useMemo(
-    () => buildColumns(openEdit, setDeactivateTarget, setActivateTarget),
-    [openEdit]
+    () => buildColumns(currentUserId, openEdit, setDeactivateTarget, setActivateTarget),
+    [currentUserId, openEdit]
   );
 
   return (

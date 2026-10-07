@@ -40,7 +40,7 @@ export async function POST(
     where: { studentId, status: "ACTIVE" },
   });
   if (activeEnrollments.length === 0) {
-    return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
+    return NextResponse.json({ error: "Siswa belum terdaftar di kelas aktif." }, { status: 400 });
   }
 
   const effectiveDate = graduationDate || getTodayInTimezone("Asia/Jakarta");
