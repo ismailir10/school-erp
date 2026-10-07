@@ -52,6 +52,13 @@ const EMPTY_DESCRIPTION: Record<"parent" | "teacher" | "admin", string> = {
   admin: "Catatan dari guru akan tampil di sini setelah dituliskan.",
 };
 
+/**
+ * Edit / Hapus are 28px icon buttons; an invisible 8px halo above and below
+ * lifts the tap area to 44px without growing the card (PAR-14). Width already
+ * reaches 44px on touch via the Button's coarse-pointer rule.
+ */
+const ICON_HIT_AREA = "relative before:absolute before:-inset-y-2 before:inset-x-0 before:content-['']";
+
 export function NoteThread({
   notes,
   onEdit,
@@ -75,7 +82,7 @@ export function NoteThread({
         return (
           <div
             key={note.id}
-            className="rounded-lg border border-border bg-card p-3 space-y-1.5"
+            className="min-w-0 rounded-lg border border-border bg-card p-3 space-y-1.5"
           >
             <div className="flex items-center gap-2 flex-wrap">
               <Avatar size="sm">
@@ -101,6 +108,7 @@ export function NoteThread({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
+                      className={ICON_HIT_AREA}
                       aria-label="Edit catatan"
                       onClick={() =>
                         onEdit(note.id, { date: note.date, body: note.body })
@@ -114,6 +122,7 @@ export function NoteThread({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
+                      className={ICON_HIT_AREA}
                       aria-label="Hapus catatan"
                       onClick={() => onDelete(note.id)}
                     >
@@ -123,7 +132,9 @@ export function NoteThread({
                 </div>
               )}
             </div>
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+            {/* `anywhere` (not just break-words) also shrinks min-content, so one
+                unbroken string or URL cannot stretch the page or dialog (PARX-3). */}
+            <p className="min-w-0 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {note.body}
             </p>
           </div>

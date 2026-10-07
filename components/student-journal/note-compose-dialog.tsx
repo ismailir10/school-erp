@@ -46,6 +46,14 @@ const AUDIENCE_HINT: Record<"teacher" | "parent", string> = {
 };
 
 const MAX_LEN = 2000;
+
+/** Cap to MAX_LEN without leaving half an emoji (a lone surrogate) at the cut. */
+function capToMax(text: string): string {
+  let out = text.slice(0, MAX_LEN);
+  const last = out.charCodeAt(out.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) out = out.slice(0, -1);
+  return out;
+}
 const DEFAULT_PLACEHOLDER = "Tulis catatan rumah di sini…";
 const PORTAL_TIMEZONE = "Asia/Jakarta";
 
@@ -92,6 +100,8 @@ export function NoteComposeDialog({
     pickDefaultDate(dateOptions, today, initialDate),
   );
   const [body, setBody] = useState<string>(initialBody ?? "");
+  // Set when typed/pasted text went past MAX_LEN and was cut (TCHX-16).
+  const [truncated, setTruncated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -102,6 +112,7 @@ export function NoteComposeDialog({
     if (open) {
       setDate(pickDefaultDate(dateOptions, today, initialDate));
       setBody(initialBody ?? "");
+      setTruncated(false);
       setError(null);
       setSubmitting(false);
       setConfirmDiscard(false);
@@ -269,20 +280,36 @@ export function NoteComposeDialog({
         ) : null}
       </Field>
 
-      <Field>
+      <Field className="min-w-0">
         <FieldLabel htmlFor="note-body">Isi catatan</FieldLabel>
         <Textarea
           id="note-body"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={MAX_LEN}
+          onChange={(e) => {
+            // Not `maxLength`: the browser trims a paste silently. Cap here so
+            // the teacher is told their text was cut.
+            const next = e.target.value;
+            if (next.length > MAX_LEN) {
+              setBody(capToMax(next));
+              setTruncated(true);
+            } else {
+              setBody(next);
+              setTruncated(false);
+            }
+          }}
           rows={5}
+          // Capped so a long note scrolls inside the box and the counter below stays on screen.
+          className="min-w-0 max-h-48 overflow-y-auto [overflow-wrap:anywhere]"
           placeholder={placeholder ?? DEFAULT_PLACEHOLDER}
           aria-invalid={error ? true : undefined}
         />
         <div className="flex items-center justify-between mt-1">
           {error ? (
             <p className="text-xs text-destructive">{error}</p>
+          ) : truncated ? (
+            <p role="status" className="text-xs text-status-late-text">
+              Catatan dipotong ke {MAX_LEN} karakter.
+            </p>
           ) : (
             <span />
           )}

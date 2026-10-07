@@ -28,7 +28,7 @@ import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
-import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
+import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -395,9 +395,9 @@ export default async function ParentDashboard() {
                             </p>
                           </div>
                           <span
-                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
+                            className={`max-w-[45%] shrink-0 rounded-md px-1.5 py-0.5 text-right text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
                           >
-                            {LEVEL_LABEL_SHORT[entry.level] ?? entry.level}
+                            {LEVEL_LABEL_LONG[entry.level] ?? entry.level}
                           </span>
                         </li>
                       ))}

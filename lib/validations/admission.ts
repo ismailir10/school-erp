@@ -46,3 +46,66 @@ export const createAdmissionSchema = z.object({
 export const updateAdmissionSchema = partialWithoutDefaults(createAdmissionSchema).extend({
   status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
 });
+
+// ── Public inquiry: plausible birth date (PUBX-2) ────────────────────────────
+// /daftar serves PAUD/TK/Day Care, so a child is between 1 and 8 years old
+// (completed) today. Dates are YYYY-MM-DD strings compared lexicographically;
+// "today" is the Asia/Jakarta calendar day so a late-evening submit is judged
+// by the school's date, not the server's UTC one.
+export const ADMISSION_MIN_AGE_YEARS = 1;
+export const ADMISSION_MAX_AGE_YEARS = 8;
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Today's calendar date in Asia/Jakarta as YYYY-MM-DD. */
+export function todayInJakarta(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Shift an ISO date by whole years, clamping 29 Feb to 28 Feb on non-leap years. */
+function shiftYears(iso: string, years: number): string {
+  const m = ISO_DATE.exec(iso)!;
+  const y = Number(m[1]) + years;
+  const mo = Number(m[2]);
+  const d = Math.min(Number(m[3]), daysInMonth(y, mo));
+  return `${String(y).padStart(4, "0")}-${m[2]}-${String(d).padStart(2, "0")}`;
+}
+
+/**
+ * Inclusive `min`/`max` for the birth-date input: the oldest date that is still
+ * 8 (has not turned 9 yet) and the latest date that is already 1 year old.
+ */
+export function admissionDobBounds(today: string = todayInJakarta()): { min: string; max: string } {
+  const turnsNine = shiftYears(today, -(ADMISSION_MAX_AGE_YEARS + 1));
+  // Born on `turnsNine` or earlier means already 9 → one day later is the earliest allowed.
+  const next = new Date(`${turnsNine}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return {
+    min: next.toISOString().slice(0, 10),
+    max: shiftYears(today, -ADMISSION_MIN_AGE_YEARS),
+  };
+}
+
+/** Indonesian error for an implausible birth date, or `null` when it is fine. */
+export function admissionDobError(dob: string, today: string = todayInJakarta()): string | null {
+  const m = ISO_DATE.exec(dob);
+  if (!m) return "Tanggal lahir tidak valid";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(y, mo)) return "Tanggal lahir tidak valid";
+  if (dob > today) return "Tanggal lahir tidak boleh di masa depan";
+  const { min, max } = admissionDobBounds(today);
+  if (dob > max) return `Usia ananda minimal ${ADMISSION_MIN_AGE_YEARS} tahun`;
+  if (dob < min) return `Usia ananda maksimal ${ADMISSION_MAX_AGE_YEARS} tahun`;
+  return null;
+}

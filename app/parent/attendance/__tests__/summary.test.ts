@@ -41,4 +41,19 @@ describe("parent attendance mixed-day recovery",()=>{
   const izin=await render();
   expect(izin).not.toContain("lekas sehat");expect(izin).toContain("sedang izin pekan ini");
  });
+ it("leads with the unexplained absence when Alpa and Sakit share a week (PARX-4)",async()=>{
+  const week=["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25"];
+  const statuses=["PRESENT","SICK","ABSENT","PRESENT","PRESENT"];
+  mocks.rows.mockResolvedValue(week.map((date,i)=>({studentId:"child",classSectionId:"school",sessionId:null,date,status:statuses[i],notes:null,classSection:{name:"TK A"}})));
+  const html=renderToStaticMarkup(await Page({searchParams:Promise.resolve({child:"child",week:"2026-09-21"})}));
+  expect(html).toContain("tanpa keterangan");expect(html).toContain("Hubungi Ustadzah jika ada kabar");expect(html).not.toContain("lekas sehat");
+ });
+ it("prints DD/MM headers, labels the status row Status and offers a way back off the current week (X-12/X-13/PARX-12)",async()=>{
+  const week=["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25"];
+  mocks.rows.mockResolvedValue(week.map(date=>({studentId:"child",classSectionId:"school",sessionId:null,date,status:"PRESENT",notes:null,classSection:{name:"TK A"}})));
+  const html=renderToStaticMarkup(await Page({searchParams:Promise.resolve({child:"child",week:"2026-09-21"})}));
+  expect(html).toContain("21/09");expect(html).not.toContain("09/21");
+  expect(html).toContain(">Status<");expect(html).not.toContain(">Hadir</td>");
+  expect(html).toContain("Kembali ke pekan ini");expect(html).toContain("bg-background");
+ });
 });

@@ -35,6 +35,7 @@ export default async function ParentReportsPage({
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
     studentName: c.studentName,
+    studentNickname: c.studentNickname,
     className: c.className,
   }));
 

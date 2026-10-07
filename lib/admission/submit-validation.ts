@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { optionalTrimmed } from "@/lib/validations/zod-helpers";
 import { programIdSchema } from "@/lib/validations/program-id";
+import { admissionDobError } from "@/lib/validations/admission";
 
 // Phone shape: digits, +, spaces, dashes, parens. 6–20 chars.
 // Permissive on purpose — Indonesian families type numbers in many shapes
@@ -33,7 +34,12 @@ export const submitAdmissionSchema = z.object({
     .max(80, "Nama anak terlalu panjang"),
   dateOfBirth: z
     .string()
-    .regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
+    .regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)")
+    // Plausible PAUD/TK range, 1–8 years as of today (Asia/Jakarta) — PUBX-2.
+    .superRefine((value, ctx) => {
+      const message = admissionDobError(value);
+      if (message) ctx.addIssue({ code: "custom", message });
+    }),
   childGender: z.enum(["L", "P"], { error: "Pilih jenis kelamin" }),
   parentName: z
     .string()

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 prose prose-slate dark:prose-invert">
+    <>
       <h1>Syarat &amp; Ketentuan</h1>
       <p className="text-sm text-muted-foreground">
         Berlaku sejak: 2 Mei 2026
@@ -54,6 +54,6 @@ export default function TermsPage() {
         Pertanyaan terkait Syarat &amp; Ketentuan dapat disampaikan melalui
         email <a href="mailto:admin@annisaasekolahku.com">admin@annisaasekolahku.com</a>.
       </p>
-    </main>
+    </>
   );
 }

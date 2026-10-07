@@ -15,15 +15,18 @@ const categories = [
 ];
 const students = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `s${i + 1}`, name: `Siswa ${i + 1}`, nickname: null }));
 
+let attendance: unknown = [];
 let posts: Array<{ entries: Array<{ studentId: string; indicatorId: string; checked: boolean }> }>;
 function stub(n: number, failPost?: (index: number) => boolean) {
   posts = [];
+  attendance = [];
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string, init?: RequestInit) => {
       if (String(url).includes("class-grid")) {
         return Promise.resolve(ok({ data: { students: students(n), categories, entries: [], classSection: { id: "c", name: "TKIT A" } } }));
       }
+      if (String(url).includes("student-attendance")) return Promise.resolve(ok(attendance));
       posts.push(JSON.parse(String(init?.body)));
       const failed = failPost?.(posts.length - 1);
       return Promise.resolve(failed ? { ok: false, json: async () => ({}) } : ok({ data: { saved: 1 } }));
@@ -36,6 +39,18 @@ beforeEach(() => {
 });
 
 describe("class-level bulk fill (TCH-7)", () => {
+  it("reserves the save-status row while idle so Jurnal tersimpan cannot shift the grid (TCH-8)", async () => {
+    stub(2);
+    render(<Page />);
+    const row = await screen.findByTestId("journal-save-state");
+    expect(row).toHaveClass("min-h-6");
+    expect(row).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByTestId("bulk-open"));
+    fireEvent.click(await screen.findByTestId("bulk-apply"));
+    await waitFor(() => expect(screen.getByTestId("journal-save-state")).toHaveTextContent("Jurnal tersimpan"));
+    expect(screen.getByTestId("journal-save-state")).toHaveClass("min-h-6");
+  });
+
   it("fills the whole class in one open + one tap, as a single batched write", async () => {
     stub(3);
     render(<Page />);
@@ -93,6 +108,48 @@ describe("class-level bulk fill (TCH-7)", () => {
     const done = Number(/^(\d+)\//.exec(screen.getByTestId("class-progress").textContent ?? "")?.[1]);
     expect(done).toBeLessThan(120);
     expect(done).toBeGreaterThan(0);
+  });
+
+  it("leaves children who are Sakit/Izin/Alpa today unselected, so Tandai does not tick them present (TCHX-7)", async () => {
+    stub(5);
+    attendance = [
+      { student: { id: "s1" }, attendance: { status: "PRESENT" } },
+      { student: { id: "s2" }, attendance: { status: "SICK" } },
+      { student: { id: "s3" }, attendance: { status: "PERMISSION" } },
+      { student: { id: "s4" }, attendance: { status: "ABSENT" } },
+      { student: { id: "s5" }, attendance: null },
+    ];
+    render(<Page />);
+    fireEvent.click(await screen.findByTestId("bulk-open"));
+
+    expect(await screen.findByTestId("bulk-absent-note")).toHaveTextContent("3 siswa tidak hadir di tanggal ini tidak dipilih.");
+    expect(screen.getByTestId("bulk-absence-s2")).toHaveTextContent("Sakit");
+    expect(screen.getByTestId("bulk-absence-s3")).toHaveTextContent("Izin");
+    expect(screen.getByTestId("bulk-absence-s4")).toHaveTextContent("Alpa");
+    expect(screen.queryByTestId("bulk-absence-s1")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("bulk-apply"));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    const touched = new Set(posts[0].entries.map((e) => e.studentId));
+    expect([...touched].sort()).toEqual(["s1", "s5"]);
+    expect(screen.getByTestId("class-progress")).toHaveTextContent("2/5 siswa lengkap");
+  });
+
+  it("falls back to selecting everyone when the attendance lookup fails", async () => {
+    stub(3);
+    const base = (fetch as unknown as ReturnType<typeof vi.fn>).getMockImplementation() as (url: string, init?: RequestInit) => Promise<unknown>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) =>
+        String(url).includes("student-attendance") ? Promise.reject(new Error("offline")) : base(url, init),
+      ),
+    );
+    render(<Page />);
+    fireEvent.click(await screen.findByTestId("bulk-open"));
+    expect(screen.queryByTestId("bulk-absent-note")).toBeNull();
+    fireEvent.click(await screen.findByTestId("bulk-apply"));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0].entries).toHaveLength(9);
   });
 
   it("hides the control when the school has no indicators", async () => {

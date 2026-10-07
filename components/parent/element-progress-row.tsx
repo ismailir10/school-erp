@@ -1,5 +1,5 @@
 import { formatCurriculumElement } from "@/lib/format";
-import { LEVEL_LABEL_SHORT } from "@/lib/curriculum/level-presentation";
+import { LEVEL_LABEL_LONG } from "@/lib/curriculum/level-presentation";
 
 type Counts = {
   CONSISTENT: number;
@@ -14,7 +14,9 @@ type Counts = {
  * Renders one curriculum element (Indonesian label) with a 3-segment
  * proportional progress bar (`bg-status-present` / `bg-status-late` /
  * `bg-status-absent` per .claude/standards/colors.md) plus a numeric
- * read-out "N Mampu · N Belum · N Perlu". Empty rows (total = 0) show a
+ * read-out with the FULL level names ("N Mampu dan Konsisten · N Mampu Belum
+ * Konsisten · N Perlu Penguatan") — the short forms read as fragments ("Perlu"
+ * with no object). The colour key lives in `LevelLegend`. Empty rows (total = 0) show a
  * neutral muted bar + "Belum ada catatan" copy.
  *
  * Pure — no fetch, no state. Snapshot tested via Playwright + design-
@@ -51,7 +53,7 @@ export function ElementProgressRow({
         aria-label={
           empty
             ? `${label}: belum ada catatan`
-            : `${label}: ${counts.CONSISTENT} ${LEVEL_LABEL_SHORT.CONSISTENT}, ${counts.EMERGING} ${LEVEL_LABEL_SHORT.EMERGING}, ${counts.NEEDS_REINFORCEMENT} ${LEVEL_LABEL_SHORT.NEEDS_REINFORCEMENT} dari ${total} catatan`
+            : `${label}: ${counts.CONSISTENT} ${LEVEL_LABEL_LONG.CONSISTENT}, ${counts.EMERGING} ${LEVEL_LABEL_LONG.EMERGING}, ${counts.NEEDS_REINFORCEMENT} ${LEVEL_LABEL_LONG.NEEDS_REINFORCEMENT} dari ${total} catatan`
         }
       >
         {empty ? (
@@ -84,15 +86,15 @@ export function ElementProgressRow({
           Belum ada catatan untuk semester ini.
         </p>
       ) : (
-        <p className="text-xs text-muted-foreground">
+        <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
           <span className="text-status-present-text">
-            {counts.CONSISTENT} {LEVEL_LABEL_SHORT.CONSISTENT}
+            {counts.CONSISTENT} {LEVEL_LABEL_LONG.CONSISTENT}
           </span>
-          {" · "}
-          <span className="text-status-late">{counts.EMERGING} {LEVEL_LABEL_SHORT.EMERGING}</span>
-          {" · "}
+          <span className="text-status-late-text">
+            {counts.EMERGING} {LEVEL_LABEL_LONG.EMERGING}
+          </span>
           <span className="text-status-leave-text">
-            {counts.NEEDS_REINFORCEMENT} {LEVEL_LABEL_SHORT.NEEDS_REINFORCEMENT}
+            {counts.NEEDS_REINFORCEMENT} {LEVEL_LABEL_LONG.NEEDS_REINFORCEMENT}
           </span>
         </p>
       )}

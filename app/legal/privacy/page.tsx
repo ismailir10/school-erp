@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 prose prose-slate dark:prose-invert">
+    <>
       <h1>Kebijakan Privasi</h1>
       <p className="text-sm text-muted-foreground">
         Berlaku sejak: 2 Mei 2026 · Tunduk pada UU No. 27 Tahun 2022 tentang
@@ -73,6 +73,6 @@ export default function PrivacyPage() {
         Perubahan akan diumumkan di halaman ini dan, untuk perubahan material,
         dikomunikasikan melalui email.
       </p>
-    </main>
+    </>
   );
 }
