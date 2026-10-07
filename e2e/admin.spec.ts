@@ -600,7 +600,8 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(editDialog).toBeVisible({ timeout: 10_000 });
 
     const amountInput = editDialog.getByLabel("Jumlah Akhir");
-    const currentAmount = Number(await amountInput.inputValue());
+    // RupiahInput shows grouped thousands ("850.000"), so read the digits.
+    const currentAmount = Number((await amountInput.inputValue()).replace(/[^\d]/g, ""));
     expect(Number.isFinite(currentAmount), "unparsable line amount input value").toBe(true);
     const delta = 1_000; // distinct from the current value; always legal (increase, never negative)
     const nextAmount = currentAmount + delta;

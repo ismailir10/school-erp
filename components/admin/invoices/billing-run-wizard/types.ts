@@ -97,7 +97,12 @@ export type BillingRunDetail = {
 };
 
 export type CommitBillingRunResultRow =
-  | { rowId: string; studentId: string; studentName: string; status: "SKIPPED_ALREADY_INVOICED" }
+  | {
+      rowId: string;
+      studentId: string;
+      studentName: string;
+      status: "SKIPPED_ALREADY_INVOICED" | "SKIPPED_ZERO_TOTAL";
+    }
   | {
       rowId: string;
       studentId: string;

@@ -67,7 +67,10 @@ export async function PATCH(
 
   const updated = await prisma.billingRunRow.update({
     where: { id: rowId },
-    data: { status: parsed.data.status },
+    // Clear any parked reason (e.g. "Rp 0 — tidak ditagih" from a commit
+    // pass) — an explicit exclude/re-include by the admin supersedes it, and
+    // the next commit re-evaluates the total from scratch.
+    data: { status: parsed.data.status, error: null },
   });
 
   return NextResponse.json(updated);
