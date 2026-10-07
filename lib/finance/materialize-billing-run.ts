@@ -1,6 +1,7 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { buildBillingRunRows, type BuildEnrollment, type BuiltRow, type BuildSummary } from "@/lib/finance/build-billing-run";
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
+import { normalizePeriodLabel } from "@/lib/finance/period-label";
 
 /**
  * Shared draft-materialization path for the Billing Run wizard (Cycle B2 —
@@ -25,13 +26,49 @@ export type MaterializeBillingRunScope = {
 export type MaterializeBillingRunInput = {
   tenantId: string;
   academicYearId: string;
-  /** Must already be trimmed by the caller — the duplicate-invoice query
-   * keys off this exact string, matching what the create route does today
-   * (`trimmedLabel`). */
+  /** Must already be trimmed by the caller (`trimmedLabel`). Stored as typed;
+   * the duplicate-invoice check compares it through `normalizePeriodLabel`. */
   periodLabel: string;
   dueDate: string;
   scope: MaterializeBillingRunScope;
 };
+
+// How far back the normalised duplicate comparison looks for invoices whose
+// label is spelled differently from the run's ("Okt 2026" vs "Oktober 2026").
+// Bounded so the read stays small; an exact-label match is always found
+// regardless of age (see `findAlreadyInvoicedStudentIds`).
+const PERIOD_ALIAS_LOOKBACK_DAYS = 400;
+
+/**
+ * Students that already hold an invoice for `periodLabel` (FINX-6). The
+ * label is free text, so the comparison is on `normalizePeriodLabel` — case,
+ * whitespace and Indonesian month abbreviations are equivalent — done in JS
+ * over (studentId, periodLabel) pairs. The query keeps the old exact-label
+ * match unconditionally (so a backfill of an old period is still caught) and
+ * adds every invoice created within the lookback window for alias matching.
+ * Shared by the draft builder and the commit route's live re-check.
+ */
+export async function findAlreadyInvoicedStudentIds(
+  db: Pick<Prisma.TransactionClient, "invoice">,
+  tenantId: string,
+  periodLabel: string,
+  studentIds: string[],
+): Promise<Set<string>> {
+  if (studentIds.length === 0) return new Set();
+  const since = new Date(Date.now() - PERIOD_ALIAS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const existing = await db.invoice.findMany({
+    where: {
+      tenantId,
+      studentId: { in: studentIds },
+      OR: [{ periodLabel }, { createdAt: { gte: since } }],
+    },
+    select: { studentId: true, periodLabel: true },
+  });
+  const target = normalizePeriodLabel(periodLabel);
+  return new Set(
+    existing.filter((i) => normalizePeriodLabel(i.periodLabel) === target).map((i) => i.studentId),
+  );
+}
 
 export async function materializeBillingRun(
   db: Prisma.TransactionClient,
@@ -46,6 +83,10 @@ export async function materializeBillingRun(
   const enrollments = await db.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
+      // A WITHDRAWN / INACTIVE / GRADUATED student can still carry a leftover
+      // ACTIVE enrollment row; billing keys off the student's own status too
+      // (FINX-5). Applies to the class-scope and explicit-include paths alike.
+      student: { status: "ACTIVE" },
       OR: [
         classSectionIds.length > 0 ? { classSectionId: { in: classSectionIds } } : undefined,
         includeStudentIds.length > 0 ? { studentId: { in: includeStudentIds } } : undefined,
@@ -77,7 +118,7 @@ export async function materializeBillingRun(
   const candidateStudentIds = [...new Set(enrollments.map((e) => e.studentId))];
   const programIds = [...new Set(enrollments.map((e) => e.classSection.programId))];
 
-  const [feeStructures, existingInvoices, primaryGuardians, candidateAdjustments] = await Promise.all([
+  const [feeStructures, alreadyInvoicedStudentIds, primaryGuardians, candidateAdjustments] = await Promise.all([
     db.programFeeStructure.findMany({
       where: {
         programId: { in: programIds },
@@ -86,10 +127,7 @@ export async function materializeBillingRun(
       },
       include: { feeComponent: true },
     }),
-    db.invoice.findMany({
-      where: { tenantId, periodLabel, studentId: { in: candidateStudentIds } },
-      select: { studentId: true },
-    }),
+    findAlreadyInvoicedStudentIds(db, tenantId, periodLabel, candidateStudentIds),
     db.studentGuardian.findMany({
       where: { studentId: { in: candidateStudentIds }, isPrimary: true, status: "ACTIVE" },
       select: { studentId: true, parentId: true },
@@ -108,7 +146,6 @@ export async function materializeBillingRun(
     feesByProgram.set(fs.programId, list);
   }
 
-  const alreadyInvoicedStudentIds = new Set(existingInvoices.map((i) => i.studentId));
   const parentByStudent = new Map(primaryGuardians.map((g) => [g.studentId, g.parentId]));
 
   const adjustmentsByStudent = new Map<string, AdjustmentInput[]>();

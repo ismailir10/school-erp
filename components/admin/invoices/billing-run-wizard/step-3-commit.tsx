@@ -14,6 +14,8 @@ import { formatRupiah, formatRelativeTime } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { runBulkCommit } from "@/lib/finance/run-bulk-generate";
 import { rowHasKeringanan } from "@/lib/finance/billing-run-line-source";
+import { isZeroTotal, ZERO_TOTAL_REASON } from "@/lib/finance/billing-run-zero-total";
+import { WizardFooter } from "./wizard-footer";
 import type { BillingRunDetail, BillingRunRowData } from "./types";
 
 // Step 3 — Commit (Cycle B1, Task T9; repointed onto the shared bulk-commit
@@ -54,30 +56,44 @@ type Summary = {
   withAdjustments: number;
   excludedCount: number;
   skippedCount: number;
+  /** Rp 0 rows (FINX-4): PENDING ones the commit will park, plus any already
+   *  parked by an earlier partial commit. Never turned into invoices. */
+  zeroTotalCount: number;
+  /** The PENDING subset of `zeroTotalCount` — what the next commit call skips. */
+  zeroTotalPendingCount: number;
   alreadyCommittedCount: number;
   committableIds: string[];
 };
 
 function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
   const pending = rows.filter((r) => r.status === "PENDING");
-  const excluded = rows.filter((r) => r.status === "EXCLUDED");
+  // A zero row the commit already parked as EXCLUDED is "Rp 0", not an
+  // admin-chosen exclusion — keep the two counts honest.
+  const parkedZero = rows.filter((r) => r.status === "EXCLUDED" && r.error === ZERO_TOTAL_REASON);
+  const excluded = rows.filter((r) => r.status === "EXCLUDED" && r.error !== ZERO_TOTAL_REASON);
+  const pendingZero = pending.filter((r) => isZeroTotal(r.totalDue));
+  const billable = pending.filter((r) => !isZeroTotal(r.totalDue));
   const skipped = rows.filter(
     (r) => r.status === "SKIPPED_ALREADY_INVOICED" || r.status === "SKIPPED_NO_FEE_STRUCTURE",
   );
   const alreadyCommitted = rows.filter((r) => r.status === "COMMITTED");
   // Same predicate as step 2's badge — shared so the two can never disagree
   // about what counts as a keringanan. See rowHasKeringanan's doc comment.
-  const withAdjustments = pending.filter((r) => rowHasKeringanan(r.lines));
+  const withAdjustments = billable.filter((r) => rowHasKeringanan(r.lines));
 
   return {
     createdAt: run.createdAt,
     periodLabel: run.periodLabel,
-    billableCount: pending.length,
-    billableTotal: pending.reduce((sum, r) => sum + Number(r.totalDue), 0),
+    billableCount: billable.length,
+    billableTotal: billable.reduce((sum, r) => sum + Number(r.totalDue), 0),
     withAdjustments: withAdjustments.length,
     excludedCount: excluded.length,
     skippedCount: skipped.length,
+    zeroTotalCount: pendingZero.length + parkedZero.length,
+    zeroTotalPendingCount: pendingZero.length,
     alreadyCommittedCount: alreadyCommitted.length,
+    // Zero rows are sent too: the server parks them so the run can complete,
+    // it never invoices them.
     committableIds: pending.map((r) => r.id),
   };
 }
@@ -277,7 +293,11 @@ export function CommitStep({
       // "Lanjutkan Komit" resumes), matching the summary card's running total.
       const totalCreated = baseline.created + out.final.created;
       const totalSkipped = baseline.skipped + out.final.skipped;
-      const skippedNote = totalSkipped > 0 ? `, ${totalSkipped} dilewati (sudah tertagih)` : "";
+      const zeroSkipped = summary?.zeroTotalPendingCount ?? 0;
+      const alreadyInvoiced = Math.max(totalSkipped - zeroSkipped, 0);
+      const skippedNote =
+        (alreadyInvoiced > 0 ? `, ${alreadyInvoiced} dilewati (sudah tertagih)` : "") +
+        (zeroSkipped > 0 ? `, ${zeroSkipped} siswa Rp 0 tidak ditagih` : "");
       toast.success(`${totalCreated} tagihan berhasil dibuat${skippedNote}.`);
       onCommitted();
     } catch (err) {
@@ -395,6 +415,12 @@ export function CommitStep({
             </div>
           ) : null}
         </dl>
+        {summary.zeroTotalCount > 0 ? (
+          <p className="mt-3 text-small text-muted-foreground">
+            {summary.zeroTotalCount} siswa Rp 0 tidak ditagih (keringanan menutup seluruh biaya atau
+            nominal diubah menjadi Rp 0).
+          </p>
+        ) : null}
         {summary.skippedCount > 0 ? (
           <p className="mt-3 text-small text-muted-foreground">
             {summary.skippedCount} siswa dilewati sejak draf dibuat (sudah pernah ditagih atau tidak
@@ -473,7 +499,7 @@ export function CommitStep({
         </Card>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
+      <WizardFooter>
         {/* Secondary rebuild control — offered regardless of draft age
             (Task T6), not just from the stale-draft Alert above. A draft can
             go stale in an hour if someone edits a fee structure mid-session;
@@ -503,10 +529,12 @@ export function CommitStep({
               ? "Mengomit..."
               : phase === "aborted" || phase === "error"
                 ? "Lanjutkan Komit"
-                : `Komit ${summary.billableCount} Tagihan`}
+                : summary.billableCount === 0
+                  ? "Selesaikan Draf"
+                  : `Komit ${summary.billableCount} Tagihan`}
           </Button>
         )}
-      </div>
+      </WizardFooter>
 
       {/* "Hitung ulang" confirm (Task T6) — names exactly what is lost, per
           .claude/standards/voice.md's destructive-confirmations table: name
