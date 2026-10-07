@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { calendarDate, rupiahAmount, rupiahAmountCoerced } from "./bounds";
+import { calendarDate, isRealCalendarDate, rupiahAmount, rupiahAmountCoerced } from "./bounds";
 import { labelText, longText } from "./text";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // Due dates: real calendar date (no 2026-02-30), 2000-01-01 … 2100-12-31.
 const DUE_DATE_MESSAGES = {
@@ -23,6 +24,23 @@ export const generateBatchSchema = z.object({
   academicYearId: z.string().min(1),
 });
 
+// Payment date ("Tanggal bayar"): a real calendar date, never later than today
+// on the school's (Asia/Jakarta) calendar. Back-dating is allowed — the admin
+// may be entering a transfer from last week. The route stores it at 00:00 WIB.
+const PAID_AT_MESSAGES = {
+  format: "Format tanggal bayar harus YYYY-MM-DD",
+  invalid: "Tanggal bayar tidak valid",
+  range: "Tanggal bayar di luar rentang yang wajar",
+};
+export const PAID_AT_FUTURE_MESSAGE = "Tanggal bayar tidak boleh di masa depan.";
+const paidAtSchema = () =>
+  calendarDate(PAID_AT_MESSAGES).refine(
+    // Lexicographic compare is correct for zero-padded ISO dates. A malformed
+    // string already failed above; this only judges well-formed ones.
+    (d) => !isRealCalendarDate(d) || d <= getTodayInTimezone("Asia/Jakarta"),
+    PAID_AT_FUTURE_MESSAGE,
+  );
+
 export const recordPaymentSchema = z.object({
   // coerce: the record-payment dialog posts its form state verbatim, so
   // `amount` arrives as the <Input>'s string value.
@@ -34,6 +52,8 @@ export const recordPaymentSchema = z.object({
   method: z.enum(["CASH", "BANK_TRANSFER", "XENDIT", "DOKU", "OTHER"]).default("CASH"),
   reference: labelText().optional().nullable(),
   notes: longText().optional().nullable(),
+  // Absent = today (the route keeps `now`). The form always sends it.
+  paidAt: paidAtSchema().optional(),
 });
 
 export const adjustInvoiceLineSchema = z.object({
@@ -136,6 +156,9 @@ export const manualInvoiceFormSchema = manualInvoiceBaseSchema
 // "wajib diisi", not the wire schema's "Jumlah harus lebih dari 0" (which
 // still fires for an explicit 0 or a negative value).
 export const invoicePaymentFormSchema = recordPaymentSchema.extend({
+  // The form always carries a date (default today); a cleared picker reads as
+  // missing rather than "Format tanggal bayar harus YYYY-MM-DD".
+  paidAt: z.string().min(1, "Tanggal bayar wajib diisi").pipe(paidAtSchema()),
   amount: rupiahAmount({ min: "Jumlah harus lebih dari 0" })
     .nullable()
     .refine((v): v is number => v !== null, {
