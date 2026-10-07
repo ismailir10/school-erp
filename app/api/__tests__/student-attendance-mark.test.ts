@@ -316,7 +316,12 @@ describe("POST /api/student-attendance/mark — integrity (api-integrity T5)", (
       makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK" }] }) as never,
     );
     expect(res.status).toBe(200);
-    expect(update.mock.calls[0][0].data.notes).toBeUndefined();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: undefined }) }),
+    );
+    expect(update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: null }) }),
+    );
   });
 
   it("STR-14: notes sent with a status change → the new notes win", async () => {
@@ -325,7 +330,9 @@ describe("POST /api/student-attendance/mark — integrity (api-integrity T5)", (
     await POST(
       makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK", notes: "demam" }] }) as never,
     );
-    expect(update.mock.calls[0][0].data.notes).toBe("demam");
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: "demam" }) }),
+    );
   });
 
   it("STR-14: single-session path clears notes on a status change too", async () => {
