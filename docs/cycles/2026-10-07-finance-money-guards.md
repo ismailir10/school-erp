@@ -48,5 +48,6 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 ## Verification
 - Frontend diffs (rupiah input, line editor, payroll pages) checked against `.claude/standards/design-system.html` (existing tokens, destructive ConfirmDialog, sheet padding scale); no new colours.
 - T1: `npx vitest run components/admin/invoices/billing-run-wizard/__tests__/line-editor.test.tsx components/ui/__tests__/rupiah-input.test.tsx` → 63 passed; other RupiahInput consumers (fees, employee detail, invoices components) → 56 passed. T2: `npx vitest run app/api/__tests__/invoices-put-guard.test.ts app/api/__tests__/invoices-detail.test.ts` → 19 passed. T4: `npx vitest run "app/admin/(hr)/payroll" app/api/payroll lib/validations/__tests__/payroll.test.ts lib/validations/__tests__/form-api-roundtrip.test.ts` → 143 passed. T3: `npx vitest run lib/finance lib/validations/__tests__/billing-run.test.ts app/api/__tests__/billing-runs app/api/__tests__/billing-run components/admin/invoices app/admin/invoices` → 434 passed + 1 mock fix re-run 17/17. Full gate at T5.
+- CI run 1 on #613: `Playwright E2E` 172 passed / 1 failed — `e2e/admin.spec.ts` billing-run line edit read the amount with `Number(inputValue)`, which is 850 for the now-grouped "850.000" (FINX-1 intended change), so the expected total was off. Spec now reads digits only.
 
 ## Ship Notes
