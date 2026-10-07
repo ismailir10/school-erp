@@ -37,7 +37,7 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 4. Toast fix = position toasts at the top on small screens (sonner `position`), which also clears the bottom nav.
 
 ## Tasks
-- [ ] **T1 — Parent attendance.** `lib/parent-attendance-banner.ts`, `app/parent/attendance/**` (+ tests). PARX-4, X-12, X-13. Independent.
+- [x] **T1 — Parent attendance.** `lib/parent-attendance-banner.ts`, `app/parent/attendance/**` (+ tests). PARX-4, X-12, X-13. Independent.
 - [ ] **T2 — Parent invoices + kuitansi.** `app/parent/invoices/**`, `app/api/guardian/invoices/[id]/pdf/route.ts` and the kuitansi PDF component (+ tests). FIN-22, PAR-9, PARX-8, PARX-1, PARX-9. Independent.
 - [ ] **T3 — Parent chrome.** `components/ui/sonner.tsx`, `components/parent/**`, `lib/parent-helpers.ts`, `app/parent/perkembangan/**`, `app/parent/profile/**`, `app/parent/page.tsx`/home client, `app/parent/student-journal/**` page only (+ tests). PARX-2, PAR-10, PAR-11, PAR-14, PARX-10, PARX-7. Independent.
 - [ ] **T4 — /daftar + legal.** `app/daftar/**`, `app/api/admission/submit/route.ts`, `lib/validations/admission.ts`, `app/legal/**` (+ tests). PAR-5, PAR-15, PUBX-1, PUBX-2, PUBX-6, PAR-3, PAR-4 (public scope). Independent.
@@ -45,7 +45,11 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - [ ] **T6 — End-of-cycle gate, browser verification, Ship Notes.** Depends on T1–T5.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4,T5] parallel (disjoint file sets, one subagent each, no git writes), T6 sequential by the driver. The driver reviews each diff and commits per task.
+- T1 (PARX-4, X-12, X-13, PARX-12): `attendanceBannerState` ranks Alpa over Sakit and reports `alsoSick`; the Kehadiran banner now leads with the unexplained absence ("… tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar."; a mixed week reads "… pekan ini sempat sakit, dan ada hari tidak hadir tanpa keterangan…"), and the get-well line is reserved for Sakit-only weeks. Grid headers are DD/MM (`shortDayMonth`), the status row is "Status", `WeekNavigator` gets `todayHref` off the current week, sticky column uses `bg-background`. Tests: banner unit tests + `app/parent/attendance/__tests__/summary.test.ts` (15).
 
 ## Verification
+- Frontend diffs checked against `.claude/standards/design-system.html` tokens (surface `bg-background`, 44 px targets); no new colours.
+- T1: `npx vitest run lib/__tests__/parent-attendance-banner.test.ts app/parent/attendance` → 15 passed. Full `npm run build && npx vitest run` runs at T6 once the parallel slices are in.
 
 ## Ship Notes
