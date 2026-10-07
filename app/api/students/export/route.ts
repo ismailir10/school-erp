@@ -3,7 +3,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
-import { buildStudentCsv } from "@/lib/students/export";
+import { CSV_BOM, buildStudentCsv } from "@/lib/students/export";
 import { cleanSearch, escapeLike } from "@/lib/api/pagination";
 
 /**
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
   const csv = buildStudentCsv(students, columns);
   const filename = `siswa_${getTodayInTimezone("Asia/Jakarta")}.csv`;
 
-  return new NextResponse(csv, {
+  return new NextResponse(CSV_BOM + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

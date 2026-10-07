@@ -8,6 +8,7 @@
  *   - Only PENDING requests can be rejected → 400 otherwise.
  *   - Conditional update (status PENDING): a racing approve/reject → 409, not a second 200.
  *   - Stamps reviewedBy / reviewedAt / reviewNote on update.
+ *   - Writes a "reject" audit row inside the same transaction (none on a lost race).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionUser } from "@/lib/auth";
@@ -15,12 +16,16 @@ import { getSystemRolePermissions } from "@/lib/permissions";
 
 const findUnique = vi.fn();
 const updateMany = vi.fn();
+const recordAudit = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     leaveRequest: { findUnique, updateMany },
+    // The claim + audit row run in one tx; the tx client exposes the same mocks.
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn({ leaveRequest: { findUnique, updateMany } })),
   },
 }));
+vi.mock("@/lib/audit", () => ({ recordAudit }));
 
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
@@ -93,6 +98,29 @@ describe("POST /api/leave/requests/[id]/reject", () => {
     );
   });
 
+  it("writes a reject audit row inside the transaction with the reason", async () => {
+    await mockSession(makeSession("SUPER_ADMIN"));
+    findUnique.mockResolvedValueOnce({ id: "lr-1", status: "PENDING", employee: { tenantId: "t-1" } });
+    updateMany.mockResolvedValueOnce({ count: 1 });
+    findUnique.mockResolvedValueOnce({ id: "lr-1", status: "REJECTED" });
+
+    const { POST } = await import("../leave/requests/[id]/reject/route");
+    await POST(makeReq() as never, { params: Promise.resolve({ id: "lr-1" }) });
+
+    expect(recordAudit).toHaveBeenCalledWith(
+      {
+        tenantId: "t-1",
+        actorId: "u1",
+        entity: "LeaveRequest",
+        entityId: "lr-1",
+        action: "reject",
+        before: { status: "PENDING" },
+        after: { status: "REJECTED", reason: "Tidak memenuhi syarat" },
+      },
+      expect.objectContaining({ leaveRequest: expect.anything() }),
+    );
+  });
+
   it("400 when note is missing/blank (rejection reason required)", async () => {
     await mockSession(makeSession("SUPER_ADMIN"));
 
@@ -156,6 +184,7 @@ describe("POST /api/leave/requests/[id]/reject", () => {
 
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Pengajuan ini sudah diproses.");
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("400 (not 500) when the body is missing or not JSON", async () => {

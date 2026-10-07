@@ -13,6 +13,8 @@ vi.mock("@/lib/db", () => ({
     payment: { findMany: vi.fn() },
     reportCardEntry: { findMany: vi.fn() },
     classSection: { findMany: vi.fn() },
+    enrollmentApplication: { findMany: vi.fn() },
+    student: { findMany: vi.fn() },
   },
 }));
 
@@ -220,6 +222,12 @@ describe("describeAuditEntry — pairs the app actually writes", () => {
     ["PayrollRun", "cancel", "April 2026", null, "membatalkan penggajian April 2026", "/admin/payroll"],
     ["Employee", "deactivate", "Pak Budi", null, "menonaktifkan karyawan Pak Budi", "/admin/employees"],
     ["Employee", "restore", "Pak Budi", null, "mengaktifkan kembali karyawan Pak Budi", "/admin/employees"],
+    ["LeaveRequest", "approve", "Bu Sari", null, "menyetujui cuti Bu Sari", "/admin/leave-requests"],
+    ["LeaveRequest", "reject", "Bu Sari", null, "menolak cuti Bu Sari", "/admin/leave-requests"],
+    ["EnrollmentApplication", "convert", "Aisyah", null, "mengonversi formulir pendaftaran Aisyah menjadi siswa", "/admin/enrollments"],
+    ["Admission", "convert", "Aisyah", null, "mengonversi pendaftaran Aisyah menjadi siswa", "/admin/admissions"],
+    ["Student", "withdraw", "Aisyah", null, "mencatat Aisyah keluar dari sekolah", "/admin/students"],
+    ["Student", "graduate", "Aisyah", null, "meluluskan Aisyah", "/admin/students"],
   ];
 
   it.each(cases)("%s.%s", (entity, action, target, after, verb, href) => {
@@ -302,5 +310,43 @@ describe("getRecentActivity — real audit rows", () => {
 
     const events = await getRecentActivity("tenant-1");
     expect(events.map((e) => e.verb)).toEqual(["menerbitkan rapor Aisyah", "membuat kelas TKIT B"]);
+  });
+
+  it("resolves the names behind the T1/T8 audit pairs (convert, leave decision, withdraw, graduate)", async () => {
+    mockAudit.mockResolvedValue([
+      row({ id: "a1", entity: "EnrollmentApplication", entityId: "ea1", action: "convert" }),
+      row({ id: "a2", entity: "Admission", entityId: "ad1", action: "convert" }),
+      row({ id: "a3", entity: "LeaveRequest", entityId: "lr1", action: "approve" }),
+      row({ id: "a4", entity: "LeaveRequest", entityId: "lr2", action: "reject" }),
+      row({ id: "a5", entity: "Student", entityId: "s1", action: "withdraw" }),
+      row({ id: "a6", entity: "Student", entityId: "s2", action: "graduate" }),
+    ]);
+    (prisma.enrollmentApplication.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "ea1", childName: "Aisyah Putri" },
+    ]);
+    (prisma.admission.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "ad1", childName: "Zahra" },
+    ]);
+    (prisma.leaveRequest.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "lr1", employee: { nama: "Bu Rina" } },
+      { id: "lr2", employee: { nama: "Pak Budi" } },
+    ]);
+    (prisma.student.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "s1", name: "Naufal" },
+      { id: "s2", name: "Hana" },
+    ]);
+
+    const events = await getRecentActivity("tenant-1");
+    expect(events.map((e) => [e.verb, e.target, e.href])).toEqual([
+      ["mengonversi formulir pendaftaran Aisyah Putri menjadi siswa", "Aisyah Putri", "/admin/enrollments"],
+      ["mengonversi pendaftaran Zahra menjadi siswa", "Zahra", "/admin/admissions"],
+      ["menyetujui cuti Bu Rina", "Bu Rina", "/admin/leave-requests"],
+      ["menolak cuti Pak Budi", "Pak Budi", "/admin/leave-requests"],
+      ["mencatat Naufal keluar dari sekolah", "Naufal", "/admin/students"],
+      ["meluluskan Hana", "Hana", "/admin/students"],
+    ]);
+    // One batched lookup per entity, however many rows reference it.
+    expect(prisma.student.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.leaveRequest.findMany).toHaveBeenCalledTimes(1);
   });
 });

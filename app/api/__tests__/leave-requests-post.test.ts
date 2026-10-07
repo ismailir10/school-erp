@@ -9,7 +9,7 @@
  * Serializable transaction so two concurrent submissions cannot both pass
  * the balance check and both insert.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SessionUser } from "@/lib/auth";
 import { getSystemRolePermissions } from "@/lib/permissions";
 
@@ -68,6 +68,10 @@ async function mockSession(s: SessionUser | null) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Fixtures use April 2026 dates; "today" (Asia/Jakarta) is pinned just
+  // before them so the past-start-date guard does not trip on non-sick types.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-04-01T03:00:00+07:00"));
   // Default OrgConfig: standard 5-day work week.
   orgConfigFindUnique.mockResolvedValue({
     workingDays: JSON.stringify(["MON", "TUE", "WED", "THU", "FRI"]),
@@ -97,6 +101,10 @@ beforeEach(() => {
       },
     })
   );
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function postBody(body: Record<string, unknown>): Request {
@@ -357,5 +365,39 @@ describe("STR-5 — submit counts PENDING + APPROVED days against the balance", 
     );
     expect(res.status).toBe(201);
     expect(leaveRequestAggregate).not.toHaveBeenCalled();
+  });
+});
+
+describe("past start date", () => {
+  async function submit(leaveType: string, startDate: string, endDate: string) {
+    await mockSession(makeSession());
+    const { POST } = await import("../leave/requests/route");
+    return POST(postBody({ leaveType, startDate, endDate, reason: "Keperluan" }) as never);
+  }
+
+  it.each(["ANNUAL", "PERMISSION"])("rejects %s starting before today (Jakarta) with a startDate field error", async (type) => {
+    // Today is 2026-04-01 in Jakarta; 2026-03-30 is a Monday in the past.
+    const res = await submit(type, "2026-03-30", "2026-03-31");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Tanggal mulai tidak boleh sebelum hari ini.");
+    expect(body.errors).toEqual([{ field: "startDate", message: "Tanggal mulai tidak boleh sebelum hari ini." }]);
+    expect(leaveRequestCreate).not.toHaveBeenCalled();
+  });
+
+  it("allows sick leave to be filed retroactively", async () => {
+    const res = await submit("SICK", "2026-03-30", "2026-03-31");
+    expect(res.status).toBe(201);
+  });
+
+  it("allows annual leave starting today", async () => {
+    const res = await submit("ANNUAL", "2026-04-01", "2026-04-02");
+    expect(res.status).toBe(201);
+  });
+
+  it("uses the Jakarta calendar day, not UTC (00:30 WIB on the 2nd is still the 1st in UTC)", async () => {
+    vi.setSystemTime(new Date("2026-04-02T00:30:00+07:00"));
+    const res = await submit("ANNUAL", "2026-04-01", "2026-04-02");
+    expect(res.status).toBe(400);
   });
 });

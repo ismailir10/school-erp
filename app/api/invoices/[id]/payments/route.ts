@@ -41,6 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
   const amountDec = new Prisma.Decimal(parsed.data.amount.toString());
+  // FINX-9: a back-dated payment is stored at 00:00 Asia/Jakarta of the chosen
+  // day. Today (or no date) keeps the default `now`, so same-day payments retain
+  // their real time of day. The schema already refused a future date.
+  const todayYmd = getTodayInTimezone("Asia/Jakarta");
+  const backdatedPaidAt =
+    parsed.data.paidAt && parsed.data.paidAt < todayYmd
+      ? new Date(`${parsed.data.paidAt}T00:00:00+07:00`)
+      : null;
 
   // Quick tenant-scope check outside the tx so a cross-tenant id bails early.
   const preCheck = await prisma.invoice.findFirst({
@@ -79,11 +87,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           notes: parsed.data.notes?.trim() || null,
           // FIN-7: who took this money. Gateway rows (webhook) stay null.
           createdBy: session.id,
+          ...(backdatedPaidAt ? { paidAt: backdatedPaidAt } : {}),
         },
       });
 
       // Shared with the reversal route — REVERSED rows never count.
-      const after = await recomputeInvoiceFromPayments(tx, fresh, getTodayInTimezone("Asia/Jakarta"));
+      const after = await recomputeInvoiceFromPayments(tx, fresh, todayYmd);
+      // The invoice was not PAID going in (guarded above), so if this payment
+      // settles it, its "lunas" date is the chosen payment date, not the day
+      // the admin typed it in — the kuitansi prints this.
+      if (backdatedPaidAt && after.status === "PAID") {
+        await tx.invoice.update({ where: { id: invoiceId }, data: { paidAt: backdatedPaidAt } });
+      }
 
       await recordAudit(
         {

@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { templateFor } from "@/lib/raport/templates";
-import { raportAttendanceSchema } from "@/lib/validations/raport";
+import { raportAttendanceSchema, raportMeasurementSchema } from "@/lib/validations/raport";
 import { toast } from "sonner";
 import { ArrowLeft, Download, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -65,6 +65,13 @@ type TemplateGridPayload = {
 };
 type AttKey = "permitted" | "sick" | "unexcused" | "total";
 type AttErrors = Partial<Record<AttKey, string>>;
+type MeasurementErrors = { height?: string; weight?: string };
+
+// API/schema field name -> editor measurement key (ADM-14).
+const MEASUREMENT_KEY_BY_FIELD: Record<string, keyof MeasurementErrors> = {
+  heightCm: "height",
+  weightKg: "weight",
+};
 
 // API/schema field name -> editor state key, for mapping field errors back.
 const ATT_KEY_BY_FIELD: Record<string, AttKey> = {
@@ -115,10 +122,12 @@ export function RaportEditor({
   const [hafalan, setHafalan] = useState("");
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [measurementErrors, setMeasurementErrors] = useState<MeasurementErrors>({});
   const [status, setStatus] = useState("NONE");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [syncingAttendance, setSyncingAttendance] = useState(false);
   // Snapshot of the last-loaded (or last-saved) values. `null` until the
   // first load resolves, so the editor is never dirty before there's
@@ -257,6 +266,24 @@ export function RaportEditor({
     }
     setAttErrors({});
 
+    // ADM-14: height / weight within a human range, and never NaN on the wire.
+    // Same schema the PUT route enforces, so the message is identical.
+    const measurementCheck = raportMeasurementSchema.safeParse({
+      heightCm: height.trim() ? Number(height) : null,
+      weightKg: weight.trim() ? Number(weight) : null,
+    });
+    if (!measurementCheck.success) {
+      const next: MeasurementErrors = {};
+      for (const issue of measurementCheck.error.issues) {
+        const key = MEASUREMENT_KEY_BY_FIELD[String(issue.path[0])];
+        if (key && !next[key]) next[key] = issue.message;
+      }
+      setMeasurementErrors(next);
+      toast.error("Periksa tinggi dan berat badan yang ditandai.");
+      return false;
+    }
+    setMeasurementErrors({});
+
     setSaving(true);
     try {
       const sectionLevels: Record<string, string> = {};
@@ -275,8 +302,8 @@ export function RaportEditor({
           unexcusedAbsenceDays: Number(att.unexcused) || 0,
           totalSchoolDays: Number(att.total) || 0,
           memorizationNotes: hafalan.trim() || null,
-          heightCm: height ? Number(height) : null,
-          weightKg: weight ? Number(weight) : null,
+          heightCm: height.trim() ? Number(height) : null,
+          weightKg: weight.trim() ? Number(weight) : null,
         }),
       });
       if (!res.ok) {
@@ -286,13 +313,19 @@ export function RaportEditor({
         };
         // Surface a server-side attendance rejection on its field too.
         const next: AttErrors = {};
+        const nextMeasurement: MeasurementErrors = {};
         for (const e of body.errors ?? []) {
           const key = e.field ? ATT_KEY_BY_FIELD[e.field] : undefined;
           if (key && e.message && !next[key]) next[key] = e.message;
+          const mKey = e.field ? MEASUREMENT_KEY_BY_FIELD[e.field] : undefined;
+          if (mKey && e.message && !nextMeasurement[mKey]) nextMeasurement[mKey] = e.message;
         }
         if (Object.keys(next).length > 0) {
           setAttErrors(next);
           toast.error("Periksa kolom kehadiran yang ditandai.");
+        } else if (Object.keys(nextMeasurement).length > 0) {
+          setMeasurementErrors(nextMeasurement);
+          toast.error("Periksa tinggi dan berat badan yang ditandai.");
         } else {
           toast.error(body.error ?? "Gagal menyimpan rapor.");
         }
@@ -466,8 +499,26 @@ export function RaportEditor({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mt-4">
           {/* StudentMeasurement.height/weight are nullable and publish
               succeeds with both blank — the asterisk was claiming otherwise. */}
-          <NumField id="measurement-height" label="Tinggi (cm)" value={height} onChange={setHeight} step="0.1" optional />
-          <NumField id="measurement-weight" label="Berat (kg)" value={weight} onChange={setWeight} step="0.1" optional />
+          <NumField
+            id="measurement-height"
+            label="Tinggi (cm)"
+            value={height}
+            error={measurementErrors.height}
+            onChange={(v) => { setHeight(v); setMeasurementErrors((p) => ({ ...p, height: undefined })); }}
+            step="0.1"
+            max="250"
+            optional
+          />
+          <NumField
+            id="measurement-weight"
+            label="Berat (kg)"
+            value={weight}
+            error={measurementErrors.weight}
+            onChange={(v) => { setWeight(v); setMeasurementErrors((p) => ({ ...p, weight: undefined })); }}
+            step="0.1"
+            max="200"
+            optional
+          />
         </div>
         <Field className="mt-4">
           <FieldLabel htmlFor="hafalan">Hafalan (surah / hadis / doa)</FieldLabel>
@@ -484,7 +535,7 @@ export function RaportEditor({
             Tarik penerbitan
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => setPublish(true)} disabled={publishing}>
+          <Button variant="outline" onClick={() => setConfirmPublish(true)} disabled={publishing}>
             {publishing ? "Memproses…" : "Simpan & Terbitkan"}
           </Button>
         )}
@@ -505,6 +556,15 @@ export function RaportEditor({
         confirmLabel="Ya, Keluar"
         destructive
         onConfirm={onBack}
+      />
+
+      <ConfirmDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        title={`Terbitkan rapor ${data.student.name}?`}
+        description="Orang tua akan langsung bisa melihat rapor ini."
+        confirmLabel="Terbitkan"
+        onConfirm={() => setPublish(true)}
       />
 
       <ConfirmDialog
@@ -613,6 +673,7 @@ function NumField({
   value,
   onChange,
   step,
+  max,
   optional = false,
   error,
 }: {
@@ -621,6 +682,8 @@ function NumField({
   value: string;
   onChange: (v: string) => void;
   step?: string;
+  /** Upper bound for the native number input (height / weight). */
+  max?: string;
   /** Inline validation message; marks the input invalid and announces it. */
   error?: string;
   /** Drops the asterisk and the required/aria-required attributes. */
@@ -634,6 +697,7 @@ function NumField({
         type="number"
         min="0"
         step={step}
+        max={max}
         required={!optional}
         aria-required={optional ? undefined : "true"}
         aria-invalid={error ? true : undefined}

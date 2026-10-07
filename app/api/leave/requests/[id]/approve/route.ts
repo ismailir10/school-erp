@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { parseWorkingDays } from "@/lib/payroll/working-days";
 import { validateBody } from "@/lib/api/validate";
+import { recordAudit } from "@/lib/audit";
 import { balancePeriodStart, isBalancedLeaveType, leaveTypeLabel, sumLeaveDays } from "@/lib/leave/balance";
 
 // Body is `{ note? }` — the note is optional, but the body itself must be JSON
@@ -122,6 +123,19 @@ export async function POST(
     if (claimed.count === 0) return { kind: "processed" as const };
 
     const approved = await tx.leaveRequest.findUnique({ where: { id } });
+
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "LeaveRequest",
+        entityId: id,
+        action: "approve",
+        before: { status: "PENDING" },
+        after: { status: "APPROVED", days: request.days },
+      },
+      tx,
+    );
 
     // Create LEAVE attendance records for each working, non-holiday day in
     // the leave period. Weekends and holidays are skipped to stay aligned

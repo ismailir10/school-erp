@@ -40,6 +40,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/audit", () => ({ recordAudit: vi.fn() }));
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };

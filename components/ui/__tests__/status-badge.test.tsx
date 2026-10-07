@@ -121,4 +121,17 @@ describe("STATUS_MAP enum coverage", () => {
     const badge = screen.getByText("Tidak Aktif");
     expect(badge).toHaveClass("bg-muted");
   });
+
+  it("renders ARCHIVED as 'Diarsipkan' on a muted tone, never the raw enum (ADM-13)", () => {
+    render(<StatusBadge status="ARCHIVED" />);
+    const badge = screen.getByText("Diarsipkan");
+    expect(badge.className).toContain("bg-muted");
+    expect(screen.queryByText("ARCHIVED")).not.toBeInTheDocument();
+  });
+
+  it("gives ARCHIVED the neutral icon and left border in the intent variant", () => {
+    const { container } = render(<StatusBadge status="ARCHIVED" variant="intent" />);
+    expect(container.querySelector("svg")?.getAttribute("class") ?? "").toMatch(/lucide-minus/i);
+    expect(container.firstElementChild?.className).toContain("border-l-border");
+  });
 });

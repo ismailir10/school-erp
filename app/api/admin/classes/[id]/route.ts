@@ -7,6 +7,10 @@ import { recordAudit } from "@/lib/audit";
 import { classUpdateSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
 import {
+  CLASS_NAME_CLASH_MESSAGE,
+  findClassNameClash,
+} from "@/lib/classes/name-clash";
+import {
   auditActionForUpdate,
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -88,6 +92,8 @@ async function update(
       ageGroup: true,
       status: true,
       classTrackId: true,
+      academicYearId: true,
+      campusId: true,
     },
   });
   if (!before) {
@@ -108,6 +114,32 @@ async function update(
   if (body.slotTemplate !== undefined) data.slotTemplate = body.slotTemplate;
   if (body.ageGroup !== undefined) data.ageGroup = body.ageGroup;
   if (body.status !== undefined) data.status = body.status;
+
+  // Renames are unique ignoring case within the year + campus. The check runs
+  // whenever the name is sent but differs from the stored one (a case-only
+  // change of the same class passes: excludeId keeps it from clashing with
+  // itself). The DB unique stays as the race backstop (isUniqueViolation).
+  if (body.name !== undefined && body.name.trim() !== before.name) {
+    const clash = await findClassNameClash(prisma, {
+      tenantId: session.tenantId,
+      academicYearId: before.academicYearId,
+      campusId: before.campusId,
+      name: body.name,
+      excludeId: id,
+    });
+    if (clash) {
+      return NextResponse.json(
+        {
+          error: CLASS_NAME_CLASH_MESSAGE,
+          field: "name",
+          // Same shape as the capacity 409 so applyServerErrors lands it
+          // inline on the Nama field.
+          errors: [{ field: "name", message: CLASS_NAME_CLASH_MESSAGE }],
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json(
@@ -197,8 +229,9 @@ async function update(
     if (isUniqueViolation(err)) {
       return NextResponse.json(
         {
-          error:
-            "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
+          error: CLASS_NAME_CLASH_MESSAGE,
+          field: "name",
+          errors: [{ field: "name", message: CLASS_NAME_CLASH_MESSAGE }],
         },
         { status: 409 },
       );

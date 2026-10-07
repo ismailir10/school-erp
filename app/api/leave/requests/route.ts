@@ -9,6 +9,8 @@ import { validateBody } from "@/lib/api/validate";
 import { createLeaveRequestSchema } from "@/lib/validations/leave";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
+import { fieldErrorResponse } from "@/lib/api/field-errors";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { isBalancedLeaveType, leaveTypeLabel, sumLeaveDays } from "@/lib/leave/balance";
 
 // Self-service: submit leave request
@@ -33,6 +35,15 @@ export async function POST(req: NextRequest) {
   const result = await validateBody(createLeaveRequestSchema, rawBody);
   if (result.error) return result.error;
   const { leaveType, startDate, endDate, reason } = result.data;
+
+  // Annual leave and izin are planned ahead; only sick leave may be filed
+  // after the fact (you cannot know you will be ill in advance).
+  if (
+    (leaveType === "ANNUAL" || leaveType === "PERMISSION") &&
+    startDate < getTodayInTimezone("Asia/Jakarta")
+  ) {
+    return fieldErrorResponse("startDate", "Tanggal mulai tidak boleh sebelum hari ini.", 400);
+  }
 
   // Calculate days (inclusive)
   const start = new Date(startDate);

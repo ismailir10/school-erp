@@ -64,6 +64,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  // Terima / Tolak are decisions the family feels — confirm before they fire.
+  const [decision, setDecision] = useState<"ACCEPTED" | "REJECTED" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -167,16 +169,17 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     variant?: "default" | "outline";
     menu?: boolean;
     convert?: boolean;
+    decide?: boolean;
   };
   const transitions: Record<string, Transition[]> = {
     SUBMITTED: [
       { label: "Mulai Tinjau", to: "UNDER_REVIEW", variant: "outline", menu: true },
-      { label: "Terima", to: "ACCEPTED" },
-      { label: "Tolak", to: "REJECTED", variant: "outline" },
+      { label: "Terima", to: "ACCEPTED", decide: true },
+      { label: "Tolak", to: "REJECTED", variant: "outline", decide: true },
     ],
     UNDER_REVIEW: [
-      { label: "Terima", to: "ACCEPTED" },
-      { label: "Tolak", to: "REJECTED", variant: "outline" },
+      { label: "Terima", to: "ACCEPTED", decide: true },
+      { label: "Tolak", to: "REJECTED", variant: "outline", decide: true },
     ],
     ACCEPTED: [
       { label: "Konversi ke Siswa", variant: "default", convert: true },
@@ -187,7 +190,11 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
   const toAction = (a: (typeof actions)[number]): DetailPageHeaderAction => ({
     label: a.label,
-    onClick: a.convert ? () => setConvertOpen(true) : () => transition(a.to!),
+    onClick: a.convert
+      ? () => setConvertOpen(true)
+      : a.decide
+        ? () => setDecision(a.to as "ACCEPTED" | "REJECTED")
+        : () => transition(a.to!),
     disabled: busy,
     variant: a.variant,
   });
@@ -238,6 +245,25 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={decision !== null}
+        onOpenChange={(o) => !o && setDecision(null)}
+        title={
+          decision === "REJECTED"
+            ? `Tolak pendaftaran ${d.childName || "anak ini"}?`
+            : `Terima pendaftaran ${d.childName || "anak ini"}?`
+        }
+        description={
+          decision === "REJECTED"
+            ? "Pastikan keluarga diberi tahu bahwa pendaftaran ini tidak dilanjutkan. Kamu masih bisa meninjau ulang formulirnya nanti."
+            : "Keluarga bisa melanjutkan ke tahap berikutnya, dan formulir ini siap dikonversi menjadi data siswa."
+        }
+        confirmLabel={decision === "REJECTED" ? "Tolak" : "Terima"}
+        destructive={decision === "REJECTED"}
+        loading={busy}
+        onConfirm={() => (decision ? transition(decision) : undefined)}
+      />
 
       <ConfirmDialog
         open={convertOpen}

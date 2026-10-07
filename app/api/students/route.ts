@@ -7,6 +7,7 @@ import { validateBody } from "@/lib/api/validate";
 import { createStudentSchema } from "@/lib/validations/student";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { findStudentConflict } from "@/lib/students/guards";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -209,6 +210,9 @@ export async function POST(req: NextRequest) {
         isPrimary: normalizedIsPrimary[i],
       })),
     });
+    // Guardians are now linked: a parent already signed in sees the new child
+    // on the next load, not after the 60 s cache TTL.
+    invalidateParentChildren();
   }
 
   return NextResponse.json(student, { status: 201 });

@@ -6,7 +6,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
 import { validateBody } from "@/lib/api/validate";
 import { fieldErrorResponse, isUniqueViolation } from "@/lib/api/field-errors";
-import { createAcademicYearSchema } from "@/lib/validations/academic-year";
+import { academicYearOverlapMessage, createAcademicYearSchema } from "@/lib/validations/academic-year";
 
 export const revalidate = 86400; // 24h — academic years rarely change
 
@@ -37,6 +37,22 @@ export async function POST(req: NextRequest) {
   const { name, startDate, endDate, status } = parsed.data;
 
   const tenantId = session.tenantId; // narrow before transaction closure re-widens it
+
+  // ADM-13: a year may not overlap another non-archived year (inclusive ends).
+  // Dates are YYYY-MM-DD strings, so lexicographic comparison is chronological.
+  const overlapping = await prisma.academicYear.findFirst({
+    where: {
+      tenantId,
+      status: { not: "ARCHIVED" },
+      startDate: { lte: endDate },
+      endDate: { gte: startDate },
+    },
+    select: { name: true },
+  });
+  if (overlapping) {
+    return fieldErrorResponse("startDate", academicYearOverlapMessage(overlapping.name));
+  }
+
   const data = { tenantId, name, startDate, endDate, status: status ?? "PLANNING" };
 
   // If created ACTIVE, demote any existing ACTIVE year first — single-active

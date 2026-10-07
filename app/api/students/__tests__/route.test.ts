@@ -48,6 +48,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren: vi.fn() }));
+
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(() => ({ success: true })),
   getClientIp: vi.fn(() => "1.1.1.1"),

@@ -22,8 +22,13 @@ export const createLeaveRequestSchema = z.object({
 // POST /api/leave/requests/[id]/reject — admin review. Mirrors the route's
 // previous inline `if (!body.note?.trim())` check (rejection reason
 // required); POST .../approve keeps `note` optional and stays untouched.
+export const REJECT_REASON_MIN_MESSAGE = "Alasan penolakan minimal 5 karakter";
+const REJECT_REASON_MIN = 5;
+
 export const rejectLeaveRequestSchema = z.object({
-  note: longText({ required: "Alasan penolakan wajib diisi" }),
+  note: longText({ required: "Alasan penolakan wajib diisi" }).pipe(
+    z.string().min(REJECT_REASON_MIN, REJECT_REASON_MIN_MESSAGE),
+  ),
 });
 
 /**
@@ -39,11 +44,19 @@ export const leaveReviewFormSchema = z
     note: longText().optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.action === "reject" && !data.note?.trim()) {
+    if (data.action !== "reject") return;
+    const note = data.note?.trim() ?? "";
+    if (!note) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["note"],
         message: "Alasan penolakan wajib diisi",
+      });
+    } else if (note.length < REJECT_REASON_MIN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["note"],
+        message: REJECT_REASON_MIN_MESSAGE,
       });
     }
   });

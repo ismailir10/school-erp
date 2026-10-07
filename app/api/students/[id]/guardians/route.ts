@@ -6,6 +6,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { createGuardianSchema, linkGuardianSchema } from "@/lib/validations/guardian";
 import { findParentCandidates } from "@/lib/parent/match";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 
 /**
  * Race-safe single-primary invariant, mirroring the PUT handler in
@@ -124,6 +125,7 @@ export async function POST(
             include: { parent: true },
           })
       );
+      invalidateParentChildren();
       return NextResponse.json(reactivated, { status: 200 });
     }
 
@@ -142,6 +144,7 @@ export async function POST(
           include: { parent: true },
         })
     );
+    invalidateParentChildren();
     return NextResponse.json(linked, { status: 201 });
   }
 
@@ -229,5 +232,6 @@ export async function POST(
       })
   );
 
+  invalidateParentChildren();
   return NextResponse.json(guardian, { status: 201 });
 }

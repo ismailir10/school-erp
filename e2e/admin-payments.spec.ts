@@ -58,8 +58,10 @@ test.describe("Admin /admin/payments — Penerimaan ledger", () => {
     expect(csv.status()).toBe(200);
     expect(csv.headers()["content-type"]).toContain("text/csv");
     expect(csv.headers()["content-disposition"]).toContain("penerimaan_");
+    // The body opens with a UTF-8 BOM so Excel reads accented names correctly.
     const body = await csv.text();
-    expect(body.startsWith("Tanggal,Siswa,No. Tagihan,Metode,Referensi,Jumlah")).toBe(true);
+    expect(body.charCodeAt(0)).toBe(0xfeff);
+    expect(body.slice(1).startsWith("Tanggal,Siswa,No. Tagihan,Metode,Referensi,Jumlah")).toBe(true);
   });
 
   test("ledger API 400s an inverted range and an unknown method", async ({ page }) => {

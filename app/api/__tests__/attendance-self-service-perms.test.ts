@@ -327,10 +327,10 @@ describe("POST /api/attendance/check-out — F-09 permission gate", () => {
 describe("POST /api/leave/requests — F-09 permission gate", () => {
   const validBody = {
     leaveType: "ANNUAL",
-    // Use a future Monday to ensure the inclusive-day count is non-zero
-    // regardless of when the test runs (single weekday = 1 day).
-    startDate: "2026-05-04",
-    endDate: "2026-05-04",
+    // Far-future Monday: ANNUAL cannot start in the past, and a single weekday
+    // keeps the inclusive-day count at 1 regardless of when the test runs.
+    startDate: "2099-05-04",
+    endDate: "2099-05-04",
     reason: "Acara keluarga di luar kota",
   };
 

@@ -67,6 +67,11 @@ const state = {
   txAttempts: 0,
 };
 
+// Cache eviction is a Next runtime call; spy on it instead of loading
+// unstable_cache (parent-helpers pulls in the whole parent portal graph).
+const { invalidateParentChildren } = vi.hoisted(() => ({ invalidateParentChildren: vi.fn() }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
+
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ success: true }),
   getClientIp: () => "127.0.0.1",
@@ -260,6 +265,28 @@ beforeEach(() => {
   state.lastPatchUpdate = null;
   state.forceP2034Once = false;
   state.txAttempts = 0;
+  invalidateParentChildren.mockClear();
+});
+
+describe("guardian link writes — parent-children cache eviction (STR-15)", () => {
+  it("PUT evicts after a successful update", async () => {
+    expect((await PUT(putReq({ name: "Pak Budi Baru" }) as never, { params })).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("PATCH evicts after a status change", async () => {
+    expect((await PATCH(patchReq({ status: "INACTIVE" }) as never, { params })).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not evict when the guardian is unknown or the body is invalid", async () => {
+    state.guardian = null;
+    expect((await PUT(putReq({ name: "X" }) as never, { params })).status).toBe(404);
+    expect((await PATCH(patchReq({ status: "INACTIVE" }) as never, { params })).status).toBe(404);
+    state.guardian = freshGuardian();
+    expect((await PATCH(patchReq({ status: "BOGUS" }) as never, { params })).status).toBe(400);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
+  });
 });
 
 describe("PUT /api/students/[id]/guardians/[guardianId] — address + childrenTotal (T7)", () => {

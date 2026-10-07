@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
@@ -145,6 +145,17 @@ const _cachedGetParentWithChildren = unstable_cache(
   ["parent-children"],
   { revalidate: 60, tags: ["parent-children"] }
 );
+
+/**
+ * Evict the cached parent→children lookup. Call after a guardian-link write
+ * (create / reactivate / deactivate / primary change / parent contact edit) has
+ * committed — never inside a transaction — so a parent sees a newly linked
+ * child on the next load instead of after the 60 s TTL. Tags are global, so
+ * this evicts every tenant's entry (see the note on `getParentWithChildren`).
+ */
+export function invalidateParentChildren() {
+  revalidateTag("parent-children", { expire: 0 });
+}
 
 const EMPTY_PARENT_RESULT = { parent: null, children: [] as ParentChild[] };
 

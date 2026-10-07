@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
   createStudentSchema,
   updateStudentSchema,
@@ -276,9 +277,53 @@ describe("invoice / payment schemas (STR-7, STR-13)", () => {
     const blank = invoicePaymentFormSchema.safeParse({ amount: null, method: "CASH" });
     expect(blank.success).toBe(false);
     if (!blank.success) expect(blank.error.issues.some((i) => i.message === "Jumlah pembayaran wajib diisi")).toBe(true);
-    expect(invoicePaymentFormSchema.safeParse({ amount: 5000, method: "CASH" }).success).toBe(true);
-    expect(invoicePaymentFormSchema.safeParse({ amount: 5000.5, method: "CASH" }).success).toBe(false);
-    expect(invoicePaymentFormSchema.safeParse({ amount: 0, method: "CASH" }).success).toBe(false);
+    const paidAt = getTodayInTimezone("Asia/Jakarta");
+    expect(invoicePaymentFormSchema.safeParse({ amount: 5000, method: "CASH", paidAt }).success).toBe(true);
+    expect(invoicePaymentFormSchema.safeParse({ amount: 5000.5, method: "CASH", paidAt }).success).toBe(false);
+    expect(invoicePaymentFormSchema.safeParse({ amount: 0, method: "CASH", paidAt }).success).toBe(false);
+  });
+
+  describe("payment date — Tanggal bayar (FINX-9)", () => {
+    const today = getTodayInTimezone("Asia/Jakarta");
+    const shift = (ymd: string, days: number) => {
+      const d = new Date(`${ymd}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    const FUTURE = "Tanggal bayar tidak boleh di masa depan.";
+
+    it("recordPaymentSchema: paidAt is optional; today and past dates pass", () => {
+      expect(recordPaymentSchema.safeParse({ amount: 1000 }).success).toBe(true);
+      expect(recordPaymentSchema.safeParse({ amount: 1000, paidAt: today }).success).toBe(true);
+      expect(recordPaymentSchema.safeParse({ amount: 1000, paidAt: shift(today, -30) }).success).toBe(true);
+    });
+
+    it("recordPaymentSchema: a future date is rejected with the Indonesian message", () => {
+      const r = recordPaymentSchema.safeParse({ amount: 1000, paidAt: shift(today, 1) });
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.error.issues.map((i) => i.message)).toEqual([FUTURE]);
+    });
+
+    it("recordPaymentSchema: malformed / impossible dates fail on calendarDate's own messages, not the future one", () => {
+      const msgs = (paidAt: string) => {
+        const r = recordPaymentSchema.safeParse({ amount: 1000, paidAt });
+        return r.success ? [] : r.error.issues.map((i) => i.message);
+      };
+      expect(msgs("07-10-2026")).not.toContain(FUTURE);
+      expect(msgs("07-10-2026")).not.toHaveLength(0);
+      expect(msgs("2026-02-30")).toEqual(["Tanggal bayar tidak valid"]);
+      expect(msgs("1999-12-31")).toEqual(["Tanggal bayar di luar rentang yang wajar"]);
+    });
+
+    it("invoicePaymentFormSchema inherits the future check and reads a cleared date as missing", () => {
+      const base = { amount: 5000, method: "CASH" as const };
+      const future = invoicePaymentFormSchema.safeParse({ ...base, paidAt: shift(today, 1) });
+      expect(future.success).toBe(false);
+      if (!future.success) expect(future.error.issues[0]?.message).toBe(FUTURE);
+      const blank = invoicePaymentFormSchema.safeParse({ ...base, paidAt: "" });
+      expect(blank.success).toBe(false);
+      if (!blank.success) expect(blank.error.issues[0]?.message).toBe("Tanggal bayar wajib diisi");
+    });
   });
 
   const invoice = {

@@ -259,6 +259,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 vi.mock("@/lib/db", () => ({ prisma: dbFake }));
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+// The guardian routes evict the parent-children cache; stub it (parent-helpers builds unstable_cache at import).
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren: vi.fn() }));
 
 // The gateway is the only boundary mocked for the payment-session leg — the
 // rest of `createPaymentSessionForInvoice` (expiry, retry, guardian lookup)
