@@ -182,3 +182,60 @@ describe("payrollVariablesSchema", () => {
     }
   });
 });
+
+import {
+  calendarDaysInPeriod,
+  payrollEditFormSchema,
+  updatePayrollRunSchema,
+} from "@/lib/validations/payroll";
+
+describe("HRX-3 actualWorkDays bounds", () => {
+  it("counts calendar days inclusively", () => {
+    expect(calendarDaysInPeriod("2026-09-01", "2026-09-30")).toBe(30);
+    expect(calendarDaysInPeriod("2026-10-05", "2026-10-05")).toBe(1);
+  });
+
+  it("wire schema rejects 0 and fractional values, accepts 1", () => {
+    expect(updatePayrollRunSchema.safeParse({ actualWorkDays: 0 }).success).toBe(false);
+    expect(updatePayrollRunSchema.safeParse({ actualWorkDays: 2.5 }).success).toBe(false);
+    expect(updatePayrollRunSchema.safeParse({ actualWorkDays: 1 }).success).toBe(true);
+  });
+
+  it("edit form rejects 0 and anything above the days in the period, with the range sentence", () => {
+    const base = { periodStart: "2026-09-01", periodEnd: "2026-09-30" };
+    expect(payrollEditFormSchema.safeParse({ ...base, actualWorkDays: "0" }).success).toBe(false);
+    const over = payrollEditFormSchema.safeParse({ ...base, actualWorkDays: "999" });
+    expect(over.success).toBe(false);
+    if (!over.success) {
+      expect(over.error.issues.find((i) => i.path[0] === "actualWorkDays")?.message).toBe(
+        "Hari kerja aktual harus antara 1 dan 30 hari.",
+      );
+    }
+    expect(payrollEditFormSchema.safeParse({ ...base, actualWorkDays: "22" }).success).toBe(true);
+    expect(payrollEditFormSchema.safeParse({ ...base, actualWorkDays: "30" }).success).toBe(true);
+  });
+});
+
+describe("HRX-4 adjustment bounds", () => {
+  const note = { adjustmentNote: "x" };
+
+  it("rejects fractional amounts (BSI export expects whole rupiah)", () => {
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: 0.5, ...note }).success).toBe(false);
+    expect(adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "100.5", ...note }).success).toBe(false);
+  });
+
+  it("caps the magnitude at Rp 1.000.000.000 in both directions", () => {
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: 1_000_000_000, ...note }).success).toBe(true);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: -1_000_000_000, ...note }).success).toBe(true);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: 1_000_000_001, ...note }).success).toBe(false);
+    expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: -1e15, ...note }).success).toBe(false);
+    const form = adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "1e15", ...note });
+    expect(form.success).toBe(false);
+    if (!form.success) expect(form.error.issues[0].message).toBe("Penyesuaian maksimal Rp 1.000.000.000");
+  });
+
+  it("bounds variable day counts so an absurd value never reaches the Int column", () => {
+    const r = payrollVariablesSchema.safeParse({ overtimeHours: 0, outdoorDays: 99999999999, holidayWorkedDays: 0, dcDays: 0 });
+    expect(r.success).toBe(false);
+  });
+});

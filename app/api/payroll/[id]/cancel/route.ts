@@ -49,7 +49,7 @@ export async function POST(
   });
   if (flip.count === 0) {
     return NextResponse.json(
-      { error: "Hanya draft yang bisa dibatalkan" },
+      { error: "Hanya draf yang bisa dibatalkan" },
       { status: 409 }
     );
   }

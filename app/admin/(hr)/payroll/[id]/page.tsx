@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
@@ -23,13 +23,14 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
-import { Download, Check, Pencil, Settings2, X } from "lucide-react";
+import { Download, Check, Pencil, Settings2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import { adjustPayrollLineFormSchema, payrollEditFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { readApiError } from "@/lib/api/client-errors";
 
 type PayrollLine = {
   id: string; labelSnapshot: string; categorySnapshot: string;
@@ -51,6 +52,7 @@ type PayrollData = {
 
 export default function PayrollDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [data, setData] = useState<PayrollData | null>(null);
   const [loading, setLoading] = useState(true);
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -63,6 +65,8 @@ export default function PayrollDetailPage() {
   const [varsModal, setVarsModal] = useState<PayrollItem | null>(null);
   const [lineModal, setLineModal] = useState<{ item: PayrollItem; line: PayrollLine } | null>(null);
   const [approveModal, setApproveModal] = useState(false);
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Vars form
   const varsFormId = useId();
@@ -241,12 +245,12 @@ export default function PayrollDetailPage() {
   const saveVars = varsForm.handleSubmit(async (values) => {
     if (!varsModal) return;
     try {
-      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Variabel belum tersimpan. Coba lagi sebentar.");
       toast.success("Variabel diperbarui");
       setVarsModal(null);
       fetchData();
     } catch (err) {
-      applyServerErrors(varsForm, err, "Gagal menyimpan");
+      applyServerErrors(varsForm, err, "Variabel belum tersimpan. Coba lagi sebentar.");
     }
   });
 
@@ -264,12 +268,12 @@ export default function PayrollDetailPage() {
   const saveLineAdj = adjForm.handleSubmit(async (values) => {
     if (!lineModal) return;
     try {
-      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Gagal");
+      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Penyesuaian belum tersimpan. Coba lagi sebentar.");
       toast.success("Penyesuaian disimpan");
       setLineModal(null);
       fetchData();
     } catch (err) {
-      applyServerErrors(adjForm, err, "Gagal");
+      applyServerErrors(adjForm, err, "Penyesuaian belum tersimpan. Coba lagi sebentar.");
     }
   });
 
@@ -279,14 +283,35 @@ export default function PayrollDetailPage() {
       const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
       if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
       else {
-        toast.error("Gagal menyetujui");
+        // The API's own sentence ("Periode belum selesai. …", negative-net
+        // names) is the useful part — show it instead of a bare failure.
+        const err = await readApiError(res, "Penggajian belum bisa disetujui. Coba lagi sebentar.");
+        toast.error(err.message);
         // Re-thrown so ConfirmDialog keeps the modal open for retry instead
         // of closing after a failed approve (it only closes when onConfirm
         // resolves without throwing).
-        throw new Error("approve failed");
+        throw err;
       }
     } finally {
       setApproving(false);
+    }
+  }
+
+  // HR-11: a DRAFT run can be discarded (the API drops its slips). Only the
+  // DRAFT -> CANCELLED flip exists server-side, so the button is DRAFT-only.
+  async function handleCancelDraft() {
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/payroll/${id}/cancel`, { method: "POST" });
+      if (!res.ok) {
+        const err = await readApiError(res, "Draf belum bisa dibatalkan. Coba lagi sebentar.");
+        toast.error(err.message);
+        throw err; // keeps the dialog open for a retry
+      }
+      toast.success("Draf penggajian dibatalkan");
+      router.push("/admin/payroll");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -311,12 +336,12 @@ export default function PayrollDetailPage() {
 
   const savePeriod = periodForm.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/payroll/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/payroll/${id}`, { method: "PUT", body: values }, "Periode belum tersimpan. Coba lagi sebentar.");
       toast.success("Periode diperbarui");
       setIsEditing(false);
       fetchData();
     } catch (err) {
-      applyServerErrors(periodForm, err, "Gagal menyimpan");
+      applyServerErrors(periodForm, err, "Periode belum tersimpan. Coba lagi sebentar.");
     }
   });
 
@@ -341,7 +366,12 @@ export default function PayrollDetailPage() {
           <>
             {isDraft && !isEditing && (
               <Button size="sm" variant="outline" onClick={openEdit} data-testid="payroll-edit-btn">
-                <Pencil size={14} className="mr-1.5" /> Edit
+                <Pencil size={14} className="mr-1.5" /> Ubah
+              </Button>
+            )}
+            {isDraft && (
+              <Button size="sm" variant="outline" onClick={() => setCancelModal(true)} data-testid="payroll-cancel-draft-btn" className="text-destructive hover:text-destructive">
+                <Trash2 size={14} className="mr-1.5" /> Batalkan draf
               </Button>
             )}
             {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
@@ -412,8 +442,9 @@ export default function PayrollDetailPage() {
               name="actualWorkDays"
               label="Hari Kerja Aktual"
               id="payroll-actual-work-days"
+              description="Mengubah hari kerja aktual tidak menghitung ulang slip. Buat ulang penggajian bila perlu."
               render={({ field, controlProps }) => (
-                <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} />
+                <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={1} />
               )}
             />
           </div>
@@ -477,11 +508,12 @@ export default function PayrollDetailPage() {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="mt-6 space-y-4">
+              {/* Sheet body padding — SheetContent has none, SheetHeader brings its own px */}
+              <div className="mt-6 space-y-4 px-4 pb-4" data-testid="payroll-item-sheet-body">
                 {/* Variables button */}
                 {isDraft && (
                   <Button variant="link" size="sm" onClick={() => openVars(detailItem)} className="gap-1.5">
-                    <Settings2 size={12} /> Edit Variabel Kehadiran
+                    <Settings2 size={12} /> Ubah variabel kehadiran
                   </Button>
                 )}
 
@@ -500,7 +532,7 @@ export default function PayrollDetailPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-currency">{formatRupiah(line.finalAmount)}</span>
                         {isDraft && (
-                          <Button type="button" size="icon-sm" variant="ghost" onClick={() => openLineAdj(detailItem, line)} aria-label={`Edit penyesuaian ${line.labelSnapshot}`} className="text-muted-foreground">
+                          <Button type="button" size="icon-sm" variant="ghost" onClick={() => openLineAdj(detailItem, line)} aria-label={`Ubah penyesuaian ${line.labelSnapshot}`} className="text-muted-foreground">
                             <Pencil size={12} />
                           </Button>
                         )}
@@ -626,6 +658,19 @@ export default function PayrollDetailPage() {
           <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + liveAdjustmentAmount)}</span></p>
         </form>
       </ResponsiveFormDialog>
+
+      {/* Cancel draft — discards the run's slips (HR-11) */}
+      <ConfirmDialog
+        open={cancelModal}
+        onOpenChange={setCancelModal}
+        title="Batalkan draf penggajian?"
+        description="Semua slip dalam draf ini akan dibuang dan tidak bisa dikembalikan. Anda bisa membuat draf baru untuk periode yang sama."
+        confirmLabel="Batalkan draf"
+        cancelLabel="Kembali"
+        destructive
+        onConfirm={handleCancelDraft}
+        loading={cancelling}
+      />
 
       {/* Approve — irreversible (locks attendance) */}
       <ConfirmDialog
