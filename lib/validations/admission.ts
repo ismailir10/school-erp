@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { optionalTrimmed, optionalEnum, partialWithoutDefaults } from "./zod-helpers";
+import { cleanText, labelText, longText, nameText } from "./text";
+
+const short = (max: number) => cleanText({ max, singleLine: true });
 
 /**
  * Admin-side create/update schemas for Admission rows.
@@ -16,29 +19,29 @@ import { optionalTrimmed, optionalEnum, partialWithoutDefaults } from "./zod-hel
  * legacy rows, but new writes never set it.
  */
 export const createAdmissionSchema = z.object({
-  childName: z.string().min(1, "Nama anak wajib diisi"),
+  childName: nameText({ required: "Nama anak wajib diisi" }),
   // optionalEnum: form `<Select>` whose value is "" must coerce to undefined
   // before z.enum() runs; .optional() alone only allows undefined, not "".
   childGender: optionalEnum(z.enum(["L", "P"])),
-  dateOfBirth: optionalTrimmed(z.string()),
-  parentName: z.string().min(1, "Nama orang tua wajib diisi"),
-  parentPhone: optionalTrimmed(z.string()),
-  parentEmail: optionalTrimmed(z.string().email("Email tidak valid")),
-  parentWhatsapp: optionalTrimmed(z.string()),
-  parentEducation: optionalTrimmed(z.string()),
-  parentOccupation: optionalTrimmed(z.string()),
-  parentIncome: optionalTrimmed(z.string()),
+  dateOfBirth: optionalTrimmed(short(32)),
+  parentName: nameText({ required: "Nama orang tua wajib diisi" }),
+  parentPhone: optionalTrimmed(short(30)),
+  parentEmail: optionalTrimmed(z.string().email("Email tidak valid").max(254, "Maksimal 254 karakter.")),
+  parentWhatsapp: optionalTrimmed(short(30)),
+  parentEducation: optionalTrimmed(labelText({ max: 100 })),
+  parentOccupation: optionalTrimmed(labelText({ max: 100 })),
+  parentIncome: optionalTrimmed(short(50)),
   parentRelationship: optionalEnum(z.enum(["AYAH", "IBU", "WALI", "OTHER"])),
-  programId: optionalTrimmed(z.string()),
+  programId: optionalTrimmed(short(64)),
   // Campus ID — preferred campus for the resulting enrollment when convert
   // creates one. Convert today only creates Student + Parent, so per cycle
   // assumption #3 this value is stashed on Student.metadata.campusPreference
   // during convert (T11). Optional so existing admissions without a campus
   // preference still round-trip cleanly.
-  campusPreference: optionalTrimmed(z.string()),
+  campusPreference: optionalTrimmed(short(64)),
   source: z.enum(["WHATSAPP", "WALK_IN", "WEBSITE", "REFERRAL", "OTHER"]).default("WALK_IN"),
-  notes: optionalTrimmed(z.string()),
-  followUpDate: optionalTrimmed(z.string()),
+  notes: optionalTrimmed(longText()),
+  followUpDate: optionalTrimmed(short(32)),
 });
 
 // partialWithoutDefaults: a bare `.partial()` keeps `source`'s WALK_IN default in
