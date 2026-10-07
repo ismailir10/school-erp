@@ -46,7 +46,7 @@ The 2026-10-07 signed-in staging walk of the enrollment-documents release (#605/
 - [x] **T3 — WhatsApp prefill fallback (independent).** `app/api/enrollments/invite/route.ts`. *Accept:* invite test: `parentPhone` null + `parentWhatsapp` set → `ayahData.phone` is the WhatsApp number; `parentPhone` still wins when both are set.
 - [x] **T4 — Convert in the header + link to student (independent).** `app/admin/enrollments/[id]/page.tsx`. *Accept:* page tests: ACCEPTED shows header "Konversi ke Siswa" opening the confirm, exactly one such button; converted shows "Lihat siswa" → `/admin/students/<id>`; e2e `enrollment-application.spec.ts` selectors still match.
 - [x] **T5 — Menu width + titles (independent).** `components/ui/data-table-row-actions.tsx`, `components/admin/detail-page-header.tsx`, `app/pendaftaran/[token]/page.tsx`, `app/daftar/page.tsx`. *Accept:* menu content carries the width classes (unit assertion); titles have no "— Talib".
-- [ ] **T6 — Guardian Hapus confirm (independent).** `app/admin/guardians/[id]/page.tsx` `DocumentUploadCell` uses `ConfirmDialog`. *Accept:* test: clicking Hapus issues no DELETE until "Ya, Hapus" is confirmed; "Batal" issues none.
+- [x] **T6 — Guardian Hapus confirm (independent).** `app/admin/guardians/[id]/page.tsx` `DocumentUploadCell` uses `ConfirmDialog`. *Accept:* test: clicking Hapus issues no DELETE until "Ya, Hapus" is confirmed; "Batal" issues none.
 
 ## Implementation
 
@@ -56,10 +56,11 @@ The 2026-10-07 signed-in staging walk of the enrollment-documents release (#605/
 - **T3** — `invite/route.ts` prefill phone is `parentPhone || parentWhatsapp || undefined` (`||` rather than the spec's `??` so a legacy blank-string phone also falls back). Four invite tests: WhatsApp fallback, blank-phone fallback, `parentPhone` wins, both empty stays undefined. Reviewers (feature-dev + superpowers): no issues.
 - **T4** — `app/admin/enrollments/[id]/page.tsx`: ACCEPTED's header leads with filled "Konversi ke Siswa" (opens the existing confirm) beside outline "Kembali ke Tinjau"; bottom bar removed; converted notice gets a "Lihat siswa" link; the convert success toast gets a "Lihat siswa" action (`router.push`, only when the response carries `student.id`). Tests mock `next/navigation`. No e2e selector referenced the button (all convert specs call the API). Reviewers (feature-dev + superpowers): no issues.
 - **T5** — `DataTableRowActions` and the `DetailPageHeader` overflow menu pass `className="w-auto min-w-40"` to `DropdownMenuContent` (twMerge replaces the primitive's `w-(--anchor-width) min-w-32`; primitive untouched). Page titles in `app/daftar/page.tsx` and `app/pendaftaran/[token]/page.tsx` drop the " — Talib" suffix. New tests: row-actions menu classes, header overflow menu classes, `titles.test.ts`. Other "— Talib" strings left alone on purpose: the two email subjects/HTML `<title>`s in `lib/email/{enrollment-invite,admission-submitted}.ts` and `lib/email/templates/*` (not browser tab titles, no template suffix applies). Reviewers (feature-dev + superpowers): no issues.
+- **T6** — `DocumentUploadCell` (`app/admin/guardians/[id]/page.tsx`) takes a `parentName` prop; Hapus opens a destructive `ConfirmDialog` ("Hapus KTP?"/"Hapus KK?", body per Assumption 5, "Ya, Hapus"/"Batal"); `handleDelete` runs only on confirm. New `document-delete-confirm.test.tsx`: no DELETE before confirm, one DELETE after, none after Batal, KK row, failed delete toasts and closes. Reviewers (feature-dev + superpowers): no issues.
 
 ## Verification
 
 - Frontend: `design-system` reference checked (parent form keeps the existing emerald palette, Alert + row copy unchanged in style).
-- T1/T2 between-task gates: `npm run build` exit 0, `npx vitest run` exit 0 (T2: 495 files passed | 2 skipped, 4659 tests passed | 42 todo; T3: 4662 passed; T4: 4668 passed; T5: 497 files passed | 2 skipped, 4672 tests passed | 42 todo).
+- T1/T2 between-task gates: `npm run build` exit 0, `npx vitest run` exit 0 (T2: 495 files passed | 2 skipped, 4659 tests passed | 42 todo; T3: 4662 passed; T4: 4668 passed; T5: 497 files passed | 2 skipped, 4672 tests passed | 42 todo; T6: 498 files passed | 2 skipped, 4676 tests passed | 42 todo).
 
 ## Ship Notes
