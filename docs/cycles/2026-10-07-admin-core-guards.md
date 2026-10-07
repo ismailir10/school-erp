@@ -38,7 +38,7 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - [x] **T2 — Student pages.** `app/admin/students/**` (page, detail page, dialogs) and student components it owns (+ tests). ADM-1 (UI), ADM-2 (UI), ADM-3, ADM-4, CORE-13 (UI). Depends on T1's response shapes (409 codes listed in this doc): `STUDENT_NOT_ACTIVE`, `NIS_TAKEN` (field `nis`), `DUPLICATE_STUDENT` (retry with `confirmDuplicate: true`).
 - [x] **T3 — Classes.** `app/api/admin/classes/[id]/route.ts`, `lib/classes/health.ts`, `components/admin/class-section-picker.tsx`, `app/admin/classes/**` (+ tests). ADM-5, CORE-20, CORE-21. Independent.
 - [x] **T4 — Small admin polish.** `components/admin/guardian-edit-dialog.tsx`, `app/admin/settings/users/page.tsx`, `components/ui/calendar.tsx`, `components/ui/date-picker.tsx`, `lib/dashboard/activity-feed.ts` (+ tests). CORE-11, ADM-16, ADM-8, DOC-6. Independent.
-- [ ] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
+- [x] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
 
 ## Implementation
 - Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4] parallel (disjoint files; T2 codes against the 409 contract written in this doc), T5 sequential by the driver, who reviews each diff and commits per task.
@@ -53,5 +53,18 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 ## Verification
 - Frontend diffs checked against `.claude/standards/design-system.html` (neutral muted pill, disabled combobox rows, inline field errors); no new colours.
 - T3: `npx vitest run app/api/__tests__/admin-classes-capacity-guard.test.ts components/admin/__tests__/class-section-picker.test.tsx lib/classes/__tests__/health.test.ts app/admin/classes components/ui/__tests__/async-combobox.test.tsx app/api/__tests__/admin-classes-historical-roster.test.ts` → 8 files, 81 passed. T1: `npx vitest run app/api/__tests__/{enroll,class-enrollments-add,enrollment-doors-parity,students-enroll-promote-year-guard,students-update-put,student-lifecycle-validation,students-employees-authz}.test.ts app/api/students app/api/admin/classes` → 18 files, 203 passed. T4: `npx vitest run components/ui/__tests__/calendar.test.tsx components/ui/__tests__/date-picker.test.tsx components/admin/__tests__/guardian-edit-dialog.test.tsx app/admin/settings/users lib/dashboard/__tests__/activity-feed.test.ts` → 62 passed. T2: `npx vitest run app/admin/students components/admin/students` → 74 passed. Full gate at T5.
+- End-of-cycle gate (head `e2ce6fe`, before the #612 staging merge): `npm run build` passed; `npx vitest run` → 517 files passed, 2 skipped; 4963 tests passed, 42 todo. Playwright: deferred to the required CI `Playwright E2E` check (green on `e2ce6fe`; re-runs on this head). After merging staging (#612 api-integrity; the only file both sides touched is `app/api/students/route.ts`, merged cleanly): `tsc --noEmit` clean, `npx vitest run app/api/students app/api/__tests__ app/admin/students lib/students` → 129 files, 1255 passed.
+- Ship verification route: app behaviour, non-auth → local demo-auth production build (`DEMO_MODE=true next start`, fresh disposable Postgres `talib_c5`), source SHA `e2ce6fe`. Results:
+  - ADM-1: enrolling the seeded WITHDRAWN student → 409 `STUDENT_NOT_ACTIVE` "Siswa berstatus Keluar tidak bisa didaftarkan ke kelas. Aktifkan kembali dulu." from both doors (student and class); 0 active enrolments created. `PUT status: ACTIVE` → 200, status ACTIVE, withdrawal date and reason cleared. Student page for a withdrawn student: "Daftarkan ke Kelas" 0, "Aktifkan kembali" 1, "Luluskan" 0.
+  - ADM-10: enrolling an already-enrolled student with no override → 409 `ALREADY_ENROLLED` (no age prompt first).
+  - ADM-2: taken NIS → 409 `NIS_TAKEN` "NIS sudah dipakai oleh Ahmad Zafran Hidayat." with `field: nis`; same name + DOB → 409 `DUPLICATE_STUDENT`; with `confirmDuplicate` → 201; `confirmDuplicate` never bypasses a taken NIS (409).
+  - ADM-5: capacity 1 on a class of 19 → 409 "Kapasitas tidak bisa lebih kecil dari jumlah siswa aktif (19 siswa).", capacity unchanged (24).
+  - ADM-4: `/admin/students?q=ah&status=ACTIVE` → open a student → Back restores `?q=ah&status=ACTIVE` and the search box.
+  - No console errors or 5xx.
+- Auth impact: none (no auth/session/proxy files). No `needs-staging-verify`.
 
 ## Ship Notes
+- No schema migration, no new dependency, no env var.
+- Behaviour changes users will notice: withdrawn/graduated students cannot be enrolled until reactivated ("Aktifkan kembali"); duplicate NIS is refused and an identical name + birth date asks for confirmation; class capacity cannot go below the active roster; full classes show "Penuh" in the enrol picker; the single-student enrol limit is 30/min per user.
+- Existing data is untouched: students already WITHDRAWN with an ACTIVE enrolment (from the old bug) stay as they are — worth a one-off check on production (`Student.status <> 'ACTIVE'` joined to ACTIVE `StudentEnrollment`).
+- Rollback: revert the squash commit on `staging`; no data shape changed.
