@@ -34,6 +34,11 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
+// Cache eviction is a Next runtime call; spy on it instead of loading
+// unstable_cache (parent-helpers pulls in the whole parent portal graph).
+const { invalidateParentChildren } = vi.hoisted(() => ({ invalidateParentChildren: vi.fn() }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
+
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ success: true }),
   getClientIp: () => "127.0.0.1",
@@ -99,6 +104,30 @@ function baseGuardian() {
 
 describe("PUT /api/guardians/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("evicts the parent-children cache only after a successful update (STR-15)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(baseGuardian() as never);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) =>
+      cb({ studentGuardian: { updateMany: vi.fn(), update: vi.fn().mockResolvedValue({ id: "g-1" }) } }),
+    );
+    const { PUT } = await import("../guardians/[id]/route");
+    const params = { params: Promise.resolve({ id: "g-1" }) };
+
+    // Duplicate email → 409 before any link write: no eviction.
+    vi.mocked(prisma.parent.update).mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("dupe", { code: "P2002", clientVersion: "test" }),
+    );
+    expect((await PUT(makeReq({ email: "dupe@x.com" }) as never, params)).status).toBe(409);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
+
+    vi.mocked(prisma.parent.update).mockResolvedValue({} as never);
+    expect((await PUT(makeReq({ name: "Bu Ani" }) as never, params)).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
 
   it("returns 409 when parent.update rejects with P2002 (duplicate email)", async () => {
     const { getSession } = await import("@/lib/auth");
@@ -166,6 +195,17 @@ describe("PUT /api/guardians/[id]", () => {
  * an empty primary slot re-promotes.
  */
 describe("PATCH /api/guardians/[id] — status toggle keeps one active primary (T2 / CORE-4)", () => {
+  it("evicts the parent-children cache after a status change, not after a rejected one (STR-15)", async () => {
+    const prisma = await arrange({ ...baseGuardian(), isPrimary: false });
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([]);
+    expect((await call({ status: "INACTIVE" })).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+
+    invalidateParentChildren.mockClear();
+    expect((await call({ status: "BOGUS" })).status).toBe(400);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
+  });
+
   async function arrange(guardian: Record<string, unknown>) {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");

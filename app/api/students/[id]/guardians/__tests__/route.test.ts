@@ -64,6 +64,11 @@ function existingParent(
   };
 }
 
+// Cache eviction is a Next runtime call; spy on it instead of loading
+// unstable_cache (parent-helpers pulls in the whole parent portal graph).
+const { invalidateParentChildren } = vi.hoisted(() => ({ invalidateParentChildren: vi.fn() }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
+
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ success: true }),
   getClientIp: () => "127.0.0.1",
@@ -205,6 +210,34 @@ beforeEach(() => {
   state.forceP2034Once = false;
   state.txAttempts = 0;
   state.existingParents = [];
+  invalidateParentChildren.mockClear();
+});
+
+describe("POST guardians — parent-children cache eviction (STR-15)", () => {
+  it("evicts after linking an existing parent", async () => {
+    expect((await post({ parentId: "p1", relationship: "IBU" })).status).toBe(201);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("evicts after reactivating an INACTIVE link", async () => {
+    state.existingLink = { id: "sg1", status: "INACTIVE" };
+    expect((await post({ parentId: "p1", relationship: "WALI" })).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("evicts after creating a brand-new wali", async () => {
+    const res = await post({ name: "Wali Baru", relationship: "AYAH", confirmNew: true });
+    expect(res.status).toBe(201);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not evict when the write is rejected", async () => {
+    state.existingLink = { id: "sg1", status: "ACTIVE" };
+    expect((await post({ parentId: "p1", relationship: "IBU" })).status).toBe(409);
+    state.parent = null;
+    expect((await post({ parentId: "ghost", relationship: "IBU" })).status).toBe(404);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST guardians — link an existing parent", () => {
