@@ -52,9 +52,9 @@ export function KidCard({ id, name, className, todayStatus, teacherNote, foot }:
           </Link>
         </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2" aria-label={`Informasi lain ${name}`}>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/parent/perkembangan/${id}`}>Perkembangan</Link>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/reports", id)}>Rapor</Link>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/invoices", id)}>Tagihan</Link>
+          <Link className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/parent/perkembangan/${id}`}>Perkembangan</Link>
+          <Link className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/reports", id)}>Rapor</Link>
+          <Link className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/invoices", id)}>Tagihan</Link>
         </nav>
       </CardContent>
     </Card>

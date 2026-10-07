@@ -56,5 +56,6 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 ## Verification
 - Frontend diffs checked against `.claude/standards/design-system.html` tokens (surface `bg-background`, 44 px targets); no new colours.
 - T1: `npx vitest run lib/__tests__/parent-attendance-banner.test.ts app/parent/attendance` → 15 passed. Full `npm run build && npx vitest run` runs at T6 once the parallel slices are in.
+- T2: `npx vitest run app/parent/invoices lib/__tests__/parent-payment-method.test.ts app/api/__tests__/guardian-invoice-pdf-route.test.ts` → 5 files, 64 tests passed (subagent run, re-checked at T6).
 
 ## Ship Notes

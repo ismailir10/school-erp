@@ -182,19 +182,31 @@ export async function getParentWithChildren(session: SessionUser) {
 
 /**
  * Resolve which child is selected from the URL param, defaulting to first.
+ * `rejectedChildId` is the requested id when it was NOT one of the parent's
+ * own children (foreign, deleted, typo) and the first child was substituted —
+ * pages use it to tell the parent instead of silently swapping. Resolution
+ * itself is unchanged: only guardian-linked children are ever returned.
  */
+export function resolveSelectedChildWithStatus(
+  children: ParentChild[],
+  childParam: string | undefined
+): { child: ParentChild | null; rejectedChildId: string | null } {
+  if (children.length === 0) return { child: null, rejectedChildId: null };
+
+  if (childParam) {
+    const found = children.find((c) => c.studentId === childParam);
+    if (found) return { child: found, rejectedChildId: null };
+    return { child: children[0], rejectedChildId: childParam };
+  }
+
+  return { child: children[0], rejectedChildId: null };
+}
+
 export function resolveSelectedChild(
   children: ParentChild[],
   childParam: string | undefined
 ): ParentChild | null {
-  if (children.length === 0) return null;
-
-  if (childParam) {
-    const found = children.find((c) => c.studentId === childParam);
-    if (found) return found;
-  }
-
-  return children[0];
+  return resolveSelectedChildWithStatus(children, childParam).child;
 }
 
 /**

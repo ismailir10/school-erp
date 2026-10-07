@@ -21,6 +21,8 @@ import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
 import { formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
+import { childShortName } from "@/lib/parent/child-name";
+import { ChildParamNotice } from "@/components/parent/child-param-notice";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -319,11 +321,18 @@ export default function ParentStudentJournalPage() {
         its own line underneath — three different presentations of one child on
         one screen.
       */}
+      {childId && selectedChild ? (
+        <ChildParamNotice
+          knownIds={children.map((c) => c.id)}
+          selectedChildId={childId}
+          selectedName={childShortName(selectedChild)}
+        />
+      ) : null}
       {children.length > 1 && (
         <PortalTabs
           items={children.map((c) => ({
             id: c.id,
-            label: c.nickname ?? c.name.trim().split(/\s+/)[0] ?? c.name,
+            label: childShortName(c),
             count: unreadByChild[c.id] || undefined,
           }))}
           activeId={childId ?? ""}
@@ -476,6 +485,7 @@ export default function ParentStudentJournalPage() {
               <Button
                 size="sm"
                 variant="outline"
+                className="min-h-11 px-4"
                 onClick={() => setNoteDialog({ mode: "create" })}
               >
                 <Plus size={14} className="mr-1" />
