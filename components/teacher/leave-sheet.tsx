@@ -176,28 +176,43 @@ export function LeaveSheet({
       return;
     }
     setSaving(true);
-    const res = await fetch("/api/leave/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
-      toast.success("Pengajuan cuti terkirim");
-      setDialogOpen(false);
-      setForm({ leaveType: "ANNUAL", startDate: "", endDate: "", reason: "" });
-      refetchAfterMutation();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Pengajuan tidak terkirim. Coba lagi sebentar ya.");
+    // TCHX-2: a dropped connection makes fetch() reject, which used to skip
+    // setSaving(false) and leave both buttons disabled forever. The form values
+    // are kept on every failure so she can retry.
+    try {
+      const res = await fetch("/api/leave/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        toast.success("Pengajuan cuti terkirim");
+        setDialogOpen(false);
+        setForm({ leaveType: "ANNUAL", startDate: "", endDate: "", reason: "" });
+        refetchAfterMutation();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Pengajuan tidak terkirim. Coba lagi sebentar ya.");
+      }
+    } catch {
+      toast.error("Koneksi terputus. Pengajuan belum terkirim — coba lagi.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleCancel() {
     if (!cancelTarget) return;
-    const res = await fetch(`/api/leave/requests/${cancelTarget}/cancel`, {
-      method: "POST",
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/leave/requests/${cancelTarget}/cancel`, {
+        method: "POST",
+      });
+    } catch (err) {
+      toast.error("Koneksi terputus. Pembatalan belum terkirim — coba lagi.");
+      // Rethrow: ConfirmDialog stays open and re-enables its buttons for a retry.
+      throw err;
+    }
     if (res.ok) {
       toast.success("Pengajuan dibatalkan");
       refetchAfterMutation();

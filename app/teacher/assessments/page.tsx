@@ -63,26 +63,31 @@ export default async function TeacherAssessmentsPage() {
     },
   });
 
-  if (assignmentCount === 0) {
-    return (
-      <div>
-        <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
-        <EmptyState
-          icon={ClipboardList}
-          title="Belum ditugaskan ke kelas"
-          description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu."
-          actionLabel="Kembali ke beranda"
-          actionHref="/teacher"
-        />
-      </div>
-    );
-  }
+  // TCHX-5: no class assignment only hides the walas (pekanan) part. Sentra
+  // tiles are open to every teacher — the center page itself does not need an
+  // assignment — so the notice sits above them instead of replacing them.
+  const hasNoClass = assignmentCount === 0 && !homeroom;
 
   return (
     <div>
       <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
 
       <div className="space-y-6">
+        {hasNoClass && (
+          <div
+            role="status"
+            data-testid="hub-no-class"
+            className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-card"
+          >
+            <ClipboardList className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Belum ditugaskan ke kelas</p>
+              <p className="text-xs text-muted-foreground">
+                Penilaian pekanan muncul setelah Anda ditugaskan sebagai wali kelas. Sentra tetap bisa dinilai di bawah.
+              </p>
+            </div>
+          </div>
+        )}
         {homeroom && (
           <Link
             href="/teacher/assessments/weekly"

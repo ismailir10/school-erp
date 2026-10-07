@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
 import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
+import { formatPeriodRange, periodMonthLabel } from "../helpers";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -101,13 +102,6 @@ async function fetchSlipDetail(id: string, tenantId: string): Promise<SlipDetail
   };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Format "2026-03-01 s/d 2026-03-31" → "Maret 2026" */
-function formatPeriodHeader(periodStart: string): string {
-  return formatDate(periodStart, { month: "long", year: "numeric" });
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function SlipDetailPage({
@@ -141,8 +135,8 @@ export default async function SlipDetailPage({
   );
 
   const employeeName = slip.employee.formalName ?? slip.employee.nama;
-  const periodHeader = formatPeriodHeader(slip.payrollRun.periodStart);
-  const periodLabel = `${formatDate(slip.payrollRun.periodStart)} s/d ${formatDate(slip.payrollRun.periodEnd)}`;
+  const periodHeader = periodMonthLabel(slip.payrollRun.periodEnd);
+  const periodLabel = formatPeriodRange(slip.payrollRun.periodStart, slip.payrollRun.periodEnd);
 
   return (
     <div className="space-y-4">
@@ -327,7 +321,7 @@ export default async function SlipDetailPage({
           Tanggal cetak: {formatDate(getTodayInTimezone("Asia/Jakarta"))}
         </p>
         <p className="text-caption text-muted-foreground mt-0.5">
-          Slip ini dihasilkan otomatis oleh sistem An Nisaa&apos; ERP. Dokumen resmi.
+          Slip ini dihasilkan otomatis oleh Talib by An Nisaa&apos; Sekolahku. Dokumen resmi.
         </p>
       </div>
     </div>

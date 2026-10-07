@@ -86,4 +86,30 @@ describe("NoteThread", () => {
     expect(screen.getByText("IR")).toBeInTheDocument();
     expect(screen.getByText("Guru")).toBeInTheDocument();
   });
+
+  it("wraps an unbroken string inside the card instead of widening the page (PARX-3)", () => {
+    render(<NoteThread notes={[{ ...baseNote, body: "x".repeat(2000), authorName: "Bu Sari" }]} />);
+
+    const body = screen.getByText("x".repeat(2000));
+    expect(body.className).toContain("[overflow-wrap:anywhere]");
+    expect(body).toHaveClass("break-words", "min-w-0", "whitespace-pre-wrap");
+    expect(body.parentElement).toHaveClass("min-w-0");
+  });
+
+  it("gives the Edit and Hapus icon buttons a 44px tap area (PAR-14)", () => {
+    render(
+      <NoteThread
+        notes={[{ ...baseNote, authorName: "Bu Sari" }]}
+        canEdit={() => true}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+
+    for (const name of ["Edit catatan", "Hapus catatan"]) {
+      const btn = screen.getByLabelText(name);
+      // 28px button + 8px invisible halo top and bottom = 44px.
+      expect(btn).toHaveClass("relative", "before:absolute", "before:-inset-y-2");
+    }
+  });
 });

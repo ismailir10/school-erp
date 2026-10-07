@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
+const toastInfo = vi.hoisted(() => vi.fn());
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 vi.mock("sonner", () => ({
-  toast: { error: toastError, success: toastSuccess },
+  toast: { error: toastError, success: toastSuccess, info: toastInfo },
 }));
 
 import { SessionRosterClient, type RosterRow } from "../client";
@@ -53,26 +54,27 @@ describe("SessionRosterClient", () => {
     vi.unstubAllGlobals();
     toastError.mockClear();
     toastSuccess.mockClear();
+    toastInfo.mockClear();
   });
 
   it("keeps the save action clear of the navigation safe area and names its batch", () => {
     renderRoster();
 
-    const save = screen.getByRole("button", { name: "Simpan absensi · 2 siswa" });
+    const save = screen.getByRole("button", { name: "Simpan absensi" });
     const saveArea = save.parentElement;
     expect(saveArea?.className).toContain("bottom-[calc(4rem+env(safe-area-inset-bottom))]");
     expect(saveArea?.className).toContain("bg-background");
     expect(saveArea?.className).toContain("border-t");
 
     const status = screen.getByRole("button", {
-      name: "Ubah status Aisyah, saat ini Hadir. Ketuk untuk mengubah status.",
+      name: "Status Aisyah: Hadir. Ketuk untuk ganti.",
     });
     expect(status.className).toContain("min-h-11");
     expect(status.className).toContain("min-w-11");
     expect(status.className).toContain("focus-visible:ring-2");
   });
 
-  it("saves the cycled status with the full roster payload", async () => {
+  it("saves only the changed row, not the whole roster", async () => {
     let resolveSave!: (value: { ok: boolean; json: () => Promise<unknown> }) => void;
     const save = new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => {
       resolveSave = resolve;
@@ -81,8 +83,8 @@ describe("SessionRosterClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderRoster();
 
-    fireEvent.click(screen.getByRole("button", { name: /Ubah status Aisyah/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
+    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -91,15 +93,153 @@ describe("SessionRosterClient", () => {
     );
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(request.body as string)).toEqual({
-      rows: [
-        expect.objectContaining({ studentId: "s1", status: "ABSENT" }),
-        expect.objectContaining({ studentId: "s2", status: "PRESENT" }),
-      ],
+      rows: [expect.objectContaining({ studentId: "s1", status: "SICK" })],
     });
     expect(screen.getByRole("button", { name: "Menyimpan absensi…" })).toBeDisabled();
 
-    resolveSave({ ok: true, json: async () => ({ saved: 2, total: 2 }) });
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 2 siswa"));
+    resolveSave({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 1 siswa"));
+  });
+
+  it("never sends an untouched row (TCHX-1)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster();
+
+    // Tap masuk for Bilal only; Aisyah must stay out of the request.
+    fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.rows).toHaveLength(1);
+    expect(sent.rows[0]).toMatchObject({ studentId: "s2", status: "PRESENT" });
+    expect(sent.rows[0].checkInTime).toEqual(expect.any(String));
+  });
+
+  it("does not POST when nothing changed and says so calmly", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(toastInfo).toHaveBeenCalledWith("Tidak ada perubahan untuk disimpan.");
+  });
+
+  it("treats a change that is reverted by hand as no change", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster();
+
+    // Hadir → Sakit → Izin → Alpa → Hadir.
+    const status = () => screen.getByRole("button", { name: /Status Aisyah/ });
+    for (let i = 0; i < 4; i++) fireEvent.click(status());
+    expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("resets the baseline after a save so the next save sends only new changes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster();
+
+    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+    await screen.findByText("Semua perubahan tersimpan");
+    expect(screen.getByRole("button", { name: "Simpan absensi" })).toBeInTheDocument();
+
+    // Saving again with no new edit is a no-op.
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toastInfo).toHaveBeenCalledWith("Tidak ada perubahan untuk disimpan.");
+
+    // A new edit to Bilal sends Bilal only — Aisyah is no longer resent.
+    fireEvent.click(screen.getByRole("button", { name: /Status Bilal/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const sent = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+    expect(sent.rows).toEqual([expect.objectContaining({ studentId: "s2", status: "SICK" })]);
+  });
+
+  it("cycles Hadir → Sakit → Izin → Alpa → Hadir (class-attendance order)", () => {
+    renderRoster();
+    const label = (word: string) =>
+      screen.getByRole("button", { name: `Status Aisyah: ${word}. Ketuk untuk ganti.` });
+    for (const next of ["Sakit", "Izin", "Alpa", "Hadir"]) {
+      fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
+      expect(label(next)).toBeInTheDocument();
+    }
+    expect(screen.getByText(/Hadir → Sakit → Izin → Alpa/)).toBeInTheDocument();
+  });
+
+  it("hides masuk, pulang and the pickup form for a child who is not Hadir (TCHX-8)", () => {
+    renderRoster([{ ...roster[0], status: "ABSENT" }]);
+    expect(screen.queryByRole("button", { name: "Ketuk masuk" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ketuk pulang" })).toBeNull();
+    expect(screen.queryByText("Dijemput oleh")).toBeNull();
+  });
+
+  it("clears unsaved masuk, pulang and pickup when status moves off Hadir", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster([
+      {
+        ...roster[0],
+        checkInTime: "2026-08-03T01:00:00.000Z",
+        checkOutTime: "2026-08-03T05:00:00.000Z",
+        pickedUpByRelation: "PARENT",
+        pickedUpByName: "Ibu",
+      },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ })); // → Sakit
+    expect(screen.queryByText(/^Masuk /)).toBeNull();
+    expect(screen.queryByText("Dijemput oleh")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.rows[0]).toEqual({
+      studentId: "s1",
+      status: "SICK",
+      checkInTime: null,
+      checkOutTime: null,
+      pickedUpByRelation: null,
+      pickedUpByName: null,
+    });
+  });
+
+  it("lets a mistapped time be cleared before saving", () => {
+    vi.stubGlobal("fetch", vi.fn());
+    renderRoster();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+    expect(screen.getByText(/^Masuk /)).toBeInTheDocument();
+    expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hapus jam masuk Bilal" })).toBeNull();
+
+    const clear = screen.getByRole("button", { name: "Hapus jam masuk Aisyah" });
+    expect(clear.className).toContain("tap-target");
+    fireEvent.click(clear);
+    expect(screen.queryByText(/^Masuk /)).toBeNull();
+    // Back to the saved state — nothing left to save.
+    expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+  });
+
+  it("clearing pulang also drops the pickup form", () => {
+    vi.stubGlobal("fetch", vi.fn());
+    renderRoster();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Ketuk pulang" })[0]);
+    expect(screen.getByText("Dijemput oleh")).toBeInTheDocument();
+    // Masuk cannot be cleared while pulang is recorded.
+    expect(screen.queryByRole("button", { name: "Hapus jam masuk Aisyah" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hapus jam pulang Aisyah" }));
+    expect(screen.queryByText("Dijemput oleh")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Ketuk pulang" })[0]).toBeInTheDocument();
   });
 
   it("keeps validation local when another pickup relation requires a name", () => {
@@ -107,13 +247,17 @@ describe("SessionRosterClient", () => {
     renderRoster([
       {
         ...roster[0],
-        checkOutTime: "2026-08-03T08:00:00.000Z",
+        checkInTime: "2026-08-03T01:00:00.000Z",
+        checkOutTime: "2026-08-03T05:00:00.000Z",
         pickedUpByRelation: "OTHER",
-        pickedUpByName: "",
+        pickedUpByName: "Pak Dedi",
       },
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 siswa" }));
+    // Wiping the required name makes the row changed and invalid.
+    fireEvent.change(screen.getByLabelText("Nama penjemput Aisyah"), { target: { value: "" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
     expect(toastError).toHaveBeenCalledWith(
       "Isi nama penjemput untuk Aisyah (hubungan: Lainnya).",
     );
@@ -143,12 +287,15 @@ describe("SessionRosterClient", () => {
       renderRoster();
 
       fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
-      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
+      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
       await screen.findByText("Semua perubahan tersimpan");
       expect(screen.queryByText(/Belum disimpan/)).toBeNull();
-      expect(beforeUnloadPrevented()).toBe(false);
+      // The guard drops its beforeunload listener in an effect after the
+      // clean render, so wait for it instead of racing it (flaked in CI-like
+      // load: "expected true to be false").
+      await waitFor(() => expect(beforeUnloadPrevented()).toBe(false));
 
-      fireEvent.click(screen.getByRole("button", { name: /Ubah status Bilal/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Status Bilal/ }));
       expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
     });
 
@@ -156,7 +303,7 @@ describe("SessionRosterClient", () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "x" }) }));
       renderRoster();
       fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
-      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
+      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
       await waitFor(() => expect(toastError).toHaveBeenCalled());
       expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
     });
