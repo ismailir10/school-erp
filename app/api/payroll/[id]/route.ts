@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
-import { updatePayrollRunSchema } from "@/lib/validations/payroll";
+import {
+  actualWorkDaysRangeMessage,
+  calendarDaysInPeriod,
+  updatePayrollRunSchema,
+} from "@/lib/validations/payroll";
 
 export async function GET(
   _req: NextRequest,
@@ -94,6 +98,16 @@ export async function PUT(
           throw new Error("PERIOD_INVALID");
         }
 
+        // HRX-3: Hari Kerja Aktual is 1..calendar days of the (possibly updated)
+        // period. The schema enforces the lower bound; only here do we know the
+        // period. Checked against the effective value so shrinking the period
+        // under a stored value is caught too.
+        const maxWorkDays = calendarDaysInPeriod(nextStart, nextEnd);
+        const nextWorkDays = parsed.data.actualWorkDays ?? existing.actualWorkDays;
+        if (nextWorkDays > maxWorkDays) {
+          throw Object.assign(new Error("WORKDAYS_RANGE"), { msg: actualWorkDaysRangeMessage(maxWorkDays) });
+        }
+
         if (parsed.data.periodStart !== undefined || parsed.data.periodEnd !== undefined) {
           const overlapping = await tx.payrollRun.findFirst({
             where: {
@@ -118,8 +132,15 @@ export async function PUT(
   } catch (e) {
     if (e instanceof Error) {
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-      if (e.message === "NOT_DRAFT") return NextResponse.json({ error: "PayrollRun can only be edited while DRAFT" }, { status: 409 });
-      if (e.message === "PERIOD_INVALID") return NextResponse.json({ error: "periodStart harus <= periodEnd" }, { status: 400 });
+      if (e.message === "NOT_DRAFT") return NextResponse.json({ error: "Hanya draf yang bisa diubah" }, { status: 409 });
+      if (e.message === "PERIOD_INVALID") return NextResponse.json({ error: "Tanggal mulai periode harus sebelum atau sama dengan tanggal selesai" }, { status: 400 });
+      if (e.message === "WORKDAYS_RANGE") {
+        const msg = (e as Error & { msg: string }).msg;
+        return NextResponse.json(
+          { error: msg, errors: [{ field: "actualWorkDays", message: msg }] },
+          { status: 400 },
+        );
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (e.message === "OVERLAP") return NextResponse.json({ error: (e as any).msg }, { status: 409 });
     }

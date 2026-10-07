@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { findNegativeNet } from "@/lib/payroll/generation-guards";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { formatDate } from "@/lib/format";
 
 export async function POST(
   _req: NextRequest,
@@ -18,6 +20,23 @@ export async function POST(
   const payroll = await prisma.payrollRun.findUnique({ where: { id } });
   if (!payroll || payroll.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // HRX-5: approval locks attendance and publishes slips, so it can only happen
+  // once the period is over — the whole of periodEnd still counts as a working
+  // day, so the earliest approval date is the day after it (Asia/Jakarta).
+  // Only for DRAFT: any other status falls through to the 409 below.
+  if (payroll.status === "DRAFT") {
+    const today = getTodayInTimezone("Asia/Jakarta");
+    if (payroll.periodEnd >= today) {
+      const end = new Date(`${payroll.periodEnd}T00:00:00Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const firstDay = end.toISOString().slice(0, 10);
+      return NextResponse.json(
+        { error: `Periode belum selesai. Penggajian bisa disetujui mulai ${formatDate(firstDay)}.` },
+        { status: 409 },
+      );
+    }
   }
 
   // HR-12: a slip with a negative net amount must be fixed (adjustment, variable
@@ -57,7 +76,7 @@ export async function POST(
     // Either status was not DRAFT to begin with, or another approve raced
     // ahead. 409 is the correct shape for both — caller refetches state.
     return NextResponse.json(
-      { error: "Hanya draft yang bisa disetujui" },
+      { error: "Hanya draf yang bisa disetujui" },
       { status: 409 }
     );
   }

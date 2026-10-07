@@ -54,6 +54,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const body = parsed.data;
 
+  // FINX-3: PUT only ever moves DRAFT -> SENT. Every other target status has a
+  // dedicated owner — void route cancels, the payment ledger drives
+  // PARTIALLY_PAID/PAID, and the rest are system-managed — so a direct write
+  // would desync status from payments (a Rp 299.000 balance shown as "Lunas").
+  if (body.status && body.status !== "SENT") {
+    const message =
+      body.status === "CANCELLED"
+        ? "Gunakan Batalkan tagihan untuk membatalkan tagihan."
+        : body.status === "PAID" || body.status === "PARTIALLY_PAID"
+          ? "Status lunas mengikuti pembayaran yang dicatat. Gunakan Catat Pembayaran."
+          : "Status tagihan tidak bisa diubah langsung.";
+    return NextResponse.json({ error: message }, { status: 409 });
+  }
+
   // State-machine guard: only DRAFT -> SENT is valid via PUT. Xendit session
   // creation lives on the dedicated POST endpoints (manual create, batch,
   // retry-payment-links); this guard preserves status-machine purity so a

@@ -239,6 +239,15 @@ describe("updateBillingRunLineSchema", () => {
     expect(r.success).toBe(false);
   });
 
+  it("accepts the Rp 10 miliar ceiling and rejects anything above it (FINX-2)", () => {
+    expect(updateBillingRunLineSchema.safeParse({ finalAmount: 10_000_000_000 }).success).toBe(true);
+    const over = updateBillingRunLineSchema.safeParse({ finalAmount: 10_000_000_001 });
+    expect(over.success).toBe(false);
+    if (!over.success) expect(over.error.issues[0].message).toBe("Nominal maksimal Rp 10.000.000.000");
+    expect(updateBillingRunLineSchema.safeParse({ finalAmount: 99_999_999_999_999 }).success).toBe(false);
+    expect(updateBillingRunLineSchema.safeParse({ finalAmount: -10_000_000_001 }).success).toBe(false);
+  });
+
   it("rejects a missing finalAmount", () => {
     const r = updateBillingRunLineSchema.safeParse({});
     expect(r.success).toBe(false);

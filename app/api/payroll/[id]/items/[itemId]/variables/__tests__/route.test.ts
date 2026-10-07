@@ -108,3 +108,21 @@ describe("PUT .../variables — HR-2 manual adjustments survive a recalculation"
     expect(totals.netAmount.toString()).toBe("100000");
   });
 });
+
+describe("PUT .../variables — HRX-4 day counts bounded by the period", () => {
+  it("400s with per-field messages when Hari Outdoor 99 / Hari DC 31 exceed a 30-day period", async () => {
+    db.salaryComponentDef.findMany.mockResolvedValue([
+      { id: "gp1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 1 },
+    ]);
+    const res = await PUT(req({ outdoorDays: 99, dcDays: 31 }), { params } as never);
+    // 99 is also above the schema's own ceiling, so assert on the DC field (route bound)
+    expect(res.status).toBe(400);
+    expect(db.$transaction).not.toHaveBeenCalled();
+
+    const res2 = await PUT(req({ dcDays: 31 }), { params } as never);
+    expect(res2.status).toBe(400);
+    const body = await res2.json();
+    expect(body.errors).toEqual([{ field: "dcDays", message: "Hari DC harus antara 0 dan 30 hari." }]);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+});

@@ -43,11 +43,11 @@ function row(): BillingRunRowData {
   };
 }
 
-function renderLines(onLineRemoved = vi.fn()) {
+function renderLines(onLineRemoved = vi.fn(), rowData: BillingRunRowData = row()) {
   render(
     <EditableRowLines
       runId="run-1"
-      row={row()}
+      row={rowData}
       feeComponents={[]}
       onLineUpdated={vi.fn()}
       onLineAdded={vi.fn()}
@@ -128,5 +128,133 @@ describe("EditableRowLines — delete-line ConfirmDialog (T6)", () => {
     );
     expect(screen.getByText("Hapus baris tagihan ini?")).toBeInTheDocument();
     expect(onLineRemoved).not.toHaveBeenCalled();
+  });
+});
+
+describe("EditableRowLines — edit-line amount (FINX-1)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function patchedBody(fetchMock: ReturnType<typeof vi.fn>) {
+    const call = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(call).toBeDefined();
+    return JSON.parse(call![1].body as string);
+  }
+
+  function stubPatchOk() {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ line: row().lines[0], totalDue: 1_500_000 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("accepts a grouped id-ID amount and PATCHes the whole number", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    renderLines();
+
+    await user.click(screen.getByRole("button", { name: "Edit baris SPP September" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    expect(amount).toHaveValue("500.000");
+
+    await user.clear(amount);
+    await user.type(amount, "1.500.000");
+    expect(amount).toHaveValue("1.500.000");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(patchedBody(fetchMock).finalAmount).toBe(1_500_000);
+  });
+
+  it("reads 1500000,50 as 1.500.000, never 150.000.050", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    renderLines();
+
+    await user.click(screen.getByRole("button", { name: "Edit baris SPP September" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    await user.clear(amount);
+    await user.type(amount, "1500000,50");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(patchedBody(fetchMock).finalAmount).toBe(1_500_000);
+  });
+
+  it("allows zeroing a line", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    renderLines();
+
+    await user.click(screen.getByRole("button", { name: "Edit baris SPP September" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    await user.clear(amount);
+    await user.type(amount, "0");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(patchedBody(fetchMock).finalAmount).toBe(0);
+  });
+
+  it("keeps the 'bilangan bulat' message when the amount is cleared", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    renderLines();
+
+    await user.click(screen.getByRole("button", { name: "Edit baris SPP September" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    await user.clear(amount);
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(await screen.findByText("Jumlah harus berupa bilangan bulat")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a typed minus on a non-MANUAL line (fee components stay non-negative)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    renderLines();
+
+    await user.click(screen.getByRole("button", { name: "Edit baris SPP September" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    await user.clear(amount);
+    await user.type(amount, "-250000");
+    expect(amount).toHaveValue("250.000");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(patchedBody(fetchMock).finalAmount).toBe(250_000);
+  });
+
+  it("shows a MANUAL discount line's negative amount with its sign and keeps it negative", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubPatchOk();
+    const manual = row();
+    manual.lines = [
+      {
+        ...manual.lines[0]!,
+        id: "line-2",
+        labelSnapshot: "Potongan promo",
+        amount: 0,
+        adjustmentAmount: -100_000,
+        finalAmount: -100_000,
+        source: "MANUAL",
+      },
+    ];
+    renderLines(vi.fn(), manual);
+
+    await user.click(screen.getByRole("button", { name: "Edit baris Potongan promo" }));
+    const amount = await screen.findByRole("textbox", { name: /Jumlah Akhir/ });
+    expect(amount).toHaveValue("-100.000");
+
+    await user.clear(amount);
+    await user.type(amount, "-1.250.000");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(patchedBody(fetchMock).finalAmount).toBe(-1_250_000);
   });
 });
