@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { requirePermission } from "@/lib/auth-guards";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createLeaveRequestSchema } from "@/lib/validations/leave";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { calculateWorkingDays, parseWorkingDays } from "@/lib/payroll/working-days";
+import { isBalancedLeaveType, leaveTypeLabel, sumLeaveDays } from "@/lib/leave/balance";
 
 // Self-service: submit leave request
 export async function POST(req: NextRequest) {
@@ -23,7 +24,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await validateBody(createLeaveRequestSchema, await req.json());
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+  const result = await validateBody(createLeaveRequestSchema, rawBody);
   if (result.error) return result.error;
   const { leaveType, startDate, endDate, reason } = result.data;
 
@@ -83,25 +90,22 @@ export async function POST(req: NextRequest) {
           throw Object.assign(new Error(err.tag), err);
         }
 
-        if (leaveType === "ANNUAL" || leaveType === "SICK") {
-          const year = new Date().getFullYear();
-          const usedAgg = await tx.leaveRequest.aggregate({
-            _sum: { days: true },
-            where: {
-              employeeId: session.employeeId!,
-              status: "APPROVED",
-              leaveType,
-              startDate: { gte: `${year}-01-01` },
-            },
+        if (isBalancedLeaveType(leaveType)) {
+          // STR-5: PENDING counts too — otherwise three pending 10-day
+          // requests against a 12-day balance all pass and approval drives
+          // the balance negative. Same period/aggregate as GET /balance.
+          const committed = await sumLeaveDays(tx, {
+            employeeId: session.employeeId!,
+            leaveType,
+            statuses: ["APPROVED", "PENDING"],
           });
-          const used = usedAgg._sum.days ?? 0;
           const total = leaveType === "ANNUAL" ? employee.leaveBalanceAnnual : employee.leaveBalanceSick;
-          const remaining = total - used;
+          const remaining = Math.max(0, total - committed);
 
           if (days > remaining) {
             const err: LeaveTxError = {
               tag: "INSUFFICIENT_BALANCE",
-              message: `Sisa cuti ${leaveType === "ANNUAL" ? "tahunan" : "sakit"} tidak cukup (tersisa ${remaining} hari)`,
+              message: `Sisa cuti ${leaveTypeLabel(leaveType)} ${remaining} hari (termasuk pengajuan yang menunggu persetujuan). Pengajuan ini butuh ${days} hari.`,
             };
             throw Object.assign(new Error(err.tag), err);
           }
@@ -142,9 +146,16 @@ export async function POST(req: NextRequest) {
     if (e instanceof Error) {
       const tag = (e as Error & Partial<LeaveTxError>).tag;
       const message = (e as Error & Partial<LeaveTxError>).message;
-      if (tag === "INACTIVE" || tag === "INSUFFICIENT_BALANCE" || tag === "OVERLAP") {
+      if (tag === "INSUFFICIENT_BALANCE") {
+        return NextResponse.json({ error: message }, { status: 422 });
+      }
+      if (tag === "INACTIVE" || tag === "OVERLAP") {
         return NextResponse.json({ error: message }, { status: 400 });
       }
+    }
+    // Serializable conflict (two submissions racing) — the loser retries.
+    if ((e as { code?: string } | null)?.code === "P2034") {
+      return NextResponse.json({ error: "Terjadi konflik, silakan coba lagi" }, { status: 409 });
     }
     throw e;
   }
@@ -167,7 +178,7 @@ export async function GET(req: NextRequest) {
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
   const status = searchParams.get("status");
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
   const requestId = searchParams.get("requestId");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -125,11 +125,9 @@ describe("POST /api/leave/requests/[id]/cancel — F-27", () => {
     });
 
     expect(res.status).toBe(200);
-    // Balance restored on the ANNUAL bucket.
-    expect(employeeUpdate).toHaveBeenCalledWith({
-      where: { id: "emp-1" },
-      data: { leaveBalanceAnnual: { increment: 5 } },
-    });
+    // No entitlement write: remaining leave is derived from APPROVED rows,
+    // so CANCELLED already returns the days (an increment double-counted).
+    expect(employeeUpdate).not.toHaveBeenCalled();
     // Generated attendance rows deleted, manual overrides untouched.
     expect(attendanceDeleteMany).toHaveBeenCalledWith({
       where: {
@@ -180,10 +178,7 @@ describe("POST /api/leave/requests/[id]/cancel — F-27", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(employeeUpdate).toHaveBeenCalledWith({
-      where: { id: "emp-99" },
-      data: { leaveBalanceSick: { increment: 2 } },
-    });
+    expect(employeeUpdate).not.toHaveBeenCalled();
   });
 
   it("non-owner without leave.approve → 403", async () => {

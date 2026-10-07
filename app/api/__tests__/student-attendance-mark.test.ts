@@ -6,6 +6,7 @@ vi.mock("@/lib/db", () => ({
     teachingAssignment: { findFirst: vi.fn() },
     classSection: { findFirst: vi.fn() },
     studentEnrollment: { findMany: vi.fn() },
+    student: { findMany: vi.fn() },
     studentAttendance: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -53,7 +54,14 @@ const validBody = {
 };
 
 describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assignment", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { prisma } = await import("@/lib/db");
+    // Default: every requested student is ACTIVE-enrolled (checked pre-tx).
+    vi.mocked(prisma.studentEnrollment.findMany).mockImplementation((async (args: { where: { studentId: { in: string[] } } }) =>
+      args.where.studentId.in.map((studentId) => ({ studentId }))) as never);
+    vi.mocked(prisma.student.findMany).mockResolvedValue([] as never);
+  });
 
   it("returns 401 when no session", async () => {
     const { getSession } = await import("@/lib/auth");
@@ -114,9 +122,7 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
-        studentEnrollment: {
-          findMany: vi.fn().mockResolvedValue([{ studentId: "s-1" }]),
-        },
+        $executeRaw: vi.fn().mockResolvedValue(1),
         // No ClassSession row for this date → falls back to the legacy
         // sessionId:null upsert (findFirst + create/update) after the
         // @@unique([studentId, date]) drop (cycle 2026-05-15
@@ -149,11 +155,10 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: (tx: unknown) => unknown) => {
       const tx = {
-        studentEnrollment: {
-          findMany: vi.fn().mockResolvedValue([{ studentId: "s-1" }]),
-        },
+        $executeRaw: vi.fn().mockResolvedValue(1),
         classSession: { findMany: vi.fn().mockResolvedValue([{ id: "sess-1" }]) },
         studentAttendance: {
+          findUnique: vi.fn().mockResolvedValue(null),
           findFirst: legacyFindFirst,
           create: vi.fn().mockResolvedValue({}),
           update: vi.fn().mockResolvedValue({}),
@@ -181,9 +186,172 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
 it("scopes legacy updates to the selected class and reports a cross-class legacy collision",async()=>{
  const {getSession}=await import("@/lib/auth");const {prisma}=await import("@/lib/db");
  vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER","emp-1"));vi.mocked(prisma.teachingAssignment.findFirst).mockResolvedValue({id:"ta"} as never);
+ vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([{studentId:"s-1"}] as never);
  const findFirst=vi.fn().mockResolvedValue(null), create=vi.fn().mockRejectedValue({code:"P2002"}), update=vi.fn();
- vi.mocked(prisma.$transaction).mockImplementation((async (cb:(tx:unknown)=>unknown)=>cb({studentEnrollment:{findMany:vi.fn().mockResolvedValue([{studentId:"s-1"}])},classSession:{findMany:vi.fn().mockResolvedValue([])},studentAttendance:{findFirst,create,update}})) as never);
+ vi.mocked(prisma.$transaction).mockImplementation((async (cb:(tx:unknown)=>unknown)=>cb({$executeRaw:vi.fn().mockResolvedValue(1),classSession:{findMany:vi.fn().mockResolvedValue([])},studentAttendance:{findFirst,create,update}})) as never);
  const {POST}=await import("../student-attendance/mark/route");const result=await POST(makeReq(validBody) as never);
- expect(findFirst).toHaveBeenCalledWith({where:{studentId:"s-1",classSectionId:"cs-1",date:validBody.date,sessionId:null},select:{id:true}});
+ expect(findFirst).toHaveBeenCalledWith({where:{studentId:"s-1",classSectionId:"cs-1",date:validBody.date,sessionId:null},select:{id:true,status:true}});
  expect(result.status).toBe(409);expect((await result.json()).error).toContain("kelas lain");expect(update).not.toHaveBeenCalled();
+});
+
+// --- api-integrity T5 (STR-9 / STR-10 / STR-12 / STR-14) ---------------------
+
+type Existing = { id: string; status: string } | null;
+
+/** Wires a TEACHER session and a tx whose sessionId:null path sees `existing`. */
+async function setupLegacyPath(existing: Existing = null) {
+  const { getSession } = await import("@/lib/auth");
+  const { prisma } = await import("@/lib/db");
+  vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER", "emp-1"));
+  vi.mocked(prisma.teachingAssignment.findFirst).mockResolvedValue({ id: "ta-1" } as never);
+  vi.mocked(prisma.studentEnrollment.findMany).mockImplementation((async (args: { where: { studentId: { in: string[] } } }) =>
+    args.where.studentId.in.map((studentId) => ({ studentId }))) as never);
+  const order: string[] = [];
+  const executeRaw = vi.fn(async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+    order.push(`lock:${String(values[0])}`);
+    return 1;
+  });
+  const update = vi.fn(async () => {
+    order.push("write");
+    return {};
+  });
+  const create = vi.fn(async () => {
+    order.push("write");
+    return {};
+  });
+  const findFirst = vi.fn().mockResolvedValue(existing);
+  vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) =>
+    cb({
+      $executeRaw: executeRaw,
+      classSession: { findMany: vi.fn().mockResolvedValue([]) },
+      studentAttendance: { findFirst, create, update },
+    })) as never);
+  return { executeRaw, update, create, findFirst, order, prisma };
+}
+
+describe("POST /api/student-attendance/mark — integrity (api-integrity T5)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("STR-9: takes a per-student advisory lock inside the tx before each find, in sorted studentId order", async () => {
+    const { executeRaw, order } = await setupLegacyPath(null);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(
+      makeReq({
+        ...validBody,
+        records: [
+          { studentId: "s-c", status: "SICK" },
+          { studentId: "s-a", status: "SICK" },
+          { studentId: "s-b", status: "SICK" },
+        ],
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(executeRaw).toHaveBeenCalledTimes(3);
+    expect(executeRaw.mock.calls.map((c) => c.slice(1))).toEqual([
+      ["s-a", "2026-04-20"],
+      ["s-b", "2026-04-20"],
+      ["s-c", "2026-04-20"],
+    ]);
+    // Lock, then write, per student — never a write ahead of its own lock.
+    expect(order).toEqual(["lock:s-a", "write", "lock:s-b", "write", "lock:s-c", "write"]);
+    expect(String(executeRaw.mock.calls[0][0].join("?"))).toContain("pg_advisory_xact_lock");
+  });
+
+  it("STR-9: rejects a non-calendar date (2026-02-30) with 400", async () => {
+    await setupLegacyPath(null);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq({ ...validBody, date: "2026-02-30" }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Tanggal tidak valid");
+  });
+
+  it("STR-9: rejects a date older than 400 days with 400", async () => {
+    const { prisma } = await setupLegacyPath(null);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq({ ...validBody, date: "2019-01-01" }) as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Tanggal terlalu lama untuk diubah.");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("STR-12: a student not ACTIVE-enrolled → 422 student_not_enrolled with the name, never a 500, no tx opened", async () => {
+    const { prisma } = await setupLegacyPath(null);
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.student.findMany).mockResolvedValue([{ id: "s-1", name: "Budi" }] as never);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe("student_not_enrolled");
+    expect(body.message).toBe("Siswa tidak terdaftar di kelas ini: Budi");
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("STR-12: falls back to the id when the student name cannot be resolved", async () => {
+    const { prisma } = await setupLegacyPath(null);
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.student.findMany).mockResolvedValue([] as never);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(422);
+    expect((await res.json()).message).toContain("s-1");
+  });
+
+  it("STR-14: status changes and no notes sent → notes cleared (null)", async () => {
+    const { update } = await setupLegacyPath({ id: "att-1", status: "ABSENT" });
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(
+      makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK" }] }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "SICK", notes: null }) }),
+    );
+  });
+
+  it("STR-14: status unchanged and no notes sent → existing notes kept (notes undefined)", async () => {
+    const { update } = await setupLegacyPath({ id: "att-1", status: "SICK" });
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(
+      makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK" }] }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: undefined }) }),
+    );
+    expect(update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: null }) }),
+    );
+  });
+
+  it("STR-14: notes sent with a status change → the new notes win", async () => {
+    const { update } = await setupLegacyPath({ id: "att-1", status: "ABSENT" });
+    const { POST } = await import("../student-attendance/mark/route");
+    await POST(
+      makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK", notes: "demam" }] }) as never,
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ notes: "demam" }) }),
+    );
+  });
+
+  it("STR-14: single-session path clears notes on a status change too", async () => {
+    const { prisma } = await setupLegacyPath(null);
+    const upsert = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) =>
+      cb({
+        $executeRaw: vi.fn(),
+        classSession: { findMany: vi.fn().mockResolvedValue([{ id: "sess-1" }]) },
+        studentAttendance: {
+          findUnique: vi.fn().mockResolvedValue({ status: "ABSENT" }),
+          upsert,
+        },
+      })) as never);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(
+      makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK" }] }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(upsert.mock.calls[0][0].update.notes).toBeNull();
+  });
 });

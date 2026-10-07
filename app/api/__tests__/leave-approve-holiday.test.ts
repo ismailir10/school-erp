@@ -14,7 +14,10 @@ import { getSystemRolePermissions } from "@/lib/permissions";
 const orgConfigFindUnique = vi.fn();
 const holidayFindMany = vi.fn();
 const leaveRequestFindUnique = vi.fn();
-const leaveRequestUpdate = vi.fn();
+const leaveRequestUpdateMany = vi.fn();
+const leaveRequestAggregate = vi.fn();
+const employeeFindFirst = vi.fn();
+const executeRaw = vi.fn();
 const attendanceFindUnique = vi.fn();
 const attendanceUpsert = vi.fn();
 const transaction = vi.fn();
@@ -25,8 +28,10 @@ vi.mock("@/lib/db", () => ({
     holiday: { findMany: holidayFindMany },
     leaveRequest: {
       findUnique: leaveRequestFindUnique,
-      update: leaveRequestUpdate,
+      updateMany: leaveRequestUpdateMany,
+      aggregate: leaveRequestAggregate,
     },
+    employee: { findFirst: employeeFindFirst },
     attendanceRecord: {
       findUnique: attendanceFindUnique,
       upsert: attendanceUpsert,
@@ -65,12 +70,23 @@ beforeEach(() => {
     workingDays: JSON.stringify(["MON", "TUE", "WED", "THU", "FRI"]),
   });
   holidayFindMany.mockResolvedValue([]);
-  leaveRequestUpdate.mockResolvedValue({ id: "lr-1", status: "APPROVED" });
+  leaveRequestUpdateMany.mockResolvedValue({ count: 1 });
+  // Re-read inside the tx after the conditional update (the pre-read uses mockResolvedValueOnce).
+  leaveRequestFindUnique.mockResolvedValue({ id: "lr-1", status: "APPROVED" });
+  leaveRequestAggregate.mockResolvedValue({ _sum: { days: 0 } });
+  employeeFindFirst.mockResolvedValue({ leaveBalanceAnnual: 12, leaveBalanceSick: 14 });
+  executeRaw.mockResolvedValue(1);
   attendanceFindUnique.mockResolvedValue(null);
   attendanceUpsert.mockResolvedValue({});
   transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
-      leaveRequest: { update: leaveRequestUpdate },
+      $executeRaw: executeRaw,
+      employee: { findFirst: employeeFindFirst },
+      leaveRequest: {
+        findUnique: leaveRequestFindUnique,
+        updateMany: leaveRequestUpdateMany,
+        aggregate: leaveRequestAggregate,
+      },
       attendanceRecord: {
         findUnique: attendanceFindUnique,
         upsert: attendanceUpsert,

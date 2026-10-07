@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
+import { escapeCsvCell } from "@/lib/students/export";
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("attendance.view");
   if ("error" in auth) return auth.error;
+  // Staff attendance (incl. GPS) is HR data. TEACHER holds attendance.view for
+  // their OWN record only (served by /api/attendance/my), so require hr.view
+  // here exactly like /api/attendance/trend.
+  if (!hasPermission(auth.session, "hr.view")) {
+    return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
+  }
   const { session } = auth;
 
   const { searchParams } = new URL(req.url);
@@ -49,7 +57,11 @@ export async function GET(req: NextRequest) {
 
   // Build CSV
   const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-  const header = "Kode,Nama,Kampus,Jabatan,Hadir,Terlambat,Alpa,Izin,Total Hari";
+  // Every cell goes through escapeCsvCell (always-quoted, quotes doubled,
+  // formula-leading cells neutralised) — names/jabatan are admin-typed free text.
+  const header = ["Kode", "Nama", "Kampus", "Jabatan", "Hadir", "Terlambat", "Alpa", "Izin", "Total Hari"]
+    .map(escapeCsvCell)
+    .join(",");
 
   const rows = employees.map((emp) => {
     let present = 0, late = 0, absent = 0, leave = 0;
@@ -59,7 +71,9 @@ export async function GET(req: NextRequest) {
       else if (r.status === "ABSENT") absent++;
       else if (r.status === "LEAVE") leave++;
     }
-    return `${emp.kode},"${emp.nama}","${emp.campus.name}","${emp.jabatan}",${present},${late},${absent},${leave},${present + late}`;
+    return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, present + late]
+      .map((v) => escapeCsvCell(String(v ?? "")))
+      .join(",");
   });
 
   const csv = [header, ...rows].join("\r\n") + "\r\n";

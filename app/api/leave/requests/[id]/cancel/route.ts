@@ -128,20 +128,12 @@ export async function POST(
         const wasApproved = fresh.status === "APPROVED";
 
         if (wasApproved) {
-          // Restore leave balance. Only ANNUAL and SICK have ledger columns;
-          // PERMISSION / OTHER are tracked as raw days off without a balance,
-          // so no restoration is needed for those types.
-          if (fresh.leaveType === "ANNUAL") {
-            await tx.employee.update({
-              where: { id: fresh.employeeId },
-              data: { leaveBalanceAnnual: { increment: fresh.days } },
-            });
-          } else if (fresh.leaveType === "SICK") {
-            await tx.employee.update({
-              where: { id: fresh.employeeId },
-              data: { leaveBalanceSick: { increment: fresh.days } },
-            });
-          }
+          // No balance write here. Remaining leave is derived — the
+          // entitlement column minus the sum of APPROVED requests
+          // (lib/leave/balance.ts) — and approve never decrements the column,
+          // so flipping this row to CANCELLED already gives the days back.
+          // Incrementing the column as well raised the entitlement itself and
+          // double-counted every cancellation.
 
           // Delete generated LEAVE attendance rows. Match by:
           //   - employeeId

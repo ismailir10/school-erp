@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   });
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
   const status = searchParams.get("status");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
