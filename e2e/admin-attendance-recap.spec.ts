@@ -86,8 +86,10 @@ test.describe("Admin /admin/student-attendance — Rekap Bulanan", () => {
     expect(csv.status()).toBe(200);
     expect(csv.headers()["content-type"]).toContain("text/csv");
     expect(csv.headers()["content-disposition"]).toContain("kehadiran_siswa_");
+    // The body opens with a UTF-8 BOM so Excel reads accented names correctly.
     const body = await csv.text();
-    expect(body.startsWith("NIS,Nama,Kelas,Hadir,Sakit,Izin,Alpa,Total Hari Tercatat")).toBe(true);
+    expect(body.charCodeAt(0)).toBe(0xfeff);
+    expect(body.slice(1).startsWith("NIS,Nama,Kelas,Hadir,Sakit,Izin,Alpa,Total Hari Tercatat")).toBe(true);
   });
 
   test("recap API 400s junk month/year instead of returning a misleading 200", async ({
