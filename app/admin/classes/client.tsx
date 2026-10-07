@@ -49,7 +49,7 @@ type ClassRow = {
   enrolledCount: number;
   attendance7dPct: number | null;
   todaySession: "Held" | "Missing" | "Holiday";
-  health: "Sehat" | "Perhatian" | "Kritis" | "Tidak Aktif" | "Libur";
+  health: "Sehat" | "Perhatian" | "Kritis" | "Belum ada siswa" | "Tidak Aktif" | "Libur";
   teachingAssignments: {
     id: string;
     employee: { id: string; nama: string };

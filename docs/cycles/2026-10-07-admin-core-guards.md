@@ -36,12 +36,16 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 ## Tasks
 - [ ] **T1 — Student lifecycle + duplicates (API).** `app/api/students/route.ts` (POST only), `app/api/students/[id]/route.ts`, `app/api/students/[id]/enroll/route.ts`, `app/api/admin/classes/[id]/enrollments/route.ts`, `app/api/students/[id]/graduate/route.ts` (+ tests). ADM-1 (API), ADM-2 (API), ADM-10, CORE-13 copy, X-9. Independent.
 - [ ] **T2 — Student pages.** `app/admin/students/**` (page, detail page, dialogs) and student components it owns (+ tests). ADM-1 (UI), ADM-2 (UI), ADM-3, ADM-4, CORE-13 (UI). Depends on T1's response shapes (409 codes listed in this doc): `STUDENT_NOT_ACTIVE`, `NIS_TAKEN` (field `nis`), `DUPLICATE_STUDENT` (retry with `confirmDuplicate: true`).
-- [ ] **T3 — Classes.** `app/api/admin/classes/[id]/route.ts`, `lib/classes/health.ts`, `components/admin/class-section-picker.tsx`, `app/admin/classes/**` (+ tests). ADM-5, CORE-20, CORE-21. Independent.
+- [x] **T3 — Classes.** `app/api/admin/classes/[id]/route.ts`, `lib/classes/health.ts`, `components/admin/class-section-picker.tsx`, `app/admin/classes/**` (+ tests). ADM-5, CORE-20, CORE-21. Independent.
 - [ ] **T4 — Small admin polish.** `components/admin/guardian-edit-dialog.tsx`, `app/admin/settings/users/page.tsx`, `components/ui/calendar.tsx`, `components/ui/date-picker.tsx`, `lib/dashboard/activity-feed.ts` (+ tests). CORE-11, ADM-16, ADM-8, DOC-6. Independent.
 - [ ] **T5 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T4.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4] parallel (disjoint files; T2 codes against the 409 contract written in this doc), T5 sequential by the driver, who reviews each diff and commits per task.
+- T3 (ADM-5, CORE-20, CORE-21): `PUT/PATCH /api/admin/classes/[id]` counts ACTIVE enrolments under the same `pg_advisory_xact_lock(hashtext(classId))` the enrol routes take and refuses a capacity below it (409, message + `field`/`errors[]` so the Ubah Kelas dialog shows it inline on Kapasitas); only when capacity actually changes, so renaming an already-overfull class still works. `ClassSectionCombobox` shows full classes disabled with "Penuh" (new opt-in `isItemDisabled` on `AsyncCombobox`; the billing multi-picker is unchanged). `computeHealthBadge` returns "Belum ada siswa" for an empty class (neutral pill via StatusBadge's fallback). Tests: capacity guard route, picker, health, classes client (81).
 
 ## Verification
+- Frontend diffs checked against `.claude/standards/design-system.html` (neutral muted pill, disabled combobox rows, inline field errors); no new colours.
+- T3: `npx vitest run app/api/__tests__/admin-classes-capacity-guard.test.ts components/admin/__tests__/class-section-picker.test.tsx lib/classes/__tests__/health.test.ts app/admin/classes components/ui/__tests__/async-combobox.test.tsx app/api/__tests__/admin-classes-historical-roster.test.ts` → 8 files, 81 passed. Full gate at T5.
 
 ## Ship Notes

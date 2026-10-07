@@ -16,6 +16,12 @@ import {
   rosterEnrollmentVisible,
 } from "../_helpers";
 
+class CapacityBelowRoster extends Error {
+  constructor(readonly activeCount: number) {
+    super("CAPACITY_BELOW_ROSTER");
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
@@ -110,8 +116,25 @@ async function update(
     );
   }
 
+  // Lowering capacity below the ACTIVE roster would render "2/1". Only checked
+  // when the value actually changes, so an unrelated edit (name, slot) on an
+  // already-overfull class is not blocked. Runs inside the transaction under
+  // the same advisory lock the enrol routes take, so a concurrent enrol cannot
+  // slip in between the count and the write.
+  const capacityChanging =
+    body.capacity !== undefined && body.capacity !== before.capacity;
+
   try {
     await prisma.$transaction(async (tx) => {
+      if (capacityChanging) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+        const activeCount = await tx.studentEnrollment.count({
+          where: { classSectionId: id, status: "ACTIVE" },
+        });
+        if (activeCount > (body.capacity as number)) {
+          throw new CapacityBelowRoster(activeCount);
+        }
+      }
       await tx.classSection.updateMany({
         where: { id, tenantId: session.tenantId },
         data,
@@ -158,6 +181,19 @@ async function update(
     });
     return NextResponse.json(updated);
   } catch (err) {
+    if (err instanceof CapacityBelowRoster) {
+      const message = `Kapasitas tidak bisa lebih kecil dari jumlah siswa aktif (${err.activeCount} siswa).`;
+      return NextResponse.json(
+        {
+          error: message,
+          field: "capacity",
+          // Same shape as the validateBody 400 so applyServerErrors can land
+          // the message inline on the Kapasitas field.
+          errors: [{ field: "capacity", message }],
+        },
+        { status: 409 },
+      );
+    }
     if (isUniqueViolation(err)) {
       return NextResponse.json(
         {
