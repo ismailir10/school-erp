@@ -62,5 +62,14 @@ The 2026-10-07 signed-in staging walk of the enrollment-documents release (#605/
 
 - Frontend: `design-system` reference checked (parent form keeps the existing emerald palette, Alert + row copy unchanged in style).
 - T1/T2 between-task gates: `npm run build` exit 0, `npx vitest run` exit 0 (T2: 495 files passed | 2 skipped, 4659 tests passed | 42 todo; T3: 4662 passed; T4: 4668 passed; T5: 497 files passed | 2 skipped, 4672 tests passed | 42 todo; T6: 498 files passed | 2 skipped, 4676 tests passed | 42 todo).
+- End-of-cycle gate (HEAD after T6): `npm run build` exit 0; `npx vitest run` exit 0 (Test Files 498 passed | 2 skipped (500), Tests 4676 passed | 42 todo (4718)); `npm run lint` exit 0 (0 errors, 55 pre-existing warnings).
+- Playwright: driver runs local suite against disposable Postgres after build (see driver verification). Preview-verify belongs to `/ship`.
+- Existing e2e selectors: no spec references the "Konversi ke Siswa" button (convert specs call the API); the page-text assertion "sudah dikonversi menjadi data siswa" in `enrollment-application.spec.ts` is unchanged.
 
 ## Ship Notes
+
+- **Migrations / env vars:** none. No schema, config or dependency change.
+- **API:** the public `POST /api/enrollments/token/[token]/submit` 422 body gains an additive `missingDocuments: DocumentKey[]` (closed whitelist keys only); `fields.documents` is unchanged, so older clients keep working.
+- **Behaviour changes to watch on preview:** (1) ACCEPTED enrollment header leads with filled "Konversi ke Siswa", bottom bar gone; (2) row-action and detail-header overflow menus are at least 160px and size to content on every admin list; (3) tab titles read "… · Talib" on `/pendaftaran/[token]` and `/daftar`; (4) guardian KTP/KK Hapus asks first.
+- **Follow-ups (not done):** `/daftar` inquiries have no `parentRelationship`, so invite prefills neither parent block (product decision). Client-side Berkas errors set by `submit()` while the parent is on Tinjau do not self-clear (pre-existing). Other `DropdownMenuContent` users with a small icon trigger may show the same 128px menu; the primitive was deliberately left alone.
+- **Rollback:** revert the PR; nothing is persisted differently.
