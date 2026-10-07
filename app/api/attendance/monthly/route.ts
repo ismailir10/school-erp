@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 
 // F-12: removed `export const revalidate = 3600`. Route reads per-tenant
 // session data; ISR caching by URL would mix tenants. Next.js currently
@@ -10,6 +11,12 @@ import { requirePermission } from "@/lib/auth-guards";
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("attendance.view");
   if ("error" in auth) return auth.error;
+  // Staff attendance (incl. GPS) is HR data. TEACHER holds attendance.view for
+  // their OWN record only (served by /api/attendance/my), so require hr.view
+  // here exactly like /api/attendance/trend.
+  if (!hasPermission(auth.session, "hr.view")) {
+    return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
+  }
   const { session } = auth;
 
   const { searchParams } = new URL(req.url);

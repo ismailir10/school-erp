@@ -37,15 +37,21 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 Permission guards changed (STR-2/3) → auth-impacting route: local demo-auth verification before merge, PR labelled `needs-staging-verify`, signed-in staging check after merge.
 
 ## Tasks
-- [ ] **T1 — Scoping + HR CSV.** `app/api/attendance/{today,monthly,export}/route.ts`, `app/api/employees/[id]/attendance/route.ts`, `app/api/admin/assessments/route.ts`, `lib/payroll/bsi-export.ts` (+ tests). STR-2, STR-3, STR-8. Independent.
-- [ ] **T2 — Convert races.** `app/api/admissions/[id]/convert/route.ts`, `app/api/enrollments/[id]/convert/route.ts` (+ tests). STR-1. Independent.
+- [x] **T1 — Scoping + HR CSV.** `app/api/attendance/{today,monthly,export}/route.ts`, `app/api/employees/[id]/attendance/route.ts`, `app/api/admin/assessments/route.ts`, `lib/payroll/bsi-export.ts` (+ tests). STR-2, STR-3, STR-8. Independent.
+- [x] **T2 — Convert races.** `app/api/admissions/[id]/convert/route.ts`, `app/api/enrollments/[id]/convert/route.ts` (+ tests). STR-1. Independent.
 - [ ] **T3 — Employees + leave.** `app/api/employees/route.ts`, `app/api/leave/**` (+ tests). STR-4, STR-5. Independent.
 - [ ] **T4 — Input bounds.** `lib/validations/**`, `lib/api/pagination.ts`, `app/api/invoices/route.ts` only if the schema change needs it (+ tests). STR-7, STR-11, STR-13, STR-17. Independent.
-- [ ] **T5 — Attendance mark + billing-run create.** `app/api/student-attendance/mark/route.ts`, `app/api/billing-runs/route.ts` (+ tests). STR-9, STR-12, STR-14, STR-10. Independent (T4 owns the shared date validator; T5 uses its own route-local check if needed).
+- [x] **T5 — Attendance mark + billing-run create.** `app/api/student-attendance/mark/route.ts`, `app/api/billing-runs/route.ts` (+ tests). STR-9, STR-12, STR-14, STR-10. Independent (T4 owns the shared date validator; T5 uses its own route-local check if needed).
 - [ ] **T6 — End-of-cycle gate, local verification, Ship Notes.** Depends on T1–T5.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; tasks [T1,T2,T3,T4,T5] parallel (disjoint files, one subagent each, no git writes), plus one follow-up subagent adopting T4's `cleanSearch` across list routes; T6 sequential by the driver, who reviews each diff and commits per task.
+- T1 (STR-2, STR-3, STR-8): `/api/attendance/{today,monthly,export}` and `/api/employees/[id]/attendance` keep `attendance.view` and now also require `hr.view` (same inline check as `/api/attendance/trend`); TEACHER and SCHOOL_ADMIN get 403 `{missing:"hr.view"}`, teachers keep `/api/attendance/my`. `/api/admin/assessments` also requires `isAdminRole`. The HR attendance CSV quotes every cell and neutralises formula-leading cells with the student export's `escapeCsvCell`; the BSI export neutralises `nama`/`description` only (account numbers and nominal untouched, exact-format test). Tests: new `staff-attendance-scoping.test.ts` (5 cases × 4 routes + CSV), `bsi-export.test.ts`, assessments route 403s; `verify-api-auth.sh` 203/203.
+- T2 (STR-1): both convert routes open the transaction with `SELECT … FOR UPDATE` on the admission / enrollment-application row and re-read `studentId`/status before creating anything; losers get 409 "Pendaftaran ini sudah dikonversi menjadi siswa." (the sequential already-converted check moved from 400 to the same 409). The enrollment route also locks the linked admission before linking it, so it can no longer overwrite a link made by the admissions route. Live check on a throwaway Postgres: 8 parallel converts → 1×200 + 7×409, one student, one parent (both routes). Tests: convert route suites (39).
+- T5 (STR-9, STR-12, STR-14, STR-10): legacy `/api/student-attendance/mark` validates ACTIVE enrollment before the transaction (422 `student_not_enrolled` naming the children, no more 500), rejects non-calendar dates and dates older than 400 days (400), sorts records and takes `pg_advisory_xact_lock(hashtext(student||date))` per record in the null-session path so parallel calls cannot duplicate a row, and clears an old note when the status changes without a new note (both paths). `POST /api/billing-runs` maps P2034/P2002 to 409 "Tagihan sedang dibuat oleh proses lain. Coba lagi sebentar." Tests: mark + billing-runs suites; `teacher-write-rate-limit.test.ts` mock moved with the enrollment check.
 
 ## Verification
+- No frontend files in this cycle (API + validation only); `.claude/standards/design-system.html` not applicable.
+- T1: `npx vitest run app/api/__tests__/staff-attendance-scoping.test.ts app/api/__tests__/admin-penilaian-route.test.ts app/api/__tests__/hr-permission-gate.test.ts app/api/__tests__/attendance-export-validation.test.ts lib/payroll/__tests__/bsi-export.test.ts` → 52 passed. T2: convert suites 39 passed + live 8-way race. T5: 60 passed. Full gate at T6.
 
 ## Ship Notes
