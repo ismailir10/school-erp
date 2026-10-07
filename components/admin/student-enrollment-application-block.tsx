@@ -129,7 +129,7 @@ export const StudentEnrollmentApplicationBlock = memo(
             application.program?.name,
             application.dcareAddon ? "+ Dcare" : null,
             application.submittedAt
-              ? `dikirim ${formatDateShort(application.submittedAt.slice(0, 10))}`
+              ? `dikirim ${formatDateShort(application.submittedAt)}`
               : "belum dikirim",
             application.admission?.parentName
               ? `pendaftar ${application.admission.parentName}`

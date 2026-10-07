@@ -815,7 +815,7 @@ export default function StudentDetailPage() {
               badge={
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   {application.submittedAt
-                    ? formatDateShort(application.submittedAt.slice(0, 10))
+                    ? formatDateShort(application.submittedAt)
                     : "Belum dikirim"}
                 </span>
               }

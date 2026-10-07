@@ -283,6 +283,19 @@ describe("PendaftaranClient", () => {
     expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).endsWith("/submit"))).toBe(false);
   });
 
+  it("shows the birth date on Tinjau as a readable date, not raw ISO", async () => {
+    const user = userEvent.setup();
+    const both = {
+      ...filled,
+      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+    };
+    render(<PendaftaranClient token="tok" programs={programs} prefill={both} />);
+    for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
+
+    expect(await screen.findByText("Bogor, 1 Jan 2021")).toBeInTheDocument();
+    expect(screen.queryByText(/2021-01-01/)).not.toBeInTheDocument();
+  });
+
   it("puts the handover note above the signature pads", async () => {
     const user = userEvent.setup();
     render(<PendaftaranClient token="tok" programs={programs} prefill={filled} />);

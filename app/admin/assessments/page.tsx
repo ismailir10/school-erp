@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { formatLearningCenter, formatDate } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatLearningCenter, formatDate } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
 
@@ -33,7 +34,7 @@ type Monitor = {
 };
 
 function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
+  return getTodayInTimezone(DISPLAY_TIME_ZONE);
 }
 
 function CompletionBadge({ assessed, enrolled }: { assessed: number; enrolled: number }) {

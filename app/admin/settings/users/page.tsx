@@ -113,7 +113,7 @@ function buildColumns(
         if (!d) return <span className="text-xs text-muted-foreground">—</span>;
         return (
           <span className="text-xs text-muted-foreground">
-            {formatDateShort(d.split("T")[0])}
+            {formatDateShort(d)}
           </span>
         );
       },

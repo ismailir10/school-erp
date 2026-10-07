@@ -38,6 +38,7 @@ import {
   CONSENT_CLOSING,
   CONSENT_VERSION,
 } from "@/lib/enrollment/consent-clauses";
+import { formatDateShort } from "@/lib/format";
 
 type Program = { id: string; name: string };
 type Prefill = {
@@ -903,6 +904,11 @@ function HandoverNote({
   );
 }
 
+/** The date input yields `YYYY-MM-DD`; the review step reads it as "15 Mar 2022". */
+function reviewDate(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDateShort(value) : value;
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
@@ -935,7 +941,7 @@ function ReviewStep({
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Data Anak</h3>
         <Row label="Nama lengkap" value={student.childName} />
         <Row label="Jenis kelamin" value={student.childGender === "L" ? "Laki-laki" : student.childGender === "P" ? "Perempuan" : ""} />
-        <Row label="Tempat, tanggal lahir" value={[student.birthPlace, student.dateOfBirth].filter(Boolean).join(", ")} />
+        <Row label="Tempat, tanggal lahir" value={[student.birthPlace, reviewDate(student.dateOfBirth)].filter(Boolean).join(", ")} />
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Orang Tua</h3>

@@ -35,7 +35,8 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, GraduationCap, UserCheck, Download } from "lucide-react";
 import { StudentExportDialog } from "@/components/admin/student-export-dialog";
-import { formatDateShort } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 import { studentFormSchema } from "@/lib/validations/student";
@@ -176,7 +177,7 @@ function StudentFormBody({
               {...controlProps}
               value={(field.value as string | undefined) ?? ""}
               onChange={field.onChange}
-              max={new Date().toLocaleDateString("en-CA")}
+              max={getTodayInTimezone(DISPLAY_TIME_ZONE)}
             />
           )}
         />
@@ -486,7 +487,7 @@ const columns: ColumnDef<Student>[] = [
     meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
-        {formatDateShort(row.original.createdAt.split("T")[0])}
+        {formatDateShort(row.original.createdAt)}
       </span>
     ),
   },

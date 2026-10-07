@@ -87,7 +87,7 @@ export function createAdmissionColumns({
         <div className="text-xs">
           <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
           <p className="text-muted-foreground">
-            {formatDateShort(row.original.createdAt.split("T")[0])}
+            {formatDateShort(row.original.createdAt)}
           </p>
         </div>
       ),
@@ -100,7 +100,7 @@ export function createAdmissionColumns({
       meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {formatDateShort(row.original.createdAt.split("T")[0])}
+          {formatDateShort(row.original.createdAt)}
         </span>
       ),
     },
