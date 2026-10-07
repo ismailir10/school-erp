@@ -58,5 +58,6 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 - T1: `npx vitest run lib/__tests__/parent-attendance-banner.test.ts app/parent/attendance` → 15 passed. Full `npm run build && npx vitest run` runs at T6 once the parallel slices are in.
 - T2: `npx vitest run app/parent/invoices lib/__tests__/parent-payment-method.test.ts app/api/__tests__/guardian-invoice-pdf-route.test.ts` → 5 files, 64 tests passed (subagent run, re-checked at T6).
 - T3: subagent ran 23 files / 165 tests across components/parent, sonner, app/parent/{profile,student-journal}, lib/parent (re-checked at T6).
+- T4: `npx vitest run app/daftar app/api/admission lib/validations lib/admission` → 42 files, 756 tests passed (subagent run, re-checked at T6).
 
 ## Ship Notes

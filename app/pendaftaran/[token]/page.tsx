@@ -3,7 +3,9 @@ import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
+import { schoolContactPhone } from "@/lib/contact";
 import PendaftaranClient from "./client";
+import { MessageCard } from "./message-card";
 
 export const metadata: Metadata = {
   title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
@@ -63,15 +65,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MessageCard({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
-      <h1 className="text-xl font-semibold text-emerald-950">{title}</h1>
-      <p className="mt-3 text-sm leading-relaxed text-emerald-900/70">{body}</p>
-    </div>
-  );
-}
-
 async function getRequired(tenantId: string | undefined): Promise<DocumentKey[]> {
   if (!tenantId) return [];
   try {
@@ -91,12 +84,16 @@ export default async function PendaftaranTokenPage({
   const { token } = await params;
   const { access, application, tenantId } = await resolveEnrollmentToken(token, new Date());
 
+  // Env-configured; null (no links) when the school has not set one.
+  const contactPhone = schoolContactPhone();
+
   if (access === "NOT_FOUND") {
     return (
       <Shell>
         <MessageCard
           title="Tautan tidak ditemukan"
           body="Tautan formulir ini tidak valid. Mohon hubungi tim penerimaan An Nisaa' Sekolahku untuk mendapatkan tautan baru."
+          phone={contactPhone}
         />
       </Shell>
     );
@@ -108,6 +105,7 @@ export default async function PendaftaranTokenPage({
         <MessageCard
           title="Tautan sudah kedaluwarsa"
           body="Tautan formulir ini sudah melewati masa berlaku (14 hari). Mohon hubungi tim penerimaan untuk mendapatkan tautan baru."
+          phone={contactPhone}
         />
       </Shell>
     );
