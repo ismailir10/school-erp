@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { optionalEmail } from "./optional-email";
+import { cleanText, longText, nameText } from "./text";
+
+const short = (max: number) => cleanText({ max, singleLine: true });
 
 // Shared by createGuardianSchema, updateGuardianSchema and linkGuardianSchema:
 // an HTML number input sends "Anak ke-" as a string, and an empty field must
@@ -16,10 +19,10 @@ export const childOrderField = z
   .optional();
 
 export const createGuardianSchema = z.object({
-  name: z.string().min(1, "Nama wali wajib diisi").max(200),
-  phone: z.string().max(20).optional().nullable(),
+  name: nameText({ required: "Nama wali wajib diisi" }),
+  phone: short(20).optional().nullable(),
   email: optionalEmail,
-  whatsapp: z.string().max(20).optional().nullable(),
+  whatsapp: short(20).optional().nullable(),
   // No silent default — pre-fix `.default("WALI")` masked combobox-state
   // bugs (FIND-009): the form selected "Ayah" but submit dropped the value
   // and the server quietly persisted "WALI".
@@ -27,14 +30,14 @@ export const createGuardianSchema = z.object({
   // isPrimary stays optional; first-guardian auto-default is applied in the
   // POST route (FIND-010) since it needs a DB count, not a static default.
   isPrimary: z.boolean().optional(),
-  parentNik: z.string().max(20).optional().nullable(),
-  education: z.string().max(100).optional().nullable(),
-  occupation: z.string().max(100).optional().nullable(),
-  employer: z.string().max(200).optional().nullable(),
-  employerAddress: z.string().max(500).optional().nullable(),
-  employerCity: z.string().max(100).optional().nullable(),
-  incomeRange: z.string().max(50).optional().nullable(),
-  address: z.string().max(500).optional().nullable(),
+  parentNik: short(20).optional().nullable(),
+  education: short(100).optional().nullable(),
+  occupation: short(100).optional().nullable(),
+  employer: short(200).optional().nullable(),
+  employerAddress: longText({ max: 500 }).optional().nullable(),
+  employerCity: short(100).optional().nullable(),
+  incomeRange: short(50).optional().nullable(),
+  address: longText({ max: 500 }).optional().nullable(),
   childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
   // T3 data-loss fix: the create branch of POST
   // /api/students/[id]/guardians collected "Anak ke-" on the "Tambah Wali
@@ -63,22 +66,22 @@ export const linkGuardianSchema = z.object({
 });
 
 export const updateGuardianSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  phone: z.string().max(20).optional().nullable(),
+  name: nameText({ required: "Nama wali wajib diisi" }).optional(),
+  phone: short(20).optional().nullable(),
   email: optionalEmail,
-  whatsapp: z.string().max(20).optional().nullable(),
+  whatsapp: short(20).optional().nullable(),
   relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).optional(),
   isPrimary: z.boolean().optional(),
   // T8: per-junction "Anak ke-" position.
   childOrder: childOrderField,
-  parentNik: z.string().max(20).optional().nullable(),
-  education: z.string().max(100).optional().nullable(),
-  occupation: z.string().max(100).optional().nullable(),
-  employer: z.string().max(200).optional().nullable(),
-  employerAddress: z.string().max(500).optional().nullable(),
-  employerCity: z.string().max(100).optional().nullable(),
-  incomeRange: z.string().max(50).optional().nullable(),
-  address: z.string().max(500).optional().nullable(),
+  parentNik: short(20).optional().nullable(),
+  education: short(100).optional().nullable(),
+  occupation: short(100).optional().nullable(),
+  employer: short(200).optional().nullable(),
+  employerAddress: longText({ max: 500 }).optional().nullable(),
+  employerCity: short(100).optional().nullable(),
+  incomeRange: short(50).optional().nullable(),
+  address: longText({ max: 500 }).optional().nullable(),
   childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
 });
 
@@ -129,7 +132,7 @@ const childOrderFormField = z.preprocess(
 );
 
 export const guardianUpdateFormSchema = updateGuardianSchema.extend({
-  name: z.string().min(1, "Nama wali wajib diisi").max(200),
+  name: nameText({ required: "Nama wali wajib diisi" }),
   childrenTotal: childrenTotalFormField,
   childOrder: childOrderFormField,
 });

@@ -6,6 +6,7 @@
  *   - Requires a non-empty `note` in the body (rejection reason).
  *   - findUnique loads the request with its employee's tenantId; mismatch → 404.
  *   - Only PENDING requests can be rejected → 400 otherwise.
+ *   - Conditional update (status PENDING): a racing approve/reject → 409, not a second 200.
  *   - Stamps reviewedBy / reviewedAt / reviewNote on update.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -13,11 +14,11 @@ import type { SessionUser } from "@/lib/auth";
 import { getSystemRolePermissions } from "@/lib/permissions";
 
 const findUnique = vi.fn();
-const update = vi.fn();
+const updateMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    leaveRequest: { findUnique, update },
+    leaveRequest: { findUnique, updateMany },
   },
 }));
 
@@ -65,7 +66,8 @@ describe("POST /api/leave/requests/[id]/reject", () => {
       status: "PENDING",
       employee: { tenantId: "t-1" },
     });
-    update.mockResolvedValueOnce({ id: "lr-1", status: "REJECTED" });
+    updateMany.mockResolvedValueOnce({ count: 1 });
+    findUnique.mockResolvedValueOnce({ id: "lr-1", status: "REJECTED" });
 
     const { POST } = await import("../leave/requests/[id]/reject/route");
     const res = await POST(makeReq() as never, {
@@ -79,9 +81,9 @@ describe("POST /api/leave/requests/[id]/reject", () => {
         include: { employee: { select: { tenantId: true } } },
       }),
     );
-    expect(update).toHaveBeenCalledWith(
+    expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "lr-1" },
+        where: { id: "lr-1", status: "PENDING" },
         data: expect.objectContaining({
           status: "REJECTED",
           reviewedBy: "u1",
@@ -101,7 +103,7 @@ describe("POST /api/leave/requests/[id]/reject", () => {
 
     expect(res.status).toBe(400);
     expect(findUnique).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("400 when request is APPROVED (only PENDING can be rejected)", async () => {
@@ -118,7 +120,7 @@ describe("POST /api/leave/requests/[id]/reject", () => {
     });
 
     expect(res.status).toBe(400);
-    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("400 when request is already REJECTED (re-reject is not idempotent — guards double-click)", async () => {
@@ -135,7 +137,37 @@ describe("POST /api/leave/requests/[id]/reject", () => {
     });
 
     expect(res.status).toBe(400);
-    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("409 when a concurrent review already moved the row (conditional update count 0)", async () => {
+    await mockSession(makeSession("SUPER_ADMIN"));
+    findUnique.mockResolvedValueOnce({
+      id: "lr-1",
+      status: "PENDING", // read before the racer committed
+      employee: { tenantId: "t-1" },
+    });
+    updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const { POST } = await import("../leave/requests/[id]/reject/route");
+    const res = await POST(makeReq() as never, {
+      params: Promise.resolve({ id: "lr-1" }),
+    });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pengajuan ini sudah diproses.");
+  });
+
+  it("400 (not 500) when the body is missing or not JSON", async () => {
+    await mockSession(makeSession("SUPER_ADMIN"));
+    const { POST } = await import("../leave/requests/[id]/reject/route");
+    const res = await POST(
+      new Request("http://localhost/api/leave/requests/lr-1/reject", { method: "POST" }) as never,
+      { params: Promise.resolve({ id: "lr-1" }) },
+    );
+    expect(res.status).toBe(400);
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("404 when employee.tenantId mismatches session tenant", async () => {
@@ -152,7 +184,7 @@ describe("POST /api/leave/requests/[id]/reject", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("401 when no session", async () => {

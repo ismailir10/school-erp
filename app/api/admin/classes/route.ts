@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
   if (campusId && campusId !== "all") where.campusId = campusId;
   const programId = searchParams.get("programId");
   if (programId && programId !== "all") where.programId = programId;
-  const q = searchParams.get("q");
+  const q = escapeLike(cleanSearch(searchParams.get("q")));
   if (q) where.name = { contains: q, mode: "insensitive" };
 
   const [rows, total] = await Promise.all([

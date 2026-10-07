@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 const {
   appFindUnique, studentCreate, parentUpsert, parentCreate, parentUpdate,
-  guardianCreate, appUpdate, admissionUpdate, getSession, isAdminRole, detectSibling, copyDocs,
+  guardianCreate, appUpdate, admissionUpdate, queryRaw, getSession, isAdminRole, detectSibling, copyDocs,
 } = vi.hoisted(() => ({
   appFindUnique: vi.fn(),
   studentCreate: vi.fn(),
@@ -13,6 +13,8 @@ const {
   guardianCreate: vi.fn(),
   appUpdate: vi.fn(),
   admissionUpdate: vi.fn(),
+  // STR-1: in-tx row locks (SELECT ... FOR UPDATE) + studentId/status re-read.
+  queryRaw: vi.fn(),
   getSession: vi.fn(),
   isAdminRole: vi.fn(),
   detectSibling: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock("@/lib/db", () => ({
     enrollmentApplication: { findUnique: appFindUnique },
     $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
+        $queryRaw: queryRaw,
         student: { create: studentCreate },
         parent: { upsert: parentUpsert, create: parentCreate, update: parentUpdate },
         studentGuardian: { create: guardianCreate },
@@ -75,6 +78,12 @@ beforeEach(() => {
   guardianCreate.mockResolvedValue({});
   appUpdate.mockResolvedValue({});
   admissionUpdate.mockResolvedValue({});
+  // 1st lock = the application row, 2nd = its linked admission.
+  queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+    strings.join("?").includes('"EnrollmentApplication"')
+      ? [{ studentId: null, status: "ACCEPTED" }]
+      : [{ studentId: null }],
+  );
   detectSibling.mockResolvedValue(null);
   copyDocs.mockResolvedValue({ ktpAyah: "copied", ktpIbu: "missing", kk: "missing" });
 });
@@ -96,9 +105,11 @@ describe("POST /api/enrollments/[id]/convert", () => {
     expect((await POST(reqx(), ctx())).status).toBe(404);
   });
 
-  it("400 when already converted", async () => {
+  it("409 when already converted", async () => {
     appFindUnique.mockResolvedValue(app({ studentId: "stu-x" }));
-    expect((await POST(reqx(), ctx())).status).toBe(400);
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pendaftaran ini sudah dikonversi menjadi siswa.");
     expect(studentCreate).not.toHaveBeenCalled();
   });
 
@@ -195,5 +206,60 @@ describe("POST /api/enrollments/[id]/convert", () => {
     const res = await POST(reqx(), ctx());
     expect(res.status).toBe(200);
     expect((await res.json()).documentsCopied.kk).toBe("failed");
+  });
+  // STR-1 — single-winner convert.
+  it("row-locks the application (FOR UPDATE) inside the tx before creating any row", async () => {
+    appFindUnique.mockResolvedValue(app());
+    const order: string[] = [];
+    queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
+      const sql = strings.join("?");
+      expect(sql).toContain("FOR UPDATE");
+      if (sql.includes('"EnrollmentApplication"')) {
+        order.push("lock-app");
+        return [{ studentId: null, status: "ACCEPTED" }];
+      }
+      order.push("lock-admission");
+      return [{ studentId: null }];
+    });
+    studentCreate.mockImplementation(async () => {
+      order.push("student");
+      return { id: "stu-1" };
+    });
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(order).toEqual(["lock-app", "student", "lock-admission"]);
+  });
+
+  it("loser of a race (pre-tx read stale, locked row already converted) gets 409 and creates nothing", async () => {
+    appFindUnique.mockResolvedValue(app());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ACCEPTED" }]);
+    const res = await POST(reqx(), ctx());
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Pendaftaran ini sudah dikonversi menjadi siswa.");
+    expect(studentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(guardianCreate).not.toHaveBeenCalled();
+    expect(appUpdate).not.toHaveBeenCalled();
+    expect(admissionUpdate).not.toHaveBeenCalled();
+    expect(copyDocs).not.toHaveBeenCalled();
+  });
+
+  it("locked row whose status changed since the pre-tx read is a 400 and creates nothing", async () => {
+    appFindUnique.mockResolvedValue(app());
+    queryRaw.mockResolvedValue([{ studentId: null, status: "REJECTED" }]);
+    expect((await POST(reqx(), ctx())).status).toBe(400);
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite the originating admission when it was converted since the pre-tx read", async () => {
+    appFindUnique.mockResolvedValue(app());
+    queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes('"EnrollmentApplication"')
+        ? [{ studentId: null, status: "ACCEPTED" }]
+        : [{ studentId: "stu-from-admission-route" }],
+    );
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(appUpdate).toHaveBeenCalledTimes(1);
+    expect(admissionUpdate).not.toHaveBeenCalled();
   });
 });

@@ -42,7 +42,7 @@ describe("createManualInvoiceSchema", () => {
       const issue = result.error.issues.find((i) =>
         i.path.includes("periodLabel"),
       );
-      expect(issue?.message).toBe("Maks 64 karakter");
+      expect(issue?.message).toBe("Maksimal 64 karakter.");
     }
   });
 

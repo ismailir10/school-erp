@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionUser } from "@/lib/auth";
 
 const db = vi.hoisted(() => ({
-  employee: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn() },
+  employee: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn() },
   user: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), upsert: vi.fn() },
   campus: { findFirst: vi.fn() },
   $transaction: vi.fn(),
@@ -66,6 +66,7 @@ beforeEach(() => {
   db.campus.findFirst.mockResolvedValue({ id: "c1" });
   db.employee.findFirst.mockResolvedValue(null);
   db.employee.count.mockResolvedValue(0);
+  db.employee.findMany.mockResolvedValue([]);
   db.employee.create.mockResolvedValue({ id: "emp-new", kode: "BS1" });
   db.user.findFirst.mockResolvedValue(null);
   db.user.create.mockResolvedValue({ id: "user-new" });

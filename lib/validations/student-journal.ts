@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { partialWithoutDefaults } from "./zod-helpers";
+import { INVALID_TEXT_MESSAGE, CONTROL_CHARS, labelText } from "./text";
 
 export const scopeSchema = z.enum(["SCHOOL", "HOME"]);
 
@@ -24,7 +25,7 @@ const ymd = z
   }, "Tanggal tidak valid");
 
 export const createCategorySchema = z.object({
-  name: z.string().trim().min(1, "Nama kategori wajib diisi"),
+  name: labelText({ required: "Nama kategori wajib diisi" }),
   scope: scopeSchema,
   order: z.number().int().nonnegative().default(0),
 });
@@ -35,7 +36,7 @@ partialWithoutDefaults(createCategorySchema).extend({
 
 export const createIndicatorSchema = z.object({
   categoryId: z.string().min(1),
-  label: z.string().trim().min(1, "Label indikator wajib diisi"),
+  label: labelText({ required: "Label indikator wajib diisi" }),
   order: z.number().int().nonnegative().default(0),
 });
 export const updateIndicatorSchema = partialWithoutDefaults(createIndicatorSchema).extend({
@@ -84,13 +85,22 @@ export const homeEntryBatchSchema = z.object({
   })),
 });
 
+// Trim first: a whitespace-only note used to pass `.min(1)` and land as a blank
+// row (STR-17). Control characters (NUL → Postgres 500) are rejected too.
+const noteBody = z
+  .string()
+  .trim()
+  .min(1, "Catatan tidak boleh kosong.")
+  .refine((v) => !CONTROL_CHARS.test(v), INVALID_TEXT_MESSAGE)
+  .max(2000, "Catatan maksimal 2000 karakter");
+
 export const noteBodySchema = z.object({
   studentId: z.string().min(1),
   date: ymd,
-  body: z.string().min(1, "Catatan kosong").max(2000, "Catatan maksimal 2000 karakter"),
+  body: noteBody,
 });
 export const noteUpdateSchema = z.object({
-  body: z.string().min(1, "Catatan kosong").max(2000, "Catatan maksimal 2000 karakter"),
+  body: noteBody,
 });
 
 export const adminEntryUpdateSchema = z.object({

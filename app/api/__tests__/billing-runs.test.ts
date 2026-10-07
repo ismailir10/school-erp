@@ -350,6 +350,36 @@ describe("POST /api/billing-runs — second open draft", () => {
   });
 });
 
+describe("POST /api/billing-runs — concurrent create conflicts (STR-10)", () => {
+  it.each(["P2034", "P2002"])("maps Prisma %s to 409 with a retry hint instead of a 500", async (code) => {
+    await primeAdminSession();
+    const wire = wireSingleEligibleStudent();
+    await wire();
+
+    txMock.billingRun.findFirst.mockResolvedValue(null);
+    txMock.billingRun.create.mockResolvedValue({ id: "run-1" });
+    txMock.billingRunRow.createMany.mockRejectedValue(Object.assign(new Error("write conflict"), { code }));
+
+    const res = await createRun(makeReq("http://localhost/api/billing-runs", validCreateBody) as never);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Tagihan sedang dibuat oleh proses lain. Coba lagi sebentar.");
+  });
+
+  it("still rethrows unrelated errors", async () => {
+    await primeAdminSession();
+    const wire = wireSingleEligibleStudent();
+    await wire();
+
+    txMock.billingRun.findFirst.mockResolvedValue(null);
+    txMock.billingRun.create.mockResolvedValue({ id: "run-1" });
+    txMock.billingRunRow.createMany.mockRejectedValue(Object.assign(new Error("boom"), { code: "P2000" }));
+
+    await expect(
+      createRun(makeReq("http://localhost/api/billing-runs", validCreateBody) as never),
+    ).rejects.toThrow("boom");
+  });
+});
+
 describe("POST /api/billing-runs — happy path", () => {
   it("persists the expected row + line counts and returns the summary", async () => {
     await primeAdminSession();

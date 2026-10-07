@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { optionalTrimmed, partialWithoutDefaults } from "./zod-helpers";
+import { cleanText, labelText, longText, nameText } from "./text";
+
+// Identity-number style fields (NIS/NISN/NIK/KK) and date-of-birth strings.
+const idText = () => cleanText({ max: 32, singleLine: true });
+const phoneText = () => cleanText({ max: 30, singleLine: true });
 
 /**
  * Trim; empty (or unset) becomes an explicit `null`, never `undefined`.
@@ -30,28 +35,28 @@ function nullableEmpty<T extends z.ZodTypeAny>(inner: T) {
 }
 
 export const createStudentSchema = z.object({
-  name: z.string().min(1, "Nama siswa wajib diisi"),
-  nickname: z.string().optional().nullable(),
-  dateOfBirth: z.string().optional().nullable(),
+  name: nameText({ required: "Nama siswa wajib diisi" }),
+  nickname: nameText().optional().nullable(),
+  dateOfBirth: idText().optional().nullable(),
   gender: z.enum(["L", "P"]).optional().nullable(),
-  address: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  nis: z.string().optional().nullable(),
-  nisn: z.string().optional().nullable(),
-  birthPlace: z.string().optional().nullable(),
-  nik: z.string().optional().nullable(),
-  kkNumber: z.string().optional().nullable(),
-  livingWith: z.string().optional().nullable(),
+  address: longText().optional().nullable(),
+  notes: longText().optional().nullable(),
+  nis: idText().optional().nullable(),
+  nisn: idText().optional().nullable(),
+  birthPlace: labelText().optional().nullable(),
+  nik: idText().optional().nullable(),
+  kkNumber: idText().optional().nullable(),
+  livingWith: labelText().optional().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional().nullable(),
   // Admin-created students normally land ACTIVE; allowing the full enum lets
   // admins backfill historical rows (GRADUATED / WITHDRAWN) without a second PUT.
   status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
   guardians: z.array(z.object({
-    name: z.string().min(1, "Nama wali wajib diisi"),
+    name: nameText({ required: "Nama wali wajib diisi" }),
     relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).default("WALI"),
-    phone: z.string().optional().nullable(),
-    email: z.string().email("Email tidak valid").optional().nullable(),
-    whatsapp: z.string().optional().nullable(),
+    phone: phoneText().optional().nullable(),
+    email: z.string().email("Email tidak valid").max(254, "Maksimal 254 karakter.").optional().nullable(),
+    whatsapp: phoneText().optional().nullable(),
     isPrimary: z.boolean().default(false),
   })).optional(),
 });
@@ -81,18 +86,18 @@ export const createStudentSchema = z.object({
 export const studentFormSchema = createStudentSchema
   .omit({ metadata: true, guardians: true })
   .extend({
-    name: z.string().trim().min(1, "Nama siswa wajib diisi"),
-    nickname: nullableTrimmed(z.string()),
-    dateOfBirth: nullableEmpty(z.string()),
+    name: nameText({ required: "Nama siswa wajib diisi" }),
+    nickname: nullableTrimmed(nameText()),
+    dateOfBirth: nullableEmpty(idText()),
     gender: nullableEmpty(z.enum(["L", "P"])),
-    address: nullableTrimmed(z.string()),
-    notes: nullableTrimmed(z.string()),
-    nis: nullableTrimmed(z.string()),
-    nisn: nullableTrimmed(z.string()),
-    birthPlace: nullableTrimmed(z.string()),
-    nik: nullableTrimmed(z.string()),
-    kkNumber: nullableTrimmed(z.string()),
-    livingWith: nullableEmpty(z.string()),
+    address: nullableTrimmed(longText()),
+    notes: nullableTrimmed(longText()),
+    nis: nullableTrimmed(idText()),
+    nisn: nullableTrimmed(idText()),
+    birthPlace: nullableTrimmed(labelText()),
+    nik: nullableTrimmed(idText()),
+    kkNumber: nullableTrimmed(idText()),
+    livingWith: nullableEmpty(labelText()),
     status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]),
   });
 
@@ -102,7 +107,7 @@ export const updateStudentSchema = partialWithoutDefaults(createStudentSchema).e
   // Withdrawal date is set by the /withdraw lifecycle API and stays read-only.
   // .trim() before .min(1) so whitespace-only payloads from a direct API call
   // (bypassing the client's client-side trim guard) are still rejected.
-  withdrawalReason: z.string().trim().min(1, "Alasan tidak boleh kosong").optional(),
+  withdrawalReason: longText({ required: "Alasan tidak boleh kosong", max: 500 }).optional(),
 });
 
 export const enrollStudentSchema = z.object({
@@ -111,7 +116,7 @@ export const enrollStudentSchema = z.object({
   // the admin chooses to proceed anyway — see evaluateAgeFit in
   // lib/enrollment/age-fit.ts. Free text, non-empty; written into the
   // AuditLog `after` payload for `student.enroll.age-override`.
-  ageOverrideReason: z.string().trim().min(1).optional(),
+  ageOverrideReason: longText({ required: "Alasan wajib diisi", max: 500 }).optional(),
 });
 
 /**
@@ -129,7 +134,7 @@ export const enrollStudentSchema = z.object({
  * that requirement depends on UI state the schema doesn't see.
  */
 export const enrollStudentFormSchema = enrollStudentSchema.extend({
-  ageOverrideReason: optionalTrimmed(z.string()),
+  ageOverrideReason: optionalTrimmed(longText({ max: 500 })),
 });
 
 export const graduateStudentSchema = z.object({
@@ -181,7 +186,7 @@ export const studentDetailEditFormSchema = studentFormSchema.omit({ status: true
  * `updateStudentSchema`, unmodified, so what the API accepts doesn't change.
  */
 export const withdrawalReasonFormSchema = z.object({
-  withdrawalReason: z.string().trim().min(1, "Alasan keluar wajib diisi"),
+  withdrawalReason: longText({ required: "Alasan keluar wajib diisi", max: 500 }),
 });
 
 /**
