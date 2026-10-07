@@ -383,6 +383,26 @@ describe("POST — catalog add", () => {
   });
 });
 
+describe("POST — amount bound", () => {
+  it("returns 400 for a line amount above the column range, and nothing is created", async () => {
+    await primeAdminSession();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(draftRun as never);
+    vi.mocked(prisma.billingRunRow.findFirst).mockResolvedValue(pendingRow as never);
+
+    const res = await addLine(
+      makeReq("http://localhost/api/billing-runs/run-1/rows/row-1/lines", {
+        ...catalogAddBody,
+        amount: 99_999_999_999_999,
+      }) as never,
+      makeRowParams("run-1", "row-1"),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Nominal maksimal Rp 10.000.000.000");
+    expect(txMock.billingRunLine.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST — discount add", () => {
   it("lazily creates the system component exactly once across two calls", async () => {
     await primeAdminSession();
@@ -486,6 +506,32 @@ describe("PATCH — edit a line", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBeTruthy();
+    expect(txMock.billingRunLine.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 with an Indonesian message (not a 500) for an amount above the column range, and the write is never attempted", async () => {
+    await primeAdminSession();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(draftRun as never);
+    vi.mocked(prisma.billingRunRow.findFirst).mockResolvedValue(pendingRow as never);
+    vi.mocked(prisma.billingRunLine.findFirst).mockResolvedValue({
+      id: "line-1",
+      amount: 500_000,
+      source: "BASE",
+    } as never);
+
+    const res = await patchLine(
+      makeReq(
+        "http://localhost/api/billing-runs/run-1/rows/row-1/lines/line-1",
+        { finalAmount: 99_999_999_999_999 },
+        "PATCH",
+      ) as never,
+      makeLineParams("run-1", "row-1", "line-1"),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Nominal maksimal Rp 10.000.000.000");
+    expect(body.issues[0].path).toEqual(["finalAmount"]);
     expect(txMock.billingRunLine.update).not.toHaveBeenCalled();
   });
 
