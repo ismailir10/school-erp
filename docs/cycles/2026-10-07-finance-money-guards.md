@@ -45,6 +45,6 @@ The user asked for an uninterrupted multi-hour UAT-and-fix session ("work 5 hour
 
 ## Verification
 - Frontend diffs (rupiah input, line editor, payroll pages) checked against `.claude/standards/design-system.html` (existing tokens, destructive ConfirmDialog, sheet padding scale); no new colours.
-- T1: `npx vitest run components/admin/invoices/billing-run-wizard/__tests__/line-editor.test.tsx components/ui/__tests__/rupiah-input.test.tsx` → 63 passed; other RupiahInput consumers (fees, employee detail, invoices components) → 56 passed. T2: 19 passed. T4: 143 passed. Full gate at T5.
+- T1: `npx vitest run components/admin/invoices/billing-run-wizard/__tests__/line-editor.test.tsx components/ui/__tests__/rupiah-input.test.tsx` → 63 passed; other RupiahInput consumers (fees, employee detail, invoices components) → 56 passed. T2: `npx vitest run app/api/__tests__/invoices-put-guard.test.ts app/api/__tests__/invoices-detail.test.ts` → 19 passed. T4: 143 passed. Full gate at T5.
 
 ## Ship Notes
