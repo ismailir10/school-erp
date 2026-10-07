@@ -4,6 +4,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { recordAudit } from "@/lib/audit";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { copyEnrollmentDocsToGuardians } from "@/lib/enrollment/guardian-copy";
 import {
@@ -250,6 +251,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: result.message }, { status: result.status });
   }
   const { student, ayahId, ibuId } = result;
+
+  // Guardians were linked inside the committed transaction; evict the cached
+  // parent→children lookup so the family sees the new child right away.
+  invalidateParentChildren();
 
   // After commit, best-effort: give each guardian their own copy of the KTP/KK
   // the parent uploaded. Never throws and never overwrites an existing document,

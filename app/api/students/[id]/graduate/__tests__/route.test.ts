@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { db, getSession } = vi.hoisted(() => ({
+const { db, getSession, recordAudit } = vi.hoisted(() => ({
   db: {
     student: { findFirst: vi.fn(), update: vi.fn() },
     studentEnrollment: { findMany: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn(),
   },
   getSession: vi.fn(),
+  recordAudit: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ prisma: db }));
+vi.mock("@/lib/audit", () => ({ recordAudit }));
 vi.mock("@/lib/auth", () => ({
   getSession,
   isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
@@ -45,6 +47,16 @@ describe("POST /api/students/[id]/graduate", () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Siswa belum terdaftar di kelas aktif.");
     expect(db.$transaction).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("writes no audit row when the student already graduated", async () => {
+    db.student.findFirst.mockResolvedValue({ id: "s1", status: "GRADUATED" });
+
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(400);
+    expect(recordAudit).not.toHaveBeenCalled();
   });
 
   it("graduates a student with an active enrollment", async () => {
@@ -63,5 +75,17 @@ describe("POST /api/students/[id]/graduate", () => {
       where: { id: "s1" },
       data: { status: "GRADUATED", graduationDate: "2026-06-20" },
     });
+    expect(recordAudit).toHaveBeenCalledTimes(1);
+    expect(recordAudit).toHaveBeenCalledWith(
+      {
+        tenantId: "t1",
+        actorId: "u1",
+        entity: "Student",
+        entityId: "s1",
+        action: "graduate",
+        after: { graduationDate: "2026-06-20" },
+      },
+      tx,
+    );
   });
 });

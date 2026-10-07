@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const {
   appFindUnique, studentCreate, parentUpsert, parentCreate, parentUpdate,
   guardianCreate, appUpdate, admissionUpdate, queryRaw, getSession, isAdminRole, detectSibling, copyDocs, recordAudit,
+  invalidateParentChildren,
 } = vi.hoisted(() => ({
   appFindUnique: vi.fn(),
   studentCreate: vi.fn(),
@@ -20,6 +21,7 @@ const {
   detectSibling: vi.fn(),
   copyDocs: vi.fn(),
   recordAudit: vi.fn(),
+  invalidateParentChildren: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -39,6 +41,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
 vi.mock("@/lib/audit", () => ({ recordAudit }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
 vi.mock("@/lib/admission/sibling-detect", () => ({ detectSibling }));
 vi.mock("@/lib/enrollment/guardian-copy", () => ({ copyEnrollmentDocsToGuardians: copyDocs }));
 
@@ -191,6 +194,17 @@ describe("POST /api/enrollments/[id]/convert", () => {
       },
       expect.objectContaining({ $queryRaw: queryRaw }),
     );
+  });
+
+  it("evicts the parent->children cache after a successful conversion, and not when refused", async () => {
+    appFindUnique.mockResolvedValue(app());
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+
+    invalidateParentChildren.mockClear();
+    appFindUnique.mockResolvedValue(app({ studentId: "stu-x" }));
+    expect((await POST(reqx(), ctx())).status).toBe(409);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
   });
 
   it("writes no audit row when the conversion is refused", async () => {

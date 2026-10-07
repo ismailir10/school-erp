@@ -4,6 +4,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { recordAudit } from "@/lib/audit";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 
 const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
 
@@ -235,6 +236,9 @@ export async function POST(
     return NextResponse.json({ error: result.message }, { status: result.status });
   }
   const { student } = result;
+
+  // Guardian link committed; evict the cached parent→children lookup.
+  invalidateParentChildren();
 
   return NextResponse.json({ student, message: "Siswa berhasil dibuat dari data pendaftaran" });
 }

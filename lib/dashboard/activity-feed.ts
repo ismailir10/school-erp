@@ -19,6 +19,8 @@ type WhitelistedEntity =
   | "Invoice"
   | "Payment"
   | "Admission"
+  | "EnrollmentApplication"
+  | "Student"
   | "StudentEnrollment"
   | "ReportCardEntry"
   | "ClassSection";
@@ -40,9 +42,9 @@ function payloadString(json: unknown, key: string): string | undefined {
 
 // Keys are `${entity}.${action}` exactly as the app writes them through
 // `recordAudit` (lib/audit.ts) — several actions are namespaced strings such
-// as `class.enrollment.add`, not bare create/update. Pairs the app has never
-// written (e.g. `LeaveRequest.approve`) stay listed so they light up the day
-// a route starts auditing them. Rows whose target no longer exists
+// as `class.enrollment.add`, not bare create/update. A pair the app does not
+// write yet may stay listed so it lights up the day a route starts auditing
+// it. Rows whose target no longer exists
 // (`class.delete`, `class.teacher.remove` — hard deletes) and data-entry
 // noise (assessment entries, curriculum edits, age-override side rows) are
 // deliberately absent: the feed skips any pair not listed here.
@@ -65,6 +67,13 @@ const VERB_MAP: Record<VerbKey, VerbBuilder> = {
   "Payment.reverse": (t) => ({ verb: `membatalkan pembayaran ${t}`, href: "/admin/invoices" }),
   "Admission.create": (t) => ({ verb: `pendaftaran baru: ${t}`, href: "/admin/admissions" }),
   "Admission.update": (t) => ({ verb: `memperbarui pendaftaran ${t}`, href: "/admin/admissions" }),
+  "Admission.convert": (t) => ({ verb: `mengonversi pendaftaran ${t} menjadi siswa`, href: "/admin/admissions" }),
+  "EnrollmentApplication.convert": (t) => ({
+    verb: `mengonversi formulir pendaftaran ${t} menjadi siswa`,
+    href: "/admin/enrollments",
+  }),
+  "Student.withdraw": (t) => ({ verb: `mencatat ${t} keluar dari sekolah`, href: "/admin/students" }),
+  "Student.graduate": (t) => ({ verb: `meluluskan ${t}`, href: "/admin/students" }),
   "StudentEnrollment.create": (t) => ({ verb: `mendaftarkan siswa ${t}`, href: "/admin/classes" }),
   "StudentEnrollment.class.enrollment.add": (t, { after }) => {
     const cls = payloadString(after, "className");
@@ -131,6 +140,8 @@ const ENTITY_TARGET: Record<WhitelistedEntity, TargetSpec> = {
   Invoice: field("invoiceNumber"),
   Payment: nested("invoice", "invoiceNumber"),
   Admission: field("childName"),
+  EnrollmentApplication: field("childName"),
+  Student: field("name"),
   StudentEnrollment: nested("student", "name"),
   ReportCardEntry: nested("student", "name"),
   ClassSection: field("name"),

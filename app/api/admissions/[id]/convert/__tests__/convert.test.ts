@@ -12,6 +12,7 @@ const {
   admissionUpdate,
   queryRaw,
   recordAudit,
+  invalidateParentChildren,
 } = vi.hoisted(() => ({
   admissionFindUnique: vi.fn(),
   // T10: pre-tx email-conflict gate calls prisma.parent.findUnique outside
@@ -27,6 +28,7 @@ const {
   // STR-1: in-tx row lock (SELECT ... FOR UPDATE) + studentId/status re-read.
   queryRaw: vi.fn(),
   recordAudit: vi.fn(),
+  invalidateParentChildren: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -46,6 +48,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/audit", () => ({ recordAudit }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
 
 vi.mock("@/lib/auth", () => ({
   getSession: vi.fn().mockResolvedValue({
@@ -116,6 +119,22 @@ describe("POST /api/admissions/[id]/convert", () => {
       },
       expect.objectContaining({ $queryRaw: queryRaw }),
     );
+  });
+
+  it("evicts the parent->children cache after a successful conversion", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    const res = await POST(req, { params: Promise.resolve({ id: "adm-1" }) });
+    expect(res.status).toBe(200);
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not evict the cache when a racing convert already won (409)", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ADMITTED" }]);
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    expect((await POST(req, { params: Promise.resolve({ id: "adm-1" }) })).status).toBe(409);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
   });
 
   it("writes no audit row when a racing convert already won (409)", async () => {

@@ -4,6 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { validateBody } from "@/lib/api/validate";
+import { recordAudit } from "@/lib/audit";
 import { graduateStudentSchema } from "@/lib/validations/student";
 
 export async function POST(
@@ -59,6 +60,18 @@ export async function POST(
       where: { studentId, status: "ACTIVE" },
       data: { status: "GRADUATED" },
     });
+
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "Student",
+        entityId: studentId,
+        action: "graduate",
+        after: { graduationDate: effectiveDate },
+      },
+      tx,
+    );
 
     return updated;
   });

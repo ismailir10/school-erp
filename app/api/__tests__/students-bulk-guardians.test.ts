@@ -29,6 +29,9 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn() };
 });
 
+const { invalidateParentChildren } = vi.hoisted(() => ({ invalidateParentChildren: vi.fn() }));
+vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren }));
+
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ success: true }),
   getClientIp: () => "127.0.0.1",
@@ -112,6 +115,40 @@ describe("POST /api/students — bulk guardian invariants", () => {
     expect(call.data).toHaveLength(2);
     expect(call.data[0].isPrimary).toBe(true);
     expect(call.data[1].isPrimary).toBe(false);
+    // Guardians were linked after the write committed: evict the parent cache.
+    expect(invalidateParentChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not evict the parent cache when no guardians are linked", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.create).mockResolvedValue({ id: "s-new" } as never);
+
+    const { POST } = await import("../students/route");
+    const res = await POST(makeReq({ name: "Anak Tanpa Wali" }) as never);
+
+    expect(res.status).toBe(201);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
+  });
+
+  it("does not evict the parent cache when the request is refused", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+
+    const { POST } = await import("../students/route");
+    const res = await POST(
+      makeReq({
+        name: "Anak Satu",
+        guardians: [
+          { name: "Ayah", relationship: "AYAH", isPrimary: true },
+          { name: "Ibu", relationship: "IBU", isPrimary: true },
+        ],
+      }) as never,
+    );
+
+    expect(res.status).toBe(400);
+    expect(invalidateParentChildren).not.toHaveBeenCalled();
   });
 
   it("rejects when a guardian email matches an existing employee", async () => {

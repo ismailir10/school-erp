@@ -55,12 +55,18 @@ const BEFORE = {
   ageGroup: "A",
   status: "ACTIVE",
   classTrackId: "ct1",
+  academicYearId: "ay1",
+  campusId: "cp1",
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   requirePermission.mockResolvedValue(ALLOW);
-  db.classSection.findFirst.mockResolvedValue(BEFORE);
+  // The route reads the class (by id) and, on a rename, looks for a name clash
+  // (by name). Only the first matches here.
+  db.classSection.findFirst.mockImplementation(async (args: { where: { name?: unknown } }) =>
+    args.where.name ? null : BEFORE,
+  );
   db.classSection.findFirstOrThrow.mockResolvedValue({ ...BEFORE, capacity: 2 });
   tx.studentEnrollment.count.mockResolvedValue(2);
 });
