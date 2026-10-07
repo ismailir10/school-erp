@@ -54,6 +54,6 @@ Report source: persona agent run on `origin/staging @ bb6941a`, kept in this cyc
 
 ## Verification
 - Frontend diffs were checked against `.claude/standards/design-system.html` tokens (pill/border/ghost buttons, 44 px targets); no new colours.
-- T1/T2: targeted suites green — `npx vitest run app/teacher/sessions` 17/17, `npx vitest run app/teacher/class-attendance lib/teacher/__tests__/fetch-error-copy.test.ts` all pass. Full `npm run build && npx vitest run` runs once all five parallel slices are in (T6), because the slices share one worktree.
+- T1/T2: targeted suites green — `npx vitest run app/teacher/sessions` 17/17, `npx vitest run app/teacher/class-attendance lib/teacher/__tests__/fetch-error-copy.test.ts` all pass. T2 commit carries the helper hardening (machine codes / `message` field) reviewed by the driver. Full `npm run build && npx vitest run` runs once all five parallel slices are in (T6), because the slices share one worktree.
 
 ## Ship Notes
