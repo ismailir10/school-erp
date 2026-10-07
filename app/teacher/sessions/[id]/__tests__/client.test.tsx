@@ -290,7 +290,10 @@ describe("SessionRosterClient", () => {
       fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
       await screen.findByText("Semua perubahan tersimpan");
       expect(screen.queryByText(/Belum disimpan/)).toBeNull();
-      expect(beforeUnloadPrevented()).toBe(false);
+      // The guard drops its beforeunload listener in an effect after the
+      // clean render, so wait for it instead of racing it (flaked in CI-like
+      // load: "expected true to be false").
+      await waitFor(() => expect(beforeUnloadPrevented()).toBe(false));
 
       fireEvent.click(screen.getByRole("button", { name: /Status Bilal/ }));
       expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
