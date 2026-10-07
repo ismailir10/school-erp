@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
-import { escapeCsvCell } from "@/lib/students/export";
+import { CSV_BOM, escapeCsvCell } from "@/lib/students/export";
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("attendance.view");
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       else if (r.status === "ABSENT") absent++;
       else if (r.status === "LEAVE") leave++;
     }
-    return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, present + late]
+    return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, present + late + leave]
       .map((v) => escapeCsvCell(String(v ?? "")))
       .join(",");
   });
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
   const csv = [header, ...rows].join("\r\n") + "\r\n";
   const filename = `kehadiran_${monthLabel.replace(/\s/g, "_")}.csv`;
 
-  return new NextResponse(csv, {
+  return new NextResponse(CSV_BOM + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

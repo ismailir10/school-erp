@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { CSV_BOM } from "@/lib/students/export";
 import { resolveLedgerRequest, buildLedgerCsv } from "@/lib/finance/payments-ledger";
 
 /**
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
   const csv = buildLedgerCsv(result.rows);
   const filename = `penerimaan_${result.dateFrom}_${result.dateTo}.csv`;
 
-  return new NextResponse(csv, {
+  return new NextResponse(CSV_BOM + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

@@ -145,6 +145,14 @@ export function selectExportColumns(keys?: readonly string[] | null): ExportColu
 }
 
 /**
+ * UTF-8 byte-order mark. Excel opens a BOM-less CSV as the legacy ANSI code
+ * page and garbles non-ASCII names ("Ā", "é"), so every human-facing CSV
+ * download prepends this as the first bytes of the body. NOT for files a bank
+ * or other machine parser consumes (it would corrupt the first header cell).
+ */
+export const CSV_BOM = "\uFEFF";
+
+/**
  * Escape a single CSV cell.
  *
  * 1. Formula-injection guard: a value whose first character is one of
