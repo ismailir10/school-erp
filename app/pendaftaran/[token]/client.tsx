@@ -14,6 +14,7 @@ import { SignaturePad } from "@/components/enrollment/signature-pad";
 import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
 import {
   DOCUMENT_ITEMS,
+  isDocumentKey,
   missingRequiredDocuments,
   missingUploads,
   type DocumentKey,
@@ -188,6 +189,14 @@ export default function PendaftaranClient({
   // Owned here (not by the Berkas step) so an in-flight upload still shows as
   // busy if the parent steps away and comes back.
   const docs = useDocumentUploads(token, prefill.documents ?? {});
+  // Keys the server rejected as missing count as required from then on, even
+  // if the page was loaded before the school's list changed; otherwise Lanjut
+  // would pass and the next submit would bounce again.
+  const [serverRequired, setServerRequired] = useState<DocumentKey[]>([]);
+  const required = [...new Set([...requiredDocuments, ...serverRequired])];
+  // `requiredDocuments` defaults to a fresh [] each render; key the effect on
+  // content so it doesn't re-run (and re-set errors) forever.
+  const requiredKey = required.join(",");
   const documents = docs.documents;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savePending = useRef(false);
@@ -268,6 +277,11 @@ export default function PendaftaranClient({
     };
   }, [sendDraft]);
 
+  // Berkas-step messages for the given keys, in the order given.
+  function documentErrors(keys: readonly DocumentKey[]): string[] {
+    return keys.map((k) => `${DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k} wajib diunggah.`);
+  }
+
   function validateStep(s: number): string[] {
     const e: string[] = [];
     if (s === 0) {
@@ -283,12 +297,7 @@ export default function PendaftaranClient({
     if (s === 3 && !programId) e.push("Program wajib dipilih.");
     // Step 4 (Berkas): only the school-configured required list blocks; the
     // rest stays optional.
-    if (s === 4) {
-      for (const k of missingUploads(documents, requiredDocuments)) {
-        const label = DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k;
-        e.push(`${label} wajib diunggah.`);
-      }
-    }
+    if (s === 4) e.push(...documentErrors(missingUploads(documents, required)));
     if (s === STEP_CONSENT) {
       if (!consent.agreed) e.push("Persetujuan orang tua wajib dicentang.");
       if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
@@ -298,6 +307,19 @@ export default function PendaftaranClient({
     }
     return e;
   }
+
+  // While the Berkas errors are showing, keep them honest: uploading (or
+  // dropping) a file updates the list, and the Alert disappears once nothing
+  // is left. An effect, not an upload callback, so it also covers the state
+  // change from a rejected submit.
+  useEffect(() => {
+    if (step !== 4) return;
+    setErrors((prev) =>
+      prev.length === 0 ? prev : documentErrors(missingUploads(documents, required)),
+    );
+    // documentErrors only reads constants.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, documents, requiredKey]);
 
   function next() {
     if (step === STEP_CONSENT && (sigSaving.ayah || sigSaving.ibu)) return;
@@ -401,8 +423,18 @@ export default function PendaftaranClient({
         return;
       }
       if (res.status === 422) {
-        const d = (await res.json()) as { fields?: Record<string, string> };
-        setErrors(Object.values(d.fields ?? { _: "Mohon periksa kembali isian formulir." }));
+        const d = (await res.json()) as { fields?: Record<string, string>; missingDocuments?: unknown };
+        // The server's view of the files wins over this tab's: reset those
+        // rows and send the parent to Berkas, where they can fix it.
+        const gone = Array.isArray(d.missingDocuments) ? d.missingDocuments.filter(isDocumentKey) : [];
+        if (gone.length > 0) {
+          docs.markMissing(gone);
+          setServerRequired((prev) => [...new Set([...prev, ...gone])]);
+          setErrors(documentErrors(gone));
+          setStep(4);
+        } else {
+          setErrors(Object.values(d.fields ?? { _: "Mohon periksa kembali isian formulir." }));
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
         scheduleSave(); // submit failed: the latest edits must still reach the draft
         return;
@@ -486,7 +518,7 @@ export default function PendaftaranClient({
         {step === 4 && (
           <DocumentsStep
             documents={docs.documents}
-            required={requiredDocuments}
+            required={required}
             busy={docs.busy}
             errors={docs.errors}
             onUpload={docs.upload}
