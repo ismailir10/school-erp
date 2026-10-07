@@ -332,6 +332,100 @@ describe("RaportEditor unpublish confirm", () => {
   });
 });
 
+describe("RaportEditor publish confirm (ADM-14)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const publishCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/publish"));
+
+  it("asks before publishing and does not publish on Batal", async () => {
+    const fetchMock = stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Simpan & Terbitkan" }));
+    expect(await screen.findByText("Terbitkan rapor Aisyah Nuraini?")).toBeInTheDocument();
+    expect(screen.getByText("Orang tua akan langsung bisa melihat rapor ini.")).toBeInTheDocument();
+    // Nothing but the initial GET has gone out.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.queryByText("Terbitkan rapor Aisyah Nuraini?")).not.toBeInTheDocument());
+    expect(publishCalls(fetchMock)).toHaveLength(0);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("saves then publishes once the admin confirms", async () => {
+    const fetchMock = stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Simpan & Terbitkan" }));
+    await screen.findByText("Terbitkan rapor Aisyah Nuraini?");
+    await user.click(screen.getByRole("button", { name: "Terbitkan" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Rapor diterbitkan."));
+    expect(publishCalls(fetchMock)).toHaveLength(1);
+  });
+});
+
+describe("RaportEditor height / weight bounds (ADM-14)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("caps the native inputs at 250 cm / 200 kg", async () => {
+    stubFetchOnce();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    expect(screen.getByLabelText(/^Tinggi/)).toHaveAttribute("max", "250");
+    expect(screen.getByLabelText(/^Berat/)).toHaveAttribute("max", "200");
+  });
+
+  it("blocks save with an inline Indonesian error and never sends the PUT", async () => {
+    const fetchMock = stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    const height = screen.getByLabelText(/^Tinggi/);
+    await user.type(height, "9999");
+    await user.type(screen.getByLabelText(/^Berat/), "250");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(await screen.findByText("Tinggi maksimal 250 cm")).toBeInTheDocument();
+    expect(screen.getByText("Berat maksimal 200 kg")).toBeInTheDocument();
+    expect(height).toHaveAttribute("aria-invalid", "true");
+    expect(toast.error).toHaveBeenCalledWith("Periksa tinggi dan berat badan yang ditandai.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await user.clear(height);
+    expect(screen.queryByText("Tinggi maksimal 250 cm")).not.toBeInTheDocument();
+  });
+
+  it("sends numbers (not NaN) for valid values and null for blanks", async () => {
+    const fetchMock = stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.type(screen.getByLabelText(/^Tinggi/), "95.5");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Rapor disimpan."));
+    const put = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+    const sent = JSON.parse(put![1].body as string);
+    expect(sent.heightCm).toBe(95.5);
+    expect(sent.weightKg).toBeNull();
+  });
+});
+
 describe("RaportEditor app-shell unsaved-changes guard", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

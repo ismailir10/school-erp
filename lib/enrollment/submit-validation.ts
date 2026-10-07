@@ -33,10 +33,13 @@ const optInSet = (set: Set<string>, msg: string) =>
   optionalTrimmed(z.string().refine((v) => set.has(v), msg));
 
 /** Optional non-negative number — "" / null / undefined become undefined. */
-const optNumber = (msg: string) =>
+const optNumber = (msg: string, max?: { value: number; msg: string }) =>
   z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : v),
-    z.coerce.number({ error: msg }).min(0, msg).optional(),
+    (max
+      ? z.coerce.number({ error: msg }).min(0, msg).max(max.value, max.msg)
+      : z.coerce.number({ error: msg }).min(0, msg)
+    ).optional(),
   );
 
 const addressSchema = z
@@ -69,8 +72,9 @@ const studentSchema = z.object({
   homeLanguage: optionalTrimmed(z.string().max(60)),
   foodAllergy: optionalTrimmed(z.string().max(200)),
   seriousIllness: optionalTrimmed(z.string().max(200)),
-  weightKg: optNumber("Berat badan tidak valid"),
-  heightCm: optNumber("Tinggi badan tidak valid"),
+  // ADM-14: the parent form accepted 9999 cm. Same ceilings as the raport editor.
+  weightKg: optNumber("Berat badan tidak valid", { value: 200, msg: "Berat maksimal 200 kg" }),
+  heightCm: optNumber("Tinggi badan tidak valid", { value: 250, msg: "Tinggi maksimal 250 cm" }),
   headCircumferenceCm: optNumber("Lingkar kepala tidak valid"),
   siblingsKandung: optNumber("Jumlah saudara kandung tidak valid"),
   siblingsTiri: optNumber("Jumlah saudara tiri tidak valid"),

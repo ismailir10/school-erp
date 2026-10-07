@@ -78,6 +78,29 @@ describe("submitEnrollmentSchema", () => {
     }
   });
 
+  it("caps height at 250 cm and weight at 200 kg with Indonesian messages (ADM-14)", () => {
+    const p = validPayload();
+    (p.studentData as Record<string, unknown>).heightCm = 9999;
+    (p.studentData as Record<string, unknown>).weightKg = 201;
+    const result = submitEnrollmentSchema.safeParse(p);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const errs = flattenSubmitErrors(result.error);
+      expect(errs["studentData.heightCm"]).toBe("Tinggi maksimal 250 cm");
+      expect(errs["studentData.weightKg"]).toBe("Berat maksimal 200 kg");
+    }
+  });
+
+  it("accepts the ceilings themselves, string input from the form, and blanks", () => {
+    const p = validPayload();
+    (p.studentData as Record<string, unknown>).heightCm = "250";
+    (p.studentData as Record<string, unknown>).weightKg = 200;
+    expect(submitEnrollmentSchema.safeParse(p).success).toBe(true);
+    (p.studentData as Record<string, unknown>).heightCm = "";
+    (p.studentData as Record<string, unknown>).weightKg = "";
+    expect(submitEnrollmentSchema.safeParse(p).success).toBe(true);
+  });
+
   it("rejects a bad option value (agama not in set)", () => {
     const p = validPayload();
     p.studentData.agama = "ATHEIS";
