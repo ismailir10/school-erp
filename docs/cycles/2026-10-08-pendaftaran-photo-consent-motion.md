@@ -58,6 +58,8 @@ Dependencies: T1, T2, T3 independent; T4 after T3; T5 after T1 + T3; T6 last.
 
 ## Implementation
 
+- Subagent plan: driver=claude-sonnet-5-5 (this harness has no cheaper-than-driver tier above Haiku; implementers run on sonnet), dirty-work=sonnet; tasks [T1, T2, T3] parallel (disjoint files; implementers do not commit, the driver gates, reviews and commits per task by path), tasks [T4, T5] sequential after T3 (both edit `app/pendaftaran/[token]/client.tsx`), T6 inline (docs).
+
 ## Verification
 
 ## Ship Notes
