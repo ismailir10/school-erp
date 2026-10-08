@@ -7,6 +7,7 @@ import { render, screen, waitFor, fireEvent, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
+import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
 vi.mock("@/components/enrollment/signature-pad", () => ({
   SignaturePad: ({
@@ -44,7 +45,7 @@ const filled = {
   },
   ayahData: { name: "Budi" },
   ibuData: { name: "Siti" },
-  consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: false } },
+  consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: false } },
   documents: {},
 };
 
@@ -210,7 +211,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     const prefill = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "", signed: false } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "", signed: false } },
     };
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={prefill} />);
     await gotoConsent(user);
@@ -243,7 +244,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     const both = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
@@ -264,7 +265,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     const both = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 4; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
@@ -289,7 +290,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     const both = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     for (let i = 0; i < 6; i++) await user.click(screen.getByRole("button", { name: "Lanjut" }));
@@ -317,7 +318,7 @@ describe("PendaftaranClient", () => {
     const user = userEvent.setup();
     const both = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
     };
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={both} />);
     await gotoConsent(user);
@@ -344,7 +345,7 @@ describe("PendaftaranClient", () => {
     const file = { fileName: "akta.pdf", mimeType: "application/pdf", size: 3, uploadedAt: "2026-10-06T00:00:00.000Z" };
     const signed = {
       ...filled,
-      consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
       documents: { akta: file },
     };
 

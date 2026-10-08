@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { attendanceOverrideSchema } from "@/lib/validations/attendance";
+import { attendanceOverrideSchema, attendanceOverrideUpdateSchema } from "@/lib/validations/attendance";
 
 describe("attendanceOverrideSchema", () => {
   const valid = {
@@ -86,5 +86,56 @@ describe("attendanceOverrideSchema", () => {
       reason: "x".repeat(501),
     });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("attendanceOverrideSchema — checkInTime", () => {
+  const base = { date: "2026-04-15", status: "PRESENT" as const, reason: "Koreksi" };
+
+  it("accepts and preserves HH:MM", () => {
+    const r = attendanceOverrideSchema.safeParse({ ...base, checkInTime: "07:30" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.checkInTime).toBe("07:30");
+  });
+
+  it.each(["7:3", "25:00", "07:60", "07:30:00x", "abc"])("rejects %s", (t) => {
+    expect(attendanceOverrideSchema.safeParse({ ...base, checkInTime: t }).success).toBe(false);
+  });
+
+  it("treats blank or omitted as no time", () => {
+    const blank = attendanceOverrideSchema.safeParse({ ...base, checkInTime: "" });
+    expect(blank.success).toBe(true);
+    if (blank.success) expect(blank.data.checkInTime).toBeUndefined();
+    const omitted = attendanceOverrideSchema.safeParse(base);
+    expect(omitted.success).toBe(true);
+    if (omitted.success) expect(omitted.data.checkInTime).toBeUndefined();
+  });
+});
+
+describe("attendanceOverrideUpdateSchema — checkInTime", () => {
+  const base = { status: "PRESENT" as const, reason: "Koreksi" };
+
+  it("accepts HH:MM", () => {
+    const r = attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: "07:30" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.checkInTime).toBe("07:30");
+  });
+
+  it("still accepts legacy full local datetimes", () => {
+    expect(
+      attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: "2026-04-15T07:00" }).success
+    ).toBe(true);
+    expect(
+      attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: "2026-04-15T07:00:00.000Z" }).success
+    ).toBe(true);
+  });
+
+  it.each(["7:3", "25:00", "07:30:00x"])("rejects %s", (t) => {
+    expect(attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: t }).success).toBe(false);
+  });
+
+  it("accepts blank or omitted", () => {
+    expect(attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: "" }).success).toBe(true);
+    expect(attendanceOverrideUpdateSchema.safeParse(base).success).toBe(true);
   });
 });

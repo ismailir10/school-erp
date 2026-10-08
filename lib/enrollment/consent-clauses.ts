@@ -1,6 +1,7 @@
 /**
- * "Surat Persetujuan Orang Tua" — the 16 consent clauses from the An Nisaa'
- * paper admission form, transcribed verbatim. Rendered on the consent step of
+ * "Surat Persetujuan Orang Tua" — the 17 consent clauses: the 16 from the An
+ * Nisaa' paper admission form, transcribed verbatim, plus the photo/video
+ * clause added in v2. Rendered on the consent step of
  * the public form; the parent must explicitly agree and sign (both Ayah + Ibu, or the one
  * parent / wali filling alone — see `onlyParent` in submit-validation.ts).
  *
@@ -9,9 +10,14 @@
  * parent actually agreed to. Bump the version (do NOT mutate clauses in place)
  * when the school revises the letter. (R2-P-15 fixed typos in clauses 4, 5, 7 and
  * 12 without changing their meaning, so the version was deliberately kept.)
+ *
+ * v2 added clause 17 (photos and videos of the child from school activities,
+ * for documentation and the school's social media). That changes what the
+ * parent agrees to, so the version was bumped and a draft saved under v1 comes
+ * back with the agreement box unticked (see `initConsent` in the form).
  */
 
-export const CONSENT_VERSION = "annisaa-2026-v1";
+export const CONSENT_VERSION = "annisaa-2026-v2";
 
 export const CONSENT_INTRO =
   "Bismillahirrahmanirrahim. Bersama ini kami menyetujui sebagaimana yang tercantum di bawah ini:";
@@ -36,6 +42,16 @@ export const CONSENT_CLAUSES: readonly string[] = [
   "Menghormati dan bersikap santun kepada guru, sesama wali murid dan anak-anak.",
   "Mematuhi dan menaati peraturan sekolah.",
   "Menjaga nama baik sekolah di manapun berada.",
+  "Dengan mendaftar, kami mengizinkan sekolah menggunakan foto dan video ananda dari kegiatan sekolah untuk dokumentasi dan media sosial sekolah. Jika ingin membatasi, kami dapat menyampaikannya kepada Wali Kelas kapan saja.",
 ] as const;
 
-export const CONSENT_CLAUSE_COUNT = CONSENT_CLAUSES.length; // 16
+export const CONSENT_CLAUSE_COUNT = CONSENT_CLAUSES.length; // 17
+
+/**
+ * 0-based index of the photo/video clause. It is the last clause, so it is
+ * derived from the length (the form renders it distinct from the others).
+ * The test pins the wording, so appending a later clause without moving this
+ * fails loudly instead of highlighting the wrong item.
+ */
+export const PHOTO_CLAUSE_INDEX = CONSENT_CLAUSES.length - 1; // 16
+export const PHOTO_CLAUSE_TITLE = "Foto & video kegiatan";

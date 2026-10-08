@@ -133,6 +133,25 @@
     }
   }
 
+  /* One-time soft ring pulse to draw the eye to a single block (e.g. the photo/video consent clause on
+   * /pendaftaran) — opt-in via motion-safe:animate-highlight-once. Plays once, then the element's own
+   * styles (e.g. a Tailwind ring) return: no fill mode, or the last keyframe would override them for good. */
+  --animate-highlight-once: highlight-once 1600ms ease-out;
+
+  @keyframes highlight-once {
+    /* The element's own Tailwind ring (box-shadow based) is kept in every frame, so it never drops out
+     * while the halo plays; the fallback keeps this usable on elements that have no ring. */
+    0%,
+    100% {
+      box-shadow: var(--tw-ring-shadow, 0 0 #0000);
+    }
+    35% {
+      box-shadow:
+        var(--tw-ring-shadow, 0 0 #0000),
+        0 0 0 6px color-mix(in oklch, var(--primary) 22%, transparent);
+    }
+  }
+
   /* Aurora backdrop bands — used by components/reactbits/aurora.tsx (opt-in via motion-safe:animate-aurora-*).
    * Transform-only, slow, alternating, with deliberately mismatched durations so the bands never re-sync. */
   --animate-aurora-a: aurora-a 26s ease-in-out infinite alternate;

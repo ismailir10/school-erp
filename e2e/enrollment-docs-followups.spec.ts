@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type BrowserContext } from "@playwright/test";
 import {
+  CONSENT_VERSION,
   PNG_1X1,
   createInvite,
   firstProgramId,
@@ -79,7 +80,7 @@ function submitBody(opts: {
     ibuData: { name: "E2E Ibu", ...opts.ibu },
     consentData: {
       agreed: true,
-      version: "annisaa-2026-v1",
+      version: CONSENT_VERSION,
       ayah: { name: "E2E Ayah" },
       ibu: { name: "E2E Ibu" },
     },
@@ -175,7 +176,7 @@ test.describe("Enrollment documents follow-ups", () => {
       await page.getByRole("button", { name: "Lanjut" }).click();
       await expect(page.getByRole("heading", { name: /Tinjau/ })).toBeVisible();
       await page.getByRole("button", { name: "Kirim Formulir" }).click();
-      await expect(page.getByText("Jazakumullah khairan")).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Jazakumullah khairan/ })).toBeVisible();
     } finally {
       await parent.close();
       await setRequiredDocuments(admin.request, []);
@@ -224,7 +225,7 @@ test.describe("Enrollment documents follow-ups", () => {
         studentData: submitBody({ programId, child: CHILD_COPY }).studentData,
         ayahData: ayah,
         ibuData: ibu,
-        consentData: { agreed: true, ayah: { name: ayah.name }, ibu: { name: ibu.name } },
+        consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: ayah.name }, ibu: { name: ibu.name } },
       },
     });
     expect(draft.status()).toBe(200);
