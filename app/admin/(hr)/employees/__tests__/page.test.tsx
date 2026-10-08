@@ -320,4 +320,22 @@ describe("EmployeesPage — Tambah Karyawan dialog", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Karyawan ditambahkan (Kode: BS1)"));
     await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/admin/employees/emp-9"));
   });
+
+  it("caps the hire-date picker at today's Jakarta calendar day, not the UTC day (01:00 WIB = 18:00Z the day before)", async () => {
+    mockCoarsePointer();
+    fixture();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-04T18:00:00Z")); // 2026-10-05 01:00 WIB
+      const user = userEvent.setup();
+      render(<EmployeesPage />);
+
+      await user.click(await screen.findByRole("button", { name: "Tambah" }));
+      const dialog = await screen.findByRole("dialog", { name: "Tambah Karyawan" });
+
+      expect(within(dialog).getByLabelText("Tanggal Masuk", { exact: false })).toHaveAttribute("max", "2026-10-05");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

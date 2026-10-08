@@ -15,6 +15,7 @@ vi.mock("@/lib/payments/reconcile", () => ({
   reconcileInvoicePayment: reconcileMock,
 }));
 
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { POST } from "../cron/reconcile-payments/route";
 
 function makeReq(opts: { authorization?: string; userAgent?: string } = {}) {
@@ -68,7 +69,11 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
     await POST(makeReq(authed));
 
     const where = findManyMock.mock.calls[0][0].where;
-    expect(where.status).toEqual({ in: ["SENT", "OVERDUE", "PARTIAL"] });
+    expect(where.status).toEqual({ in: [...UNPAID_INVOICE_STATUSES] });
+    // Guard against the typo regression: "PARTIAL" is not an InvoiceStatus, so
+    // partially paid invoices were silently never re-checked with the gateway.
+    expect(where.status.in).toContain("PARTIALLY_PAID");
+    expect(where.status.in).not.toContain("PARTIAL");
     // No payment URL → no checkout was ever started → nothing for the gateway
     // to report, so polling it would burn a request to learn nothing.
     expect(where.xenditPaymentUrl).toEqual({ not: null });
