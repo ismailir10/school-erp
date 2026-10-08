@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
-import { submitEnrollmentSchema, flattenSubmitErrors } from "@/lib/enrollment/submit-validation";
+import { submitEnrollmentSchema, flattenSubmitErrors, isSideWaived } from "@/lib/enrollment/submit-validation";
 import { DOCUMENT_ITEMS, missingUploads } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 
@@ -67,7 +67,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       const storedConsent = asObject(stored?.consentData);
       const b = body as Record<string, unknown>;
       const consent = { ...asObject(b.consentData) };
+      const only = consent.onlyParent;
       for (const side of ["ayah", "ibu"] as const) {
+        // R2-P-10: a waived parent has no signer block at all (a stored token
+        // from before the parent was waived must not resurface either).
+        if (isSideWaived(only === "ayah" || only === "ibu" ? only : null, side)) {
+          delete consent[side];
+          continue;
+        }
         const token = asObject(storedConsent[side]).signatureToken;
         consent[side] = {
           ...asObject(consent[side]),
@@ -115,10 +122,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const nowIso = now.toISOString();
 
     // Server-stamp the signing time — client-supplied signedAt is not trusted.
+    // A waived parent (R2-P-10) gets no signer block and an empty data block, so
+    // draft text typed before the waiver is not kept.
+    const only = data.consentData.onlyParent;
+    const ayahWaived = isSideWaived(only, "ayah");
+    const ibuWaived = isSideWaived(only, "ibu");
+    const { ayah: ayahSigner, ibu: ibuSigner, ...consentRest } = data.consentData;
     const consentData = {
-      ...data.consentData,
-      ayah: { ...data.consentData.ayah, signedAt: nowIso },
-      ibu: { ...data.consentData.ibu, signedAt: nowIso },
+      ...consentRest,
+      ...(!ayahWaived && ayahSigner ? { ayah: { ...ayahSigner, signedAt: nowIso } } : {}),
+      ...(!ibuWaived && ibuSigner ? { ibu: { ...ibuSigner, signedAt: nowIso } } : {}),
     };
 
     // Guard the INVITED→SUBMITTED transition at the DB layer too: updateMany with
@@ -133,8 +146,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         programId: data.programId,
         dcareAddon: data.dcareAddon,
         studentData: data.studentData,
-        ayahData: data.ayahData,
-        ibuData: data.ibuData,
+        ayahData: ayahWaived ? {} : data.ayahData,
+        ibuData: ibuWaived ? {} : data.ibuData,
         consentData,
       },
     });

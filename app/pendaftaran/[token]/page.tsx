@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
-import { toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
+import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
 import PendaftaranClient from "./client";
 import { MessageCard } from "./message-card";
+import { BringList, withoutWaivedParentDocs } from "./bring-list";
 
 export const metadata: Metadata = {
   title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
@@ -40,7 +41,9 @@ function toPublicConsent(raw: unknown) {
       signed: typeof o.signatureToken === "string" && o.signatureToken.length > 0,
     };
   };
-  return { agreed: c.agreed === true, ayah: side(c.ayah), ibu: side(c.ibu) };
+  // `onlyParent` (R2-P-10): the one parent / wali filling alone, "" when both do.
+  const onlyParent = c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "";
+  return { agreed: c.agreed === true, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -117,7 +120,19 @@ export default async function PendaftaranTokenPage({
         <MessageCard
           title="Formulir sudah diterima"
           body="Jazakumullah khairan. Formulir pendaftaran ananda sudah kami terima. Tim penerimaan akan menghubungi Bapak/Ibu untuk proses selanjutnya."
-        />
+        >
+          {/* Same checklist as the just-submitted card; it shrinks as staff mark documents received. */}
+          <BringList
+            keys={
+              application
+                ? withoutWaivedParentDocs(
+                    missingRequiredDocuments(application.documents),
+                    toPublicConsent(application.consentData).onlyParent,
+                  )
+                : []
+            }
+          />
+        </MessageCard>
       </Shell>
     );
   }

@@ -176,4 +176,75 @@ describe("submitEnrollmentSchema", () => {
       expect("tenantId" in result.data).toBe(false);
     }
   });
+
+  // R2-P-10: a single parent / wali may fill the form alone.
+  describe("onlyParent (single parent / wali)", () => {
+    function onlyIbuPayload() {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+      const p = validPayload() as Record<string, any>;
+      delete p.ayahData;
+      delete p.consentData.ayah;
+      p.consentData.onlyParent = "ibu";
+      return p;
+    }
+
+    it("accepts only the ibu's block, name and signature when ayah is waived", () => {
+      const result = submitEnrollmentSchema.safeParse(onlyIbuPayload());
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.consentData.onlyParent).toBe("ibu");
+    });
+
+    it("accepts only the ayah's block when ibu is waived", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+      const p = validPayload() as Record<string, any>;
+      delete p.ibuData;
+      delete p.consentData.ibu;
+      p.consentData.onlyParent = "ayah";
+      expect(submitEnrollmentSchema.safeParse(p).success).toBe(true);
+    });
+
+    it("still requires the filling parent's name and signature", () => {
+      const p = onlyIbuPayload();
+      p.ibuData.name = "";
+      p.consentData.ibu.signatureToken = "";
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errs = flattenSubmitErrors(result.error);
+        expect(errs["ibuData.name"]).toBe("Nama wajib diisi");
+        expect(errs["consentData.ibu.signatureToken"]).toBe("Tanda tangan wajib diisi");
+      }
+    });
+
+    it("without the flag a missing parent block / signer is reported field by field", () => {
+      const p = onlyIbuPayload();
+      delete p.consentData.onlyParent;
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errs = flattenSubmitErrors(result.error);
+        expect(errs["ayahData.name"]).toBe("Nama wajib diisi");
+        expect(errs["consentData.ayah.name"]).toBe("Nama penandatangan wajib diisi");
+        expect(errs["consentData.ayah.signatureToken"]).toBe("Tanda tangan wajib diisi");
+      }
+    });
+
+    it("treats an empty-string flag as 'both parents'", () => {
+      const p = onlyIbuPayload();
+      p.consentData.onlyParent = "";
+      expect(submitEnrollmentSchema.safeParse(p).success).toBe(false);
+    });
+
+    it("rejects an unknown flag value", () => {
+      const p = onlyIbuPayload();
+      p.consentData.onlyParent = "wali";
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(flattenSubmitErrors(result.error)["consentData.onlyParent"]).toBe(
+          "Pilihan orang tua yang mengisi tidak valid",
+        );
+      }
+    });
+  });
 });

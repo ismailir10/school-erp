@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import { MessageCircle, Phone } from "lucide-react";
-import { telHref, whatsappHref } from "@/lib/contact";
+import { SCHOOL_CONTACT_FALLBACK_TEXT, telHref, whatsappHref } from "@/lib/contact";
 
 /**
  * Dead-end card for a link that cannot open the form (not found, expired,
@@ -11,11 +12,14 @@ export function MessageCard({
   title,
   body,
   phone,
+  children,
 }: {
   title: string;
   body: string;
   /** `schoolContactPhone()`; omit for cards that need no follow-up. */
   phone?: string | null;
+  /** Extra content under the body, e.g. the bring-to-school checklist. */
+  children?: ReactNode;
 }) {
   const wa = whatsappHref(phone);
   const tel = telHref(phone);
@@ -25,6 +29,12 @@ export function MessageCard({
     <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
       <h1 className="text-xl font-semibold text-emerald-950">{title}</h1>
       <p className="mt-3 text-sm leading-relaxed text-emerald-900/70">{body}</p>
+      {children}
+      {/* A card that asks for follow-up must still say where to go when the
+          school number is not configured (R2-P-11). */}
+      {phone !== undefined && !(wa || tel) && (
+        <p className="mt-4 text-sm text-emerald-900/70">{SCHOOL_CONTACT_FALLBACK_TEXT}</p>
+      )}
       {(wa || tel) && (
         <div className="mt-5 flex flex-wrap justify-center gap-3">
           {wa && (

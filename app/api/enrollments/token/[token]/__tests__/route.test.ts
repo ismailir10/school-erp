@@ -123,6 +123,17 @@ describe("PATCH — consentData and signatures", () => {
     expect(JSON.stringify(incoming)).not.toContain("signatureToken");
   });
 
+  it("keeps the single-parent flag (R2-P-10) in the saved consent blob so resume can restore it", async () => {
+    invited();
+    await PATCH(req({ consentData: { agreed: false, onlyParent: "ibu", ayah: { name: "" }, ibu: { name: "Siti" } } }), ctx);
+    expect(writeConsent.mock.calls[0][1]).toEqual({
+      agreed: false,
+      onlyParent: "ibu",
+      ayah: { name: "" },
+      ibu: { name: "Siti" },
+    });
+  });
+
   it("creates ayah/ibu objects when the client sends consentData without them", async () => {
     invited();
     await PATCH(req({ consentData: { agreed: true } }), ctx);
