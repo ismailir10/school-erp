@@ -9,7 +9,10 @@ import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Camera, CheckCircle2, Copy, RefreshCw } from "lucide-react";
+import { Camera, Check, CheckCircle2, Copy, RefreshCw } from "lucide-react";
+import { motion } from "framer-motion";
+import { StepTransition } from "@/components/reactbits/step-transition";
+import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import { SignaturePad } from "@/components/enrollment/signature-pad";
 import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
 import {
@@ -193,7 +196,10 @@ const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
 const INPUT_CLASS = "h-11 text-base md:text-base";
 const SELECT_CLASS = "h-11 text-base";
 const AREA_CLASS = "text-base md:text-base";
-const BTN_CLASS = "h-11 min-w-28 px-5 text-base";
+// Press feedback is pure CSS (compositor-only transform, off under reduced motion). aria-disabled
+// buttons stay put: they look and read as unavailable, so they must not feel pressable.
+const BTN_CLASS =
+  "h-11 min-w-28 px-5 text-base motion-safe:transition-transform motion-safe:active:scale-[0.97] aria-disabled:active:scale-100";
 
 export default function PendaftaranClient({
   token,
@@ -226,6 +232,15 @@ export default function PendaftaranClient({
       }),
   );
   const [step, setStep] = useState(startStep);
+  // Direction of travel for the step transition: +1 forward, -1 when going back or jumping to an
+  // earlier step. Derived during render from the previous step (React's "adjust state on prop change"
+  // pattern), so it is right on the very render that swaps the step, whoever called setStep.
+  const [prevStep, setPrevStep] = useState(startStep);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  if (step !== prevStep) {
+    setPrevStep(step);
+    setDirection(step < prevStep ? -1 : 1);
+  }
   // Furthest step reached; the stepper lets the parent tap back to any of them.
   const [reached, setReached] = useState(startStep);
   const [student, setStudent] = useState<StudentState>(() => initStudent(prefill.studentData));
@@ -610,7 +625,10 @@ export default function PendaftaranClient({
         </Alert>
       )}
 
-      <div className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
+      {/* overflow-x-clip: the 12px enter slide must not add transient horizontal scroll on phones. The
+          card's own padding keeps input focus rings inside the clip. */}
+      <div className="overflow-x-clip rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
+        <StepTransition stepKey={step} direction={direction}>
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
           <ParentStep
@@ -653,6 +671,7 @@ export default function PendaftaranClient({
           />
         )}
         {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} />}
+        </StepTransition>
       </div>
 
       <div className="flex items-center justify-between">
@@ -705,42 +724,73 @@ export default function PendaftaranClient({
 }
 
 function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo: (i: number) => void }) {
+  const reduced = usePrefersReducedMotion();
+  // Steps already completed when the form opened (resumed draft) show their check at rest; only a step
+  // completed during this visit pops.
+  const [openedAt] = useState(step);
+  const progress = (step + 1) / STEPS.length;
   return (
-    <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
-      {STEPS.map((label, i) => {
-        const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
-        const text = `${i + 1}. ${label}`;
-        if (i === step) {
-          return (
-            <li key={label} aria-current="step">
-              <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
-            </li>
-          );
-        }
-        if (i <= reached) {
-          // Already-visited steps are real buttons: bordered, darker text, focus ring.
+    <div className="space-y-3">
+      {/* Decorative: the pills below carry the state for assistive tech. scaleX, never width. */}
+      <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-emerald-100">
+        <motion.div
+          data-testid="stepper-progress"
+          data-step={step}
+          className="h-full origin-left rounded-full bg-[#0C5C3F]"
+          initial={false}
+          animate={{ scaleX: progress }}
+          transition={reduced ? { duration: 0 } : { duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </div>
+      <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
+        {STEPS.map((label, i) => {
+          const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
+          const text = `${i + 1}. ${label}`;
+          if (i === step) {
+            return (
+              <li key={label} aria-current="step">
+                <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
+              </li>
+            );
+          }
+          if (i <= reached) {
+            const completed = i < step;
+            // Already-visited steps are real buttons: bordered, darker text, focus ring.
+            return (
+              <li key={label}>
+                <button
+                  type="button"
+                  onClick={() => onGo(i)}
+                  className={
+                    base +
+                    (completed ? "gap-1.5 " : "") +
+                    "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
+                  }
+                >
+                  {completed && (
+                    <motion.span
+                      aria-hidden="true"
+                      className="inline-flex"
+                      initial={reduced || i < openedAt ? false : { scale: 0.4 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <Check size={14} aria-hidden="true" />
+                    </motion.span>
+                  )}
+                  {text}
+                </button>
+              </li>
+            );
+          }
           return (
             <li key={label}>
-              <button
-                type="button"
-                onClick={() => onGo(i)}
-                className={
-                  base +
-                  "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
-                }
-              >
-                {text}
-              </button>
+              <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
             </li>
           );
-        }
-        return (
-          <li key={label}>
-            <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
-          </li>
-        );
-      })}
-    </ol>
+        })}
+      </ol>
+    </div>
   );
 }
 
