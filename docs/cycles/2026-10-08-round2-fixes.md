@@ -1,0 +1,76 @@
+# Round-2 UAT fixes — teacher home + journal, sentra list, parent money/contact, single-parent enrolment, admin admissions/classes/dashboard
+
+## Context
+Six fix PRs from the 2026-10-07 UAT (#610–#615) are on staging. A second persona pass ran against that build: Ibu Nur (admin, desktop), Bu Sari (teacher, 390 px) and Pak Budi (parent, 390 px), on a disposable local Postgres. Every screen loaded in under 1.3 s, with no 5xx, no slow API and no overflow at 390 px. The round-1 fixes held: privacy fallbacks, leave guards, the overdue chip, draft-safe public forms and confirm dialogs. The pass found 47 new issues, none of them blockers. These are the ones a user hits in the first week:
+
+- **Teacher.** "Catat masuk" sits below the fold until after check-in (R2-T-1). An offline check-in shows "Failed to fetch" (T-2). Journal progress counts absent children, so the home task never clears on a day with an absence (T-5). The sentra list holds all 79 same-age children in the school, with no class label or filter, and two same-name children look identical (T-7). A child marked Sakit keeps an arrival time (T-4). The leave balance ignores pending days (T-9). There are smaller copy issues too (T-3, T-6, T-8, T-10, T-12).
+- **Parent.** The home screen shows a past "jatuh tempo terdekat" in a neutral tone, with no overdue signal (P-1). "Hubungi admin sekolah" offers no way to reach the school when the contact env var is unset (P-2, P-11, P-17). The attendance grid labels two rows "Status" (P-4). The kuitansi shows the internal reference, and a partial payment gets no receipt (P-6). The rapor PDF is named with raw ids (P-7). A single child shows the same total twice (P-8). Home stage chips have no legend and use a warning tone (P-9).
+- **Enrolment form.** A single-parent, widowed or wali-only family cannot finish it, because both parents' names and both signatures are required (P-10). The document checklist disappears after reload, and the consent text has typos (P-15). The /daftar phone error gives no format hint (P-13).
+- **Admin.**
+  - Admin-created admissions skip sibling detection, so converting silently duplicates the student and the parent (R2-ADMIN-1).
+  - "Kelola kelas tahun ini" ignores the `yearId` and shows the wrong year's classes (ADMIN-2).
+  - The dashboard has no overdue or receivables figure (ADMIN-3).
+  - The class picker shows two identical "KB" entries and counts withdrawn students (ADMIN-4).
+  - Linking a guardian defaults the relationship to "Ibu" (ADMIN-6).
+  - The edit guard misses the back link (ADMIN-7).
+  - A graduation cannot be undone (ADMIN-8).
+  - Billing commit writes no audit row (ADMIN-9).
+  - "Setujui" is offered on payroll that cannot be approved yet (ADMIN-10).
+  - Payroll dates are raw ISO (ADMIN-11).
+  - The invoice row menu offers only "Batalkan", and gateway jargon shows in labels (ADMIN-12).
+  - The leave dialog shows a raw "LEAVE" (ADMIN-13).
+  - The admissions list has gaps, including on mobile (ADMIN-14, ADMIN-16).
+  - The academic-year dialog's defaults are unhelpful (ADMIN-15).
+
+The user asked to "restart the round-2 testing and fix what it finds". That is the authorization for this cycle. It runs without stopping at the Spec gate, like the 2026-10-07 cycles.
+
+## Spec
+- [ ] Teacher home: the personal check-in row comes first in both states and shows "Terlambat N menit" when the record is LATE. Check-in errors use the shared Indonesian failure copy. Journal progress excludes today's Sakit/Izin/Alpa children, so a day with absences can reach "lengkap", and the journal list marks those children. The no-class teacher empty states make no reference to tasks "di atas".
+- [ ] Teacher attendance: marking a child Sakit/Izin/Alpa clears that day's masuk/pulang time.
+- [ ] Teacher sentra: rows show the class and default to the teacher's own class, with a toggle for all children and a name search.
+- [ ] Teacher weekly assessment: the footer never shows "belum tersimpan" and "tersimpan otomatis" together.
+- [ ] Teacher leave sheet: the balance subtracts pending days ("9 sisa · 3 menunggu"), and the end-date copy matches the rule (same day allowed).
+- [ ] Parent: the home bill rows show a red "N lewat tempo" when any invoice is overdue. When the school phone is not configured, the fallback uses the campus or tenant phone from the DB, or says plainly where to ask (the front office), so no screen is left without a way to reach the school. Attendance grid row labels are fixed. The parent kuitansi hides the internal admin reference, and partially paid invoices also get a receipt. The rapor PDF file name uses the child's name and term, says "Rapor", and uses id-ID numbers. A single child's bill does not repeat. Home stage chips use a neutral tone and a one-line legend.
+- [ ] Enrolment form (/pendaftaran): a "Hanya satu orang tua / wali" option lets one parent's name and signature suffice. The checklist stays on the submitted card after reload. Consent typos are fixed. The /daftar phone error gives the format ("contoh 0812…").
+- [ ] Admin admissions: admin-created admissions run sibling detection, matching phone or WhatsApp too. Converting with a likely match asks to confirm, showing the existing student or parent. The guardian link has no preselected relationship (it uses the guardian's existing one if known). The edit guard covers the "Kembali" link. A GRADUATED student can be reactivated, with confirmation. The admissions list shows a WhatsApp contact when there is no phone and uses consistent status names. On mobile the status chip shows under the name.
+- [ ] Admin classes, finance and HR:
+  - `/admin/classes?yearId=` opens that year.
+  - The class picker labels include the campus when names repeat and count ACTIVE enrolments only.
+  - The dashboard shows overdue invoice count and receivables, linked to the filtered invoice list.
+  - A billing commit writes an audit row the feed shows.
+  - "Setujui" is disabled with a hint before the period ends.
+  - Payroll periods are formatted dates.
+  - A SENT invoice's row menu offers "Catat Pembayaran".
+  - Labels read "Terkirim" and "Cek status pembayaran".
+  - The leave approve copy says "Cuti".
+  - The academic-year dialog suggests the next year's name and a start date the day after the current year ends.
+
+### Non-goals
+- No schema migration, no new dependency.
+- Not in this cycle:
+  - the parent monthly attendance view (P-3) and threaded note replies (P-5), which are features;
+  - restructuring the enrolment form's step 1 (P-12);
+  - strict NIS/NIK/NISN formats (ADMIN-5), which need a production data audit;
+  - employer BPJS on the salary slip (T-14), which is a payroll policy question for the owner;
+  - the demo login picker (P-16, dev only);
+  - the sick-leave versus attendance warning (T-11);
+  - the public-page console MIME warning (P-14), which needs an investigation of its own.
+
+### Assumptions
+1. "Hanya satu orang tua / wali" waives the second parent's name and signature only. Every other required field stays required.
+2. Reactivating a GRADUATED student sets status ACTIVE and clears graduation fields. Enrolments are not recreated, matching the WITHDRAWN path from #614.
+
+## Tasks
+- [ ] **T1 — Teacher home + journal.** `app/teacher/home-client.tsx` (+ the home page/server file that feeds it), `lib/teacher/home-progress.ts`, `app/teacher/student-journal/**` list view (+ tests). R2-T-1, T-2, T-3, T-5, T-12. Independent.
+- [ ] **T2 — Teacher attendance, sentra, weekly, leave sheet.** `app/api/student-attendance/mark/route.ts`, `app/teacher/assessments/center/[center]/**`, `app/teacher/assessments/weekly/**`, `components/teacher/leave-sheet.tsx` (+ tests). R2-T-4, T-7, T-8, T-9, T-10. Independent.
+- [ ] **T3 — Parent portal.** `app/parent/**` (home, attendance, invoices sheet), `components/parent/**`, `lib/contact.ts`, `app/api/guardian/invoices/[id]/pdf/route.ts`, `lib/pdf/receipt-data.ts`, `app/api/guardian/report-cards/**/pdf` (+ tests). P-1, P-2, P-4, P-6, P-7, P-8, P-9, P-11 (contact on public cards via `lib/contact.ts` only), P-17. Independent.
+- [ ] **T4 — Public forms.** `app/pendaftaran/**`, `lib/enrollment/**`, `app/daftar/**`, `lib/admission/submit-validation.ts` (+ tests). P-10, P-15, P-13. Independent.
+- [ ] **T5 — Admin admissions + students.** `app/api/admissions/**`, `lib/admission/sibling-detect.ts`, `app/admin/admissions/**`, `components/admin/admissions/**`, `app/admin/students/[id]/page.tsx`, `components/admin/students/**`, guardian link dialog, `app/api/students/[id]/route.ts` (+ tests). ADMIN-1, 6, 7, 8, 14, 16. Independent.
+- [ ] **T6 — Admin classes, dashboard, finance, HR.** `app/admin/classes/**`, `app/api/class-sections/route.ts`, `components/admin/class-section-picker.tsx`, `app/admin/page.tsx` + dashboard components, `app/api/billing-runs/[id]/commit/route.ts`, `lib/dashboard/activity-feed.ts`, `app/admin/(hr)/payroll/**`, `app/admin/invoices/**` (row menu, labels), leave approve dialog, `app/admin/academic-years/**` (+ tests). ADMIN-2, 3, 4, 9, 10, 11, 12, 13, 15. Independent.
+- [ ] **T7 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T6.
+
+## Implementation
+
+## Verification
+
+## Ship Notes
