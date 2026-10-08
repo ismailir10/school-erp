@@ -207,11 +207,11 @@ export default async function ParentDashboard() {
       description={
         bill.overdue > 0 ? (
           <>
-            {bill.count} tagihan ·{" "}
+            {bill.count} tagihan belum dibayar ·{" "}
             <span className="font-semibold text-status-absent-text">{bill.overdue} lewat tempo</span>
           </>
         ) : (
-          `${bill.count} tagihan · jatuh tempo terdekat ${formatDate(bill.nearestDue!, { day: "numeric", month: "short", year: "numeric" })}`
+          `${bill.count} tagihan belum dibayar · jatuh tempo terdekat ${formatDate(bill.nearestDue!, { day: "numeric", month: "short", year: "numeric" })}`
         )
       }
       icon={<Receipt className="size-5" />}

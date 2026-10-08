@@ -50,11 +50,19 @@ test.describe("Parent flows", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Kabar keluarga hari ini" })).toBeVisible();
     const household = page.getByRole("region", { name: "Hari ini", exact: true });
     await expect(household).toBeVisible();
-    await expect(household.getByText("Tagihan keluarga", { exact: true }).or(household.getByText("Lunas semua", { exact: true }))).toBeVisible();
+    // A family with one child who owes gets just that child's bill row — the
+    // "Tagihan keluarga" total would repeat the same amount (R2-P-8).
+    const billRow = household.getByRole("link", { name: /^Tagihan / }).first();
+    await expect(
+      household.getByText("Tagihan keluarga", { exact: true })
+        .or(household.getByText("Lunas semua", { exact: true }))
+        .or(billRow)
+        .first(),
+    ).toBeVisible();
 
     // The immediate bill action must identify an authorized child and keep that
     // child's context. Other children's bills can remain progressively disclosed.
-    if (await household.getByText("Tagihan keluarga", { exact: true }).isVisible()) {
+    if (await billRow.isVisible()) {
       const billAction = household.getByRole("link", { name: /^Tagihan / }).first();
       await expect(billAction).toBeVisible();
       const destination = new URL((await billAction.getAttribute("href"))!, page.url());
@@ -110,8 +118,9 @@ test.describe("Parent flows", () => {
     await expect(
       page.locator("text=Pekan ini belum dimulai")
         .or(page.locator("text=Belum ada catatan kehadiran"))
-        // The status row is labelled "Status" (X-13): it holds ✓/S/I/A.
-        .or(page.getByRole("cell", { name: /^Status$/ }))
+        // The status row is labelled "Status" (X-13): it holds ✓/S/I/A. It is a
+        // row header (th scope="row") since R2-P-4.
+        .or(page.getByRole("rowheader", { name: /^Status$/ }))
         .first()
     ).toBeVisible({ timeout: 10_000 });
   });
