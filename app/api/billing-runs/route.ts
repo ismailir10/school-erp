@@ -230,6 +230,15 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    // Concurrent creates: Serializable write conflict (P2034) or a unique
+    // collision (P2002) means another request is building the draft right now.
+    const code = typeof e === "object" && e !== null && "code" in e ? (e as { code?: unknown }).code : undefined;
+    if (code === "P2034" || code === "P2002") {
+      return NextResponse.json(
+        { error: "Tagihan sedang dibuat oleh proses lain. Coba lagi sebentar." },
+        { status: 409 },
+      );
+    }
     throw e;
   }
 }

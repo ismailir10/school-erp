@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { validateBody } from "@/lib/api/validate";
+import { recordAudit } from "@/lib/audit";
 import { rejectLeaveRequestSchema } from "@/lib/validations/leave";
 
 export async function POST(
@@ -15,7 +16,13 @@ export async function POST(
   if (!hasPermission(session, "hr.view")) return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
 
   const { id } = await params;
-  const result = await validateBody(rejectLeaveRequestSchema, await req.json());
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+  const result = await validateBody(rejectLeaveRequestSchema, rawBody);
   if (result.error) return result.error;
   const { note } = result.data;
 
@@ -32,15 +39,37 @@ export async function POST(
     return NextResponse.json({ error: "Hanya pengajuan PENDING yang bisa ditolak" }, { status: 400 });
   }
 
-  const updated = await prisma.leaveRequest.update({
-    where: { id },
-    data: {
-      status: "REJECTED",
-      reviewedBy: session.id,
-      reviewedAt: new Date(),
-      reviewNote: note,
-    },
-  });
+  // Conditional update: a concurrent approve/reject/cancel that already moved
+  // the row leaves count 0, so the loser gets 409 instead of a second 200.
+  // The audit row rides the same tx so a reject is never recorded half-way.
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.leaveRequest.updateMany({
+      where: { id, status: "PENDING" },
+      data: {
+        status: "REJECTED",
+        reviewedBy: session.id,
+        reviewedAt: new Date(),
+        reviewNote: note,
+      },
+    });
+    if (claimed.count === 0) return null;
 
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "LeaveRequest",
+        entityId: id,
+        action: "reject",
+        before: { status: "PENDING" },
+        after: { status: "REJECTED", reason: note ?? null },
+      },
+      tx,
+    );
+    return tx.leaveRequest.findUnique({ where: { id } });
+  });
+  if (!updated) {
+    return NextResponse.json({ error: "Pengajuan ini sudah diproses." }, { status: 409 });
+  }
   return NextResponse.json(updated);
 }

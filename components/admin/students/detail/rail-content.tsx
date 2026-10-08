@@ -76,7 +76,7 @@ export function StudentRailContent({
       <RailCard title="Jejak">
         <RailKV
           items={[
-            ...(createdAt ? [{ label: "Dibuat", value: formatDateShort(createdAt.slice(0, 10)) }] : []),
+            ...(createdAt ? [{ label: "Dibuat", value: formatDateShort(createdAt) }] : []),
             {
               label: "Asal data",
               value: fromEnrollmentApplication ? (

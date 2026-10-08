@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormRootError } from "@/components/ui/form";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -93,12 +94,14 @@ const DOC_ACCEPT = "image/jpeg,image/png,application/pdf";
 
 function DocumentUploadCell({
   parentId,
+  parentName,
   field,
   label,
   hasFile,
   onMutated,
 }: {
   parentId: string;
+  parentName: string;
   field: "ktp" | "kk";
   label: string;
   hasFile: boolean;
@@ -106,6 +109,7 @@ function DocumentUploadCell({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Cache-bust the auth-proxied URL after upload/delete so <embed> reloads.
   const [version, setVersion] = useState(0);
 
@@ -199,11 +203,20 @@ function DocumentUploadCell({
           {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
         </Button>
         {hasFile && (
-          <Button size="sm" variant="ghost" onClick={handleDelete} disabled={busy}>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy}>
             Hapus
           </Button>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`Hapus ${label}?`}
+        description={`${label} ${parentName} akan dihapus. Unggah lagi jika masih diperlukan.`}
+        confirmLabel="Ya, Hapus"
+        destructive
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
@@ -573,6 +586,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DocumentUploadCell
                 parentId={parent.id}
+                parentName={parent.name}
                 field="ktp"
                 label="KTP"
                 hasFile={parent.hasKtp}
@@ -580,6 +594,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
               />
               <DocumentUploadCell
                 parentId={parent.id}
+                parentName={parent.name}
                 field="kk"
                 label="KK"
                 hasFile={parent.hasKk}

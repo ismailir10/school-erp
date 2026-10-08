@@ -3,12 +3,18 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createEmployeeSchema } from "@/lib/validations/employee";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { fieldErrorResponse } from "@/lib/api/field-errors";
+import { fieldErrorResponse, isUniqueViolation } from "@/lib/api/field-errors";
+import { isKodeCollision, nextEmployeeKode } from "@/lib/employees/kode";
+
+// A P2002 on (tenantId, kode) is retried with a freshly computed code; the
+// advisory lock makes it rare, but a stale read or a second app instance can
+// still race it.
+const KODE_MAX_ATTEMPTS = 3;
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("hr.view");
@@ -24,7 +30,7 @@ export async function GET(req: NextRequest) {
   });
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
   const campusId = searchParams.get("campusId");
   const status = searchParams.get("status");
 
@@ -73,7 +79,13 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return auth.error;
   const { session } = auth;
 
-  const result = await validateBody(createEmployeeSchema, await req.json());
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+  const result = await validateBody(createEmployeeSchema, rawBody);
   if (result.error) return result.error;
   const body = result.data;
   const tenantId = session.tenantId;
@@ -97,7 +109,7 @@ export async function POST(req: NextRequest) {
   const email = body.email.trim();
 
   // Auto-generate employee code: initials + sequence number (atomic)
-  const outcome = await prisma.$transaction(async (tx) => {
+  const createOnce = () => prisma.$transaction(async (tx) => {
     // F-25: advisory lock per tenant to serialize employee code generation.
     // Use single-arg `pg_advisory_xact_lock(hashtext(...))` for parity with
     // invoice/webhook locks (`hashtext(invoiceId)`); namespacing by string
@@ -132,22 +144,16 @@ export async function POST(req: NextRequest) {
       } as const;
     }
 
-    const initials = body.nama
-      .trim()
-      .split(/\s+/)
-      .map((w: string) => w[0]?.toUpperCase())
-      .join("")
-      .slice(0, 3);
-
-    const lastEmployee = await tx.employee.findFirst({
+    // STR-4: numeric max suffix over every code in the tenant (INACTIVE
+    // included — the unique index does not care about status).
+    const existing = await tx.employee.findMany({
       where: { tenantId },
-      orderBy: { kode: "desc" },
+      select: { kode: true },
     });
-    const lastNum = lastEmployee?.kode.match(/(\d+)$/)?.[1];
-    const nextNum = lastNum
-      ? parseInt(lastNum) + 1
-      : (await tx.employee.count({ where: { tenantId } })) + 1;
-    const kode = `${initials}${nextNum}`;
+    const kode = nextEmployeeKode(
+      body.nama,
+      existing.map((e) => e.kode),
+    );
 
     const emp = await tx.employee.create({
       data: {
@@ -193,6 +199,26 @@ export async function POST(req: NextRequest) {
 
     return { employee: emp } as const;
   });
+
+  let outcome: Awaited<ReturnType<typeof createOnce>> | undefined;
+  for (let attempt = 1; attempt <= KODE_MAX_ATTEMPTS; attempt++) {
+    try {
+      outcome = await createOnce();
+      break;
+    } catch (e) {
+      if (isKodeCollision(e)) continue;
+      if (isUniqueViolation(e)) {
+        return fieldErrorResponse("email", "Email sudah dipakai karyawan atau pengguna lain");
+      }
+      throw e;
+    }
+  }
+  if (!outcome) {
+    return NextResponse.json(
+      { error: "Kode karyawan sedang dipakai permintaan lain. Coba simpan lagi." },
+      { status: 409 },
+    );
+  }
 
   if (outcome.conflict !== undefined) return fieldErrorResponse("email", outcome.conflict);
   const employee = outcome.employee;

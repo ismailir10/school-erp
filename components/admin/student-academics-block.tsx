@@ -192,7 +192,7 @@ export const StudentAcademicsBlock = memo(function StudentAcademicsBlock({
                     </>
                   )}
                   {row.status === "PUBLISHED" && row.publishedAt
-                    ? ` · terbit ${formatDateShort(row.publishedAt.slice(0, 10))}`
+                    ? ` · terbit ${formatDateShort(row.publishedAt)}`
                     : ""}
                 </p>
               </div>

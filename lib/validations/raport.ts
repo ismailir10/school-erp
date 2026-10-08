@@ -113,6 +113,27 @@ function refineAttendanceCounts(v: AttendanceCounts, ctx: z.RefinementCtx) {
   }
 }
 
+// Height / weight — shared by the PUT schema and the admin editor (ADM-14).
+// Indonesian messages (these surfaced as raw English zod text). Nullable and
+// optional: a raport can be saved and published with both blank.
+const measurementShape = {
+  heightCm: z
+    .number({ message: "Harus berupa angka" })
+    .positive("Harus lebih dari 0")
+    .max(250, "Tinggi maksimal 250 cm")
+    .optional()
+    .nullable(),
+  weightKg: z
+    .number({ message: "Harus berupa angka" })
+    .positive("Harus lebih dari 0")
+    .max(200, "Berat maksimal 200 kg")
+    .optional()
+    .nullable(),
+};
+
+/** Measurements on their own — what the admin editor validates before saving. */
+export const raportMeasurementSchema = z.object(measurementShape);
+
 /** Attendance block on its own — what the admin editor validates before saving. */
 export const raportAttendanceSchema = z.object(attendanceShape).superRefine(refineAttendanceCounts);
 
@@ -133,8 +154,7 @@ export const raportUpsertSchema = z
     memorizationNotes: z.string().max(10_000).optional().nullable(),
     homeroomTeacherId: z.string().optional().nullable(),
 
-    heightCm: z.number().positive().max(300).optional().nullable(),
-    weightKg: z.number().positive().max(200).optional().nullable(),
+    ...measurementShape,
   })
   .superRefine(refineAttendanceCounts);
 

@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
@@ -146,6 +146,17 @@ const _cachedGetParentWithChildren = unstable_cache(
   { revalidate: 60, tags: ["parent-children"] }
 );
 
+/**
+ * Evict the cached parent→children lookup. Call after a guardian-link write
+ * (create / reactivate / deactivate / primary change / parent contact edit) has
+ * committed — never inside a transaction — so a parent sees a newly linked
+ * child on the next load instead of after the 60 s TTL. Tags are global, so
+ * this evicts every tenant's entry (see the note on `getParentWithChildren`).
+ */
+export function invalidateParentChildren() {
+  revalidateTag("parent-children", { expire: 0 });
+}
+
 const EMPTY_PARENT_RESULT = { parent: null, children: [] as ParentChild[] };
 
 /**
@@ -182,19 +193,31 @@ export async function getParentWithChildren(session: SessionUser) {
 
 /**
  * Resolve which child is selected from the URL param, defaulting to first.
+ * `rejectedChildId` is the requested id when it was NOT one of the parent's
+ * own children (foreign, deleted, typo) and the first child was substituted —
+ * pages use it to tell the parent instead of silently swapping. Resolution
+ * itself is unchanged: only guardian-linked children are ever returned.
  */
+export function resolveSelectedChildWithStatus(
+  children: ParentChild[],
+  childParam: string | undefined
+): { child: ParentChild | null; rejectedChildId: string | null } {
+  if (children.length === 0) return { child: null, rejectedChildId: null };
+
+  if (childParam) {
+    const found = children.find((c) => c.studentId === childParam);
+    if (found) return { child: found, rejectedChildId: null };
+    return { child: children[0], rejectedChildId: childParam };
+  }
+
+  return { child: children[0], rejectedChildId: null };
+}
+
 export function resolveSelectedChild(
   children: ParentChild[],
   childParam: string | undefined
 ): ParentChild | null {
-  if (children.length === 0) return null;
-
-  if (childParam) {
-    const found = children.find((c) => c.studentId === childParam);
-    if (found) return found;
-  }
-
-  return children[0];
+  return resolveSelectedChildWithStatus(children, childParam).child;
 }
 
 /**

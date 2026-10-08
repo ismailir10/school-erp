@@ -6,7 +6,7 @@ import { calculateEmployeePayroll, SalaryComponent } from "@/lib/payroll/engine"
 import { countAttendanceDays } from "@/lib/payroll/working-days";
 import { applyLineAdjustments } from "@/lib/payroll/adjustments";
 import { validateBody } from "@/lib/api/validate";
-import { payrollVariablesSchema } from "@/lib/validations/payroll";
+import { calendarDaysInPeriod, payrollVariablesSchema } from "@/lib/validations/payroll";
 
 /**
  * F-15: unlike `calculatePayroll`, `calculateEmployeePayroll` (the
@@ -43,15 +43,36 @@ export async function PUT(
   }
   // #9 fix: only allow editing DRAFT payrolls (409 matches peer payroll routes).
   if (payrollRun.status !== "DRAFT") {
-    return NextResponse.json({ error: "Hanya draft yang bisa diedit" }, { status: 409 });
+    return NextResponse.json({ error: "Hanya draf yang bisa diedit" }, { status: 409 });
   }
   if (!(await verifyTenantOwnership("payrollItem", itemId, session.tenantId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const result = await validateBody(payrollVariablesSchema, await req.json());
+  let json: unknown;
+  try {
+    json = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
+  }
+  const result = await validateBody(payrollVariablesSchema, json);
   if (result.error) return result.error;
   const body = result.data;
+
+  // HRX-4: day counts can't exceed the days in the run's period (Hari Outdoor
+  // 99 / Hari DC 31 in a 30-day period used to be accepted and paid out).
+  const daysInPeriod = calendarDaysInPeriod(payrollRun.periodStart, payrollRun.periodEnd);
+  const dayFields = [
+    { field: "outdoorDays", label: "Hari outdoor", value: body.outdoorDays },
+    { field: "holidayWorkedDays", label: "Hari libur kerja", value: body.holidayWorkedDays },
+    { field: "dcDays", label: "Hari DC", value: body.dcDays },
+  ] as const;
+  const outOfRange = dayFields
+    .filter((f) => f.value > daysInPeriod)
+    .map((f) => ({ field: f.field, message: `${f.label} harus antara 0 dan ${daysInPeriod} hari.` }));
+  if (outOfRange.length > 0) {
+    return NextResponse.json({ error: outOfRange[0].message, errors: outOfRange }, { status: 400 });
+  }
 
   // Reads that can safely live outside the tx (no mutation, no ordering risk).
   const componentDefs = await prisma.salaryComponentDef.findMany({

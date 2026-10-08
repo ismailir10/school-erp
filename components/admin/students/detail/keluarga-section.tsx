@@ -91,7 +91,9 @@ export function KeluargaSection({
   //   "candidates" — the server found look-alikes and wants a decision
   const [guardianStep, setGuardianStep] = useState<"link" | "create" | "candidates">("link");
   const [pickedParent, setPickedParent] = useState<PickableParent | null>(null);
-  const [linkRelationship, setLinkRelationship] = useState("IBU");
+  // R2-ADMIN-6: no default. "Ibu" pre-selected meant linking an Ayah without
+  // touching the field saved him as IBU (two IBU, no AYAH). Required instead.
+  const [linkRelationship, setLinkRelationship] = useState("");
   const [linkChildOrder, setLinkChildOrder] = useState("");
   const [candidates, setCandidates] = useState<ParentCandidate[]>([]);
   const guardianBannerRef = useRef<HTMLDivElement | null>(null);
@@ -114,7 +116,7 @@ export function KeluargaSection({
     // Search-first: most "new" wali are a sibling's parent already on file.
     setGuardianStep("link");
     setPickedParent(null);
-    setLinkRelationship("IBU");
+    setLinkRelationship("");
     setLinkChildOrder("");
     setCandidates([]);
     setGuardianDialog(true);
@@ -229,7 +231,7 @@ export function KeluargaSection({
           setCandidates(d.candidates ?? []);
           // Carry the relationship/urutan the admin already typed so choosing
           // "Tautkan" here doesn't silently fall back to the link-step defaults.
-          setLinkRelationship(values.relationship || "IBU");
+          setLinkRelationship(values.relationship || "");
           setLinkChildOrder(values.childOrder != null ? String(values.childOrder) : "");
           // Focus moves to the advisory in the effect above, matching the enroll
           // dialog's 409 handling.
@@ -340,9 +342,9 @@ export function KeluargaSection({
         </Field>
         <Field>
           <FieldLabel required htmlFor="guardian-link-relationship">Hubungan</FieldLabel>
-          <Select value={linkRelationship} onValueChange={(v) => setLinkRelationship(v ?? "IBU")}>
+          <Select value={linkRelationship} onValueChange={(v) => setLinkRelationship(v ?? "")}>
             <SelectTrigger id="guardian-link-relationship" aria-required="true">
-              <SelectValue />
+              <SelectValue placeholder="Pilih hubungan" />
             </SelectTrigger>
             <SelectContent>
               {RELATIONSHIP_OPTIONS.map((o) => (
@@ -379,7 +381,7 @@ export function KeluargaSection({
         <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
         <Button
           onClick={() => pickedParent && linkExistingParent(pickedParent.id)}
-          disabled={savingGuardian || !pickedParent}
+          disabled={savingGuardian || !pickedParent || !linkRelationship}
         >
           {savingGuardian ? "Memproses..." : "Tautkan Wali"}
         </Button>

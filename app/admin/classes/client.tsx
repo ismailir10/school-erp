@@ -49,7 +49,7 @@ type ClassRow = {
   enrolledCount: number;
   attendance7dPct: number | null;
   todaySession: "Held" | "Missing" | "Holiday";
-  health: "Sehat" | "Perhatian" | "Kritis" | "Tidak Aktif" | "Libur";
+  health: "Sehat" | "Perhatian" | "Kritis" | "Belum ada siswa" | "Tidak Aktif" | "Libur";
   teachingAssignments: {
     id: string;
     employee: { id: string; nama: string };
@@ -77,7 +77,14 @@ const EMPTY_CLASS_FORM = {
   ageGroup: "" as unknown as "A" | "B",
 };
 
-export function ClassesClient({ canWrite }: { canWrite: boolean }) {
+export function ClassesClient({
+  canWrite,
+  initialYearId,
+}: {
+  canWrite: boolean;
+  /** `?yearId=` from the URL (e.g. the "Kelola kelas tahun ini" link on academic years). */
+  initialYearId?: string;
+}) {
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -129,7 +136,10 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       const list: AcademicYear[] = Array.isArray(j) ? j : j?.data ?? [];
       setYears(list);
       if (!yearId) {
-        const def = pickDefaultYear(list, new Date());
+        // A valid ?yearId= wins; an absent or unknown one falls back to the
+        // usual default so a stale link never lands on an empty page.
+        const fromUrl = initialYearId ? list.find((y) => y.id === initialYearId) : undefined;
+        const def = fromUrl ?? pickDefaultYear(list, new Date());
         if (def) setYearId(def.id);
       }
     }
@@ -162,6 +172,19 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yearId, statusFilter, campusFilter, programFilter]);
+
+  // Keep the selected year in the URL so reload / share lands on the same year.
+  useEffect(() => {
+    if (!yearId || typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("yearId") === yearId) return;
+      url.searchParams.set("yearId", yearId);
+      window.history.replaceState(window.history.state, "", url.toString());
+    } catch {
+      // URL sync is a convenience; never block the page on it.
+    }
+  }, [yearId]);
 
   useEffect(() => {
     const t = setTimeout(() => fetchRows(), 300);

@@ -16,13 +16,14 @@ import { Prisma } from "@/lib/generated/prisma/client";
 
 const { requirePermission, db, txMock } = vi.hoisted(() => {
   const txMock = {
-    classTrack: { upsert: vi.fn() },
+    classTrack: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     classSection: { create: vi.fn() },
   };
   const db = {
     campus: { findFirst: vi.fn() },
     program: { findFirst: vi.fn() },
     orgConfig: { findFirst: vi.fn() },
+    classSection: { findFirst: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof txMock) => unknown) => fn(txMock)),
   };
   return { requirePermission: vi.fn(), db, txMock };
@@ -75,7 +76,10 @@ beforeEach(() => {
   requirePermission.mockResolvedValue(ALLOW);
   db.campus.findFirst.mockResolvedValue({ id: "campus-metland" });
   db.program.findFirst.mockResolvedValue({ id: "prog-tk" });
-  txMock.classTrack.upsert.mockResolvedValue({ id: "track-1" });
+  db.classSection.findFirst.mockResolvedValue(null);
+  txMock.classTrack.findFirst.mockResolvedValue(null);
+  txMock.classTrack.create.mockResolvedValue({ id: "track-1" });
+  txMock.classTrack.update.mockResolvedValue({ id: "track-existing" });
 });
 
 function p2002() {
@@ -128,6 +132,58 @@ describe("POST /api/admin/classes — unique per (year, campus, name)", () => {
     const body = await res.json();
     expect(body.error).toBe(
       "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
+    );
+  });
+
+  it("ADM-15: a name that differs only by case at the same campus + year returns 409 before creating anything", async () => {
+    db.classSection.findFirst.mockResolvedValueOnce({ id: "cs-1", name: "TK B" });
+
+    const res = await POST(req({ ...VALID_BODY, name: "  tk b " }));
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
+    );
+    expect(db.classSection.findFirst).toHaveBeenCalledWith({
+      where: {
+        tenantId: "t1",
+        academicYearId: "year-2026",
+        campusId: "campus-metland",
+        name: { equals: "tk b", mode: "insensitive" },
+      },
+      select: { id: true, name: true },
+    });
+    expect(txMock.classSection.create).not.toHaveBeenCalled();
+  });
+
+  it("ADM-15: reuses an existing class track whose name matches ignoring case", async () => {
+    txMock.classTrack.findFirst.mockResolvedValueOnce({ id: "track-existing" });
+    txMock.classSection.create.mockResolvedValueOnce({
+      id: "cs-new",
+      name: "tk b",
+      capacity: 20,
+      campusId: "campus-metland",
+    });
+
+    const res = await POST(req({ ...VALID_BODY, name: "tk b" }));
+
+    expect(res.status).toBe(201);
+    expect(txMock.classTrack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          name: { equals: "tk b", mode: "insensitive" },
+        }),
+      }),
+    );
+    expect(txMock.classTrack.create).not.toHaveBeenCalled();
+    expect(txMock.classTrack.update).toHaveBeenCalledWith({
+      where: { id: "track-existing" },
+      data: { status: "ACTIVE" },
+    });
+    expect(txMock.classSection.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ classTrackId: "track-existing" }),
+      }),
     );
   });
 });

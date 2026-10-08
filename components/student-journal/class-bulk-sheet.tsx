@@ -23,6 +23,21 @@ import type { GridState } from "@/lib/student-journal/optimistic-save";
 
 type Student = { id: string; name: string; nickname: string | null };
 
+/** Attendance statuses that mean "not at school" — what the journal must not tick as present. */
+export const BULK_ABSENCE_LABELS = {
+  SICK: "Sakit",
+  PERMISSION: "Izin",
+  ABSENT: "Alpa",
+} as const;
+
+export type BulkAbsenceStatus = keyof typeof BULK_ABSENCE_LABELS;
+/** studentId → why they are not at school on the journal date. Students absent from the map are treated as present. */
+export type BulkAbsences = Record<string, BulkAbsenceStatus>;
+
+export function isBulkAbsenceStatus(status: unknown): status is BulkAbsenceStatus {
+  return typeof status === "string" && Object.hasOwn(BULK_ABSENCE_LABELS, status);
+}
+
 export type BulkApply = {
   plan: BulkPlan;
   checked: boolean;
@@ -36,6 +51,12 @@ type Props = {
   categories: BulkCategory[];
   /** Live grid state — the counts on the buttons follow it, so they never promise work that is done. */
   state: GridState;
+  /**
+   * Children marked Sakit / Izin / Alpa for the journal date (TCHX-7). They start
+   * unselected so "Tandai" does not tick "Datang di sekolah" for them; the
+   * teacher can still opt any of them in. Omit when unknown — everyone is selected.
+   */
+  absences?: BulkAbsences;
   onApply: (apply: BulkApply) => void;
 };
 
@@ -48,18 +69,30 @@ type Props = {
  * indicator, or to some students, is optional; per-student edits stay in the
  * accordion below and win over anything written here.
  *
+ * Children who are absent today start unselected, flagged in the checklist.
+ *
  * The sheet only *plans* the change; the page writes it through the same
  * optimistic + batched path as a single tap.
  */
-export function ClassBulkSheet({ open, onOpenChange, students, categories, state, onApply }: Props) {
+export function ClassBulkSheet({
+  open,
+  onOpenChange,
+  students,
+  categories,
+  state,
+  absences = {},
+  onApply,
+}: Props) {
+  const defaultSelection = () =>
+    new Set(students.filter((s) => !absences[s.id]).map((s) => s.id));
   const [scopeValue, setScopeValue] = useState("all");
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
+  const [selected, setSelected] = useState<Set<string>>(defaultSelection);
 
   // Each opening starts from the common case, not from the last narrowing.
   useEffect(() => {
     if (open) {
       setScopeValue("all");
-      setSelected(new Set(students.map((s) => s.id)));
+      setSelected(defaultSelection());
     }
     // Reset on open only: students changing under an open sheet is a reload, which closes it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +115,8 @@ export function ClassBulkSheet({ open, onOpenChange, students, categories, state
 
   const allSelected = studentIds.length === students.length;
   const noneSelected = studentIds.length === 0;
+  // Absent children the teacher has not opted back in. Counts down as they do.
+  const skippedAbsent = students.filter((s) => absences[s.id] && !selected.has(s.id)).length;
 
   function toggleAll(next: boolean) {
     setSelected(next ? new Set(students.map((s) => s.id)) : new Set());
@@ -184,12 +219,26 @@ export function ClassBulkSheet({ open, onOpenChange, students, categories, state
                     onCheckedChange={(next) => toggleOne(student.id, next === true)}
                   />
                   <span className="min-w-0 truncate">{student.name}</span>
+                  {absences[student.id] ? (
+                    <span
+                      className="shrink-0 rounded-full bg-status-absent-subtle px-2 py-0.5 text-xs font-medium text-status-absent-text"
+                      data-testid={`bulk-absence-${student.id}`}
+                    >
+                      {BULK_ABSENCE_LABELS[absences[student.id]]}
+                    </span>
+                  ) : null}
                 </label>
               </li>
             ))}
           </ul>
         </div>
       </Field>
+
+      {skippedAbsent > 0 ? (
+        <p className="text-xs text-muted-foreground" data-testid="bulk-absent-note">
+          {skippedAbsent} siswa tidak hadir di tanggal ini tidak dipilih.
+        </p>
+      ) : null}
 
       <p className="text-xs text-muted-foreground" data-testid="bulk-summary" aria-live="polite">
         {noneSelected

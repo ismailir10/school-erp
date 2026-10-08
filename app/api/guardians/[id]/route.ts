@@ -5,6 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
 import { changeGuardianLinkStatus, GuardianPrimaryError } from "@/lib/guardians/primary";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 
 /**
  * Standalone guardian routes — operate on a StudentGuardian record by its own ID.
@@ -130,6 +131,7 @@ export async function PUT(
     }
   }
 
+  invalidateParentChildren();
   return NextResponse.json(updated);
 }
 
@@ -165,6 +167,7 @@ export async function PATCH(
       status: newStatus,
       newPrimaryId: parsedNewPrimaryId,
     });
+    invalidateParentChildren();
     return NextResponse.json({ ...link, promotedPrimary: promoted, noActiveGuardian });
   } catch (e) {
     if (e instanceof GuardianPrimaryError) return NextResponse.json({ error: e.message }, { status: 400 });

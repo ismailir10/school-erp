@@ -43,9 +43,32 @@ function isFieldError(value: unknown): value is ApiFieldError {
 }
 
 /**
+ * Auth and server failures often arrive as a bare machine word ("Forbidden",
+ * "Unauthorized") or the stock English "Internal Server Error". Prose with a
+ * space is a real Indonesian server message and is kept; a missing or
+ * single-word body is replaced with approved copy. Same "must contain a space"
+ * heuristic as `lib/teacher/fetch-error-copy.ts`. A 5xx with no body at all
+ * keeps the caller's own Indonesian fallback (it names the action that failed);
+ * the generic server copy only fills in when that fallback is empty.
+ */
+function statusCopy(status: number, serverText: string, fallback: string): string | null {
+  const readable = serverText.includes(" ");
+  if (status === 403 && !readable) return "Anda tidak memiliki izin untuk tindakan ini.";
+  if (status === 401 && !readable) return "Sesi Anda berakhir. Silakan masuk kembali.";
+  if (status >= 500) {
+    const stock = serverText.toLowerCase() === "internal server error";
+    if (serverText && (!readable || stock)) return "Terjadi kendala di server. Coba lagi sebentar lagi.";
+    if (!serverText && !fallback.trim()) return "Terjadi kendala di server. Coba lagi sebentar lagi.";
+  }
+  return null;
+}
+
+/**
  * Build an `ApiError` from a failed response's standard envelope
  * `{ error, errors?: [{ field, message }] }`. A body that is missing, not
- * JSON, or has no `error` string falls back to `fallback`.
+ * JSON, or has no `error` string falls back to `fallback` — except
+ * 401/403 and machine-word / stock-English 5xx text, which map to fixed
+ * Indonesian copy (see `statusCopy`).
  */
 export async function readApiError(res: Response, fallback: string): Promise<ApiError> {
   const body: unknown = await res.json().catch(() => null);
@@ -53,7 +76,8 @@ export async function readApiError(res: Response, fallback: string): Promise<Api
     error?: unknown;
     errors?: unknown;
   };
-  const message = typeof envelope.error === "string" && envelope.error.trim() ? envelope.error : fallback;
+  const serverText = typeof envelope.error === "string" ? envelope.error.trim() : "";
+  const message = statusCopy(res.status, serverText, fallback) ?? (serverText || fallback);
   const fieldErrors = Array.isArray(envelope.errors) ? envelope.errors.filter(isFieldError) : [];
   return new ApiError(message, { fieldErrors, status: res.status });
 }

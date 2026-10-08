@@ -22,7 +22,15 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import InvoiceDetailPage from "../page";
+
+const TODAY = getTodayInTimezone("Asia/Jakarta");
+const daysAgo = (n: number) => {
+  const d = new Date(`${TODAY}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+};
 
 const baseInvoice = {
   capabilities: { create: true, recordPayment: true, void: true },
@@ -131,8 +139,48 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
       method: "CASH",
       reference: "TRX-001",
       notes: "",
+      paidAt: TODAY, // FINX-9: defaults to today (Asia/Jakarta)
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pembayaran dicatat"));
+  });
+
+  it("FINX-9: 'Tanggal bayar' defaults to today, caps at today, and a back-dated choice reaches the review and the POST", async () => {
+    // A coarse pointer renders the native <input type="date">, which jsdom can drive.
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((q: string) => ({
+      matches: q.includes("pointer: coarse"),
+      media: q,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      onchange: null,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const fetchMock = fixture();
+      render(<InvoiceDetailPage />);
+
+      const dialog = await openDialog();
+      const date = (await within(dialog).findByLabelText(/Tanggal bayar/)) as HTMLInputElement;
+      expect(date).toHaveValue(TODAY);
+      expect(date).toHaveAttribute("max", TODAY);
+
+      const day = daysAgo(4);
+      fireEvent.change(date, { target: { value: day } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+
+      const review = await within(dialog).findByTestId("payment-review");
+      expect(within(review).getByText("Tanggal bayar")).toBeInTheDocument();
+      expect(within(review).getByText(new Date(`${day}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }))).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Catat Rp 600.000" }));
+      await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+      const [, postInit] = posts(fetchMock)[0];
+      expect(JSON.parse((postInit as RequestInit).body as string).paidAt).toBe(day);
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 
   it("review of a partial amount says 'Dibayar Sebagian' with the remainder; 'Ubah' returns to the form", async () => {
@@ -304,9 +352,82 @@ describe("InvoiceDetailPage — payment history, reversal and cancel", () => {
     expect(screen.queryByTestId("invoice-refresh-payment-btn")).not.toBeInTheDocument();
   });
 
-  it("FIN-20: an unpaid invoice with a link labels the refresh action 'Cek status di gateway'", async () => {
+  it("FIN-20: an unpaid invoice with a link labels the refresh action 'Cek status pembayaran'", async () => {
     fixture({ invoice: { xenditPaymentUrl: "https://pay.example/abc" } });
     render(<InvoiceDetailPage />);
-    expect(await screen.findByTestId("invoice-refresh-payment-btn")).toHaveTextContent("Cek status di gateway");
+    expect(await screen.findByTestId("invoice-refresh-payment-btn")).toHaveTextContent("Cek status pembayaran");
+  });
+});
+
+describe("InvoiceDetailPage — Unduh kuitansi (FINX-9)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("a PAID invoice offers 'Unduh kuitansi' in the header, opening the admin PDF route in a new tab", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000 } });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    render(<InvoiceDetailPage />);
+    fireEvent.click(await screen.findByTestId("invoice-receipt-btn"));
+    expect(open).toHaveBeenCalledWith("/api/invoices/inv-1/pdf", "_blank", "noopener");
+  });
+
+  it("a PARTIALLY_PAID invoice keeps the header uncrowded: the action lives in the overflow menu", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+    await screen.findByRole("button", { name: "Catat Pembayaran" });
+    expect(screen.queryByTestId("invoice-receipt-btn")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    expect(await screen.findByTestId("invoice-receipt-btn")).toHaveTextContent("Unduh kuitansi");
+  });
+
+  it.each(["SENT", "OVERDUE", "DRAFT", "CANCELLED"])("a %s invoice has no kuitansi action", async (status) => {
+    fixture({ invoice: { status, totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByTestId("invoice-receipt-btn")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unduh kuitansi")).not.toBeInTheDocument();
+  });
+
+  it("no kuitansi action without the payment capability", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000, capabilities: { create: true, recordPayment: false, void: true } } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByTestId("invoice-receipt-btn")).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — ?bayar=1 auto-opens Catat Pembayaran (R2-ADMIN-12)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("opens the dialog once with the balance prefilled and strips the flag from the URL", async () => {
+    window.history.replaceState(null, "", "/admin/invoices/inv-1?bayar=1");
+    fixture({ invoice: { status: "SENT", totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    const dialog = await screen.findByRole("dialog", { name: "Catat Pembayaran" });
+    expect(within(dialog).getByText("Sisa tagihan: Rp 1.000.000")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("does not open for a PAID invoice", async () => {
+    window.history.replaceState(null, "", "/admin/invoices/inv-1?bayar=1");
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByRole("dialog", { name: "Catat Pembayaran" })).not.toBeInTheDocument();
+  });
+
+  it("stays closed without the flag", async () => {
+    fixture({ invoice: { status: "SENT", totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByRole("dialog", { name: "Catat Pembayaran" })).not.toBeInTheDocument();
   });
 });

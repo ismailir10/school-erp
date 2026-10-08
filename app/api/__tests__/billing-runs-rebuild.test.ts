@@ -411,7 +411,7 @@ describe("POST /api/billing-runs/[id]/rebuild — happy path", () => {
     const { prisma } = await import("@/lib/db");
     // s-1 now already has an invoice for this exact periodLabel — the skip
     // reason is the stronger fact and must win over the stale exclusion.
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([{ studentId: "s-1" }] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([{ studentId: "s-1", periodLabel: "April 2026" }] as never);
 
     const res = await rebuildRun(
       makeReq("http://localhost/api/billing-runs/run-1/rebuild", { confirm: true }) as never,

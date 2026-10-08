@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { partialWithoutDefaults } from "./zod-helpers";
+import { cleanText, labelText, nameText } from "./text";
 
 // F-10 (cycle 2026-05-13 staging-sweep-majors-cycle1): Bank and Rekening must
 // be either both set or both empty. The sweep found Ismail Teacher Test had
@@ -35,15 +36,15 @@ function refineBankAccountPair<T extends { bankName?: string | null; bankAccount
 // Base shape — kept unrefined so we can derive a partial below without
 // fighting zod's ZodEffects unwrapping.
 const employeeBaseObject = z.object({
-  nama: z.string().min(1, "Nama wajib diisi"),
-  formalName: z.string().optional().nullable(),
-  email: z.string().min(1, "Email wajib diisi").email("Email tidak valid"),
-  noHp: z.string().optional().nullable(),
-  jabatan: z.string().min(1, "Jabatan wajib diisi"),
+  nama: nameText({ required: "Nama wajib diisi" }),
+  formalName: nameText().optional().nullable(),
+  email: z.string().min(1, "Email wajib diisi").email("Email tidak valid").max(254, "Maksimal 254 karakter."),
+  noHp: cleanText({ max: 30, singleLine: true }).optional().nullable(),
+  jabatan: labelText({ required: "Jabatan wajib diisi" }),
   campusId: z.string().min(1, "Kampus wajib dipilih"),
   hireDate: z.string().min(1, "Tanggal masuk wajib diisi"),
-  bankName: z.string().optional().nullable(),
-  bankAccountNo: z.string().optional().nullable(),
+  bankName: labelText({ max: 100 }).optional().nullable(),
+  bankAccountNo: cleanText({ max: 50, singleLine: true }).optional().nullable(),
   bpjsEnrolled: z.boolean().default(false),
   // CRUD correctness audit R1: starting leave balances were not settable from
   // any form — the Employee row always took the schema defaults (12 / 14).
@@ -92,7 +93,7 @@ export const updateEmployeeSchema = partialWithoutDefaults(employeeBaseObject)
   .superRefine(refineBankAccountPair);
 
 export const employeeStatusReasonSchema = z.object({
-  reason: z.string().trim().max(500, "Alasan maksimal 500 karakter").optional(),
+  reason: cleanText({ max: 500 }).optional(),
 });
 
 // Client form schema for the employees/[id] Profil/Kepegawaian/Saldo Cuti
@@ -115,9 +116,9 @@ export const employeeStatusReasonSchema = z.object({
 export const employeeEditFormSchema = partialWithoutDefaults(employeeBaseObject)
   .omit({ role: true })
   .extend({
-    nama: z.string().trim().min(1, "Nama wajib diisi"),
-    email: z.string().trim().min(1, "Email wajib diisi").email("Email tidak valid"),
-    jabatan: z.string().trim().min(1, "Jabatan wajib diisi"),
+    nama: nameText({ required: "Nama wajib diisi" }),
+    email: z.string().trim().min(1, "Email wajib diisi").email("Email tidak valid").max(254, "Maksimal 254 karakter."),
+    jabatan: labelText({ required: "Jabatan wajib diisi" }),
     campusId: z.string().min(1, "Kampus wajib dipilih"),
     hireDate: z.string().trim().min(1, "Tanggal masuk wajib diisi"),
   })

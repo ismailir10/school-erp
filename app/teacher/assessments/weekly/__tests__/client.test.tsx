@@ -177,9 +177,48 @@ describe("WeeklyClient radio groups", () => {
 
       await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Penilaian belum tersimpan");
+      // R2-T-8: never "belum tersimpan" and "tersimpan otomatis" together.
+      expect(screen.queryByText(/Penilaian tersimpan otomatis/)).toBeNull();
+      expect(screen.getByText(/Ketuk tingkat untuk menyimpan\./)).toBeInTheDocument();
 
       await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
       await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+      expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument();
+    });
+
+    it("hides the auto-save line while a save is pending, shows it when idle", async () => {
+      const user = userEvent.setup();
+      const save = deferred<{ ok: boolean }>();
+      vi.stubGlobal("fetch", vi.fn().mockReturnValue(save.promise));
+      renderWeeklyClient();
+      expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument();
+      await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+      await screen.findByText("Menyimpan penilaian…");
+      expect(screen.queryByText(/Penilaian tersimpan otomatis/)).toBeNull();
+      save.resolve({ ok: true });
+      await waitFor(() => expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument());
     });
   });
 });
+
+describe("WeeklyClient with no IKTP for the week (TCH-5)", () => {
+  it("shows the empty state only: no level chips and no save hint", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    render(
+      <WeeklyClient
+        initialDate="2026-05-11"
+        week={week}
+        classSection={{ id: "class-1", name: "TK-B Anggur", ageGroup: "B" }}
+        students={[{ id: "student-1", name: "Aisyah", nickname: null, status: "ACTIVE" }]}
+        indicators={[]}
+        initialEntries={[]}
+      />,
+    );
+
+    expect(screen.getByText(/Belum ada IKTP untuk tema pekan ini/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /untuk Aisyah/ })).toBeNull();
+    expect(screen.queryByTestId("weekly-roster")).toBeNull();
+    expect(screen.queryByText(/Ketuk tingkat untuk menyimpan/)).toBeNull();
+  });
+});
+

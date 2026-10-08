@@ -4,6 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { validateBody } from "@/lib/api/validate";
+import { recordAudit } from "@/lib/audit";
 import { graduateStudentSchema } from "@/lib/validations/student";
 
 export async function POST(
@@ -40,7 +41,7 @@ export async function POST(
     where: { studentId, status: "ACTIVE" },
   });
   if (activeEnrollments.length === 0) {
-    return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
+    return NextResponse.json({ error: "Siswa belum terdaftar di kelas aktif." }, { status: 400 });
   }
 
   const effectiveDate = graduationDate || getTodayInTimezone("Asia/Jakarta");
@@ -59,6 +60,18 @@ export async function POST(
       where: { studentId, status: "ACTIVE" },
       data: { status: "GRADUATED" },
     });
+
+    await recordAudit(
+      {
+        tenantId: session.tenantId!,
+        actorId: session.id,
+        entity: "Student",
+        entityId: studentId,
+        action: "graduate",
+        after: { graduationDate: effectiveDate },
+      },
+      tx,
+    );
 
     return updated;
   });

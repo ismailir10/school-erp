@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { isAdminRole } from "@/lib/auth";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
 import { loadPenilaianMonitor } from "@/lib/curriculum/penilaian-monitor";
 
@@ -27,13 +28,18 @@ function resolveYmd(param: string | null): { ymd: string; date: Date } | null {
  *
  * Read-only admin monitor over the new IKTP penilaian (`AssessmentEntry`):
  * walas-weekly completion per class + sentra-daily entries per center for
- * the active academic year. Gated by `assessments.read` (SCHOOL_ADMIN +
- * SUPER_ADMIN). `week` defaults to today's curriculum week; `day` to today.
+ * the active academic year. Gated by `assessments.read` AND an admin role
+ * (SCHOOL_ADMIN + SUPER_ADMIN). `week` defaults to today's curriculum week; `day` to today.
  */
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("assessments.read");
   if ("error" in auth) return auth.error;
   const { session } = auth;
+  // GUARDIAN/TEACHER hold assessments.read for their own children/classes;
+  // this is the school-wide monitor, so it is admin-only on top of the permission.
+  if (!isAdminRole(session.role)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const weekArg = resolveYmd(searchParams.get("week"));

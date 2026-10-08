@@ -118,6 +118,27 @@ describe("AdminLeavePage — review dialog", () => {
     ).toBe(false);
   });
 
+  it("shows the min-length message inline when the rejection reason is too short", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<AdminLeavePage />);
+
+    await screen.findByText("Menunggu");
+    const trigger = await screen.findByRole("button", { name: "Aksi untuk Budi Santoso" });
+    await clickRowMenuItem(trigger, "Tolak");
+
+    const dialog = await screen.findByRole("dialog", { name: "Tolak Cuti" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Alasan Penolakan" }), "abc");
+    await user.click(within(dialog).getByRole("button", { name: "Tolak" }));
+
+    expect(await within(dialog).findByText("Alasan penolakan minimal 5 karakter")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) => (url as string).includes("/reject") && (init as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toBe(false);
+  });
+
   it("submits Tolak as POST .../reject with the typed reason", async () => {
     const fetchMock = fixture({ post: { id: "lr-1", status: "REJECTED" } });
     const user = userEvent.setup();
@@ -160,6 +181,9 @@ describe("AdminLeavePage — review dialog", () => {
     await clickRowMenuItem(trigger, "Setujui");
 
     const dialog = await screen.findByRole("dialog", { name: "Setujui Cuti" });
+    // R2-ADMIN-13: no raw enum code in the helper copy.
+    expect(within(dialog).getByText(/berstatus Izin/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/LEAVE/)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Setujui" }));
 
     await waitFor(() => {

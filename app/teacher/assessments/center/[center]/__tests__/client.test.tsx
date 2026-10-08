@@ -3,7 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const refresh = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+const push = vi.fn();
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push, replace }) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { CenterSessionClient } from "../client";
@@ -36,6 +38,8 @@ describe("CenterSessionClient", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     refresh.mockClear();
+    push.mockClear();
+    replace.mockClear();
   });
 
   it("uses keyboard-operable native age-group radios with 44px focus targets", async () => {
@@ -128,5 +132,212 @@ describe("CenterSessionClient", () => {
     expect(screen.getByRole("button", { name: "Tambah catatan" })).toBeDisabled();
     expect(screen.getByText("Catatan: Sudah dicatat")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Catatan singkat (opsional)")).toBeNull();
+  });
+
+  describe("unsaved-changes guard (TCHX-3)", () => {
+    async function dirtyClient() {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(session())));
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getByRole("radio", { name: /^Mampu untuk Aisyah/ }));
+    }
+
+    it("asks before an in-app link discards unsaved picks, and leaves on confirm", async () => {
+      await dirtyClient();
+      fireEvent.click(screen.getByRole("link", { name: /kembali/i }));
+      expect(await screen.findByText("Keluar tanpa menyimpan?")).toBeInTheDocument();
+      expect(push).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Keluar tanpa menyimpan" }));
+      await waitFor(() => expect(replace.mock.calls.length + push.mock.calls.length).toBe(1));
+    });
+
+    it("stays put on 'Tetap di sini'", async () => {
+      await dirtyClient();
+      fireEvent.click(screen.getByRole("link", { name: /kembali/i }));
+      fireEvent.click(await screen.findByRole("button", { name: "Tetap di sini" }));
+      await waitFor(() => expect(screen.queryByText("Keluar tanpa menyimpan?")).toBeNull());
+      expect(push).not.toHaveBeenCalled();
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("does not prompt while nothing has been edited", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(session())));
+      renderClient();
+      await screen.findByTestId("center-indicator-picker");
+      // Bubble-phase backstop so jsdom does not try to navigate; the guard (capture) has already run.
+      document.addEventListener("click", (e) => e.preventDefault(), { once: true });
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      screen.getByRole("link", { name: /kembali/i }).dispatchEvent(event);
+      expect(screen.queryByText("Keluar tanpa menyimpan?")).toBeNull();
+    });
+
+    it("is clean again after a successful save", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(ok(session()))
+        .mockResolvedValueOnce(ok({ written: 1 }));
+      vi.stubGlobal("fetch", fetchMock);
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getByRole("radio", { name: /^Mampu untuk Aisyah/ }));
+      fireEvent.click(screen.getByTestId("center-save"));
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+      // Bubble-phase backstop so jsdom does not try to navigate; the guard (capture) has already run.
+      document.addEventListener("click", (e) => e.preventDefault(), { once: true });
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      screen.getByRole("link", { name: /kembali/i }).dispatchEvent(event);
+      expect(screen.queryByText("Keluar tanpa menyimpan?")).toBeNull();
+    });
+
+    it("asks before a date change drops unsaved picks, and only reloads on confirm", async () => {
+      await dirtyClient();
+      const fetchMock = vi.mocked(fetch);
+      const dateInput = screen.getByTestId("center-date") as HTMLInputElement;
+      const before = fetchMock.mock.calls.length;
+      const other = new Date(`${dateInput.value}T00:00:00Z`);
+      other.setUTCDate(other.getUTCDate() - 1);
+      fireEvent.change(dateInput, { target: { value: other.toISOString().slice(0, 10) } });
+      expect(await screen.findByText("Ganti tanpa menyimpan?")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.length).toBe(before);
+
+      fireEvent.click(screen.getByRole("button", { name: "Ganti tanpa menyimpan" }));
+      await waitFor(() => expect(fetchMock.mock.calls.length).toBe(before + 1));
+    });
+
+    it("asks before an age-group switch drops unsaved picks", async () => {
+      await dirtyClient();
+      fireEvent.click(screen.getByRole("radio", { name: "TK B" }));
+      expect(await screen.findByText("Ganti tanpa menyimpan?")).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "TK A", hidden: true })).toBeChecked();
+    });
+  });
+
+  describe("date picker (TCHX-12)", () => {
+    it("caps the date at today and ignores a typed future date", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(ok(session()));
+      vi.stubGlobal("fetch", fetchMock);
+      renderClient();
+      await screen.findByTestId("center-indicator-picker");
+      const dateInput = screen.getByTestId("center-date") as HTMLInputElement;
+      const today = dateInput.value;
+      expect(dateInput.max).toBe(today);
+
+      const future = new Date(`${today}T00:00:00Z`);
+      future.setUTCDate(future.getUTCDate() + 7);
+      const calls = fetchMock.mock.calls.length;
+      fireEvent.change(dateInput, { target: { value: future.toISOString().slice(0, 10) } });
+      expect(fetchMock.mock.calls.length).toBe(calls);
+      expect(dateInput.value).toBe(today);
+    });
+  });
+
+  describe("no active week (TCH-6)", () => {
+    it("says it once, offers no retry, and does not console.error an expected 422", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          error: "Belum ada Pekan aktif untuk tanggal yang dipilih.",
+          reason: "no_active_week",
+        }),
+      }));
+      renderClient();
+      expect(await screen.findByText("Belum ada pekan aktif untuk tanggal ini")).toBeInTheDocument();
+      expect(screen.getByText(/Pilih hari sekolah lain\./)).toBeInTheDocument();
+      expect(screen.queryByText(/pilih tanggal/i)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+  });
+  describe("class label, own-class default and search (R2-T-7)", () => {
+    const roster = () => ({
+      ...session(),
+      myClassSectionIds: ["cs-a"],
+      students: [
+        { id: "s1", name: "Abdul Zahra", nickname: null, status: "ACTIVE", classSectionId: "cs-a", className: "TKIT A" },
+        { id: "s2", name: "Abdul Zahra", nickname: null, status: "ACTIVE", classSectionId: "cs-w", className: "POPUP Weekend" },
+        { id: "s3", name: "Budi", nickname: "Bud", status: "ACTIVE", classSectionId: "cs-w", className: "POPUP Weekend" },
+      ],
+    });
+
+    async function open() {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(roster())));
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+    }
+
+    it("defaults to the teacher's own class and shows its class chip", async () => {
+      await open();
+      expect(screen.getByTestId("center-row-s1")).toBeInTheDocument();
+      expect(screen.queryByTestId("center-row-s2")).toBeNull();
+      expect(screen.queryByTestId("center-row-s3")).toBeNull();
+      expect(screen.getByTestId("center-class-s1")).toHaveTextContent("TKIT A");
+    });
+
+    it("'Semua kelas' reveals everyone, and same-named children differ by class label", async () => {
+      await open();
+      const toggle = screen.getByTestId("center-all-classes");
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("center-class-s1")).toHaveTextContent("TKIT A");
+      expect(screen.getByTestId("center-class-s2")).toHaveTextContent("POPUP Weekend");
+      expect(screen.getAllByText("Abdul Zahra")).toHaveLength(2);
+    });
+
+    it("filters by name (and nickname) client-side without touching the network", async () => {
+      await open();
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      const fetchMock = vi.mocked(fetch);
+      const calls = fetchMock.mock.calls.length;
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "bud" } });
+      expect(screen.getByTestId("center-row-s3")).toBeInTheDocument();
+      expect(screen.queryByTestId("center-row-s1")).toBeNull();
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "zzz" } });
+      expect(screen.getByTestId("center-no-match")).toHaveTextContent("Tidak ada siswa dengan nama itu.");
+      expect(fetchMock.mock.calls.length).toBe(calls);
+    });
+
+    it("keeps unsaved levels for students hidden by the filter and does not mark the form dirty", async () => {
+      await open();
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getAllByRole("radio", { name: /^Mampu untuk Budi/ })[0]!);
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "abdul" } });
+      expect(screen.queryByTestId("center-row-s3")).toBeNull();
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "" } });
+      expect(screen.getByRole("radio", { name: /^Mampu untuk Budi/ })).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("shows no filter toggle for a payload without class info (older payload)", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(session())));
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      expect(screen.queryByTestId("center-all-classes")).toBeNull();
+      expect(screen.getByTestId("center-row-student-1")).toBeInTheDocument();
+    });
+
+    it("saves entries for hidden students too (filter is view-only)", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(ok(roster()))
+        .mockResolvedValueOnce(ok({ written: 1 }));
+      vi.stubGlobal("fetch", fetchMock);
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getByRole("radio", { name: /^Mampu untuk Budi/ }));
+      fireEvent.click(screen.getByTestId("center-all-classes")); // hide Budi again
+      fireEvent.click(screen.getByTestId("center-save"));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const body = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(body.entries.map((e: { studentId: string }) => e.studentId)).toEqual(["s3"]);
+    });
   });
 });

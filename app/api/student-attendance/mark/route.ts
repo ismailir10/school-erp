@@ -7,6 +7,49 @@ import { validateBody } from "@/lib/api/validate";
 import { markAttendanceSchema } from "@/lib/validations/student-attendance";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
+// Backdating window for this legacy tab. Anything older is a correction for
+// the admin recap, not a tap on today's class page.
+const MAX_BACKDATE_DAYS = 400;
+
+/** Real calendar day? The schema only checks the YYYY-MM-DD shape, so
+ * "2026-02-30" gets through; round-trip it through UTC to catch rollover. */
+function isRealCalendarDate(ymd: string): boolean {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+function daysBetween(fromYmd: string, toYmd: string): number {
+  return Math.round((Date.parse(`${toYmd}T00:00:00Z`) - Date.parse(`${fromYmd}T00:00:00Z`)) / 86_400_000);
+}
+
+/** A changed status without fresh notes must not inherit the previous
+ * status's note ("demam" under ABSENT, or an admin's correction under SICK).
+ * Unchanged status without notes keeps what is there (undefined = no write). */
+function resolveNotes(
+  incoming: string | null | undefined,
+  existing: { status: string } | null,
+  nextStatus: string,
+): string | null | undefined {
+  if (incoming != null) return incoming;
+  return existing && existing.status !== nextStatus ? null : undefined;
+}
+
+/** Check-in/out times for the row. A child who is not PRESENT never arrived, so
+ * SICK/PERMISSION/ABSENT clears both (null) — including a check-in inherited
+ * from the session screen. PRESENT keeps the old "undefined = leave as is"
+ * on update. */
+function resolveTimes(
+  record: { status: string; checkInTime?: string | null; checkOutTime?: string | null },
+  fallback: null | undefined,
+): { checkInTime: Date | null | undefined; checkOutTime: Date | null | undefined } {
+  if (record.status !== "PRESENT") return { checkInTime: null, checkOutTime: null };
+  return {
+    checkInTime: record.checkInTime ? new Date(record.checkInTime) : fallback,
+    checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : fallback,
+  };
+}
+
 // Mark attendance for multiple students at once (teacher submits class attendance)
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -35,8 +78,14 @@ export async function POST(req: NextRequest) {
   // Jakarta TZ — UTC split returned yesterday between 00:00–06:59 WIB
   // and caused false 400s for early-morning teacher attendance marking.
   const today = getTodayInTimezone("Asia/Jakarta");
+  if (!isRealCalendarDate(date)) {
+    return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 400 });
+  }
   if (date > today) {
     return NextResponse.json({ error: "Tidak bisa mencatat kehadiran untuk tanggal yang akan datang" }, { status: 400 });
+  }
+  if (daysBetween(date, today) > MAX_BACKDATE_DAYS) {
+    return NextResponse.json({ error: "Tanggal terlalu lama untuk diubah." }, { status: 400 });
   }
 
   // Verify teacher is assigned to this class (tenant-scoped via classSection).
@@ -62,25 +111,44 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Validate all students are enrolled in this class — before the transaction
+  // so it answers 422, not an uncaught throw → 500.
+  const studentIds = records.map((r: { studentId: string }) => r.studentId);
+  const activeEnrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      studentId: { in: studentIds },
+      classSectionId,
+      status: "ACTIVE",
+    },
+    select: { studentId: true },
+  });
+  const enrolledIds = new Set(activeEnrollments.map((e) => e.studentId));
+  const notEnrolled = [...new Set(studentIds.filter((id: string) => !enrolledIds.has(id)))];
+  if (notEnrolled.length > 0) {
+    // Prefer names over cuids in the message; fall back to the id.
+    const students = await prisma.student.findMany({
+      where: { id: { in: notEnrolled }, tenantId: session.tenantId },
+      select: { id: true, name: true },
+    });
+    const nameById = new Map(students.map((s) => [s.id, s.name]));
+    return NextResponse.json(
+      {
+        error: "student_not_enrolled",
+        message: `Siswa tidak terdaftar di kelas ini: ${notEnrolled.map((id) => nameById.get(id) ?? id).join(", ")}`,
+      },
+      { status: 422 },
+    );
+  }
+
+  // Sorted so concurrent requests take the per-student locks in the same
+  // order and cannot deadlock each other.
+  const sortedRecords = [...records].sort((a, b) =>
+    a.studentId < b.studentId ? -1 : a.studentId > b.studentId ? 1 : 0,
+  );
+
   let saved = 0;
   try {
   await prisma.$transaction(async (tx) => {
-    // Validate all students are enrolled in this class
-    const studentIds = records.map((r: { studentId: string }) => r.studentId);
-    const activeEnrollments = await tx.studentEnrollment.findMany({
-      where: {
-        studentId: { in: studentIds },
-        classSectionId,
-        status: "ACTIVE",
-      },
-      select: { studentId: true },
-    });
-    const enrolledIds = new Set(activeEnrollments.map((e) => e.studentId));
-    const notEnrolled = studentIds.filter((id: string) => !enrolledIds.has(id));
-    if (notEnrolled.length > 0) {
-      throw new Error(`Siswa tidak terdaftar di kelas ini: ${notEnrolled.join(", ")}`);
-    }
-
     // If this class has exactly one ClassSession for this date (the common
     // single-shift case — KB/TKIT/PopUp), write into that session's row so
     // this legacy tab and the session-based "Sesi Hari Ini" card can never
@@ -96,8 +164,15 @@ export async function POST(req: NextRequest) {
     });
     const singleSessionId = daySessions.length === 1 ? daySessions[0].id : null;
 
-    for (const record of records) {
+    for (const record of sortedRecords) {
       if (singleSessionId) {
+        const existingRow = await tx.studentAttendance.findUnique({
+          where: { studentId_sessionId: { studentId: record.studentId, sessionId: singleSessionId } },
+          select: { status: true },
+        });
+        const notes = resolveNotes(record.notes, existingRow, record.status);
+        const createTimes = resolveTimes(record, null);
+        const updateTimes = resolveTimes(record, undefined);
         await tx.studentAttendance.upsert({
           where: {
             studentId_sessionId: { studentId: record.studentId, sessionId: singleSessionId },
@@ -108,16 +183,14 @@ export async function POST(req: NextRequest) {
             sessionId: singleSessionId,
             date,
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            ...createTimes,
             notes: record.notes ?? null,
             checkedInBy: session.employeeId!,
           },
           update: {
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
-            notes: record.notes ?? undefined,
+            ...updateTimes,
+            notes,
             checkedInBy: session.employeeId!,
           },
         });
@@ -132,18 +205,25 @@ export async function POST(req: NextRequest) {
       // (sessionId stays NULL here), so find-then-update/create on
       // [studentId, date] preserves the prior upsert behavior. Task 7
       // reworks this path onto ClassSession.
+      //
+      // Find-then-create has no unique key to fall back on, so parallel taps
+      // for the same student/day each saw "no row" and each inserted one.
+      // Serialize them per student+day with a transaction-scoped advisory
+      // lock (released at commit; the next waiter's findFirst then sees the
+      // committed row). $executeRaw because the lock fn returns void, which
+      // $queryRaw cannot deserialize.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${record.studentId}::text || ':' || ${date}::text))`;
       const existing = await tx.studentAttendance.findFirst({
         where: { studentId: record.studentId, classSectionId, date, sessionId: null },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (existing) {
         await tx.studentAttendance.update({
           where: { id: existing.id },
           data: {
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
-            notes: record.notes ?? undefined,
+            ...resolveTimes(record, undefined),
+            notes: resolveNotes(record.notes, existing, record.status),
             checkedInBy: session.employeeId!,
           },
         });
@@ -154,8 +234,7 @@ export async function POST(req: NextRequest) {
             classSectionId,
             date,
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            ...resolveTimes(record, null),
             notes: record.notes ?? null,
             checkedInBy: session.employeeId!,
           },

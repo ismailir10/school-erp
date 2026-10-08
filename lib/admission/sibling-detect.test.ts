@@ -11,6 +11,7 @@ type ParentRow = {
   status: string;
   email: string | null;
   phone: string | null;
+  whatsapp: string | null;
   createdAt: Date;
 };
 
@@ -46,7 +47,6 @@ function makeMockPrisma(parents: ParentRow[]): ParentTable {
           where: {
             tenantId: string;
             status: string;
-            phone?: { not: null };
           };
           orderBy?: { createdAt: "asc" | "desc" };
         }) => {
@@ -54,7 +54,7 @@ function makeMockPrisma(parents: ParentRow[]): ParentTable {
             (p) =>
               p.tenantId === where.tenantId &&
               p.status === where.status &&
-              p.phone !== null
+              (p.phone !== null || p.whatsapp !== null)
           );
           if (orderBy?.createdAt === "asc") {
             rows = [...rows].sort(
@@ -64,6 +64,7 @@ function makeMockPrisma(parents: ParentRow[]): ParentTable {
           return rows.map((p) => ({
             id: p.id,
             phone: p.phone,
+            whatsapp: p.whatsapp,
             createdAt: p.createdAt,
           }));
         }
@@ -86,6 +87,7 @@ function parent(
     status: "ACTIVE",
     email: null,
     phone: null,
+    whatsapp: null,
     createdAt: new Date("2026-01-01"),
     ...overrides,
   };
@@ -239,5 +241,41 @@ describe("detectSibling", () => {
       prisma
     );
     expect(result).toEqual({ parentId: "pOlder", matchReason: "phone" });
+  });
+
+  it("(k) applicant WhatsApp matches a Parent's phone (R2-ADMIN-1)", async () => {
+    const prisma = makeMockPrisma([parent("p8", { phone: "08215678901" })]);
+    const result = await detectSibling(
+      { tenantId: T1, parentWhatsapp: "+62 821-5678-901" },
+      prisma
+    );
+    expect(result).toEqual({ parentId: "p8", matchReason: "phone" });
+  });
+
+  it("(l) applicant phone matches a Parent's WhatsApp only", async () => {
+    const prisma = makeMockPrisma([parent("p9", { whatsapp: "08215678901" })]);
+    const result = await detectSibling(
+      { tenantId: T1, parentPhone: "08215678901" },
+      prisma
+    );
+    expect(result).toEqual({ parentId: "p9", matchReason: "phone" });
+  });
+
+  it("(m) WhatsApp-only applicant and WhatsApp-only Parent match across formats", async () => {
+    const prisma = makeMockPrisma([parent("p10", { whatsapp: "8215678901" })]);
+    const result = await detectSibling(
+      { tenantId: T1, parentPhone: null, parentWhatsapp: "08215678901" },
+      prisma
+    );
+    expect(result).toEqual({ parentId: "p10", matchReason: "phone" });
+  });
+
+  it("(n) a different WhatsApp number does not match", async () => {
+    const prisma = makeMockPrisma([parent("p11", { whatsapp: "08215678901" })]);
+    const result = await detectSibling(
+      { tenantId: T1, parentWhatsapp: "08999999999" },
+      prisma
+    );
+    expect(result).toBeNull();
   });
 });

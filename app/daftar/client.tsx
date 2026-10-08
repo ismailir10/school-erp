@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +11,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Check, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PHONE_FORMAT_ERROR, WHATSAPP_FORMAT_ERROR, admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
+import { clearDraft, formatAdmissionRef, loadDraft, saveDraft } from "./draft";
 
 type Program = { id: string; name: string };
 type Step = 1 | 2 | 3;
@@ -45,6 +48,12 @@ const EMPTY_FORM: FormState = {
 const PHONE_RE = /^[+\d\s\-()]{6,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Public-form controls: 44px tall, 16px text (also stops iOS zooming on focus).
+// Scoped here via className — the shared Input/NativeSelect stay at h-8 for the
+// dense admin screens.
+const INPUT_CLASS = "h-11 px-3 text-base md:text-base";
+const SELECT_CLASS = "h-11 pl-3 text-base";
+
 type SubmitOk = { id: string };
 type SubmitErr =
   | { error: "validation_failed"; fields: FieldErrors }
@@ -60,6 +69,24 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
   const [confirmation, setConfirmation] = useState<{ id: string; childName: string } | null>(
     null,
   );
+  // Draft restore runs after mount (sessionStorage is client-only); persisting
+  // waits for it so the empty first render can't overwrite a stored draft.
+  const [draftReady, setDraftReady] = useState(false);
+  const [dobBounds] = useState(() => admissionDobBounds());
+
+  useEffect(() => {
+    const draft = loadDraft(EMPTY_FORM);
+    if (draft) {
+      setForm(draft.form);
+      setStep(draft.step);
+    }
+    setDraftReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady || confirmation) return;
+    saveDraft({ step, form });
+  }, [draftReady, confirmation, step, form]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -77,6 +104,10 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
     if (target === 1) {
       if (!form.childName.trim()) errs.childName = "Nama anak wajib diisi";
       if (!form.dateOfBirth) errs.dateOfBirth = "Tanggal lahir wajib diisi";
+      else {
+        const dobError = admissionDobError(form.dateOfBirth);
+        if (dobError) errs.dateOfBirth = dobError;
+      }
       if (form.childGender !== "L" && form.childGender !== "P") {
         errs.childGender = "Pilih jenis kelamin";
       }
@@ -86,10 +117,10 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       if (!form.parentPhone.trim()) {
         errs.parentPhone = "Nomor telepon wajib diisi";
       } else if (!PHONE_RE.test(form.parentPhone.trim())) {
-        errs.parentPhone = "Nomor telepon tidak valid";
+        errs.parentPhone = PHONE_FORMAT_ERROR;
       }
       if (form.parentWhatsapp.trim() && !PHONE_RE.test(form.parentWhatsapp.trim())) {
-        errs.parentWhatsapp = "Nomor WhatsApp tidak valid";
+        errs.parentWhatsapp = WHATSAPP_FORMAT_ERROR;
       }
       if (form.parentEmail.trim() && !EMAIL_RE.test(form.parentEmail.trim())) {
         errs.parentEmail = "Email tidak valid";
@@ -151,6 +182,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
 
       if (res.status === 201) {
         const ok = (await res.json()) as SubmitOk;
+        clearDraft();
         setConfirmation({ id: ok.id, childName: form.childName });
         return;
       }
@@ -187,6 +219,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
   }
 
   function resetForm() {
+    clearDraft();
     setForm(EMPTY_FORM);
     setErrors({});
     setGlobalError(null);
@@ -214,13 +247,16 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           kunjungan.
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Nomor pendaftaran: <span className="font-mono">{confirmation.id}</span>
+          Nomor pendaftaran:{" "}
+          <span className="font-mono" data-testid="confirmation-reference">
+            {formatAdmissionRef(confirmation.id)}
+          </span>
         </p>
         <Button
           type="button"
           variant="outline"
           onClick={resetForm}
-          className="mt-6"
+          className="mt-6 h-11 px-5 text-base"
           data-testid="daftar-confirmation-reset"
         >
           Selesai
@@ -251,6 +287,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               autoComplete="off"
               required
               maxLength={80}
+              className={INPUT_CLASS}
               value={form.childName}
               onChange={(e) => update("childName", e.target.value)}
               aria-invalid={!!errors.childName}
@@ -267,6 +304,9 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               name="dateOfBirth"
               type="date"
               required
+              min={dobBounds.min}
+              max={dobBounds.max}
+              className={INPUT_CLASS}
               value={form.dateOfBirth}
               onChange={(e) => update("dateOfBirth", e.target.value)}
               aria-invalid={!!errors.dateOfBirth}
@@ -293,16 +333,19 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
                 <FieldLabel
                   key={opt.value}
                   htmlFor={`childGender-${opt.value}`}
-                  className={`flex cursor-pointer items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                  className={cn(
+                    "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-base font-medium transition-colors",
                     form.childGender === opt.value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-foreground hover:bg-accent"
-                  }`}
+                      ? "border-2 border-primary bg-primary/10 text-primary-text"
+                      : "border-border bg-background text-foreground hover:bg-accent",
+                  )}
                 >
+                  {/* Visible circle + dot (PAR-5): the control keeps its own
+                      focus-visible ring for keyboard users. */}
                   <RadioGroupItem
                     id={`childGender-${opt.value}`}
                     value={opt.value}
-                    className="sr-only"
+                    className="size-5 border-2 border-muted-foreground/60 bg-background data-checked:border-primary"
                     data-testid={`field-child-gender-${opt.value.toLowerCase()}`}
                   />
                   {opt.label}
@@ -324,6 +367,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               autoComplete="name"
               required
               maxLength={80}
+              className={INPUT_CLASS}
               value={form.parentName}
               onChange={(e) => update("parentName", e.target.value)}
               aria-invalid={!!errors.parentName}
@@ -343,6 +387,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               inputMode="tel"
               required
               maxLength={20}
+              className={INPUT_CLASS}
               value={form.parentPhone}
               onChange={(e) => update("parentPhone", e.target.value)}
               aria-invalid={!!errors.parentPhone}
@@ -364,6 +409,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               autoComplete="tel"
               inputMode="tel"
               maxLength={20}
+              className={INPUT_CLASS}
               value={form.parentWhatsapp}
               onChange={(e) => update("parentWhatsapp", e.target.value)}
               aria-invalid={!!errors.parentWhatsapp}
@@ -386,6 +432,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               type="email"
               autoComplete="email"
               inputMode="email"
+              className={INPUT_CLASS}
               value={form.parentEmail}
               onChange={(e) => update("parentEmail", e.target.value)}
               aria-invalid={!!errors.parentEmail}
@@ -393,7 +440,8 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               placeholder="nama@contoh.com"
             />
             <FieldDescription>
-              Konfirmasi pendaftaran dikirim ke email ini bila diisi.
+              Isi email agar formulir pendaftaran lengkap bisa kami kirimkan.
+              Konfirmasi pendaftaran juga dikirim ke sini.
             </FieldDescription>
             {errors.parentEmail && <FieldError>{errors.parentEmail}</FieldError>}
           </Field>
@@ -414,6 +462,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
                 value={form.programId}
                 onChange={(e) => update("programId", e.target.value)}
                 className="w-full"
+                selectClassName={SELECT_CLASS}
                 data-testid="field-program-id"
               >
                 <NativeSelectOption value="">— Pilih program —</NativeSelectOption>
@@ -439,6 +488,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               value={form.notes}
               onChange={(e) => update("notes", e.target.value)}
               aria-invalid={!!errors.notes}
+              className="px-3 py-2.5 text-base md:text-base"
               data-testid="field-notes"
               placeholder="Misal: ananda sudah pernah ikut kelas trial, atau saudara sudah bersekolah di sini."
             />
@@ -460,12 +510,27 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         </p>
       )}
 
+      {step === 3 && (
+        <p className="mt-5 text-sm text-muted-foreground" data-testid="daftar-consent">
+          Dengan mengirim, Anda menyetujui{" "}
+          <Link href="/legal/privacy" className="text-primary-text underline underline-offset-2">
+            Kebijakan Privasi
+          </Link>{" "}
+          dan{" "}
+          <Link href="/legal/terms" className="text-primary-text underline underline-offset-2">
+            Syarat &amp; Ketentuan
+          </Link>
+          .
+        </p>
+      )}
+
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
         {step > 1 ? (
           <Button
             type="button"
             variant="outline"
             onClick={prevStep}
+            className="h-11 px-5 text-base"
             data-testid="daftar-back"
             disabled={submitting}
           >
@@ -476,11 +541,16 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         )}
 
         {step < 3 ? (
-          <Button type="submit" data-testid="daftar-next">
+          <Button type="submit" className="h-11 px-5 text-base" data-testid="daftar-next">
             Lanjut
           </Button>
         ) : (
-          <Button type="submit" disabled={submitting} data-testid="daftar-submit">
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="h-11 px-5 text-base"
+            data-testid="daftar-submit"
+          >
             {submitting ? "Mengirim..." : "Kirim Pendaftaran"}
           </Button>
         )}

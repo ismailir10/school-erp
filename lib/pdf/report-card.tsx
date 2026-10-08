@@ -65,7 +65,7 @@ export function ReportCardPdf({ data }: { data: ReportCardData }) {
               <Text style={{ fontSize: 8, color: GRAY, marginTop: 2 }}>Laporan Perkembangan Anak</Text>
             </View>
             <View>
-              <Text style={s.docTitle}>Raport Triwulan</Text>
+              <Text style={s.docTitle}>Rapor Triwulan</Text>
               <Text style={s.docMeta}>{data.generatedDate}</Text>
             </View>
           </View>

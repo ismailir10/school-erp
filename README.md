@@ -50,9 +50,9 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
 | Public | `/daftar` | — | Mobile-first | Admission inquiry, three steps |
-| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — six steps, autosave + resume |
+| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — seven steps incl. document upload (Berkas; optional unless the school marks some required under Pengaturan → Berkas Wajib Pendaftaran), autosave + resume; each parent can sign from their own device on the same link |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything, including payroll and salary |
-| Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions, academics, attendance, invoices, employees |
+| Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions (incl. Kelengkapan Berkas: view uploads, tick papers received; KK/KTP copied to the guardian on convert and shown on the student page), academics, attendance, invoices, employees |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first | Own attendance and leave; assigned classes only |
 | Parent | `/parent` | `GUARDIAN` | Mobile-first | Own children only |
 
@@ -63,6 +63,8 @@ Role homes apply "Don't Make Me Think": teachers see their class and unfinished 
 ---
 
 ## Setup
+
+Use Node.js 24 (≥ 22.12 works); CI and Vercel both run 24.
 
 ```bash
 git clone https://github.com/ismailir10/annisaa-erp-v3.git

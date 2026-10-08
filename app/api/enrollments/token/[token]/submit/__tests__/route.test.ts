@@ -2,18 +2,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany, programFindFirst } = vi.hoisted(() => ({
+const { findUnique, updateMany, programFindFirst, queryRaw, transaction, tenantFindUnique } = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  tenantFindUnique: vi.fn(),
   updateMany: vi.fn(),
   programFindFirst: vi.fn(),
+  queryRaw: vi.fn(),
+  transaction: vi.fn(),
 }));
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
+// The submit route runs read → validate → flip inside ONE interactive
+// transaction (row lock first). The mock hands the callback the same client.
+vi.mock("@/lib/db", () => {
+  const client = {
     enrollmentApplication: { findUnique, updateMany },
     program: { findFirst: programFindFirst },
-  },
-}));
+    tenant: { findUnique: tenantFindUnique },
+    $queryRaw: queryRaw,
+    $transaction: transaction,
+  };
+  return { prisma: client };
+});
 
 import { POST } from "../route";
 import { __resetRateLimitForTest } from "@/lib/rate-limit";
@@ -52,10 +61,28 @@ function req(body: unknown) {
   });
 }
 
+const DB_AYAH = "supabase:v1:enrollment/a/ayah-signature-db.png";
+const DB_IBU = "supabase:v1:enrollment/a/ibu-signature-db.png";
+
+/** resolve looks up by accessToken; the signature overlay reads the row by id. */
+function mockRow(consentData: unknown, documents: unknown = null) {
+  findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
+    arg.where.accessToken
+      ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" }
+      : { consentData, documents },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
-  findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+  queryRaw.mockResolvedValue([{ id: "a" }]);
+  transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => {
+    const { prisma } = await import("@/lib/db");
+    return cb(prisma);
+  });
+  mockRow({ ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } });
+  tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: [] }); // nothing required by default
   updateMany.mockResolvedValue({ count: 1 });
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
 });
@@ -118,5 +145,241 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
     expect(res.status).toBe(422);
     expect((await res.json()).fields.programId).toBe("Program tidak valid");
     expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  describe("signature tokens come from the DB row", () => {
+    function bodyWithoutTokens() {
+      const b = validBody();
+      delete (b.consentData.ayah as { signatureToken?: string }).signatureToken;
+      delete (b.consentData.ibu as { signatureToken?: string }).signatureToken;
+      return b;
+    }
+
+    it("201 when the body carries no tokens but the row has both; written consentData uses the DB tokens", async () => {
+      const res = await POST(req(bodyWithoutTokens()), ctx);
+      expect(res.status).toBe(201);
+      const consent = updateMany.mock.calls[0][0].data.consentData;
+      expect(consent.ayah.signatureToken).toBe(DB_AYAH);
+      expect(consent.ibu.signatureToken).toBe(DB_IBU);
+      expect(consent.ayah.signedAt).toBeTruthy();
+    });
+
+    it("201 even when the body has no ayah/ibu blocks at all (names still required)", async () => {
+      const b = validBody() as { consentData: Record<string, unknown> };
+      delete b.consentData.ayah;
+      delete b.consentData.ibu;
+      const res = await POST(req(b), ctx);
+      // names are required by the schema, so this is a field error, not a crash
+      expect(res.status).toBe(422);
+      expect((await res.json()).fields["consentData.ayah.name"]).toBeTruthy();
+    });
+
+    it("client-sent tokens are always overwritten by the stored ones", async () => {
+      const b = validBody();
+      b.consentData.ayah.signatureToken = "supabase:v1:enrollment/a/ayah-signature-FORGED.png";
+      const res = await POST(req(b), ctx);
+      expect(res.status).toBe(201);
+      const consent = updateMany.mock.calls[0][0].data.consentData;
+      expect(consent.ayah.signatureToken).toBe(DB_AYAH);
+      expect(JSON.stringify(consent)).not.toContain("FORGED");
+    });
+
+    it("a client-sent token cannot stand in for a signature the row lacks → 422", async () => {
+      mockRow({ ayah: { signatureToken: DB_AYAH } }); // ibu never signed
+      const res = await POST(req(validBody()), ctx); // body still claims an ibu token
+      expect(res.status).toBe(422);
+      const json = await res.json();
+      expect(json.error).toBe("validation_failed");
+      expect(json.fields["consentData.ibu.signatureToken"]).toBeTruthy();
+      expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it("422 when the row has no consentData at all", async () => {
+      mockRow(null);
+      const res = await POST(req(bodyWithoutTokens()), ctx);
+      expect(res.status).toBe(422);
+      const fields = (await res.json()).fields;
+      expect(fields["consentData.ayah.signatureToken"]).toBeTruthy();
+      expect(fields["consentData.ibu.signatureToken"]).toBeTruthy();
+    });
+
+    it("does not touch `documents`", async () => {
+      await POST(req({ ...validBody(), documents: { akta: { fileToken: "evil" } } }), ctx);
+      expect(JSON.stringify(updateMany.mock.calls[0][0])).not.toContain("evil");
+      expect("documents" in updateMany.mock.calls[0][0].data).toBe(false);
+    });
+  });
+});
+
+describe("POST /submit — single parent / wali (R2-P-10)", () => {
+  function onlyIbuBody() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+    const b = validBody() as Record<string, any>;
+    b.ayahData = { name: "draft yang dibuang" };
+    b.consentData.onlyParent = "ibu";
+    b.consentData.ayah = { name: "Draft Ayah" }; // autosaved name of the waived parent
+    return b;
+  }
+
+  it("201 with only the ibu's name and signature; the waived ayah has no data and no signer block", async () => {
+    mockRow({ ibu: { signatureToken: DB_IBU } }); // ayah never signed
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(201);
+    const data = updateMany.mock.calls[0][0].data;
+    expect(data.ayahData).toEqual({});
+    expect(data.ibuData.name).toBe("Ibu Fatimah");
+    expect(data.consentData.onlyParent).toBe("ibu");
+    expect(data.consentData.ibu.signatureToken).toBe(DB_IBU);
+    expect(data.consentData.ibu.signedAt).toBeTruthy();
+    expect(data.consentData.ayah).toBeUndefined();
+  });
+
+  it("a stored signature of the waived parent does not resurface", async () => {
+    // default mockRow holds BOTH tokens, e.g. ayah signed before being waived
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(201);
+    const consent = updateMany.mock.calls[0][0].data.consentData;
+    expect(consent.ayah).toBeUndefined();
+    expect(JSON.stringify(consent)).not.toContain(DB_AYAH);
+  });
+
+  it("422 when the filling parent has not signed, even though the waived one is skipped", async () => {
+    mockRow({ ayah: { signatureToken: DB_AYAH } }); // only the waived parent signed
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["consentData.ibu.signatureToken"]).toBeTruthy();
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("422 when the filling parent's name is blank", async () => {
+    mockRow({ ibu: { signatureToken: DB_IBU } });
+    const b = onlyIbuBody();
+    b.ibuData.name = "";
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["ibuData.name"]).toBe("Nama wajib diisi");
+  });
+
+  it("without the flag both parents are still required (422 names the missing ayah)", async () => {
+    const b = onlyIbuBody();
+    delete b.consentData.onlyParent;
+    delete b.ayahData;
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["ayahData.name"]).toBe("Nama wajib diisi");
+  });
+});
+
+describe("POST /submit — transaction + row lock", () => {
+  it("takes the row lock FOR UPDATE before reading the stored tokens, all inside one transaction", async () => {
+    const order: string[] = [];
+    queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
+      order.push(`lock:${strings.join("?").includes("FOR UPDATE")}`);
+      return [{ id: "a" }];
+    });
+    const realImpl = findUnique.getMockImplementation()!;
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) => {
+      if (!arg.where.accessToken) order.push("read-consent");
+      return realImpl(arg);
+    });
+    updateMany.mockImplementation(async () => {
+      order.push("flip");
+      return { count: 1 };
+    });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(201);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["lock:true", "read-consent", "flip"]);
+  });
+
+  it("404 when the locked row has vanished (nothing written)", async () => {
+    queryRaw.mockResolvedValue([]);
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(404);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("validation failures and lost races return their usual codes from inside the transaction", async () => {
+    const b = validBody();
+    b.studentData.childName = "";
+    expect((await POST(req(b), ctx)).status).toBe(422);
+    updateMany.mockResolvedValue({ count: 0 });
+    expect((await POST(req(validBody()), ctx)).status).toBe(409);
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("a thrown error inside the transaction propagates (so the DB rolls back)", async () => {
+    updateMany.mockRejectedValue(new Error("db down"));
+    await expect(POST(req(validBody()), ctx)).rejects.toThrow("db down");
+  });
+});
+
+
+describe("POST /submit — required documents", () => {
+  const SIGS = { ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } };
+  const uploaded = (extra: Record<string, unknown> = {}) => ({
+    fileToken: "supabase:v1:enrollment/a/doc-kk-1.pdf",
+    fileName: "kk.pdf",
+    mimeType: "application/pdf",
+    size: 10,
+    uploadedAt: "2026-10-06T01:00:00.000Z",
+    ...extra,
+  });
+
+  it("nothing required → unchanged (201 with no documents at all)", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: [] });
+    mockRow(SIGS, null);
+    expect((await POST(req(validBody()), ctx)).status).toBe(201);
+  });
+
+  it("looks the requirement up by the application's tenant, inside the transaction", async () => {
+    await POST(req(validBody()), ctx);
+    expect(tenantFindUnique.mock.calls[0][0].where).toEqual({ id: "t-1" });
+  });
+
+  it("required + missing → 422 naming the labels in form order; nothing written", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk", "akta"] });
+    mockRow(SIGS, { kk: uploaded() , surat_sehat: uploaded() });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error).toBe("validation_failed");
+    expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak");
+    expect(json.missingDocuments).toEqual(["akta"]);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("lists every missing label when several are absent", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["akta", "kk"] });
+    mockRow(SIGS, null);
+    const json = await (await POST(req(validBody()), ctx)).json();
+    expect(json.fields.documents).toBe("Berkas wajib belum diunggah: Akta kelahiran anak, Kartu Keluarga (KK)");
+    expect(json.missingDocuments).toEqual(["akta", "kk"]);
+  });
+
+  it("required + uploaded → 201", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk", "akta"] });
+    mockRow(SIGS, { kk: uploaded(), akta: uploaded({ fileName: "akta.pdf" }) });
+    expect((await POST(req(validBody()), ctx)).status).toBe(201);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("a physical-receipt tick alone does not satisfy a required document", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk"] });
+    mockRow(SIGS, { kk: { receivedPhysical: true, receivedAt: "2026-10-06T01:00:00.000Z" } });
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("schema validation errors still win over the documents check", async () => {
+    tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: ["kk"] });
+    mockRow(SIGS, null);
+    const b = validBody();
+    b.studentData.childName = "";
+    const json = await (await POST(req(b), ctx)).json();
+    expect(json.fields["studentData.childName"]).toBeTruthy();
+    expect(json.fields.documents).toBeUndefined();
+    expect(json.missingDocuments).toBeUndefined();
   });
 });

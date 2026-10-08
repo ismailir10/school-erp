@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_FEE_AMOUNT } from "@/lib/validations/fee-structure";
 
 // Billing Run wizard (bulk invoice wizard arc, Cycle B1 —
 // docs/cycles/2026-08-14-billing-run-wizard.md). A `BillingRun` is a
@@ -64,7 +65,15 @@ export const cancelBillingRunSchema = z.object({
 // create-line `amount` and the update-line `finalAmount`; the latter is
 // additionally allowed to go negative (a MANUAL discount line), so the sign
 // constraint is layered on top per schema rather than baked in here.
-const integerAmountSchema = z.number().int("Jumlah harus berupa bilangan bulat (Rupiah)");
+//
+// Bounded to ±MAX_FEE_AMOUNT (Rp 10 miliar): the line columns are
+// numeric(15,2), and a larger value used to reach Postgres and come back as a
+// bare 500 "Gagal menyimpan perubahan baris" (FINX-2).
+const integerAmountSchema = z
+  .number("Jumlah harus berupa angka")
+  .int("Jumlah harus berupa bilangan bulat (Rupiah)")
+  .max(MAX_FEE_AMOUNT, "Nominal maksimal Rp 10.000.000.000")
+  .min(-MAX_FEE_AMOUNT, "Nominal minimal -Rp 10.000.000.000");
 
 // Step 2 (Review, editable). Add a line to a row — either pulled from the
 // FeeComponentDef catalog or an ad-hoc discount (Assumption 3: the discount

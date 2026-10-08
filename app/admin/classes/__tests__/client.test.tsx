@@ -86,6 +86,36 @@ describe("ClassesClient — Kondisi column (T2 StatusBadge migration)", () => {
   });
 });
 
+describe("ClassesClient — empty class health (CORE-21)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders a brand-new class as a neutral 'Belum ada siswa', not 'Kritis'", async () => {
+    const emptyRow = { ...classRow, enrolledCount: 0, health: "Belum ada siswa" as const };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/academic-years")) {
+          return Promise.resolve({ ok: true, json: async () => ({ data: [year] }) } as Response);
+        }
+        if (url.includes("/api/admin/classes")) {
+          return Promise.resolve({ ok: true, json: async () => ({ data: [emptyRow] }) } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+      }),
+    );
+
+    render(<ClassesClient canWrite={true} />);
+
+    const badge = await screen.findByText("Belum ada siswa");
+    expect(badge.className).toContain("bg-muted");
+    expect(badge.className).not.toContain("status-absent");
+    expect(screen.queryByText("Kritis")).not.toBeInTheDocument();
+  });
+});
+
 // T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah/Ubah Kelas migrated onto
 // useZodForm + FormField + classFormSchema.
 const campus = { id: "cp1", name: "Taman Aster", status: "ACTIVE" };
@@ -179,5 +209,91 @@ describe("ClassesClient — Tambah Kelas dialog (T3 rhf migration)", () => {
       slotTemplate: "FULL_DAY",
       ageGroup: "A",
     });
+  });
+});
+
+// ADM-5 (cycle 2026-10-07, admin-core-guards) — the server refuses a capacity
+// below the ACTIVE roster with a 409; the edit dialog must show it on the
+// Kapasitas field, not as a toast-only failure.
+describe("ClassesClient — Ubah Kelas capacity guard (ADM-5)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the server's 409 inline on the Kapasitas field", async () => {
+    const message = "Kapasitas tidak bisa lebih kecil dari jumlah siswa aktif (2 siswa).";
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/admin/classes/c1") && init?.method === "PATCH") {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: async () => ({
+            error: message,
+            field: "capacity",
+            errors: [{ field: "capacity", message }],
+          }),
+        } as Response);
+      }
+      if (url.includes("/api/academic-years")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [year] }) } as Response);
+      }
+      if (url.includes("/api/admin/classes")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [classRow] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+
+    await user.click(await screen.findByRole("button", { name: /Aksi untuk TKIT A/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Ubah|Edit/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Ubah Kelas/ });
+
+    const capacity = within(dialog).getByLabelText(/Kapasitas/);
+    await user.clear(capacity);
+    await user.type(capacity, "1");
+    await user.click(within(dialog).getByRole("button", { name: /Simpan/ }));
+
+    expect(await within(dialog).findByText(message)).toBeInTheDocument();
+    expect(capacity).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+// R2-ADMIN-2 — ?yearId= seeds the selected year and stays in the URL.
+describe("ClassesClient — yearId from the URL (R2-ADMIN-2)", () => {
+  const planning = { id: "y2", name: "2027/2028", status: "PLANNING", startDate: "2027-07-12", endDate: "2028-07-09" };
+
+  function stubTwoYears() {
+    return vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/academic-years")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [planning, year] }) } as Response);
+      }
+      if (url.includes("/api/admin/classes")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+    });
+  }
+  const classCalls = (f: ReturnType<typeof stubTwoYears>) =>
+    f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/admin/classes"));
+
+  it("loads the year named in initialYearId and writes it to the URL", async () => {
+    const f = stubTwoYears();
+    vi.stubGlobal("fetch", f);
+    render(<ClassesClient canWrite={true} initialYearId="y2" />);
+    await waitFor(() => expect(classCalls(f).some((u) => u.includes("yearId=y2"))).toBe(true));
+    expect(classCalls(f).some((u) => u.includes("yearId=y1"))).toBe(false);
+    expect(window.location.search).toContain("yearId=y2");
+  });
+
+  it("falls back to the default year when initialYearId is unknown", async () => {
+    const f = stubTwoYears();
+    vi.stubGlobal("fetch", f);
+    render(<ClassesClient canWrite={true} initialYearId="nope" />);
+    await waitFor(() => expect(classCalls(f).some((u) => u.includes("yearId=y1"))).toBe(true));
+    expect(window.location.search).toContain("yearId=y1");
   });
 });

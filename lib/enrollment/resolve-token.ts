@@ -32,6 +32,8 @@ export function classifyEnrollmentAccess(row: EnrollmentRow | null, now: Date): 
 
 export type ResolvedEnrollment = {
   access: EnrollmentAccess;
+  /** Owning tenant of the matched row (undefined on a token miss) — for per-school config lookups. */
+  tenantId: string | undefined;
   application: {
     id: string;
     status: string;
@@ -44,6 +46,7 @@ export type ResolvedEnrollment = {
     ayahData: unknown;
     ibuData: unknown;
     consentData: unknown;
+    documents: unknown;
   } | null;
 };
 
@@ -69,9 +72,13 @@ export async function resolveEnrollmentAccess(
  * write path that persists a client-supplied programId (admin PATCH, public
  * draft + submit) to prevent a cross-tenant program reference (IDOR write).
  */
-export async function programBelongsToTenant(programId: string, tenantId: string): Promise<boolean> {
+export async function programBelongsToTenant(
+  programId: string,
+  tenantId: string,
+  db: Pick<typeof prisma, "program"> = prisma,
+): Promise<boolean> {
   if (!programId) return false;
-  const prog = await prisma.program.findFirst({
+  const prog = await db.program.findFirst({
     where: { id: programId, tenantId },
     select: { id: true },
   });
@@ -83,10 +90,11 @@ export async function programBelongsToTenant(programId: string, tenantId: string
  * the form. Callers still inspect `access` before trusting it for edits.
  */
 export async function resolveEnrollmentToken(token: string, now: Date): Promise<ResolvedEnrollment> {
-  const application = await prisma.enrollmentApplication.findUnique({
+  const row = await prisma.enrollmentApplication.findUnique({
     where: { accessToken: token },
     select: {
       id: true,
+      tenantId: true,
       status: true,
       childName: true,
       parentEmail: true,
@@ -97,7 +105,12 @@ export async function resolveEnrollmentToken(token: string, now: Date): Promise<
       ayahData: true,
       ibuData: true,
       consentData: true,
+      documents: true,
     },
   });
-  return { access: classifyEnrollmentAccess(application, now), application };
+  if (!row) return { access: classifyEnrollmentAccess(null, now), tenantId: undefined, application: null };
+  // `tenantId` is surfaced separately and kept off `application`, which the page
+  // hands on to the client component.
+  const { tenantId, ...application } = row;
+  return { access: classifyEnrollmentAccess(row, now), tenantId, application };
 }

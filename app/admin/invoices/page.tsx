@@ -11,7 +11,16 @@ import { InvoicesClient } from "./invoices-client";
  * T6). `PendingLinkBreakdownPopover` uses it to name the correct credential
  * env var in its auth-heavy hint.
  */
-export default async function InvoicesPage() {
+const STATUS_FILTERS = ["DRAFT", "SENT", "PAID", "PARTIALLY_PAID", "OVERDUE", "CANCELLED", "PENDING_PAYMENT_LINK"];
+
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string | string[] }>;
+}) {
   const session = await assertPermission("invoices.view");
-  return <InvoicesClient gatewayId={getGateway().id} capabilities={invoiceCapabilities(session)} />;
+  const { status } = await searchParams;
+  // ?status= deep link (dashboard "Lewat tempo" card); unknown values fall back to "all".
+  const initialStatus = typeof status === "string" && STATUS_FILTERS.includes(status) ? status : "all";
+  return <InvoicesClient gatewayId={getGateway().id} capabilities={invoiceCapabilities(session)} initialStatus={initialStatus} />;
 }

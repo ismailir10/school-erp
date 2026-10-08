@@ -50,12 +50,23 @@ export function whatsappHrefWithText(phone: string | null | undefined, text: str
 
 /**
  * The school's finance/admin contact number shown to parents when an invoice
- * has no payment link. There is no school phone in OrgConfig/Tenant/Campus
- * (a schema change is out of scope), so it comes from the optional
- * `SCHOOL_CONTACT_PHONE` env var; unset -> null and the UI falls back to
- * "hubungi admin sekolah" plus the invoice number to quote.
+ * has no payment link, and on /parent/profile.
+ *
+ * Source of truth is the optional `SCHOOL_CONTACT_PHONE` env var. Tenant,
+ * Campus and OrgConfig carry no phone/WhatsApp column (a schema change is out
+ * of scope, and an Employee's personal `noHp` must not be handed to parents),
+ * so there is no DB fallback to read; unset -> null. Callers then show
+ * `SCHOOL_CONTACT_FALLBACK_TEXT` so the screen still names a next step.
+ * If a school phone column is ever added, resolve it HERE so every call site
+ * (invoice sheet, profile, public enrollment cards) picks it up at once.
  */
 export function schoolContactPhone(): string | null {
   const v = process.env.SCHOOL_CONTACT_PHONE?.trim();
   return v ? v : null;
 }
+
+/**
+ * Concrete next step for when no school number is configured. Never a dead
+ * "hubungi admin": it names the office a parent can walk up to.
+ */
+export const SCHOOL_CONTACT_FALLBACK_TEXT = "Silakan hubungi bagian tata usaha sekolah.";

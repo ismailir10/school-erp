@@ -10,8 +10,9 @@ import userEvent from "@testing-library/user-event";
 
 import { InvoicesClient } from "@/app/admin/invoices/invoices-client";
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 vi.mock("sonner", () => ({
@@ -130,8 +131,64 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
     await screen.findByRole("link", { name: /Overdue Kosong/ });
 
-    expect(screen.getAllByRole("button", { name: /Buka menu aksi|Aksi untuk/ })).toHaveLength(1);
-    await user.click(screen.getByRole("button", { name: /Buka menu aksi|Aksi untuk/ }));
+    // Both rows carry Catat Pembayaran now (R2-ADMIN-12), so both have a menu.
+    const menus = screen.getAllByRole("button", { name: /Buka menu aksi|Aksi untuk/ });
+    expect(menus).toHaveLength(2);
+    await user.click(menus[0]);
     expect(await screen.findByRole("menuitem", { name: "Batalkan" })).toBeInTheDocument();
+  });
+
+  it("FIN-9: an OVERDUE row with payments keeps Catat Pembayaran but loses Batalkan", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({
+        invoices: [
+          { ...invoice, id: "od-2", status: "OVERDUE", totalPaid: 100000, student: { name: "Overdue Bayar", nickname: null } },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Overdue Bayar/ });
+    await user.click(screen.getByRole("button", { name: /Buka menu aksi|Aksi untuk/ }));
+    await screen.findByRole("menuitem", { name: "Catat Pembayaran" });
+    expect(screen.queryByRole("menuitem", { name: "Batalkan" })).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoicesClient — Catat Pembayaran row action and ?status= (R2-ADMIN-12/3)", () => {
+  beforeEach(() => push.mockClear());
+
+  it("a SENT row offers Catat Pembayaran, which opens the detail page with the dialog flag", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    await user.click(screen.getByRole("button", { name: /Buka menu aksi|Aksi untuk/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "Catat Pembayaran" }));
+    expect(push).toHaveBeenCalledWith("/admin/invoices/inv1?bayar=1");
+  });
+
+  it("is not offered on a DRAFT row or without the payments.record capability", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, status: "DRAFT" }] }));
+    const { unmount } = render(<InvoicesClient gatewayId="xendit" capabilities={{ ...caps, void: false }} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByRole("button", { name: /Buka menu aksi|Aksi untuk/ })).not.toBeInTheDocument();
+    unmount();
+
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="xendit" capabilities={{ ...caps, recordPayment: false, void: false }} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByRole("button", { name: /Buka menu aksi|Aksi untuk/ })).not.toBeInTheDocument();
+  });
+
+  it("initialStatus seeds the list query (dashboard Lewat tempo link)", async () => {
+    const f = stubFetch();
+    vi.stubGlobal("fetch", f);
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="OVERDUE" />);
+    await waitFor(() => {
+      const listCalls = f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/invoices?"));
+      expect(listCalls.some((u) => u.includes("status=OVERDUE"))).toBe(true);
+    });
   });
 });

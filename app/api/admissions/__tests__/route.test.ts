@@ -31,9 +31,14 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   return { ...actual, getSession: vi.fn(async () => state.session) };
 });
 
+const detect = vi.hoisted(() => ({ detectSibling: vi.fn() }));
+const admissionUpdate = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/admission/sibling-detect", () => detect);
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     admission: {
+      update: admissionUpdate,
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         state.lastCreate = data;
         return { id: "new-admission-id", ...data };
@@ -76,6 +81,9 @@ function postReq(body: unknown): Request {
 beforeEach(() => {
   state.session = adminSession();
   state.lastCreate = null;
+  detect.detectSibling.mockReset();
+  detect.detectSibling.mockResolvedValue(null);
+  admissionUpdate.mockReset();
 });
 
 describe("POST /api/admissions — validation (validateBody)", () => {
@@ -128,5 +136,46 @@ describe("POST /api/admissions — auth boundaries unchanged", () => {
     const res = await POST(postReq({ childName: "Aisyah", parentName: "Ibu Fatimah" }) as never);
     expect(res.status).toBe(403);
     expect(state.lastCreate).toBeNull();
+  });
+});
+
+describe("POST /api/admissions — sibling detection (R2-ADMIN-1)", () => {
+  it("runs detectSibling with email, phone and WhatsApp and stamps detectedParentId on a match", async () => {
+    detect.detectSibling.mockResolvedValue({ parentId: "par-existing", matchReason: "phone" });
+    const res = await POST(
+      postReq({
+        childName: "Aisyah",
+        parentName: "Dewi",
+        parentWhatsapp: "08215678901",
+      }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(detect.detectSibling).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: "t1",
+        parentEmail: null,
+        parentPhone: null,
+        parentWhatsapp: "08215678901",
+      }),
+      expect.anything(),
+    );
+    expect(admissionUpdate).toHaveBeenCalledWith({
+      where: { id: "new-admission-id" },
+      data: { detectedParentId: "par-existing" },
+    });
+    expect((await res.json()).detectedParentId).toBe("par-existing");
+  });
+
+  it("writes nothing extra when no parent matches", async () => {
+    const res = await POST(postReq({ childName: "Aisyah", parentName: "Dewi" }) as never);
+    expect(res.status).toBe(201);
+    expect(admissionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("still returns 201 when detection throws", async () => {
+    detect.detectSibling.mockRejectedValue(new Error("db down"));
+    const res = await POST(postReq({ childName: "Aisyah", parentName: "Dewi" }) as never);
+    expect(res.status).toBe(201);
+    expect(admissionUpdate).not.toHaveBeenCalled();
   });
 });

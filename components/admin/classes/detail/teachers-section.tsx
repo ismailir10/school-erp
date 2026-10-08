@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { formatDateShort } from "@/lib/format";
 
 import { AddTeacherDialog } from "./add-teacher-dialog";
 import type { TeacherOptionsStatus } from "./teacher-option-items";
-import { formatDate, ROLE_LABEL, SECTION_TEACHERS, type ClassDetail, type Employee } from "./types";
+import { ROLE_LABEL, SECTION_TEACHERS, type ClassDetail, type Employee } from "./types";
 
 type Assignment = ClassDetail["teachingAssignments"][number];
 
@@ -87,7 +88,7 @@ export function TeachersSection({
         meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {formatDate(row.original.createdAt)}
+            {formatDateShort(row.original.createdAt)}
           </span>
         ),
       },

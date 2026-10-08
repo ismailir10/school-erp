@@ -39,6 +39,7 @@ function admission(overrides: Record<string, unknown> = {}) {
     dateOfBirth: "2021-03-15",
     parentName: "Ibu Fatimah",
     parentPhone: "081234567890",
+    parentWhatsapp: null,
     parentEmail: "fatimah@test.com",
     parentRelationship: "IBU",
     programId: "c" + "a".repeat(24),
@@ -98,6 +99,38 @@ describe("POST /api/enrollments/invite", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("ALREADY_IN_PROGRESS");
     expect(enrollmentUpsert).not.toHaveBeenCalled();
+  });
+
+  it("prefills No. HP from the WhatsApp number when the inquiry has no phone", async () => {
+    admissionFindUnique.mockResolvedValue(
+      admission({ parentRelationship: "AYAH", parentPhone: null, parentWhatsapp: "081999000111" }),
+    );
+    expect((await POST(req({ admissionId: "adm-1" }))).status).toBe(200);
+    expect(enrollmentUpsert.mock.calls[0][0].create.ayahData.phone).toBe("081999000111");
+  });
+
+  it("falls back to WhatsApp when the phone is a blank string", async () => {
+    admissionFindUnique.mockResolvedValue(
+      admission({ parentRelationship: "AYAH", parentPhone: "", parentWhatsapp: "081999000111" }),
+    );
+    await POST(req({ admissionId: "adm-1" }));
+    expect(enrollmentUpsert.mock.calls[0][0].create.ayahData.phone).toBe("081999000111");
+  });
+
+  it("leaves No. HP unset when neither phone nor WhatsApp is present", async () => {
+    admissionFindUnique.mockResolvedValue(
+      admission({ parentRelationship: "AYAH", parentPhone: null, parentWhatsapp: "" }),
+    );
+    await POST(req({ admissionId: "adm-1" }));
+    expect(enrollmentUpsert.mock.calls[0][0].create.ayahData.phone).toBeUndefined();
+  });
+
+  it("parentPhone still wins when both phone and WhatsApp are set", async () => {
+    admissionFindUnique.mockResolvedValue(
+      admission({ parentRelationship: "AYAH", parentPhone: "081234567890", parentWhatsapp: "081999000111" }),
+    );
+    await POST(req({ admissionId: "adm-1" }));
+    expect(enrollmentUpsert.mock.calls[0][0].create.ayahData.phone).toBe("081234567890");
   });
 
   it("creates/refreshes the application, prefills the IBU block, and sends the email", async () => {

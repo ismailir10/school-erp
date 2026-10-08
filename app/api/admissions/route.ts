@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { createAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { hasPermission } from "@/lib/permissions";
+import { detectSibling } from "@/lib/admission/sibling-detect";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
   const status = searchParams.get("status");
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
@@ -112,5 +113,31 @@ export async function POST(req: NextRequest) {
       followUpDate: body.followUpDate || null,
     },
   });
+
+  // R2-ADMIN-1: same sibling auto-detect as the public /daftar submit. Without
+  // it an admin-entered inquiry never got a "Saudara terdeteksi" chip and
+  // converting it silently created a second Parent. Matches email, phone or
+  // WhatsApp. Failure is swallowed — the admission is already created, so the
+  // 201 stays authoritative and convert still re-checks for duplicates.
+  try {
+    const match = await detectSibling(
+      {
+        tenantId: session.tenantId,
+        parentEmail: admission.parentEmail,
+        parentPhone: admission.parentPhone,
+        parentWhatsapp: admission.parentWhatsapp,
+      },
+      prisma,
+    );
+    if (match) {
+      await prisma.admission.update({
+        where: { id: admission.id },
+        data: { detectedParentId: match.parentId },
+      });
+      return NextResponse.json({ ...admission, detectedParentId: match.parentId }, { status: 201 });
+    }
+  } catch (err) {
+    console.error(`[admin-admissions POST] sibling-detect failed for admission ${admission.id}:`, err);
+  }
   return NextResponse.json(admission, { status: 201 });
 }

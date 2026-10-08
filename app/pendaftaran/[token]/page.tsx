@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
+import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
+import { schoolContactPhone } from "@/lib/contact";
 import PendaftaranClient from "./client";
+import { MessageCard } from "./message-card";
+import { BringList, withoutWaivedParentDocs } from "./bring-list";
 
 export const metadata: Metadata = {
-  title: "Formulir Pendaftaran Murid Baru — Talib",
+  title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
   description: "Lengkapi formulir penerimaan murid baru An Nisaa' Sekolahku.",
   robots: { index: false, follow: false }, // tokenized — keep out of search
 };
@@ -20,6 +25,25 @@ async function getActivePrograms() {
     console.error("[pendaftaran/page] program lookup failed", err);
     return [];
   }
+}
+
+/**
+ * Consent blob for the browser: names + a `signed` flag per parent. The raw
+ * storage tokens never leave the server (the signature routes persist them on
+ * the row; submit reads them from there).
+ */
+function toPublicConsent(raw: unknown) {
+  const c = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const side = (v: unknown) => {
+    const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+    return {
+      name: typeof o.name === "string" ? o.name : "",
+      signed: typeof o.signatureToken === "string" && o.signatureToken.length > 0,
+    };
+  };
+  // `onlyParent` (R2-P-10): the one parent / wali filling alone, "" when both do.
+  const onlyParent = c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "";
+  return { agreed: c.agreed === true, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -44,13 +68,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MessageCard({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
-      <h1 className="text-xl font-semibold text-emerald-950">{title}</h1>
-      <p className="mt-3 text-sm leading-relaxed text-emerald-900/70">{body}</p>
-    </div>
-  );
+async function getRequired(tenantId: string | undefined): Promise<DocumentKey[]> {
+  if (!tenantId) return [];
+  try {
+    return await getRequiredDocuments(tenantId);
+  } catch (err) {
+    // Never block the parent's form on a config read; the server still enforces on submit.
+    console.error("[pendaftaran/page] required documents lookup failed", err);
+    return [];
+  }
 }
 
 export default async function PendaftaranTokenPage({
@@ -59,7 +85,10 @@ export default async function PendaftaranTokenPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const { access, application } = await resolveEnrollmentToken(token, new Date());
+  const { access, application, tenantId } = await resolveEnrollmentToken(token, new Date());
+
+  // Env-configured; null (no links) when the school has not set one.
+  const contactPhone = schoolContactPhone();
 
   if (access === "NOT_FOUND") {
     return (
@@ -67,6 +96,7 @@ export default async function PendaftaranTokenPage({
         <MessageCard
           title="Tautan tidak ditemukan"
           body="Tautan formulir ini tidak valid. Mohon hubungi tim penerimaan An Nisaa' Sekolahku untuk mendapatkan tautan baru."
+          phone={contactPhone}
         />
       </Shell>
     );
@@ -78,6 +108,7 @@ export default async function PendaftaranTokenPage({
         <MessageCard
           title="Tautan sudah kedaluwarsa"
           body="Tautan formulir ini sudah melewati masa berlaku (14 hari). Mohon hubungi tim penerimaan untuk mendapatkan tautan baru."
+          phone={contactPhone}
         />
       </Shell>
     );
@@ -89,12 +120,27 @@ export default async function PendaftaranTokenPage({
         <MessageCard
           title="Formulir sudah diterima"
           body="Jazakumullah khairan. Formulir pendaftaran ananda sudah kami terima. Tim penerimaan akan menghubungi Bapak/Ibu untuk proses selanjutnya."
-        />
+        >
+          {/* Same checklist as the just-submitted card; it shrinks as staff mark documents received. */}
+          <BringList
+            keys={
+              application
+                ? withoutWaivedParentDocs(
+                    missingRequiredDocuments(application.documents),
+                    toPublicConsent(application.consentData).onlyParent,
+                  )
+                : []
+            }
+          />
+        </MessageCard>
       </Shell>
     );
   }
 
-  const programs = await getActivePrograms();
+  const [programs, requiredDocuments] = await Promise.all([
+    getActivePrograms(),
+    getRequired(tenantId),
+  ]);
 
   return (
     <Shell>
@@ -111,13 +157,15 @@ export default async function PendaftaranTokenPage({
       <PendaftaranClient
         token={token}
         programs={programs}
+        requiredDocuments={requiredDocuments}
         prefill={{
           programId: application.programId,
           dcareAddon: application.dcareAddon,
           studentData: application.studentData,
           ayahData: application.ayahData,
           ibuData: application.ibuData,
-          consentData: application.consentData,
+          consentData: toPublicConsent(application.consentData),
+          documents: toPublicDocuments(application.documents),
         }}
       />
     </Shell>

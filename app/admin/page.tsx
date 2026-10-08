@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { formatDate } from "@/lib/format";
-import { ActivityFeed, QueueSummaryTiles, UrgentList, AttendanceTodayStrip } from "@/components/admin/dashboard";
+import { ActivityFeed, QueueSummaryTiles, UrgentList, AttendanceTodayStrip, FinanceTiles } from "@/components/admin/dashboard";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
+import { loadReceivables } from "@/lib/dashboard/receivables";
 import { getRecentActivity } from "@/lib/dashboard/activity-feed";
 import { buildAdminWorkQueue, rankUrgent, summarizeQueue, canViewAdminActivity } from "@/lib/dashboard/admin-work-queue";
 import { loadAdminQueueSources } from "@/lib/dashboard/queue-sources";
@@ -18,8 +19,17 @@ export default async function AdminDashboard() {
   const can = (permission: string) => hasPermission(session, permission);
   const canSeeAttendance = can("hr.view") && can("attendance.view");
 
-  const [sources, attendance, activity] = await Promise.all([
+  const [sources, finance, attendance, activity] = await Promise.all([
     loadAdminQueueSources({ ...session, tenantId }, { take: 5 }),
+    (async () => {
+      if (!can("invoices.view")) return { status: "hidden" as const };
+      try {
+        return { status: "ready" as const, ...(await loadReceivables(tenantId)) };
+      } catch (error) {
+        console.error("[dashboard] source unavailable", { key: "finance", error });
+        return { status: "unavailable" as const };
+      }
+    })(),
     (async () => {
       if (!canSeeAttendance) return { status: "hidden" as const };
       try {
@@ -59,6 +69,7 @@ export default async function AdminDashboard() {
     <div className="grid min-w-0 items-start gap-section xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="min-w-0 space-y-section">
         <QueueSummaryTiles items={summary.items} />
+        {finance.status !== "hidden" && <FinanceTiles data={finance} />}
         <UrgentList items={urgent} total={summary.total} />
         {attendance.status !== "hidden" && <AttendanceTodayStrip data={attendance} />}
       </div>

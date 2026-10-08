@@ -72,6 +72,8 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   ACTIVE: { label: "Aktif", className: "bg-status-present-subtle text-status-present-text" },
   INACTIVE: { label: "Tidak Aktif", className: "bg-muted text-muted-foreground" },
   PLANNING: { label: "Perencanaan", className: "bg-status-leave-subtle text-status-leave-text" },
+  // AcademicYear.status — an archived year was rendering the raw enum.
+  ARCHIVED: { label: "Diarsipkan", className: "bg-muted text-muted-foreground" },
 
   // Invoice
   // "Link Dibuat" not "Terkirim": SENT only means a payment-link session exists
@@ -177,6 +179,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
 
   // Lifecycle — neutral / dormant
   INACTIVE: Minus,
+  ARCHIVED: Minus,
   DRAFT: Minus,
   CANCELLED: Minus,
   WITHDRAWN: Minus,
@@ -286,6 +289,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
 
   // Neutral
   INACTIVE: "border-l-border",
+  ARCHIVED: "border-l-border",
   DRAFT: "border-l-border",
   CANCELLED: "border-l-border",
   WITHDRAWN: "border-l-border",

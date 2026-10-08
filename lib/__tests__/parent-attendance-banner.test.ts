@@ -27,6 +27,7 @@ describe("attendanceBannerState", () => {
       kind: "attention",
       tone: "warm",
       reason: "sick",
+      alsoSick: true,
       line: "Hadir 3 · Sakit 1 · Alpa 0",
     });
   });
@@ -38,6 +39,7 @@ describe("attendanceBannerState", () => {
       kind: "attention",
       tone: "warm",
       reason: "absent",
+      alsoSick: false,
       line: "Hadir 2 · Sakit 0 · Alpa 1",
     });
   });
@@ -49,6 +51,7 @@ describe("attendanceBannerState", () => {
       kind: "attention",
       tone: "neutral",
       reason: "permission",
+      alsoSick: false,
       line: "Hadir 3 · Sakit 0 · Alpa 0 · Izin 1",
     });
   });
@@ -65,7 +68,25 @@ describe("attendanceBannerState", () => {
       kind: "attention",
       tone: "warm",
       reason: "sick",
+      alsoSick: true,
       line: "Hadir 2 · Sakit 1 · Alpa 0 · Izin 1",
     });
+  });
+
+  it("leads with the absence when Alpa and Sakit share a week (PARX-4)", () => {
+    expect(
+      attendanceBannerState({ hadir: 1, sakit: 1, alpa: 1, izin: 0, logged: 3 }),
+    ).toEqual({
+      kind: "attention",
+      tone: "warm",
+      reason: "absent",
+      alsoSick: true,
+      line: "Hadir 1 · Sakit 1 · Alpa 1",
+    });
+  });
+
+  it("keeps Alpa first when the week mixes Alpa, Sakit and Izin", () => {
+    const state = attendanceBannerState({ hadir: 1, sakit: 1, alpa: 1, izin: 1, logged: 4 });
+    expect(state).toMatchObject({ kind: "attention", reason: "absent", alsoSick: true });
   });
 });

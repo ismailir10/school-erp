@@ -114,4 +114,65 @@ describe("readApiError", () => {
 
     expect(err.fieldErrors).toEqual([{ field: "name", message: "Nama wajib diisi" }]);
   });
+
+  describe("status-aware copy (STR-17)", () => {
+    const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status });
+
+    it("maps a bare 403 'Forbidden' to Indonesian permission copy", async () => {
+      const err = await readApiError(json({ error: "Forbidden" }, 403), "Gagal menyimpan");
+      expect(err.message).toBe("Anda tidak memiliki izin untuk tindakan ini.");
+      expect(err.status).toBe(403);
+    });
+
+    it("maps a 403 with no readable body to the same copy", async () => {
+      const err = await readApiError(new Response("", { status: 403 }), "Gagal menyimpan");
+      expect(err.message).toBe("Anda tidak memiliki izin untuk tindakan ini.");
+    });
+
+    it("keeps a 403 server sentence that is already Indonesian", async () => {
+      const err = await readApiError(json({ error: "Hanya admin yang dapat mengubah wali." }, 403), "Gagal");
+      expect(err.message).toBe("Hanya admin yang dapat mengubah wali.");
+    });
+
+    it("maps 401 'Unauthorized' to the session-expired copy", async () => {
+      const err = await readApiError(json({ error: "Unauthorized" }, 401), "Gagal menyimpan");
+      expect(err.message).toBe("Sesi Anda berakhir. Silakan masuk kembali.");
+    });
+
+    it("keeps a 401 server sentence that is already Indonesian", async () => {
+      const err = await readApiError(json({ error: "Email atau kata sandi salah." }, 401), "Gagal");
+      expect(err.message).toBe("Email atau kata sandi salah.");
+    });
+
+    it("replaces the stock English 500 text and machine words with server copy", async () => {
+      for (const error of ["Internal Server Error", "INTERNAL_ERROR"]) {
+        const err = await readApiError(json({ error }, 500), "Gagal menyimpan");
+        expect(err.message).toBe("Terjadi kendala di server. Coba lagi sebentar lagi.");
+      }
+    });
+
+    it("uses the server copy for an empty 5xx when the caller gave no fallback", async () => {
+      const err = await readApiError(new Response("", { status: 500 }), "");
+      expect(err.message).toBe("Terjadi kendala di server. Coba lagi sebentar lagi.");
+    });
+
+    it("keeps the caller's Indonesian fallback for an empty 5xx body", async () => {
+      const err = await readApiError(new Response("", { status: 500 }), "Gagal menyimpan");
+      expect(err.message).toBe("Gagal menyimpan");
+    });
+
+    it("keeps an Indonesian 5xx sentence from the server", async () => {
+      const err = await readApiError(json({ error: "Penyedia pembayaran sedang gangguan." }, 502), "Gagal");
+      expect(err.message).toBe("Penyedia pembayaran sedang gangguan.");
+    });
+
+    it("still returns fieldErrors alongside mapped copy", async () => {
+      const err = await readApiError(
+        json({ error: "Forbidden", errors: [{ field: "name", message: "Nama wajib diisi" }] }, 403),
+        "Gagal",
+      );
+      expect(err.message).toBe("Anda tidak memiliki izin untuk tindakan ini.");
+      expect(err.fieldErrors).toEqual([{ field: "name", message: "Nama wajib diisi" }]);
+    });
+  });
 });

@@ -3,6 +3,8 @@ import {
   buildReportSections,
   buildReportCardData,
   formatTermLabel,
+  formatMeasurement,
+  raportFileName,
   SECTION_ORDER,
 } from "@/lib/raport/build";
 
@@ -96,8 +98,8 @@ describe("buildReportCardData", () => {
     expect(data.termLabel).toBe("Triwulan 1 · Semester 1 · 2025/2026");
     expect(data.attendance).toEqual({ sick: 2, permitted: 1, unexcused: 0, total: 60 });
     expect(data.hafalan).toBe("An-Naba 1-10");
-    expect(data.height).toBe("110.5");
-    expect(data.weight).toBe("18.2");
+    expect(data.height).toBe("110,5");
+    expect(data.weight).toBe("18,2");
     expect(data.sections).toHaveLength(8);
     expect(data.generatedDate).toBeTruthy();
   });
@@ -112,5 +114,26 @@ describe("buildReportCardData", () => {
 describe("SECTION_ORDER", () => {
   it("is the 5 bucketed + 3 closing sections", () => {
     expect(SECTION_ORDER).toHaveLength(8);
+  });
+});
+
+describe("formatMeasurement (R2-P-7)", () => {
+  it("prints id-ID decimals, trims trailing zeros, and passes null through", () => {
+    expect(formatMeasurement("104.5")).toBe("104,5");
+    expect(formatMeasurement("16.20")).toBe("16,2");
+    expect(formatMeasurement(110)).toBe("110");
+    expect(formatMeasurement(null)).toBeNull();
+    expect(formatMeasurement(undefined)).toBeNull();
+  });
+});
+
+describe("raportFileName (R2-P-7)", () => {
+  it("builds rapor-<nama-anak>-triwulan-<n>.pdf", () => {
+    expect(raportFileName("Aisyah Putri Ramadhani", 1)).toBe("rapor-aisyah-putri-ramadhani-triwulan-1.pdf");
+  });
+  it("folds diacritics and punctuation, and never leaves an empty name", () => {
+    expect(raportFileName("Siti Nur'Aini  (Eny)", 2)).toBe("rapor-siti-nur-aini-eny-triwulan-2.pdf");
+    expect(raportFileName("Zoë Ñandú", 3)).toBe("rapor-zoe-nandu-triwulan-3.pdf");
+    expect(raportFileName("???", 1)).toBe("rapor-anak-triwulan-1.pdf");
   });
 });

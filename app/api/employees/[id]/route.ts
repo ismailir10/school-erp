@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
 import { fieldErrorResponse } from "@/lib/api/field-errors";
+import { sumLeaveDays } from "@/lib/leave/balance";
 
 export async function GET(
   _req: NextRequest,
@@ -25,12 +26,19 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Saldo Cuti shows what is left, not just the allowance: APPROVED days this
+  // year, the same aggregate GET /api/leave/balance uses.
+  const [leaveUsedAnnual, leaveUsedSick] = await Promise.all([
+    sumLeaveDays(prisma, { employeeId: id, leaveType: "ANNUAL", statuses: ["APPROVED"] }),
+    sumLeaveDays(prisma, { employeeId: id, leaveType: "SICK", statuses: ["APPROVED"] }),
+  ]);
+
   if (!hasPermission(session, "payroll.view")) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
-    return NextResponse.json(rest);
+    return NextResponse.json({ ...rest, leaveUsedAnnual, leaveUsedSick });
   }
-  return NextResponse.json(employee);
+  return NextResponse.json({ ...employee, leaveUsedAnnual, leaveUsedSick });
 }
 
 export async function PUT(

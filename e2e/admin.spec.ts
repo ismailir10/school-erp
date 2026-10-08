@@ -328,13 +328,19 @@ test.describe("Admin flows", () => {
   // Roll-forward smoke (academic-hierarchy-refactor Task 9). The seed ships a
   // single academic year ("2025/2026") so a meaningful roll-forward needs a
   // distinct target year — we create one via the API in setup, then trigger
-  // the "Salin Kelas ke Tahun Ini" row action on it, picking the seed year as
+  // the "Salin kelas dari tahun sebelumnya" row action on it, picking the seed year as
   // source. Focused smoke: assert the success toast, not exact counts.
   test("academic-year roll-forward clones source sections into a fresh target year", async ({ page }) => {
     // Source year — the seed's ACTIVE year with ACTIVE class sections.
     const yearsRes = await page.request.get("/api/academic-years");
     expect(yearsRes.ok()).toBeTruthy();
-    const years = (await yearsRes.json()) as Array<{ id: string; name: string; status: string }>;
+    const years = (await yearsRes.json()) as Array<{
+      id: string;
+      name: string;
+      status: string;
+      startDate: string;
+      endDate: string;
+    }>;
     const sourceYear = years.find((y) => y.status === "ACTIVE") ?? years[0];
     if (!sourceYear) {
       test.skip(true, "No academic year in seed");
@@ -343,9 +349,23 @@ test.describe("Admin flows", () => {
 
     // Create a distinct target year via the API. Unique name keyed on Date.now()
     // so re-runs never collide on the year-name unique constraint.
+    // Years may not overlap a non-archived year, and the seed's calendar moves
+    // with today, so start the day after the latest live year ends.
     const targetName = `E2E Roll ${Date.now()}`;
+    const lastEnd = years
+      .filter((y) => y.status !== "ARCHIVED")
+      .reduce((max, y) => (y.endDate > max ? y.endDate : max), "2000-01-01");
+    const start = new Date(`${lastEnd}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() + 1);
+    const end = new Date(start);
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
+    end.setUTCDate(end.getUTCDate() - 1);
     const createRes = await page.request.post("/api/academic-years", {
-      data: { name: targetName, startDate: "2027-07-01", endDate: "2028-06-30" },
+      data: {
+        name: targetName,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+      },
     });
     expect(createRes.ok()).toBeTruthy();
     const targetYear = (await createRes.json()) as { id: string; name: string };
@@ -364,7 +384,7 @@ test.describe("Admin flows", () => {
     const targetRow = page.getByRole("row").filter({ hasText: targetName });
     await expect(targetRow).toBeVisible({ timeout: 10_000 });
     await targetRow.getByRole("button", { name: /Aksi untuk|Buka menu/i }).click();
-    await page.getByRole("menuitem", { name: /Salin Kelas ke Tahun Ini/i }).click();
+    await page.getByRole("menuitem", { name: /Salin kelas dari tahun sebelumnya/i }).click();
 
     // Roll-forward dialog: pick the source year, submit.
     const dialog = page.getByRole("dialog", { name: /Salin Kelas ke Tahun Ajaran/i });
@@ -600,7 +620,8 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(editDialog).toBeVisible({ timeout: 10_000 });
 
     const amountInput = editDialog.getByLabel("Jumlah Akhir");
-    const currentAmount = Number(await amountInput.inputValue());
+    // RupiahInput shows grouped thousands ("850.000"), so read the digits.
+    const currentAmount = Number((await amountInput.inputValue()).replace(/[^\d]/g, ""));
     expect(Number.isFinite(currentAmount), "unparsable line amount input value").toBe(true);
     const delta = 1_000; // distinct from the current value; always legal (increase, never negative)
     const nextAmount = currentAmount + delta;

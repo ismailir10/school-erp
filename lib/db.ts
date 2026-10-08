@@ -1,7 +1,7 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-09-29-seed-refresh — seed became date-relative (calendar,
-// sessions, invoices, raport all derive from one "today"); both sides still
-// construct PrismaPg from DATABASE_URL, adapter unchanged.
+// Last verified: 2026-10-07-teacher-robustness — the seed now withdraws the
+// WITHDRAWN fixture's enrollments; both sides still construct PrismaPg from
+// DATABASE_URL, adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

@@ -35,6 +35,16 @@ describe("GET /api/admin/assessments", () => {
     expect(loadPenilaianMonitor).not.toHaveBeenCalled();
   });
 
+  it("403 for GUARDIAN/TEACHER who hold assessments.read for their own children/classes", async () => {
+    for (const role of ["GUARDIAN", "TEACHER"]) {
+      requirePermission.mockResolvedValue({ session: { tenantId: "tenant_x", role } });
+      const res = await GET(req("http://t/api/admin/assessments"));
+      expect(res.status).toBe(403);
+    }
+    expect(academicYearFindFirst).not.toHaveBeenCalled();
+    expect(loadPenilaianMonitor).not.toHaveBeenCalled();
+  });
+
   it("400 on malformed date param", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await GET(req("http://t/api/admin/assessments?week=2026-13-99x"));

@@ -4,7 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ReportCardPdf } from "@/lib/pdf/report-card";
-import { buildReportCardData } from "@/lib/raport/build";
+import { buildReportCardData, raportFileName } from "@/lib/raport/build";
 import { resolveTerm } from "@/app/api/admin/report-cards/_helpers";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
@@ -131,7 +131,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="raport-${studentId}-${termId}.pdf"`,
+      "Content-Disposition": `inline; filename="${raportFileName(student.name, term.number)}"`,
       "Cache-Control": "private, no-store",
     },
   });

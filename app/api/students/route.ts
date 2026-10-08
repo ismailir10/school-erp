@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createStudentSchema } from "@/lib/validations/student";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { findStudentConflict } from "@/lib/students/guards";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
   });
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
   const status = searchParams.get("status");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,9 +103,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await validateBody(createStudentSchema, await req.json());
+  const rawBody = await req.json();
+  const result = await validateBody(createStudentSchema, rawBody);
   if (result.error) return result.error;
   const body = result.data;
+  // Not part of createStudentSchema (lib/validations is out of scope here), so
+  // read it off the raw JSON: "Tetap simpan" re-POSTs with it set (ADM-2).
+  const confirmDuplicate =
+    typeof rawBody === "object" && rawBody !== null && (rawBody as Record<string, unknown>).confirmDuplicate === true;
+
+  const conflict = await findStudentConflict({
+    tenantId: session.tenantId,
+    nis: body.nis,
+    name: body.name,
+    dateOfBirth: body.dateOfBirth,
+    skipDuplicateName: confirmDuplicate,
+  });
+  if (conflict) return conflict;
 
   // Enforce the single-primary-guardian invariant BEFORE creating anything.
   // createMany below writes isPrimary straight from client input with no DB
@@ -194,6 +210,9 @@ export async function POST(req: NextRequest) {
         isPrimary: normalizedIsPrimary[i],
       })),
     });
+    // Guardians are now linked: a parent already signed in sees the new child
+    // on the next load, not after the 60 s cache TTL.
+    invalidateParentChildren();
   }
 
   return NextResponse.json(student, { status: 201 });

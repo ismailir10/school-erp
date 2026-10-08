@@ -33,7 +33,7 @@
  * belong to the link, not the Parent record this form body edits.
  */
 
-import type { Control, FieldValues } from "react-hook-form";
+import { useWatch, type Control, type FieldValues } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -165,6 +165,14 @@ export function GuardianFormBody<
   // below type-checks as a literal keyof set instead of an abstract generic.
   const c = control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>;
 
+  // The email hint only makes sense when blanking the field would drop an
+  // email that is already saved. Edit flows `reset()` the form with the
+  // stored guardian, create flows with EMPTY_GUARDIAN_FORM, so the form's
+  // default email tells the two apart without a mode prop. `useWatch` keeps
+  // this re-rendering after a `reset()` swaps the defaults.
+  useWatch({ control: c, name: "email" });
+  const hasStoredEmail = Boolean(c._defaultValues?.email?.trim());
+
   return (
     <div className="space-y-field">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -232,7 +240,11 @@ export function GuardianFormBody<
         name="email"
         label="Email"
         id="guardian-email"
-        description="Kosongkan untuk mempertahankan email yang tersimpan — email menautkan wali ke akun masuk portal."
+        description={
+          hasStoredEmail
+            ? "Kosongkan untuk mempertahankan email yang tersimpan — email menautkan wali ke akun masuk portal."
+            : undefined
+        }
         render={({ field, controlProps }) => (
           <Input {...field} {...controlProps} type="email" value={(field.value as string | undefined) ?? ""} placeholder="email@example.com" />
         )}

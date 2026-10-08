@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useState, useCallback } from "react";
+import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +22,10 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
+import { ArrowLeft, Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
 import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
@@ -57,9 +59,12 @@ type InvoiceDetail = {
 function PaymentFormBody({
   control,
   remaining,
+  today,
 }: {
   control: PaymentFormControl;
   remaining: number;
+  /** YYYY-MM-DD in Asia/Jakarta — the latest selectable payment date. */
+  today: string;
 }) {
   return (
     <>
@@ -72,6 +77,17 @@ function PaymentFormBody({
         description={`Sisa tagihan: ${formatRupiah(remaining)}`}
         render={({ field, controlProps }) => (
           <RupiahInput {...controlProps} value={field.value ?? null} onChange={field.onChange} onBlur={field.onBlur} />
+        )}
+      />
+      <FormField
+        control={control}
+        name="paidAt"
+        label="Tanggal bayar"
+        required
+        id="invoice-payment-date"
+        description="Isi tanggal terima uangnya jika pembayaran sudah masuk sebelum hari ini."
+        render={({ field, controlProps }) => (
+          <DatePicker {...controlProps} value={field.value ?? ""} onChange={field.onChange} max={today} />
         )}
       />
       <FormField
@@ -132,6 +148,7 @@ function PaymentReview({
   invoice,
   amount,
   method,
+  paidAt,
   reference,
   notes,
   remaining,
@@ -139,6 +156,7 @@ function PaymentReview({
   invoice: Pick<InvoiceDetail, "invoiceNumber" | "student">;
   amount: number;
   method: string;
+  paidAt: string;
   reference: string;
   notes: string;
   remaining: number;
@@ -156,7 +174,7 @@ function PaymentReview({
           <span className="font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
         </ReviewRow>
         <ReviewRow label="Metode">{paymentMethodLabel(method)}</ReviewRow>
-        <ReviewRow label="Tanggal">{formatDateShort(new Date().toISOString())}</ReviewRow>
+        <ReviewRow label="Tanggal bayar">{formatDateShort(paidAt)}</ReviewRow>
         {reference.trim() && <ReviewRow label="Referensi">{reference.trim()}</ReviewRow>}
         {notes.trim() && <ReviewRow label="Catatan">{notes.trim()}</ReviewRow>}
         <ReviewRow label="Status setelah dicatat">
@@ -188,7 +206,7 @@ export default function InvoiceDetailPage() {
   const [voidBlockedOpen, setVoidBlockedOpen] = useState(false);
   const paymentFormId = useId();
   const payForm = useZodForm(invoicePaymentFormSchema, {
-    defaultValues: { amount: null, method: "CASH", reference: "", notes: "" },
+    defaultValues: { amount: null, method: "CASH", reference: "", notes: "", paidAt: getTodayInTimezone("Asia/Jakarta") },
   });
   const [creatingXendit, setCreatingXendit] = useState(false);
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
@@ -214,6 +232,32 @@ export default function InvoiceDetailPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
+
+  // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so
+  // "Catat Pembayaran" lands straight in the existing dialog. Honoured once,
+  // after the invoice has loaded, then stripped so a refresh does not reopen it.
+  const autoOpenedPayment = useRef(false);
+  useEffect(() => {
+    if (!invoice || autoOpenedPayment.current) return;
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("bayar") !== "1") return;
+    autoOpenedPayment.current = true;
+    url.searchParams.delete("bayar");
+    window.history.replaceState(window.history.state, "", url.toString());
+    if (invoice.status === "PAID" || invoice.status === "CANCELLED" || !invoice.capabilities?.recordPayment) return;
+    payForm.reset({
+      amount: Number(invoice.totalDue) - Number(invoice.totalPaid),
+      method: "CASH",
+      reference: "",
+      notes: "",
+      paidAt: getTodayInTimezone("Asia/Jakarta"),
+    });
+    setPayStep("form");
+    setPaymentDialog(true);
+    // payForm is stable (react-hook-form); only the loaded invoice matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice]);
 
   // Step 1 -> 2: validate the form, then show the review. No request yet.
   const handleReviewPayment = payForm.handleSubmit((values) => {
@@ -410,6 +454,21 @@ export default function InvoiceDetailPage() {
   const canRefreshPayment = invoice.capabilities?.recordPayment &&
     !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
 
+  // FINX-9: the same kuitansi a guardian downloads, once money has landed.
+  // A plain new-tab open — the route answers with a PDF, not a page to
+  // client-navigate to. On a Lunas invoice nothing else competes for the
+  // header, so it sits there; a partially paid one already has up to two
+  // buttons, so it goes in the overflow menu.
+  const receiptAction: DetailPageHeaderAction | null =
+    invoice.capabilities?.recordPayment && (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID")
+      ? {
+          label: "Unduh kuitansi",
+          icon: <FileText size={14} aria-hidden="true" />,
+          onClick: () => window.open(`/api/invoices/${id}/pdf`, "_blank", "noopener"),
+          testId: "invoice-receipt-btn",
+        }
+      : null;
+
   return (
     <>
       <DetailPageHeader
@@ -426,7 +485,7 @@ export default function InvoiceDetailPage() {
           ...(canRefreshPayment
             ? [
                 {
-                  label: refreshingPayment ? "Memeriksa..." : "Cek status di gateway",
+                  label: refreshingPayment ? "Memeriksa..." : "Cek status pembayaran",
                   icon: (
                     <RefreshCw
                       size={14}
@@ -460,7 +519,7 @@ export default function InvoiceDetailPage() {
                   onClick: () => {
                     // Prefilled with the whole balance for convenience — the
                     // review step is what stops a stray click from booking it.
-                    payForm.reset({ amount: remaining, method: "CASH", reference: "", notes: "" });
+                    payForm.reset({ amount: remaining, method: "CASH", reference: "", notes: "", paidAt: getTodayInTimezone("Asia/Jakarta") });
                     setPayStep("form");
                     setPaymentDialog(true);
                   },
@@ -470,9 +529,11 @@ export default function InvoiceDetailPage() {
                 } satisfies DetailPageHeaderAction,
               ]
             : []),
+          ...(receiptAction && invoice.status === "PAID" ? [receiptAction] : []),
         ]}
-        menuActions={
-          canVoid
+        menuActions={[
+          ...(receiptAction && invoice.status === "PARTIALLY_PAID" ? [receiptAction] : []),
+          ...(canVoid
             ? [
                 {
                   label: "Batalkan Tagihan",
@@ -480,10 +541,10 @@ export default function InvoiceDetailPage() {
                   onClick: () => (hasActivePayments ? setVoidBlockedOpen(true) : setVoidConfirmOpen(true)),
                   destructive: true,
                   testId: "invoice-void-btn",
-                },
+                } satisfies DetailPageHeaderAction,
               ]
-            : []
-        }
+            : []),
+        ]}
       />
 
       {/* Void Confirmation */}
@@ -704,13 +765,14 @@ export default function InvoiceDetailPage() {
         {payStep === "form" ? (
           <form id={paymentFormId} onSubmit={handleReviewPayment} noValidate className="space-y-field">
             <FormRootError formState={payForm.formState} />
-            <PaymentFormBody control={payForm.control} remaining={remaining} />
+            <PaymentFormBody control={payForm.control} remaining={remaining} today={getTodayInTimezone("Asia/Jakarta")} />
           </form>
         ) : (
           <PaymentReview
             invoice={invoice}
             amount={Number(payForm.getValues("amount") ?? 0)}
             method={payForm.getValues("method") ?? "CASH"}
+            paidAt={payForm.getValues("paidAt")}
             reference={payForm.getValues("reference") ?? ""}
             notes={payForm.getValues("notes") ?? ""}
             remaining={remaining}

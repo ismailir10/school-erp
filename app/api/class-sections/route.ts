@@ -45,7 +45,9 @@ export async function GET(req: NextRequest) {
       program: { select: { name: true, code: true } },
       academicYear: { select: { id: true, name: true, status: true } },
       campus: { select: { name: true } },
-      _count: { select: { enrollments: true } },
+      // Seat count = ACTIVE enrolments only; a WITHDRAWN row must not make a
+      // class look fuller than /admin/classes (which counts the roster).
+      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
     },
     orderBy: { name: "asc" },
   });

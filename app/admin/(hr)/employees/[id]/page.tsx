@@ -21,7 +21,8 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { employeeEditFormSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -32,8 +33,25 @@ type Employee = {
   noHp: string | null; jabatan: string; campusId: string; hireDate: string;
   status: string; bankAccountNo?: string | null; bankName?: string | null; bpjsEnrolled?: boolean;
   leaveBalanceAnnual?: number; leaveBalanceSick?: number;
+  leaveUsedAnnual?: number; leaveUsedSick?: number;
   campus: { name: string };
 };
+// Remaining leave = allowance minus APPROVED days used this year. Falls back
+// to the bare allowance when the server sent no usage figure.
+function leaveRemaining(total?: number, used?: number) {
+  return total == null || used == null ? null : Math.max(0, total - used);
+}
+function leaveBalanceText(total?: number, used?: number) {
+  if (total == null) return "—";
+  const left = leaveRemaining(total, used);
+  return left == null ? `${total} hari` : `Sisa ${left} dari ${total} hari`;
+}
+function leaveBalanceTile(total?: number, used?: number) {
+  if (total == null) return { value: "—", hint: "hari" };
+  const left = leaveRemaining(total, used);
+  return left == null ? { value: total, hint: "hari" } : { value: left, hint: `sisa dari ${total} hari` };
+}
+
 type SalaryValue = {
   id: string; value: number; componentDefId: string;
   componentDef: { code: string; label: string; category: string; calcType: string; sortOrder: number };
@@ -430,7 +448,7 @@ export default function EmployeeDetailPage() {
                       label="Tanggal Masuk"
                       id="employee-detail-hire-date"
                       render={({ field, controlProps }) => (
-                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={new Date().toISOString().split("T")[0]} />
+                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={getTodayInTimezone(DISPLAY_TIME_ZONE)} />
                       )}
                     />
                   </div>
@@ -551,11 +569,11 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-3">
                   <Calendar size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{e.leaveBalanceAnnual ?? "—"} hari</p></div>
+                  <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{leaveBalanceText(e.leaveBalanceAnnual, e.leaveUsedAnnual)}</p></div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Calendar size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Cuti Sakit</p><p className="text-sm">{e.leaveBalanceSick ?? "—"} hari</p></div>
+                  <div><p className="text-xs text-muted-foreground">Cuti Sakit</p><p className="text-sm">{leaveBalanceText(e.leaveBalanceSick, e.leaveUsedSick)}</p></div>
                 </div>
               </div>
             )}
@@ -601,8 +619,8 @@ export default function EmployeeDetailPage() {
         <DetailRail className="hidden lg:flex">
           <RailStatTiles
             tiles={[
-              { label: "Cuti Tahunan", value: e.leaveBalanceAnnual ?? "—", hint: "hari" },
-              { label: "Cuti Sakit", value: e.leaveBalanceSick ?? "—", hint: "hari" },
+              { label: "Cuti Tahunan", ...leaveBalanceTile(e.leaveBalanceAnnual, e.leaveUsedAnnual) },
+              { label: "Cuti Sakit", ...leaveBalanceTile(e.leaveBalanceSick, e.leaveUsedSick) },
             ]}
           />
           <RailCard title="Kepegawaian">

@@ -4,6 +4,7 @@ import {
   resolveRecapRequest,
   buildRecapCsv,
 } from "@/lib/attendance/student-recap";
+import { CSV_BOM } from "@/lib/students/export";
 
 /**
  * GET /api/student-attendance/export?month=&year=&classSectionId=
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
   );
   const filename = `kehadiran_siswa_${monthLabel.replace(/\s/g, "_")}.csv`;
 
-  return new NextResponse(csv, {
+  return new NextResponse(CSV_BOM + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

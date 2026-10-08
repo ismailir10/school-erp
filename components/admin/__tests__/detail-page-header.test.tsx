@@ -62,6 +62,22 @@ describe("DetailPageHeader", () => {
     expect(onWithdraw).toHaveBeenCalledTimes(1);
   });
 
+  it("sizes the overflow menu to its content so long labels do not wrap word by word", async () => {
+    const user = userEvent.setup();
+    render(
+      <DetailPageHeader
+        backHref="/admin/enrollments"
+        title="Aisyah"
+        menuActions={[{ label: "Lanjutkan ke Jadwalkan Kunjungan", onClick: vi.fn() }]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+
+    const menu = await screen.findByRole("menu");
+    expect(menu).toHaveClass("w-auto", "min-w-40");
+    expect(menu).not.toHaveClass("w-(--anchor-width)");
+  });
+
   it("orders destructive menu items last, after a separator", async () => {
     const user = userEvent.setup();
     render(

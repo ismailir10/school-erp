@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPdf, SlipData } from "@/lib/pdf/salary-slip";
 import { maskBankAccount } from "@/lib/format";
+import { formatPeriodRange } from "@/app/teacher/slips/helpers";
 import React from "react";
 
 export async function GET(
@@ -57,7 +58,7 @@ export async function GET(
   const data: SlipData = {
     schoolName: tenant?.name ?? "School",
     logoUrl: `${appUrl}/logo.png`,
-    period: `${item.payrollRun.periodStart} s/d ${item.payrollRun.periodEnd}`,
+    period: formatPeriodRange(item.payrollRun.periodStart, item.payrollRun.periodEnd),
     employeeName: item.employee.formalName ?? item.employee.nama,
     employeeCode: item.employee.kode,
     position: item.employee.jabatan,

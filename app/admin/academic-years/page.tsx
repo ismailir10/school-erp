@@ -33,6 +33,8 @@ import { rollForwardSchema } from "@/lib/validations/roll-forward";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { ApiError } from "@/lib/api/client-errors";
+import { nextAcademicYearDefaults } from "@/lib/academic-year/next-year-defaults";
 import { activationDescription, archiveDescription } from "@/lib/academic-year/activation-copy";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
@@ -84,6 +86,9 @@ export default function AcademicPage() {
   const [rollForwardTarget, setRollForwardTarget] = useState<AcademicYear | null>(null);
   const rollForwardForm = useZodForm(rollForwardSchema, { defaultValues: EMPTY_ROLL_FORWARD_FORM });
 
+  // R2-ADMIN-15: "Tambah Tahun Ajaran" continues the latest open year.
+  const nextYear = useMemo(() => nextAcademicYearDefaults(years), [years]);
+
   async function fetchAll() {
     const [y, p] = await Promise.all([
       fetch("/api/academic-years").then(r => r.json()),
@@ -118,6 +123,17 @@ export default function AcademicPage() {
       setEditingYear(null);
       fetchAll();
     } catch (err) {
+      // A clash like the overlap check comes back as a field error. Say what is
+      // wrong in the toast instead of the generic "Periksa kolom yang ditandai".
+      const fieldErrors = err instanceof ApiError ? err.fieldErrors : [];
+      const mapped = fieldErrors.filter((e) => e.field === "name" || e.field === "startDate" || e.field === "endDate");
+      if (mapped.length > 0) {
+        mapped.forEach((e, i) =>
+          yearForm.setError(e.field as "name" | "startDate" | "endDate", { type: "server", message: e.message }, { shouldFocus: i === 0 }),
+        );
+        toast.error(mapped[0].message);
+        return;
+      }
       applyServerErrors(yearForm, err, "Gagal menyimpan");
     }
   });
@@ -370,7 +386,7 @@ export default function AcademicPage() {
           isActive={row.original.status === "ACTIVE"}
           extraActions={[
             {
-              label: "Salin Kelas ke Tahun Ini",
+              label: "Salin kelas dari tahun sebelumnya",
               icon: <ArrowRightCircle size={14} />,
               onClick: () => {
                 setRollForwardTarget(row.original);
@@ -474,7 +490,11 @@ export default function AcademicPage() {
             },
           ]}
           actions={
-            <Button size="sm" onClick={() => { setEditingYear(null); yearForm.reset(EMPTY_YEAR_FORM); setYearDialog(true); }}>
+            <Button size="sm" onClick={() => {
+              setEditingYear(null);
+              yearForm.reset(nextYear ? { name: "", startDate: nextYear.startDate, endDate: nextYear.endDate } : EMPTY_YEAR_FORM);
+              setYearDialog(true);
+            }}>
               <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
             </Button>
           }
@@ -514,7 +534,7 @@ export default function AcademicPage() {
             required
             id="year-name"
             render={({ field, controlProps }) => (
-              <Input {...field} {...controlProps} placeholder="2025/2026" />
+              <Input {...field} {...controlProps} placeholder={nextYear?.name ?? "2026/2027"} />
             )}
           />
           <div className="grid grid-cols-2 gap-3">

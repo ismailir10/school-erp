@@ -96,12 +96,30 @@ export async function GET(
     name: string;
     nickname: string | null;
     status: string;
+    classSectionId: string;
+    className: string;
   }> = [];
   for (const e of enrollments) {
     if (seenStudentIds.has(e.student.id)) continue;
     seenStudentIds.add(e.student.id);
-    students.push(e.student);
+    // Class label so two same-named children in different classes (TKIT A vs
+    // POPUP Weekend) are distinguishable, and so the client can default to the
+    // teacher's own class.
+    students.push({
+      ...e.student,
+      classSectionId: e.classSection.id,
+      className: e.classSection.name,
+    });
   }
+
+  const myAssignments = await prisma.teachingAssignment.findMany({
+    where: {
+      employeeId: session.employeeId,
+      classSection: { tenantId: session.tenantId },
+    },
+    select: { classSectionId: true },
+  });
+  const myClassSectionIds = myAssignments.map((a) => a.classSectionId);
 
   const indicators = await prisma.achievementIndicator.findMany({
     where: {
@@ -164,6 +182,7 @@ export async function GET(
     date: dateParam,
     ageGroup,
     students,
+    myClassSectionIds,
     indicators,
     entries: existingEntries.map((e) => ({
       id: e.id,

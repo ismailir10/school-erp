@@ -157,6 +157,21 @@ describe("ParentStudentJournalPage", () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
       expect.stringContaining("/children/foreign/week"),
     );
+    // PAR-11: the swap is announced and the foreign id leaves the URL.
+    expect(screen.getByTestId("child-param-notice")).toHaveTextContent(
+      "Anak yang dipilih tidak ditemukan di akun Anda. Menampilkan Aisyah.",
+    );
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(
+      "/parent/student-journal?child=child_1",
+      { scroll: false },
+    ));
+  });
+
+  it("gives the Tulis catatan button a 44px tap target (PAR-14)", async () => {
+    nav.params = new URLSearchParams("view=notes");
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+    expect(await screen.findByRole("button", { name: /Tulis catatan/ })).toHaveClass("min-h-11");
   });
 
   it("shows the EmptyState only when both schoolCategories and homeCategories are empty", async () => {

@@ -9,12 +9,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("next/navigation", () => ({ useParams: () => ({ id: "run-1" }) }));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useParams: () => ({ id: "run-1" }), useRouter: () => ({ push }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from "sonner";
 import PayrollDetailPage from "../page";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 const item = {
   id: "item-1",
@@ -85,7 +87,7 @@ describe("PayrollDetailPage — Variabel Kehadiran dialog", () => {
     render(<PayrollDetailPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Variabel Kehadiran" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah variabel kehadiran" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Variabel Kehadiran" });
     await user.clear(within(dialog).getByRole("spinbutton", { name: "Jam Lembur" }));
@@ -123,7 +125,7 @@ describe("PayrollDetailPage — Variabel Kehadiran dialog", () => {
     render(<PayrollDetailPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Variabel Kehadiran" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah variabel kehadiran" }));
     const dialog = await screen.findByRole("dialog", { name: "Variabel Kehadiran" });
 
     const dcInput = within(dialog).getByRole("spinbutton", { name: "Hari DC" });
@@ -149,7 +151,7 @@ describe("PayrollDetailPage — Penyesuaian dialog", () => {
     render(<PayrollDetailPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit penyesuaian Gaji Pokok" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah penyesuaian Gaji Pokok" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Penyesuaian" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
@@ -166,7 +168,7 @@ describe("PayrollDetailPage — Penyesuaian dialog", () => {
     render(<PayrollDetailPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Edit penyesuaian Gaji Pokok" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah penyesuaian Gaji Pokok" }));
     const dialog = await screen.findByRole("dialog", { name: "Penyesuaian" });
 
     expect(within(dialog).getByText(/Final:/)).toHaveTextContent("Rp 5.000.000");
@@ -247,5 +249,223 @@ describe("PayrollDetailPage — period edit card", () => {
       actualWorkDays: 20,
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Periode diperbarui"));
+  });
+});
+
+describe("PayrollDetailPage — Batalkan draf (HR-11)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("confirms, POSTs /cancel, toasts and returns to the list", async () => {
+    const fetchMock = fixture();
+    render(<PayrollDetailPage />);
+
+    fireEvent.click(await screen.findByTestId("payroll-cancel-draft-btn"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Batalkan draf penggajian?")).toBeInTheDocument();
+    // Nothing is sent until the admin confirms.
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/cancel"))).toBe(false);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan draf" }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => url === "/api/payroll/run-1/cancel");
+      expect((call?.[1] as RequestInit | undefined)?.method).toBe("POST");
+    });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Draf penggajian dibatalkan"));
+    expect(push).toHaveBeenCalledWith("/admin/payroll");
+  });
+
+  it("keeps the dialog open and shows the API sentence when the cancel fails", async () => {
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input === "/api/payroll/run-1/cancel") {
+        return Promise.resolve(jsonResponse({ error: "Hanya draf yang bisa dibatalkan" }, false, 409));
+      }
+      if (input === "/api/payroll/run-1" && !init?.method) return Promise.resolve(jsonResponse(payrollRun));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PayrollDetailPage />);
+
+    fireEvent.click(await screen.findByTestId("payroll-cancel-draft-btn"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Batalkan draf" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Hanya draf yang bisa dibatalkan"));
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("is not offered on an approved run", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        Promise.resolve(
+          input === "/api/payroll/run-1" ? jsonResponse({ ...payrollRun, status: "APPROVED" }) : jsonResponse({}),
+        ),
+      ),
+    );
+    render(<PayrollDetailPage />);
+    await screen.findByRole("button", { name: /Budi Santoso/ });
+    expect(screen.queryByTestId("payroll-cancel-draft-btn")).not.toBeInTheDocument();
+  });
+});
+
+describe("PayrollDetailPage — HRX-3 / HR-8 / HR-19", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("tells the admin that Hari Kerja Aktual does not recalculate the slips", async () => {
+    fixture();
+    render(<PayrollDetailPage />);
+    const editBtn = await screen.findByTestId("payroll-edit-btn");
+    // HR-19: "Ubah", not "Edit"
+    expect(editBtn).toHaveTextContent("Ubah");
+    fireEvent.click(editBtn);
+    expect(
+      await screen.findByText("Mengubah hari kerja aktual tidak menghitung ulang slip. Buat ulang penggajian bila perlu."),
+    ).toBeInTheDocument();
+  });
+
+  it("blocks Hari Kerja Aktual above the days in the period before any PUT", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<PayrollDetailPage />);
+    fireEvent.click(await screen.findByTestId("payroll-edit-btn"));
+    const input = await screen.findByRole("spinbutton", { name: "Hari Kerja Aktual" });
+    await user.clear(input);
+    await user.type(input, "999");
+    fireEvent.click(screen.getByTestId("payroll-edit-save"));
+
+    // 2026-08-21 .. 2026-09-20 = 31 days
+    expect(await screen.findByText("Hari kerja aktual harus antara 1 dan 31 hari.")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "PUT"),
+    ).toBe(false);
+  });
+
+  it("shows a server field error inline on Hari Kerja Aktual", async () => {
+    fixture({
+      putStatus: 400,
+      putBody: {
+        error: "Hari kerja aktual harus antara 1 dan 31 hari.",
+        errors: [{ field: "actualWorkDays", message: "Hari kerja aktual harus antara 1 dan 31 hari." }],
+      },
+    });
+    render(<PayrollDetailPage />);
+    fireEvent.click(await screen.findByTestId("payroll-edit-btn"));
+    fireEvent.click(await screen.findByTestId("payroll-edit-save"));
+    expect(await screen.findByText("Hari kerja aktual harus antara 1 dan 31 hari.")).toBeInTheDocument();
+  });
+
+  it("gives the item sheet body horizontal padding", async () => {
+    fixture();
+    render(<PayrollDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
+    const body = await screen.findByTestId("payroll-item-sheet-body");
+    expect(body.className).toContain("px-4");
+  });
+
+  it("shows the API sentence, not a bare 'Gagal', when a line adjustment is refused", async () => {
+    fixture({
+      putStatus: 400,
+      putBody: {
+        error: "Penyesuaian membuat komponen bernilai negatif.",
+        errors: [{ field: "adjustmentAmount", message: "Penyesuaian membuat komponen bernilai negatif." }],
+      },
+    });
+    const user = userEvent.setup();
+    render(<PayrollDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ubah penyesuaian Gaji Pokok" }));
+    const dialog = await screen.findByRole("dialog", { name: "Penyesuaian" });
+    await user.type(within(dialog).getByRole("spinbutton", { name: "Penyesuaian (+ atau -)" }), "-9000000");
+    await user.type(within(dialog).getByRole("textbox", { name: "Catatan" }), "Koreksi");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+    expect(await within(dialog).findByText("Penyesuaian membuat komponen bernilai negatif.")).toBeInTheDocument();
+  });
+
+  it("surfaces the approve refusal message from the API", async () => {
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input === "/api/payroll/run-1/approve") {
+        return Promise.resolve(
+          jsonResponse({ error: "Periode belum selesai. Penggajian bisa disetujui mulai 21 Oktober 2026." }, false, 409),
+        );
+      }
+      if (input === "/api/payroll/run-1" && !init?.method) return Promise.resolve(jsonResponse(payrollRun));
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<PayrollDetailPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Setujui" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Setujui" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Periode belum selesai. Penggajian bisa disetujui mulai 21 Oktober 2026."),
+    );
+  });
+});
+
+function shiftDay(ymd: string, days: number) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+describe("PayrollDetailPage — draft before period end (R2-ADMIN-10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  function openDraft(periodEnd: string, comparison?: unknown) {
+    const run = { ...payrollRun, periodStart: shiftDay(periodEnd, -29), periodEnd };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input === "/api/payroll/run-1") return Promise.resolve(jsonResponse(run));
+        if (input.startsWith("/api/payroll/compare")) return Promise.resolve(jsonResponse(comparison ?? {}));
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+    render(<PayrollDetailPage />);
+  }
+
+  it("disables Setujui with the first approvable date while today <= periodEnd", async () => {
+    const today = getTodayInTimezone("Asia/Jakarta");
+    openDraft(today);
+    const btn = await screen.findByRole("button", { name: "Setujui" });
+    expect(btn).toBeDisabled();
+    // The server's own wording: the day after periodEnd, long form.
+    const from = new Date(`${shiftDay(today, 1)}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    expect(screen.getByText(`Bisa disetujui mulai ${from}`)).toBeInTheDocument();
+    expect(screen.getByTestId("payroll-draft-provisional")).toHaveTextContent("Sementara");
+    expect(screen.getByTestId("payroll-provisional-note")).toBeInTheDocument();
+  });
+
+  it("enables Setujui and shows no hint once the period has ended", async () => {
+    openDraft(shiftDay(getTodayInTimezone("Asia/Jakarta"), -1));
+    const btn = await screen.findByRole("button", { name: "Setujui" });
+    expect(btn).toBeEnabled();
+    expect(screen.queryByText(/Bisa disetujui mulai/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("payroll-provisional-note")).not.toBeInTheDocument();
+  });
+
+  it("shows periods with the app date formatter, not raw ISO, and labels the delta", async () => {
+    openDraft("2026-09-20", {
+      previousPeriod: "2026-07-21 — 2026-08-20",
+      comparison: [{ employeeId: "e-1", delta: -591000 }],
+    });
+    expect(await screen.findByText("22 Agu 2026 — 20 Sep 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/2026-09-20/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/21 Jul 2026 — 20 Agu 2026/)).toBeInTheDocument();
+    expect(screen.getByText("vs periode lalu")).toBeInTheDocument();
   });
 });

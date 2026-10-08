@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ---------------------------------------------------------------------------
 // Form -> wire -> server-schema round-trip tests.
@@ -1068,6 +1069,7 @@ describe("Invoice record payment: invoicePaymentFormSchema (form) -> recordPayme
       method: "CASH",
       reference: "",
       notes: "",
+      paidAt: getTodayInTimezone("Asia/Jakarta"),
     });
     expect(form.success).toBe(true);
     if (!form.success) return;

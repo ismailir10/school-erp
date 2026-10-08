@@ -9,7 +9,17 @@ import { ClassesClient } from "./client";
 //
 // Cross-checked against .claude/standards/design-system.html §Page header +
 // §DataTable + §Dialog (frontend gate).
-export default async function ClassesPage() {
+export default async function ClassesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ yearId?: string | string[] }>;
+}) {
   const session = await assertPermission("academic.view");
-  return <ClassesClient canWrite={hasPermission(session, "academic.edit")} />;
+  const { yearId } = await searchParams;
+  return (
+    <ClassesClient
+      canWrite={hasPermission(session, "academic.edit")}
+      initialYearId={typeof yearId === "string" ? yearId : undefined}
+    />
+  );
 }

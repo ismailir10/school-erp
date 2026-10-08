@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-type Session = { id: string; role: string; tenantId: string | null };
+type Session = { id: string; role: string; tenantId: string | null; permissions?: string[] };
 
 const state = {
   session: null as Session | null,
@@ -57,12 +57,22 @@ const APPLICATION = {
   ayahData: { name: "Umar" },
   ibuData: { name: "Fatimah" },
   consentData: { agreed: true, ayah: { name: "Umar", signatureToken: "tok" } },
+  documents: {
+    kk: {
+      fileToken: "supabase:v1:enrollment/app1/doc-kk-SECRETKK.pdf",
+      fileName: "kk.pdf",
+      mimeType: "application/pdf",
+      size: 1234,
+      uploadedAt: "2026-05-01T03:00:00.000Z",
+    },
+    akta: { receivedPhysical: true, receivedAt: "2026-05-02T03:00:00.000Z" },
+  },
   program: { id: "p1", name: "TKIT" },
   admission: { id: "adm1", parentName: "Umar", parentPhone: "0812", parentRelationship: "AYAH" },
 };
 
 beforeEach(() => {
-  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1" };
+  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
   state.application = { ...APPLICATION };
   state.lastQuery = null;
 });
@@ -118,5 +128,53 @@ describe("GET /api/students/[id]/enrollment-application", () => {
     expect(select).not.toHaveProperty("accessToken");
     expect(select).not.toHaveProperty("tokenExpiresAt");
     expect(select).toHaveProperty("consentData");
+  });
+
+  it("returns the documents in the admin view, with no storage token anywhere in the JSON", async () => {
+    const res = await GET(req(), ctx());
+    const body = await res.json();
+    expect(body.data.documents.kk).toMatchObject({ hasFile: true, fileName: "kk.pdf", receivedPhysical: false });
+    expect(body.data.documents.akta).toMatchObject({ hasFile: false, receivedPhysical: true });
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain("fileToken");
+    expect(raw).not.toContain("SECRETKK");
+    expect(raw).not.toContain("supabase:v1:enrollment");
+    expect(raw).not.toContain("signatureToken");
+  });
+
+  it("selects documents and returns an empty map when none were uploaded", async () => {
+    state.application = { ...APPLICATION, documents: null };
+    const body = await (await GET(req(), ctx())).json();
+    expect(state.lastQuery?.select).toHaveProperty("documents", true);
+    expect(body.data.documents).toEqual({});
+  });
+
+  it("canEditDocuments follows admissions.edit", async () => {
+    expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(false);
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view", "admissions.edit"] };
+    expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
+    state.session = { id: "u1", role: "SUPER_ADMIN", tenantId: "t1" };
+    expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
+  });
+
+  it("hides documents from an admin role without admissions.view (null, and canEditDocuments false)", async () => {
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "admissions.edit"] };
+    const res = await GET(req(), ctx());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.documents).toBeNull();
+    expect(body.data.canEditDocuments).toBe(false);
+    const raw = JSON.stringify(body);
+    expect(raw).not.toContain("kk.pdf");
+    expect(raw).not.toContain("SECRETKK");
+    // The rest of the form is unchanged.
+    expect(body.data.studentData.foodAllergy).toBe("telur");
+  });
+
+  it("shows documents read-only to an admissions viewer", async () => {
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
+    const body = await (await GET(req(), ctx())).json();
+    expect(body.data.documents.kk).toMatchObject({ hasFile: true });
+    expect(body.data.canEditDocuments).toBe(false);
   });
 });

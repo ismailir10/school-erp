@@ -20,7 +20,8 @@ import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, Wallet, Banknote } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, Wallet, Banknote, CreditCard } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
@@ -63,6 +64,9 @@ type Pagination = {
 // ------------------------------------------------------------------
 // Columns
 // ------------------------------------------------------------------
+
+// Statuses with money still owed and a live payment-recording flow.
+const PAYABLE_INVOICE_STATUSES = ["SENT", "OVERDUE", "PARTIALLY_PAID"] as const;
 
 const columns: ColumnDef<Invoice>[] = [
   {
@@ -161,7 +165,14 @@ const columns: ColumnDef<Invoice>[] = [
 // Page
 // ------------------------------------------------------------------
 
-export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit" | "doku"; capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities }) {
+export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" }: { gatewayId: "xendit" | "doku"; capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities; /** `?status=` from the URL (dashboard "Lewat tempo" card links here). */ initialStatus?: string }) {
+  const router = useRouter();
+  // Columns must keep a stable identity (ui.md); read the router through a ref
+  // so a new router object never rebuilds them and closes an open row menu.
+  const routerRef = useRef(router);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -173,7 +184,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -517,22 +528,37 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
             Number(inv.totalPaid) === 0;
           const isRetryRow = capabilities.create && inv.status === "PENDING_PAYMENT_LINK";
           const isRetryingThisRow = retryingRowId === inv.id;
+          // R2-ADMIN-12: recording cash was three clicks deep; the menu now
+          // jumps to the detail page with the existing dialog already open.
+          const canRecordPayment =
+            capabilities.recordPayment &&
+            (PAYABLE_INVOICE_STATUSES as readonly string[]).includes(inv.status);
+          const rowActions = [
+            ...(canRecordPayment
+              ? [
+                  {
+                    label: "Catat Pembayaran",
+                    icon: <CreditCard size={14} />,
+                    onClick: () => routerRef.current.push(`/admin/invoices/${inv.id}?bayar=1`),
+                  },
+                ]
+              : []),
+            ...(isRetryRow
+              ? [
+                  {
+                    label: isRetryingThisRow ? "Mencoba..." : "Coba Lagi Link",
+                    icon: <RefreshCw size={14} />,
+                    onClick: () => {
+                      if (!isRetryingThisRow) handleRowRetry(inv.id);
+                    },
+                  },
+                ]
+              : []),
+          ];
           return (
             <DataTableRowActions
               onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
-              extraActions={
-                isRetryRow
-                  ? [
-                      {
-                        label: isRetryingThisRow ? "Mencoba..." : "Coba Lagi Link",
-                        icon: <RefreshCw size={14} />,
-                        onClick: () => {
-                          if (!isRetryingThisRow) handleRowRetry(inv.id);
-                        },
-                      },
-                    ]
-                  : undefined
-              }
+              extraActions={rowActions.length > 0 ? rowActions : undefined}
             />
           );
         },

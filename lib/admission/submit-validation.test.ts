@@ -65,7 +65,7 @@ describe("submitAdmissionSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const errs = flattenSubmitErrors(result.error);
-      expect(errs.parentPhone).toBe("Nomor telepon tidak valid");
+      expect(errs.parentPhone).toBe("Nomor telepon tidak valid. Contoh: 0812 3456 7890");
     }
   });
 
@@ -194,7 +194,33 @@ describe("flattenSubmitErrors", () => {
       expect(errs.dateOfBirth).toMatch(/format/i);
       expect(errs.childGender).toBe("Pilih jenis kelamin");
       expect(errs.parentName).toBe("Nama orang tua wajib diisi");
-      expect(errs.parentPhone).toBe("Nomor telepon tidak valid");
+      expect(errs.parentPhone).toBe("Nomor telepon tidak valid. Contoh: 0812 3456 7890");
+    }
+  });
+
+  it("answers an empty body in Indonesian, never Zod's English default (R2-P-13)", () => {
+    const result = submitAdmissionSchema.safeParse({});
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const errs = flattenSubmitErrors(result.error);
+      expect(errs).toEqual({
+        childName: "Nama anak wajib diisi",
+        dateOfBirth: "Tanggal lahir wajib diisi (format YYYY-MM-DD)",
+        childGender: "Pilih jenis kelamin",
+        parentName: "Nama orang tua wajib diisi",
+        parentPhone: "Nomor telepon wajib diisi",
+      });
+      for (const msg of Object.values(errs)) expect(msg).not.toMatch(/invalid input|expected/i);
+    }
+  });
+
+  it("includes a format example in the phone and WhatsApp errors (R2-P-13)", () => {
+    const result = submitAdmissionSchema.safeParse({ ...VALID, parentPhone: "abc", parentWhatsapp: "abc" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const errs = flattenSubmitErrors(result.error);
+      expect(errs.parentPhone).toContain("Contoh: 0812 3456 7890");
+      expect(errs.parentWhatsapp).toContain("Contoh: 0812 3456 7890");
     }
   });
 });

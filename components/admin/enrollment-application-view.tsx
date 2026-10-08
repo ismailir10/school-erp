@@ -12,6 +12,7 @@ import {
   INCOME_OPTIONS,
   type Option,
 } from "@/lib/enrollment/constants";
+import { formatDateShort } from "@/lib/format";
 
 /**
  * Read-only rendering of a submitted pendaftaran form.
@@ -46,6 +47,16 @@ export function labelOf(options: Option[], value: unknown): string {
 
 export function v(x: unknown): string {
   return typeof x === "string" && x ? x : typeof x === "number" ? String(x) : "—";
+}
+
+/**
+ * Birth dates are stored as `YYYY-MM-DD` strings. Show them as "15 Mar 2022";
+ * anything that is not that shape (an older free-text submission) passes
+ * through untouched rather than rendering "Invalid Date".
+ */
+function dateV(x: unknown): string {
+  const raw = v(x);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? formatDateShort(raw) : raw;
 }
 
 /** Joins only the parts that are actually present, so no "—, —" strings. */
@@ -85,7 +96,7 @@ function ParentSection({ title, p }: { title: string; p: any }) {
   return (
     <ApplicationSection title={title}>
       <ApplicationRow label="Nama" value={v(d.name)} />
-      <ApplicationRow label="Tempat, tanggal lahir" value={join([v(d.birthPlace), v(d.dateOfBirth)])} />
+      <ApplicationRow label="Tempat, tanggal lahir" value={join([v(d.birthPlace), dateV(d.dateOfBirth)])} />
       <ApplicationRow label="Agama" value={labelOf(AGAMA_OPTIONS, d.agama)} />
       <ApplicationRow label="No. HP" value={v(d.phone)} />
       <ApplicationRow label="Email" value={v(d.email)} />
@@ -123,7 +134,7 @@ export function EnrollmentApplicationView({
           label="Jenis kelamin"
           value={s.childGender === "L" ? "Laki-laki" : s.childGender === "P" ? "Perempuan" : "—"}
         />
-        <ApplicationRow label="Tempat, tanggal lahir" value={join([v(s.birthPlace), v(s.dateOfBirth)])} />
+        <ApplicationRow label="Tempat, tanggal lahir" value={join([v(s.birthPlace), dateV(s.dateOfBirth)])} />
         <ApplicationRow label="Agama" value={labelOf(AGAMA_OPTIONS, s.agama)} />
         <ApplicationRow label="Kewarganegaraan" value={labelOf(KEWARGANEGARAAN_OPTIONS, s.kewarganegaraan)} />
         <ApplicationRow label="Tinggal bersama" value={labelOf(LIVING_WITH_OPTIONS, s.livingWith)} />

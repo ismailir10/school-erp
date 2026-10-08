@@ -21,10 +21,16 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (payrollRun.status !== "DRAFT") {
-    return NextResponse.json({ error: "Hanya draft yang bisa diedit" }, { status: 400 });
+    return NextResponse.json({ error: "Hanya draf yang bisa diedit" }, { status: 400 });
   }
 
-  const result = await validateBody(adjustPayrollLineSchema, await req.json());
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
+  }
+  const result = await validateBody(adjustPayrollLineSchema, body);
   if (result.error) return result.error;
   const { adjustmentAmount, adjustmentNote } = result.data;
 
@@ -43,6 +49,16 @@ export async function PUT(
   // Money stays in Decimal end-to-end — no float arithmetic on amounts.
   const adjustmentDec = new Prisma.Decimal(adjustmentAmount.toString());
   const finalAmount = new Prisma.Decimal(line.calculatedAmount.toString()).plus(adjustmentDec);
+
+  // HRX-4: an adjustment may reduce a component to zero but never below it
+  // (-400.000 on a 300.000 allowance used to store a -100.000 line).
+  if (finalAmount.isNegative()) {
+    const message = "Penyesuaian membuat komponen bernilai negatif.";
+    return NextResponse.json(
+      { error: message, errors: [{ field: "adjustmentAmount", message }] },
+      { status: 400 },
+    );
+  }
 
   // Update line + recalculate item totals atomically
   await prisma.$transaction(async (tx) => {

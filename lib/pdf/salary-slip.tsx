@@ -363,7 +363,7 @@ export function SalarySlipPdf({ data }: { data: SlipData }) {
         {/* Footer */}
         <View style={s.footer}>
           <Text style={s.footerText}>Diterbitkan: {data.generatedDate}</Text>
-          <Text style={s.footerText}>Dokumen resmi — dihasilkan oleh An Nisaa&apos; ERP</Text>
+          <Text style={s.footerText}>Dokumen resmi — dihasilkan oleh Talib by An Nisaa&apos; Sekolahku</Text>
         </View>
       </Page>
     </Document>

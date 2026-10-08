@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -10,6 +12,8 @@ import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
 import { EnrollmentApplicationView } from "@/components/admin/enrollment-application-view";
+import { EnrollmentDocumentsCard } from "@/components/admin/enrollment-documents-card";
+import type { AdminDocuments } from "@/lib/enrollment/documents";
 
 type Detail = {
   id: string;
@@ -28,16 +32,40 @@ type Detail = {
   ibuData: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   consentData: any;
+  /** Redacted by the API: file presence + names, never storage tokens. */
+  documents?: AdminDocuments;
   program: { id: string; name: string } | null;
   admission: { id: string; parentName: string; parentPhone: string | null } | null;
 };
 
+type CopyStatus = "copied" | "skipped_existing" | "missing" | "failed";
+type DocumentsCopied = { ktpAyah?: CopyStatus; ktpIbu?: CopyStatus; kk?: CopyStatus };
+
+const COPIED_LABELS: [keyof DocumentsCopied, string][] = [
+  ["ktpAyah", "KTP Ayah"],
+  ["ktpIbu", "KTP Ibu"],
+  ["kk", "KK"],
+];
+
+/** Toast copy for the guardian-document copy that runs after convert. */
+function copyOutcomeMessages(copied: DocumentsCopied | undefined) {
+  if (!copied) return { copiedText: "", anyFailed: false };
+  const done = COPIED_LABELS.filter(([k]) => copied[k] === "copied").map(([, l]) => l);
+  return {
+    copiedText: done.length > 0 ? ` ${done.join(", ")} disalin ke data wali.` : "",
+    anyFailed: COPIED_LABELS.some(([k]) => copied[k] === "failed"),
+  };
+}
+
 export default function EnrollmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [d, setD] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  // Terima / Tolak are decisions the family feels — confirm before they fire.
+  const [decision, setDecision] = useState<"ACCEPTED" | "REJECTED" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +88,23 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     try {
       const res = await fetch(`/api/enrollments/${id}/convert`, { method: "POST" });
       if (res.ok) {
-        toast.success("Siswa berhasil dibuat dari formulir");
+        const body = (await res.json().catch(() => ({}))) as {
+          student?: { id?: string };
+          documentsCopied?: DocumentsCopied;
+        };
+        const { copiedText, anyFailed } = copyOutcomeMessages(body.documentsCopied);
+        const message = `Siswa berhasil dibuat dari formulir.${copiedText}`;
+        const studentId = body.student?.id;
+        if (studentId) {
+          toast.success(message, {
+            action: { label: "Lihat siswa", onClick: () => router.push(`/admin/students/${studentId}`) },
+          });
+        } else {
+          toast.success(message);
+        }
+        if (anyFailed) {
+          toast.warning("Sebagian berkas gagal disalin ke data wali. Unggah manual dari halaman wali.");
+        }
         void load();
         return;
       }
@@ -116,24 +160,43 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   // Tinjau" is the preliminary step (move into review before deciding), so
   // it goes to the overflow menu; the two actual decisions (Terima / Tolak)
   // stay visible, same as they already are in UNDER_REVIEW.
-  const transitions: Record<string, { label: string; to: string; variant?: "outline"; menu?: boolean }[]> = {
+  //
+  // ACCEPTED leads with the filled "Konversi ke Siswa" (the one next step),
+  // which opens the confirm instead of changing status.
+  type Transition = {
+    label: string;
+    to?: string;
+    variant?: "default" | "outline";
+    menu?: boolean;
+    convert?: boolean;
+    decide?: boolean;
+  };
+  const transitions: Record<string, Transition[]> = {
     SUBMITTED: [
       { label: "Mulai Tinjau", to: "UNDER_REVIEW", variant: "outline", menu: true },
-      { label: "Terima", to: "ACCEPTED" },
-      { label: "Tolak", to: "REJECTED", variant: "outline" },
+      { label: "Terima", to: "ACCEPTED", decide: true },
+      { label: "Tolak", to: "REJECTED", variant: "outline", decide: true },
     ],
     UNDER_REVIEW: [
-      { label: "Terima", to: "ACCEPTED" },
-      { label: "Tolak", to: "REJECTED", variant: "outline" },
+      { label: "Terima", to: "ACCEPTED", decide: true },
+      { label: "Tolak", to: "REJECTED", variant: "outline", decide: true },
     ],
-    ACCEPTED: [{ label: "Kembali ke Tinjau", to: "UNDER_REVIEW", variant: "outline" }],
+    ACCEPTED: [
+      { label: "Konversi ke Siswa", variant: "default", convert: true },
+      { label: "Kembali ke Tinjau", to: "UNDER_REVIEW", variant: "outline" },
+    ],
     REJECTED: [{ label: "Tinjau Ulang", to: "UNDER_REVIEW", variant: "outline" }],
   };
   const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
   const toAction = (a: (typeof actions)[number]): DetailPageHeaderAction => ({
     label: a.label,
-    onClick: () => transition(a.to),
+    onClick: a.convert
+      ? () => setConvertOpen(true)
+      : a.decide
+        ? () => setDecision(a.to as "ACCEPTED" | "REJECTED")
+        : () => transition(a.to!),
     disabled: busy,
+    variant: a.variant,
   });
   const primaryEnrollmentActions = actions.filter((a) => !a.menu).map(toAction);
   const menuEnrollmentActions = actions.filter((a) => a.menu).map(toAction);
@@ -151,6 +214,13 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="space-y-section">
+        {/* Actionable for staff, so it sits right under the header. */}
+        <EnrollmentDocumentsCard
+          applicationId={id}
+          documents={d.documents ?? {}}
+          canEdit={d.canEdit}
+        />
+
         <EnrollmentApplicationView
           application={{
             id,
@@ -161,28 +231,39 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
           }}
         />
 
-        {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (
+        {d.studentId && (
           <>
             <Separator />
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-              <p className="text-sm text-muted-foreground">
-                Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-status-present-text">
+                Formulir ini sudah dikonversi menjadi data siswa.
               </p>
-              <Button onClick={() => setConvertOpen(true)} disabled={busy}>
-                Konversi ke Siswa
+              <Button variant="outline" size="sm" render={<Link href={`/admin/students/${d.studentId}`} />}>
+                Lihat siswa
               </Button>
             </div>
           </>
         )}
-        {d.studentId && (
-          <>
-            <Separator />
-            <p className="text-sm text-status-present-text">
-              Formulir ini sudah dikonversi menjadi data siswa.
-            </p>
-          </>
-        )}
       </div>
+
+      <ConfirmDialog
+        open={decision !== null}
+        onOpenChange={(o) => !o && setDecision(null)}
+        title={
+          decision === "REJECTED"
+            ? `Tolak pendaftaran ${d.childName || "anak ini"}?`
+            : `Terima pendaftaran ${d.childName || "anak ini"}?`
+        }
+        description={
+          decision === "REJECTED"
+            ? "Pastikan keluarga diberi tahu bahwa pendaftaran ini tidak dilanjutkan. Kamu masih bisa meninjau ulang formulirnya nanti."
+            : "Keluarga bisa melanjutkan ke tahap berikutnya, dan formulir ini siap dikonversi menjadi data siswa."
+        }
+        confirmLabel={decision === "REJECTED" ? "Tolak" : "Terima"}
+        destructive={decision === "REJECTED"}
+        loading={busy}
+        onConfirm={() => (decision ? transition(decision) : undefined)}
+      />
 
       <ConfirmDialog
         open={convertOpen}
