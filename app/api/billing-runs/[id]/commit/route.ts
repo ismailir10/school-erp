@@ -1,4 +1,5 @@
 import { hasPermission } from "@/lib/permissions";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -10,6 +11,8 @@ import { limit } from "@/lib/finance/concurrency-limit";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/payments/error-prefix";
 import { commitBillingRunSchema } from "@/lib/validations/billing-run";
+import { findAlreadyInvoicedStudentIds } from "@/lib/finance/materialize-billing-run";
+import { isZeroTotal, ZERO_TOTAL_REASON } from "@/lib/finance/billing-run-zero-total";
 
 // Billing Run wizard (Cycle B1 — docs/cycles/2026-08-14-billing-run-wizard.md,
 // Task T6). Step 3's commit — writes the draft's rows/lines verbatim as real
@@ -38,7 +41,7 @@ type ResultRow =
       rowId: string;
       studentId: string;
       studentName: string;
-      status: "SKIPPED_ALREADY_INVOICED";
+      status: "SKIPPED_ALREADY_INVOICED" | "SKIPPED_ZERO_TOTAL";
     }
   | {
       rowId: string;
@@ -75,6 +78,10 @@ type ResultRow =
  *      `invoiceId` (already COMMITTED, EXCLUDED, any SKIPPED_* status, or a
  *      row that already carries an invoiceId). This is the idempotency
  *      guard: a row is committable at most once, full stop.
+ *   3b. Rp 0 rows (total <= 0) are never turned into invoices — a payment link
+ *      cannot be made for them and nothing can be recorded against them, so
+ *      they would sit at PENDING_PAYMENT_LINK forever. They are parked as
+ *      EXCLUDED with a reason and counted as skipped (FINX-4).
  *   4. Re-check duplicates against LIVE `Invoice` rows (not the draft) for
  *      the survivors — `(tenantId, periodLabel, studentId IN …)`. A hit
  *      flips that row to SKIPPED_ALREADY_INVOICED and writes nothing further
@@ -153,17 +160,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // admin) can invoice the same student for the same period between draft
   // build and commit, and this is the only thing standing between that and
   // a double-billed family.
-  let toCommit = committable;
-  if (committable.length > 0) {
-    const studentIds = committable.map((r) => r.studentId);
-    const duplicates = await prisma.invoice.findMany({
-      where: { tenantId, periodLabel: run.periodLabel, studentId: { in: studentIds } },
-      select: { studentId: true },
+  //
+  // Step 3b first — Rp 0 rows leave the pipeline before anything else. The
+  // conditional where mirrors the claim below, so a concurrent commit that
+  // already took the row is left alone.
+  const zeroTotal = committable.filter((r) => isZeroTotal(r.totalDue));
+  const billable = committable.filter((r) => !isZeroTotal(r.totalDue));
+  if (zeroTotal.length > 0) {
+    await prisma.billingRunRow.updateMany({
+      where: { id: { in: zeroTotal.map((r) => r.id) }, status: "PENDING", invoiceId: null },
+      data: { status: "EXCLUDED", error: ZERO_TOTAL_REASON },
     });
-    const duplicateStudentIds = new Set(duplicates.map((d) => d.studentId));
+    skipped += zeroTotal.length;
+    for (const r of zeroTotal) {
+      results.push({
+        rowId: r.id,
+        studentId: r.studentId,
+        studentName: r.studentNameSnapshot,
+        status: "SKIPPED_ZERO_TOTAL",
+      });
+    }
+  }
 
-    const duplicateSkipped = committable.filter((r) => duplicateStudentIds.has(r.studentId));
-    toCommit = committable.filter((r) => !duplicateStudentIds.has(r.studentId));
+  let toCommit = billable;
+  if (billable.length > 0) {
+    const studentIds = billable.map((r) => r.studentId);
+    // Compared on the NORMALISED period label, so "Okt 2026" after
+    // "Oktober 2026" is recognised as the same period (FINX-6).
+    const duplicateStudentIds = await findAlreadyInvoicedStudentIds(
+      prisma,
+      tenantId,
+      run.periodLabel,
+      studentIds,
+    );
+
+    const duplicateSkipped = billable.filter((r) => duplicateStudentIds.has(r.studentId));
+    toCommit = billable.filter((r) => !duplicateStudentIds.has(r.studentId));
 
     if (duplicateSkipped.length > 0) {
       await prisma.billingRunRow.updateMany({
@@ -261,6 +293,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // No row update here — the claim above already set invoiceId + status,
       // which is the whole point of claiming first.
+
+      // R2-ADMIN-9: one audit row per committed chunk, in the same
+      // transaction so an invoice batch can never exist without it (the
+      // activity feed reads "menerbitkan N tagihan <periode>" from this).
+      await recordAudit(
+        {
+          tenantId,
+          actorId: session.id,
+          entity: "BillingRun",
+          entityId: id,
+          action: "commit",
+          after: { invoiceCount: plan.length, periodLabel: run.periodLabel },
+        },
+        tx,
+      );
 
       return plan.map<CreatedRow>(({ row, invoiceId, invoiceNumber }) => ({
         rowId: row.id,

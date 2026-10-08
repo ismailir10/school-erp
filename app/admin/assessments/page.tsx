@@ -11,11 +11,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { formatLearningCenter, formatDate } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatLearningCenter, formatDate } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
-import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 type WalasRow = {
   classSectionId: string;
@@ -35,7 +34,7 @@ type Monitor = {
 };
 
 function todayYmd() {
-  return getTodayInTimezone(JAKARTA_TZ);
+  return getTodayInTimezone(DISPLAY_TIME_ZONE);
 }
 
 function CompletionBadge({ assessed, enrolled }: { assessed: number; enrolled: number }) {

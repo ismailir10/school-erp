@@ -18,7 +18,7 @@ describe("journal entry recovery", () => {
 const grid = {students:[{id:"s",name:"A",nickname:null}],categories:[{id:"cat",name:"School",order:1,indicators:[{id:"i1",label:"Doa",order:1}]}],entries:[]};
 it("retries the intended journal value after failure, then confirms persistence",async()=>{
  nav.params=new URLSearchParams("classId=c&date=2026-09-25"); let saves=0;
- vi.stubGlobal("fetch",vi.fn((url:string)=>url.includes("class-grid")?Promise.resolve(ok({data:grid})):++saves===1?Promise.reject(Error("offline")):Promise.resolve(ok({}))));
+ vi.stubGlobal("fetch",vi.fn((url:string)=>url.includes("class-grid")?Promise.resolve(ok({data:grid})):url.includes("student-attendance")?Promise.resolve(ok([])):++saves===1?Promise.reject(Error("offline")):Promise.resolve(ok({}))));
  render(<Page/>); fireEvent.click(await screen.findByRole("button",{name:"Toggle false"}));
  expect(screen.getByRole("status")).toHaveTextContent("Menyimpan jurnal");
  expect(await screen.findByRole("alert")).toHaveTextContent("Sebagian perubahan belum tersimpan");
@@ -30,7 +30,7 @@ it("retries the intended journal value after failure, then confirms persistence"
 });
 it("ignores an old class-day save failure after navigating to another date",async()=>{
  nav.params=new URLSearchParams("classId=c&date=2026-09-25"); let rejectSave!: (e:Error)=>void; let saves=0;
- vi.stubGlobal("fetch",vi.fn((url:string)=>url.includes("class-grid")?Promise.resolve(ok({data:grid})):(saves++,new Promise((_,reject)=>{rejectSave=reject;}))));
+ vi.stubGlobal("fetch",vi.fn((url:string)=>url.includes("class-grid")?Promise.resolve(ok({data:grid})):url.includes("student-attendance")?Promise.resolve(ok([])):(saves++,new Promise((_,reject)=>{rejectSave=reject;}))));
  const view=render(<Page/>);fireEvent.click(await screen.findByRole("button",{name:"Toggle false"}));
  await waitFor(()=>expect(saves).toBe(1));
  nav.params=new URLSearchParams("classId=c&date=2026-09-24");view.rerender(<Page/>);

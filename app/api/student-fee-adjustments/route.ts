@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createStudentFeeAdjustmentSchema } from "@/lib/validations/student-fee-adjustment";
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const academicYearId = searchParams.get("academicYearId");
   const feeComponentId = searchParams.get("feeComponentId");
   const status = searchParams.get("status");
-  const search = searchParams.get("search") ?? "";
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };

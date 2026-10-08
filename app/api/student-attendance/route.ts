@@ -4,7 +4,7 @@ import { classroomAttendanceByStudent } from "@/lib/teacher/classroom-attendance
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { parsePagination } from "@/lib/api/pagination";
+import { parsePagination, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (mode === "list") {
     if (!isAdminRole(session.role)) return NextResponse.json({error:"Forbidden"}, {status:403});
     const { page, pageSize, skip, take } = parsePagination(searchParams);
-    const search = searchParams.get("search") ?? "";
+    const search = escapeLike(cleanSearch(searchParams.get("search")));
     const statusFilter = searchParams.get("status") ?? "";
     const classSectionId = searchParams.get("classSectionId") ?? "";
     const dateFrom = searchParams.get("dateFrom") ?? "";

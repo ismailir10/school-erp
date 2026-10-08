@@ -14,7 +14,9 @@ import { formatRupiah } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { cn } from "@/lib/utils";
 import { rowHasKeringanan } from "@/lib/finance/billing-run-line-source";
+import { isZeroTotal, ZERO_TOTAL_REASON } from "@/lib/finance/billing-run-zero-total";
 import { EditableRowLines } from "./line-editor";
+import { WizardFooter } from "./wizard-footer";
 import type {
   BillingRunLineData,
   BillingRunRowData,
@@ -135,6 +137,10 @@ function RunRow({
 }) {
   const skipReason = SKIP_REASON_LABEL[row.status];
   const excluded = row.status === "EXCLUDED";
+  // Rp 0 (keringanan >= SPP, or a line edited to 0): the commit leaves it out
+  // instead of creating an invoice nobody can collect (FINX-4). Said plainly
+  // here so the admin sees why before committing.
+  const zeroTotal = !skipReason && row.lines.length > 0 && isZeroTotal(row.totalDue);
   const toggleable = row.status === "PENDING" || row.status === "EXCLUDED";
   const canExpand = row.lines.length > 0;
   const adjustmentBadge = hasAdjustment(row);
@@ -199,6 +205,8 @@ function RunRow({
 
         {skipReason ? (
           <span className="shrink-0 text-caption text-muted-foreground">{skipReason}</span>
+        ) : zeroTotal ? (
+          <span className="shrink-0 text-caption text-muted-foreground">{ZERO_TOTAL_REASON}</span>
         ) : (
           <span
             className={cn(
@@ -382,14 +390,14 @@ export function ReviewStep({
           <RowSkeleton />
           <RowSkeleton />
         </ul>
-        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+        <WizardFooter>
           <Button type="button" variant="ghost" disabled>
             Tutup
           </Button>
           <Button type="button" disabled>
             Lanjutkan
           </Button>
-        </div>
+        </WizardFooter>
       </div>
     );
   }
@@ -453,14 +461,14 @@ export function ReviewStep({
         </>
       )}
 
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <WizardFooter>
         <Button type="button" variant="ghost" onClick={onClose}>
           Tutup
         </Button>
         <Button type="button" onClick={onAdvance} disabled={isEmpty}>
           Lanjutkan
         </Button>
-      </div>
+      </WizardFooter>
     </div>
   );
 }

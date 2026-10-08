@@ -146,7 +146,7 @@ export default function EnrollmentsPage() {
         meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {row.original.submittedAt ? formatDateShort(row.original.submittedAt.split("T")[0]) : "—"}
+            {row.original.submittedAt ? formatDateShort(row.original.submittedAt) : "—"}
           </span>
         ),
       },

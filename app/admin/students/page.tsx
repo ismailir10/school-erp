@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useWatch, type Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -35,13 +35,14 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, GraduationCap, UserCheck, Download } from "lucide-react";
 import { StudentExportDialog } from "@/components/admin/student-export-dialog";
-import { formatDateShort } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 import { studentFormSchema } from "@/lib/validations/student";
 import { useZodForm } from "@/lib/forms/use-zod-form";
-import { applyServerErrors } from "@/lib/forms/server-errors";
-import { sendJson } from "@/lib/api/send-json";
+import { applyStudentErrors, sendStudentJson, StudentRequestError } from "@/components/admin/students/student-request";
+import { STUDENT_LIST_QUERY_KEY } from "@/components/admin/students/list-query";
 
 // ------------------------------------------------------------------
 // Types
@@ -176,7 +177,7 @@ function StudentFormBody({
               {...controlProps}
               value={(field.value as string | undefined) ?? ""}
               onChange={field.onChange}
-              max={new Date().toLocaleDateString("en-CA")}
+              max={getTodayInTimezone(DISPLAY_TIME_ZONE)}
             />
           )}
         />
@@ -486,7 +487,7 @@ const columns: ColumnDef<Student>[] = [
     meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
-        {formatDateShort(row.original.createdAt.split("T")[0])}
+        {formatDateShort(row.original.createdAt)}
       </span>
     ),
   },
@@ -507,16 +508,26 @@ const columns: ColumnDef<Student>[] = [
 
 export default function StudentsPage() {
   const router = useRouter();
+  // Search, status filter and page live in the URL (?q=&status=&page=) so a
+  // Back from a student's detail page lands on the same slice of the list.
+  // Read once for the initial state; the effect below writes changes back.
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") ?? "all";
+  const initialPage = Number.parseInt(searchParams.get("page") ?? "", 10);
+  const [initialSearch] = useState(() => searchParams.get("q") ?? "");
   const [data, setData] = useState<Student[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
+    page: Number.isFinite(initialPage) && initialPage > 1 ? initialPage : 1,
     pageSize: 20,
     total: 0,
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [search, setSearch] = useState(initialSearch);
+  const searchRef = useRef(initialSearch);
+  const [status, setStatus] = useState(
+    STUDENT_STATUS_OPTIONS.some((o) => o.value === initialStatus) ? initialStatus : "all",
+  );
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, graduated: 0 });
@@ -579,7 +590,29 @@ export default function StudentsPage() {
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
+  // Mirror the list state into the URL. `replace`, not `push`: typing a
+  // search must not stack a history entry per keystroke.
+  const currentQuery = searchParams.toString();
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (search) next.set("q", search);
+    if (status !== "all") next.set("status", status);
+    if (pagination.page > 1) next.set("page", String(pagination.page));
+    const qs = next.toString();
+    try {
+      sessionStorage.setItem(STUDENT_LIST_QUERY_KEY, qs);
+    } catch {
+      // Storage can be blocked; the detail page's back link then falls back to the bare list.
+    }
+    if (qs === currentQuery) return;
+    router.replace(qs ? `/admin/students?${qs}` : "/admin/students", { scroll: false });
+  }, [search, status, pagination.page, currentQuery, router]);
+
+  // The toolbar debounces its search box (300 ms) and also reports the
+  // initial value once on mount; only a real change may reset the page.
   const handleSearchChange = useCallback((value: string) => {
+    if (value === searchRef.current) return;
+    searchRef.current = value;
     setSearch(value);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
@@ -597,7 +630,12 @@ export default function StudentsPage() {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
   }, []);
 
+  // DataTable reports its default sort once on mount; that echo must not
+  // knock a restored ?page= back to 1, so only a real change resets it.
+  const sortRef = useRef({ field: "createdAt", order: "desc" as "asc" | "desc" });
   const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    if (sortRef.current.field === field && sortRef.current.order === order) return;
+    sortRef.current = { field, order };
     setSortBy(field);
     setSortOrder(order);
     setPagination((p) => ({ ...p, page: 1 }));
@@ -661,7 +699,7 @@ export default function StudentsPage() {
   const handleEditSave = editForm.handleSubmit(async (values) => {
     if (!editTarget) return;
     try {
-      await sendJson(
+      await sendStudentJson(
         `/api/students/${editTarget.id}`,
         { method: "PUT", body: values },
         "Gagal memperbarui data siswa",
@@ -671,15 +709,24 @@ export default function StudentsPage() {
       fetchStudents();
       fetchStats();
     } catch (err) {
-      applyServerErrors(editForm, err, "Gagal memperbarui data siswa");
+      applyStudentErrors(editForm, err, "Gagal memperbarui data siswa");
     }
   });
 
-  const handleCreateSave = createForm.handleSubmit(async (values) => {
+  // A 409 DUPLICATE_STUDENT (same name + date of birth) is advisory: the admin
+  // may know these are two children (twins, a sibling with a repeated name).
+  // The values ride along so "Tetap simpan" can re-POST them verbatim.
+  const [duplicate, setDuplicate] = useState<{
+    message: string;
+    existingId: string | null;
+    values: StudentFormOutput;
+  } | null>(null);
+
+  async function submitCreate(values: StudentFormOutput, confirmDuplicate: boolean): Promise<boolean> {
     try {
-      const student = await sendJson<{ id: string }>(
+      const student = await sendStudentJson<{ id: string }>(
         "/api/students",
-        { method: "POST", body: values },
+        { method: "POST", body: confirmDuplicate ? { ...values, confirmDuplicate: true } : values },
         "Gagal menambahkan siswa",
       );
       toast.success("Siswa ditambahkan");
@@ -687,10 +734,18 @@ export default function StudentsPage() {
       createForm.reset(EMPTY_CREATE_FORM);
       fetchStats();
       router.push(`/admin/students/${student.id}`);
+      return true;
     } catch (err) {
-      applyServerErrors(createForm, err, "Gagal menambahkan siswa");
+      if (!confirmDuplicate && err instanceof StudentRequestError && err.code === "DUPLICATE_STUDENT") {
+        setDuplicate({ message: err.message, existingId: err.existingId ?? null, values });
+        return false;
+      }
+      applyStudentErrors(createForm, err, "Gagal menambahkan siswa");
+      return false;
     }
-  });
+  }
+
+  const handleCreateSave = createForm.handleSubmit((values) => submitCreate(values, false).then(() => undefined));
 
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
@@ -749,6 +804,7 @@ export default function StudentsPage() {
 
       <DataTableToolbar
         searchPlaceholder="Cari nama siswa..."
+        defaultValue={initialSearch}
         onSearchChange={handleSearchChange}
         filters={[
           {
@@ -806,6 +862,28 @@ export default function StudentsPage() {
           <StudentFormBody control={editForm.control} mode="edit" />
         </form>
       </ResponsiveFormDialog>
+
+      {/* Same name + date of birth already exists — confirm before saving a second one */}
+      <ConfirmDialog
+        open={duplicate !== null}
+        onOpenChange={(o) => !o && setDuplicate(null)}
+        title="Siswa ini mungkin sudah terdaftar"
+        description={duplicate?.message}
+        confirmLabel="Tetap simpan"
+        onConfirm={async () => {
+          if (!duplicate) return;
+          await submitCreate(duplicate.values, true);
+        }}
+      >
+        {duplicate?.existingId && (
+          <Link
+            href={`/admin/students/${duplicate.existingId}`}
+            className="text-sm font-medium text-primary underline underline-offset-4"
+          >
+            Lihat siswa
+          </Link>
+        )}
+      </ConfirmDialog>
 
       {/* Create Student */}
       <ResponsiveFormDialog

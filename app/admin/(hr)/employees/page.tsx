@@ -26,13 +26,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
-import { formatDateShort } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { createEmployeeSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
-import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 // ------------------------------------------------------------------
 // Types
@@ -595,7 +594,7 @@ function CreateEmployeeFormBody({
           required
           id="employee-hire-date"
           render={({ field, controlProps }) => (
-            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required max={getTodayInTimezone(JAKARTA_TZ)} />
+            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required max={getTodayInTimezone(DISPLAY_TIME_ZONE)} />
           )}
         />
         <FormField

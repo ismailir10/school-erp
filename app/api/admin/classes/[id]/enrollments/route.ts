@@ -11,6 +11,7 @@ import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
 import { findStreamConflict, findWithdrawnEnrollment } from "@/lib/enrollment/active";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
+import { studentNotActiveResponse } from "@/lib/students/guards";
 import {
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -80,12 +81,36 @@ export async function POST(
 
   const student = await prisma.student.findFirst({
     where: { id: studentId, tenantId: session.tenantId },
-    select: { id: true, name: true, dateOfBirth: true },
+    select: { id: true, name: true, dateOfBirth: true, status: true },
   });
   if (!student) {
     return NextResponse.json(
       { error: "Siswa tidak ditemukan." },
       { status: 400 },
+    );
+  }
+  // ADM-1: withdrawn / graduated / inactive students must be reactivated
+  // first. The roster picker adds one student per request, so the whole
+  // request is rejected (there is no partial result to report).
+  const notActive = studentNotActiveResponse(student.status);
+  if (notActive) return notActive;
+
+  // ADM-10: "already enrolled" is answered before the age-fit override (same
+  // order as the students-detail door). The in-transaction check stays for
+  // race safety.
+  const existingConflict = await findStreamConflict(prisma, {
+    studentId,
+    academicYearId: classSection.academicYearId,
+    programType: classSection.program.type,
+  });
+  if (existingConflict) {
+    return NextResponse.json(
+      {
+        error: `Siswa sudah terdaftar di kelas ${existingConflict.classSection.name} pada tahun ajaran ini.`,
+        code: "ALREADY_ENROLLED",
+        existingClassSectionId: existingConflict.classSectionId,
+      },
+      { status: 409 },
     );
   }
 

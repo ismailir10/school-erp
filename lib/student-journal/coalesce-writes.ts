@@ -23,7 +23,20 @@ export type FlushBatch = {
   entries: BatchEntry[];
   /** Same writes keyed by cell, for rollback and for the pending-flag clear. */
   writes: Map<string, PendingWrite>;
+  /**
+   * True when the batch is being flushed because the page is going away
+   * (`pagehide` / tab hidden). The flush callback must then send it with
+   * `fetch(..., { keepalive: true })` so the request outlives the document.
+   */
+  keepalive?: boolean;
 };
+
+/**
+ * Total body budget for keepalive requests. Browsers cap the *sum* of in-flight
+ * keepalive bodies at 64KB; stay clear of it so one over-large batch cannot
+ * make `fetch` throw and drop the whole flush.
+ */
+export const KEEPALIVE_BUDGET_BYTES = 60_000;
 
 /**
  * Default coalescing window. Long enough to fold a burst of taps into one
@@ -86,13 +99,17 @@ export class JournalWriteCoalescer {
     }
   }
 
-  /** Flush immediately (page hide, unmount, explicit save). */
-  flushNow(): Promise<void> {
+  /**
+   * Flush immediately (page hide, unmount, explicit save). Pass
+   * `{ keepalive: true }` from an unload path so the callback can use a
+   * request that survives the document.
+   */
+  flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    return this.drainAndFlush();
+    return this.drainAndFlush(opts.keepalive === true);
   }
 
   /** True while taps are buffered or a flush is armed. */
@@ -100,7 +117,7 @@ export class JournalWriteCoalescer {
     return this.buffer.size > 0 || this.timer !== null;
   }
 
-  private drainAndFlush(): Promise<void> {
+  private drainAndFlush(keepalive = false): Promise<void> {
     if (this.buffer.size === 0) return this.inFlight;
 
     const writes = this.buffer;
@@ -113,7 +130,17 @@ export class JournalWriteCoalescer {
         checked: w.checked,
       })),
       writes,
+      ...(keepalive ? { keepalive: true } : {}),
     };
+
+    // An unloading page cannot wait its turn: a `.then` queued behind a slow
+    // in-flight flush may never run. Send now; the in-flight one (if any) is
+    // being torn down with the page anyway.
+    if (keepalive) {
+      const sent = this.flush(batch).catch(() => {});
+      this.inFlight = Promise.all([this.inFlight, sent]).then(() => {});
+      return sent;
+    }
 
     // Chain off the previous flush so windows reach the server in order.
     // The stored chain is the *caught* promise: one failure must neither
@@ -123,4 +150,35 @@ export class JournalWriteCoalescer {
     this.inFlight = this.inFlight.then(() => this.flush(batch)).catch(() => {});
     return this.inFlight;
   }
+}
+
+/**
+ * Flush buffered taps when the page is going away (TCHX-17).
+ *
+ * The 500ms window means a tap right before closing the tab or switching apps
+ * is still buffered when the page dies. `pagehide` is the reliable event on
+ * iOS Safari (where `beforeunload` is not), and `visibilitychange` → hidden
+ * covers backgrounding a PWA that is never formally unloaded. Both flush with
+ * `keepalive` so the request survives the document.
+ *
+ * Returns the cleanup that removes the listeners. `win` / `doc` are injectable
+ * for tests.
+ */
+export function bindFlushOnPageHide(
+  coalescer: JournalWriteCoalescer,
+  win: Pick<Window, "addEventListener" | "removeEventListener"> = window,
+  doc: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState"> = document,
+): () => void {
+  const flush = () => {
+    if (coalescer.hasPending) void coalescer.flushNow({ keepalive: true });
+  };
+  const onVisibility = () => {
+    if (doc.visibilityState === "hidden") flush();
+  };
+  win.addEventListener("pagehide", flush);
+  doc.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    win.removeEventListener("pagehide", flush);
+    doc.removeEventListener("visibilitychange", onVisibility);
+  };
 }

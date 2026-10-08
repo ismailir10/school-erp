@@ -4,6 +4,7 @@ export type HealthBadge =
   | "Sehat"
   | "Perhatian"
   | "Kritis"
+  | "Belum ada siswa"
   | "Tidak Aktif"
   | "Libur";
 
@@ -29,7 +30,9 @@ export function computeHealthBadge(input: HealthInput): HealthBadge {
   const capPct =
     input.capacity > 0 ? (input.enrolledCount / input.capacity) * 100 : 0;
 
-  if (input.enrolledCount === 0) return "Kritis";
+  // A brand-new class has no roster yet — that is not an alarm, so it gets a
+  // neutral state instead of "Kritis".
+  if (input.enrolledCount === 0) return "Belum ada siswa";
   if (att !== null && att < PERHATIAN_ATTENDANCE_MIN) return "Kritis";
 
   if (

@@ -100,7 +100,7 @@ describe("payroll summary states", () => {
 
     render(<PayrollListPage />);
 
-    const link = await screen.findByRole("link", { name: /2026-08-21/ });
+    const link = await screen.findByRole("link", { name: /21 Agu 2026/ });
     expect(link).toHaveAttribute("href", "/admin/payroll/run-1");
     expect(screen.queryByRole("button", { name: /Lihat/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
@@ -134,7 +134,7 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     // Clear the pre-filled default period so the required-string check fires.
     fireEvent.change(within(dialog).getByLabelText("Tanggal Mulai", { exact: false }), { target: { value: "" } });
     fireEvent.change(within(dialog).getByLabelText("Tanggal Selesai", { exact: false }), { target: { value: "" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draft Penggajian" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draf Penggajian" }));
 
     expect((await within(dialog).findAllByText("Format tanggal harus YYYY-MM-DD")).length).toBeGreaterThan(0);
 
@@ -152,7 +152,7 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Buat Penggajian" }));
     const dialog = await screen.findByRole("dialog", { name: "Buat Penggajian Baru" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draft Penggajian" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draf Penggajian" }));
 
     await waitFor(() => {
       const postCall = fetchMock.mock.calls.find(
@@ -167,7 +167,7 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     expect(typeof body.periodStart).toBe("string");
     expect(typeof body.periodEnd).toBe("string");
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Draft penggajian dibuat"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Draf penggajian dibuat"));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
@@ -184,7 +184,7 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Buat Penggajian" }));
     const dialog = await screen.findByRole("dialog", { name: "Buat Penggajian Baru" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draft Penggajian" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draf Penggajian" }));
 
     const alert = await within(dialog).findByTestId("payroll-generate-blockers");
     expect(alert).toHaveTextContent("Beberapa karyawan belum memiliki No. Rekening lengkap");

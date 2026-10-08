@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,7 +16,8 @@ import {
 } from "@/components/admin/class-section-picker";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
-import { computeDefaultBillingForm, type AcademicYear } from "./billing-defaults";
+import { computeDefaultBillingForm, defaultDueDateForPeriod, type AcademicYear } from "./billing-defaults";
+import { WizardFooter } from "./wizard-footer";
 import type { CreateBillingRunPayload, CreateBillingRunResponse, DuplicateDraftConflict } from "./types";
 
 // Step 1 — Scope (Cycle B1, Task T8). Periode / jatuh tempo / tahun ajaran
@@ -71,6 +72,9 @@ export function ScopeStep({
   notifyDraftChanged?: () => void;
 }) {
   const [form, setForm] = useState(() => computeDefaultBillingForm(years));
+  // The due date follows the typed period until the admin picks one
+  // themselves — a deliberate choice is never overwritten.
+  const dueDateEditedRef = useRef(false);
   // If step 1 mounts before `years` has loaded (the wizard can be opened
   // right after page load, racing the invoices-client academic-years
   // fetch), fill the default academic year in once it arrives.
@@ -253,7 +257,7 @@ export function ScopeStep({
             atau buang draf lama dan mulai draf baru dengan cakupan yang baru saja diisi.
           </AlertDescription>
         </Alert>
-        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+        <WizardFooter>
           <Button
             type="button"
             variant="ghost"
@@ -276,7 +280,7 @@ export function ScopeStep({
           <Button type="button" onClick={handleResumeExisting} disabled={discarding}>
             Lanjutkan Draf
           </Button>
-        </div>
+        </WizardFooter>
       </div>
     );
   }
@@ -290,7 +294,13 @@ export function ScopeStep({
           required
           aria-required="true"
           value={form.periodLabel}
-          onChange={(e) => setForm((f) => ({ ...f, periodLabel: e.target.value }))}
+          onChange={(e) => {
+            const periodLabel = e.target.value;
+            // Default "Jatuh Tempo" = end of the typed period's month, while
+            // the admin has not chosen a date themselves and the label parses.
+            const due = dueDateEditedRef.current ? null : defaultDueDateForPeriod(periodLabel);
+            setForm((f) => ({ ...f, periodLabel, ...(due ? { dueDate: due } : {}) }));
+          }}
           placeholder="April 2026"
         />
         <FieldDescription>Contoh: April 2026</FieldDescription>
@@ -301,7 +311,10 @@ export function ScopeStep({
           id="wizard-scope-due-date"
           required
           value={form.dueDate}
-          onChange={(v) => setForm((f) => ({ ...f, dueDate: v }))}
+          onChange={(v) => {
+            dueDateEditedRef.current = true;
+            setForm((f) => ({ ...f, dueDate: v }));
+          }}
         />
       </Field>
       <Field>
@@ -373,14 +386,14 @@ export function ScopeStep({
         {inScopeSummary}
       </p>
 
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <WizardFooter>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
           Batal
         </Button>
         <Button type="submit" disabled={submitting}>
           {submitting ? "Membuat..." : "Lanjutkan"}
         </Button>
-      </div>
+      </WizardFooter>
     </form>
   );
 }

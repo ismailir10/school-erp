@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { formatDate, formatInvoicePeriod } from "@/lib/format";
+import { formatDate, formatInvoicePeriod, formatRupiah } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
@@ -50,6 +50,11 @@ function isOutstanding(inv: InvoiceItem): boolean {
 
 function isPaid(inv: InvoiceItem): boolean {
   return inv.status === "PAID";
+}
+
+/** A partly paid bill is still owed, but the money already received belongs in Riwayat too (R2-P-6). */
+function isPartiallyPaid(inv: InvoiceItem): boolean {
+  return isOutstanding(inv) && inv.totalPaid > 0;
 }
 
 type OtherChildOutstanding = {
@@ -95,6 +100,11 @@ export function InvoicesClient({
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("due-asc");
   const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
+  // Invoices the gateway sent the parent back from with "sedang diperiksa",
+  // mapped to the totalPaid we saw then. The pending note holds only while that
+  // figure is unchanged and the invoice is still outstanding — a webhook that
+  // lands (PAID, or a changed totalPaid) releases it without any extra signal.
+  const [pendingPayments, setPendingPayments] = useState<Record<string, number>>({});
   const handledReturnRef = useRef<string | null>(null);
   const prevDataRef = useRef<InvoiceItem[] | null>(null);
   const loading = data === null;
@@ -131,6 +141,7 @@ export function InvoicesClient({
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
     } else {
       toast("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.");
+      setPendingPayments((prev) => ({ ...prev, [found.id]: found.totalPaid }));
     }
     const retained = Object.fromEntries(new URLSearchParams(searchParams.toString()));
     delete retained.invoice;
@@ -231,18 +242,25 @@ export function InvoicesClient({
     // for legacy callers (e.g. tests that don't pass the prop).
     if (selectedChildSummary) {
       const { count, total, nearestDue } = selectedChildSummary;
-      const allOverdue = nearestDue !== null && nearestDue < todayYmd && count > 0;
-      return { total, count, nearestDue, allOverdue };
+      return { total, count, nearestDue };
     }
-    if (!data) return { total: 0, count: 0, nearestDue: null as string | null, allOverdue: false };
+    if (!data) return { total: 0, count: 0, nearestDue: null as string | null };
     const outstanding = data.filter(isOutstanding);
     const total = outstanding.reduce((s, i) => s + (i.totalDue - i.totalPaid), 0);
     const dueDates = outstanding.map((i) => i.dueDate).sort((a, b) => a.localeCompare(b));
-    const nearestFuture = dueDates.find((d) => d >= todayYmd) ?? null;
-    const nearestDue = nearestFuture ?? dueDates[0] ?? null;
-    const allOverdue = nearestFuture === null && dueDates.length > 0;
-    return { total, count: outstanding.length, nearestDue, allOverdue };
-  }, [data, todayYmd, selectedChildSummary]);
+    // Earliest due date, same as the server-derived summary: when any bill is
+    // overdue this is the oldest arrear ("sejak"), otherwise the next due date.
+    const nearestDue = dueDates[0] ?? null;
+    return { total, count: outstanding.length, nearestDue };
+  }, [data, selectedChildSummary]);
+
+  // How many of the outstanding rows are past due. The summary used to show a
+  // bare "Lewat tempo" chip whenever the earliest one was, which read as "all of
+  // them" next to the total (FIN-22).
+  const overdueCount = Math.min(
+    summary.count,
+    (data ?? []).filter((inv) => isOutstanding(inv) && inv.dueDate < todayYmd).length,
+  );
 
   if (loading) {
     return (
@@ -302,11 +320,12 @@ export function InvoicesClient({
   // localeCompare on it produces alphabetic chaos. Falls back to dueDate
   // (also reliable) when paidAt is somehow missing on a PAID invoice.
   const paid = filteredData
-    .filter(isPaid)
+    .filter((inv) => isPaid(inv) || isPartiallyPaid(inv))
     .sort((a, b) => {
       if (sortMode === "due-asc") return a.dueDate.localeCompare(b.dueDate);
       if (sortMode === "due-desc") return b.dueDate.localeCompare(a.dueDate);
       if (sortMode === "amount-desc") return b.totalDue - a.totalDue;
+      // A partly paid invoice has no paidAt yet; dueDate keeps it in a stable slot.
       const aKey = a.paidAt ?? a.dueDate;
       const bKey = b.paidAt ?? b.dueDate;
       return bKey.localeCompare(aKey);
@@ -316,6 +335,12 @@ export function InvoicesClient({
   const RIWAYAT_INITIAL = 12;
   const paidVisible = showAllPaid ? paid : paid.slice(0, RIWAYAT_INITIAL);
   const paidHasMore = paid.length > RIWAYAT_INITIAL;
+
+  const selectedInvoice = selectedInvoiceId ? data.find((i) => i.id === selectedInvoiceId) : undefined;
+  const paymentPending =
+    !!selectedInvoice &&
+    isOutstanding(selectedInvoice) &&
+    pendingPayments[selectedInvoice.id] === selectedInvoice.totalPaid;
 
   return (
     <div className="space-y-6 pb-4">
@@ -331,22 +356,26 @@ export function InvoicesClient({
               unpaid is not an error, and `--status-absent-text` is the
               attendance Alpa colour (see lib/curriculum/level-presentation.ts
               — red is reserved for Alpa and destructive). Only a genuinely
-              overdue total earns the red chip. */}
+              overdue bill earns the red chip, and the chip carries how many. */}
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
-            {summary.allOverdue ? (
-              <AmountStatus tone="overdue">Lewat tempo</AmountStatus>
+            <span>{summary.count} tagihan</span>
+            {overdueCount > 0 ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <AmountStatus tone="overdue">{overdueCount} lewat tempo</AmountStatus>
+              </>
             ) : null}
-            <span>
-              {summary.count} tagihan
-              {summary.nearestDue ? (
-                <>
-                  {summary.allOverdue ? " · sejak " : " · jatuh tempo terdekat "}
+            {summary.nearestDue ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {overdueCount > 0 ? "sejak " : "jatuh tempo terdekat "}
                   <b className="text-foreground">
                     {formatDate(summary.nearestDue, { day: "numeric", month: "long", year: "numeric" })}
                   </b>
-                </>
-              ) : null}
-            </span>
+                </span>
+              </>
+            ) : null}
           </div>
         </section>
       ) : otherChildrenWithOutstanding.length > 0 ? (
@@ -534,6 +563,9 @@ export function InvoicesClient({
         open={!!selectedInvoiceId}
         onOpenChange={(open) => !open && setSelectedInvoiceId(null)}
         invoiceId={selectedInvoiceId}
+        paymentPending={paymentPending}
+        listStateKey={selectedInvoice ? `${selectedInvoice.status}:${selectedInvoice.totalPaid}` : undefined}
+        onRefreshStatus={() => router.refresh()}
       />
     </div>
   );
@@ -553,15 +585,22 @@ function InvoiceRow({
   highlight?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
-  const amount = tone === "due" ? remaining : invoice.totalDue;
+  // In Riwayat a partly paid row shows what was received, not the full bill.
+  const partialInHistory = tone === "paid" && invoice.status !== "PAID";
+  const amount = tone === "due" ? remaining : partialInHistory ? invoice.totalPaid : invoice.totalDue;
 
   // Years are not optional here. The list mixes 2025 and 2026 invoices, so a
   // bare "Jatuh tempo 10 Agustus" left a wali unable to tell a five-month-old
   // arrear from next week's bill.
+  // The overdue marker leads the line: the description is clamped to two lines
+  // beside a wide amount column, and a trailing marker was the part cut off on
+  // a 360px phone (PAR-9).
   const secondary =
     tone === "due"
-      ? `${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}${isOverdue ? " · lewat tempo" : ""}`
-      : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
+      ? `${isOverdue ? "Lewat tempo · " : ""}${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}`
+      : partialInHistory
+        ? `Dibayar sebagian · sisa ${formatRupiah(remaining)}`
+        : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
     <li>

@@ -69,6 +69,7 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
       dateOfBirth: null,
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
@@ -106,6 +107,7 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
       dateOfBirth: null,
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
@@ -221,6 +223,7 @@ describe("POST /api/students/[id]/promote — academic-year guard", () => {
     vi.mocked(prisma.student.findFirst).mockResolvedValue({
       id: "s1",
       tenantId: "t1",
+      status: "ACTIVE",
     } as never);
     vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
       id: "e-old",

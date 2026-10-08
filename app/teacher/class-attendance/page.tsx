@@ -5,15 +5,17 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Users, Check } from "lucide-react";
+import Link from "next/link";
+import { Users, Check, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { SaveStatus } from "@/components/portal/save-status";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
+import { failureFromError, fetchOrDescribe, type FetchFailure } from "@/lib/teacher/fetch-error-copy";
 
 type Assignment = {
   id: string;
@@ -69,6 +71,11 @@ function clampToToday(ymd: string, today: string) {
   return ymd > today ? today : ymd;
 }
 
+/** A session that expired can only be fixed by signing in again, so offer that instead of a retry that cannot succeed. */
+function SignInAgain({ className }: { className?: string }) {
+  return <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "min-h-11", className)}>Masuk lagi</Link>;
+}
+
 export default function ClassAttendancePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -83,8 +90,8 @@ export default function ClassAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [lastLoadedCount, setLastLoadedCount] = useState(10);
-  const [assignmentsError, setAssignmentsError] = useState(false);
-  const [rosterError, setRosterError] = useState(false);
+  const [assignmentsError, setAssignmentsError] = useState<FetchFailure | null>(null);
+  const [rosterError, setRosterError] = useState<FetchFailure | null>(null);
   const rosterRequestId = useRef(0);
   const assignmentRequestId = useRef(0);
   const context = `${selectedClass}:${date}`;
@@ -93,17 +100,16 @@ export default function ClassAttendancePage() {
   useEffect(() => { activeContext.current = contextToken; return () => { activeContext.current = null; }; }, [contextToken]);
   const confirmed = useRef<Record<string, Status>>({});
   const [confirmedStatuses, setConfirmedStatuses] = useState<Record<string, Status>>({});
-  const [saveErrors,setSaveErrors] = useState<Record<string,string>>({});
+  const [saveErrors, setSaveErrors] = useState<Record<string, FetchFailure>>({});
   const [failedIntents, setFailedIntents] = useState<Record<string, Status>>({});
   const saveOperationIds = useRef<Record<string, number>>({});
   const saveQueues = useRef<Record<string, Promise<void> | undefined>>({});
 
   const loadAssignments = useCallback(async () => {
     const requestId = ++assignmentRequestId.current;
-    setLoading(true); setAssignmentsError(false);
+    setLoading(true); setAssignmentsError(null);
     try {
-      const res = await fetch("/api/teaching-assignments/my");
-      if (!res.ok) throw new Error("assignments");
+      const res = await fetchOrDescribe("/api/teaching-assignments/my", undefined, "dimuat");
       const data = await res.json();
       if (requestId !== assignmentRequestId.current) return;
       setAssignments(data);
@@ -115,10 +121,11 @@ export default function ClassAttendancePage() {
         setSelectedClass(nextClass); setDate(nextDate);
         if (nextClass !== requestedClass || nextDate !== requestedDate) router.replace(`/teacher/class-attendance?classId=${encodeURIComponent(nextClass)}&date=${nextDate}`, {scroll:false});
       }
-    } catch {
+    } catch (error) {
       if (requestId !== assignmentRequestId.current) return;
-      setAssignmentsError(true);
-      toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
+      const failure = failureFromError(error, "dimuat");
+      setAssignmentsError(failure);
+      toast.error(failure.message);
     } finally { if (requestId === assignmentRequestId.current) setLoading(false); }
   }, [requestedClass, requestedDate, router]);
 
@@ -130,10 +137,9 @@ export default function ClassAttendancePage() {
     const requestId = ++rosterRequestId.current;
     setLoadingRoster(true);
     setSaveState({}); setBulkError(null); setFailedIntents({}); setSaveErrors({}); setConfirmedStatuses({});
-    setRosterError(false);
+    setRosterError(null);
     try {
-    const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
-    if (!res.ok) throw new Error("roster");
+    const res = await fetchOrDescribe(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`, undefined, "dimuat");
     const data: StudentRecord[] = await res.json();
     if (requestId !== rosterRequestId.current) return;
     setStudents(data);
@@ -143,10 +149,11 @@ export default function ClassAttendancePage() {
     for (const [id, status] of Object.entries(initial)) confirmed.current[`${selectedClass}:${date}:${id}`] = status;
     setConfirmedStatuses(initial);
     setStatuses(initial);
-    } catch {
+    } catch (error) {
       if (requestId !== rosterRequestId.current) return;
-      setRosterError(true);
-      toast.error("Data siswa tidak bisa dimuat. Coba lagi sebentar ya.");
+      const failure = failureFromError(error, "dimuat");
+      setRosterError(failure);
+      toast.error(failure.message);
     } finally { if (requestId === rosterRequestId.current) setLoadingRoster(false); }
   }, [selectedClass, date]);
 
@@ -157,7 +164,7 @@ export default function ClassAttendancePage() {
   // the row (or on the bulk bar) that failed. A "saved" line under every row
   // doubled the list height and said the same thing thirty times.
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
-  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkError, setBulkError] = useState<FetchFailure | null>(null);
 
   // URL context survives reload/back. Only validated assigned classes are canonicalized.
   useEffect(() => {
@@ -191,13 +198,12 @@ export default function ClassAttendancePage() {
     if (bulk) setBulkError(null);
     const save = async () => {
       try {
-        const response = await fetch("/api/student-attendance/mark", {
+        const response = await fetchOrDescribe("/api/student-attendance/mark", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ classSectionId: selectedClass, date, records: studentIds.map((studentId) => ({ studentId, status: next })) }),
-        });
-        if (!response.ok) { const body = await response.json().catch(()=>({})); throw Error(body.error || "Absensi belum tersimpan. Coba lagi ya."); }
-        const body = await response.json();
-        if (body.saved !== studentIds.length) throw Error("Absensi belum tersimpan. Coba lagi ya.");
+        }, "disimpan");
+        const body = await response.json().catch(() => ({}));
+        if (body.saved !== studentIds.length) throw new Error("not all saved");
         for (const op of ops) confirmed.current[op.key] = next;
         if (activeContext.current === contextToken) setConfirmedStatuses(prev => ({ ...prev, ...each(next) }));
         const landed = ops.filter(isCurrent).map((op) => op.studentId);
@@ -205,7 +211,8 @@ export default function ClassAttendancePage() {
       } catch (error) {
         const failed = ops.filter(isCurrent);
         if (failed.length === 0) return;
-        const message = error instanceof Error ? error.message : "Absensi belum tersimpan. Coba lagi ya.";
+        // Mapped copy only: raw API/browser text ("Unauthorized", "Failed to fetch") never reaches the teacher.
+        const failure = failureFromError(error, "disimpan");
         setStatuses(prev => {
           const copy = { ...prev };
           for (const op of failed) { if (confirmed.current[op.key]) copy[op.studentId] = confirmed.current[op.key]; else delete copy[op.studentId]; }
@@ -215,14 +222,14 @@ export default function ClassAttendancePage() {
           // The bulk bar is the retry: the rows go back to "belum" and the
           // button counts them again.
           setSaveState(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => !failed.some((op) => op.studentId === id))));
-          setBulkError(message);
+          setBulkError(failure);
         } else {
           const [op] = failed;
-          setSaveErrors(prev => ({ ...prev, [op.studentId]: message }));
+          setSaveErrors(prev => ({ ...prev, [op.studentId]: failure }));
           setFailedIntents(prev => ({ ...prev, [op.studentId]: next }));
           setSaveState(prev => ({ ...prev, [op.studentId]: "error" }));
         }
-        toast.error(message);
+        toast.error(failure.message);
       }
     };
     const prior = Promise.all(ops.map((op) => saveQueues.current[op.key] ?? Promise.resolve()));
@@ -242,6 +249,9 @@ export default function ClassAttendancePage() {
     PERMISSION: Object.values(confirmedStatuses).filter((s) => s === "PERMISSION").length,
   };
   const notYet = students.length - Object.keys(confirmedStatuses).filter((id) => students.some((s) => s.student.id === id)).length;
+  // Every row has a (possibly optimistic) status but the counts above only move once the save lands. Say so
+  // instead of claiming "Semua siswa sudah dicatat" next to "8 belum" (TCH-11).
+  const confirming = unrecorded.length === 0 && notYet > 0;
 
   // The header is rendered in every branch, including loading — it used to
   // appear only on the success path, so the h1 popped in after the fetch and
@@ -264,9 +274,10 @@ export default function ClassAttendancePage() {
         <EmptyState
           icon={Users}
           title={assignmentsError ? "Daftar kelas tidak bisa dimuat" : "Belum ditugaskan ke kelas"}
-          description={assignmentsError ? "Periksa koneksi, lalu coba lagi." : "Hubungi admin untuk ditugaskan mengajar di kelas tertentu."}
-          actionLabel={assignmentsError ? "Coba lagi" : undefined}
-          onAction={assignmentsError ? loadAssignments : undefined}
+          description={assignmentsError ? assignmentsError.message : "Hubungi admin untuk ditugaskan mengajar di kelas tertentu."}
+          actionLabel={assignmentsError ? (assignmentsError.canRetry ? "Coba lagi" : assignmentsError.kind === "auth" ? "Masuk lagi" : undefined) : undefined}
+          actionHref={assignmentsError && !assignmentsError.canRetry && assignmentsError.kind === "auth" ? "/" : undefined}
+          onAction={assignmentsError?.canRetry ? loadAssignments : undefined}
         />
       </div>
     );
@@ -349,9 +360,10 @@ export default function ClassAttendancePage() {
           <EmptyState
             icon={Users}
             title="Data siswa tidak bisa dimuat"
-            description="Periksa koneksi, lalu coba lagi."
-            actionLabel="Coba lagi"
-            onAction={loadStudents}
+            description={rosterError.message}
+            actionLabel={rosterError.canRetry ? "Coba lagi" : rosterError.kind === "auth" ? "Masuk lagi" : undefined}
+            actionHref={!rosterError.canRetry && rosterError.kind === "auth" ? "/" : undefined}
+            onAction={rosterError.canRetry ? loadStudents : undefined}
           />
         </div>
       ) : students.length === 0 ? (
@@ -368,7 +380,7 @@ export default function ClassAttendancePage() {
                 <li key={s.student.id} data-testid="roster-row" className={cn("px-3 py-2 transition-colors", status && ROW_TINT[status])}>
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{s.student.name}</p>
+                      <p className="line-clamp-2 break-words text-sm font-medium">{s.student.name}</p>
                       {s.student.nickname && <p className="truncate text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
                     <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1">
@@ -395,8 +407,8 @@ export default function ClassAttendancePage() {
                   </div>
                   {rowState === "error" ? (
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <SaveStatus state="error" message={`Absensi belum tersimpan. ${saveErrors[s.student.id] ?? "Gunakan Coba lagi."}`} />
-                      {failedIntents[s.student.id] ? <Button variant="outline" className="min-h-11" onClick={() => persist([s.student.id], failedIntents[s.student.id])}>Coba lagi</Button> : null}
+                      <SaveStatus state="error" message={`Absensi belum tersimpan. ${saveErrors[s.student.id]?.message ?? "Coba lagi sebentar lagi."}`} />
+                      {saveErrors[s.student.id]?.kind === "auth" ? <SignInAgain /> : failedIntents[s.student.id] && (saveErrors[s.student.id]?.canRetry ?? true) ? <Button variant="outline" className="min-h-11" onClick={() => persist([s.student.id], failedIntents[s.student.id])}>Coba lagi</Button> : null}
                     </div>
                   ) : null}
                 </li>
@@ -406,12 +418,21 @@ export default function ClassAttendancePage() {
 
           {/* Most children are present: one tap records the rest. Children who already have a status are never touched. */}
           <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
-            {bulkError ? <SaveStatus state="error" className="mb-2" message={`Absensi belum tersimpan. ${bulkError}`} /> : null}
-            {unrecorded.length > 0 ? (
+            {bulkError ? (
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <SaveStatus state="error" message={`Absensi belum tersimpan. ${bulkError.message}`} />
+                {bulkError.kind === "auth" ? <SignInAgain className="shrink-0" /> : null}
+              </div>
+            ) : null}
+            {bulkError && !bulkError.canRetry ? null : unrecorded.length > 0 ? (
               <Button type="button" className="tap-target w-full" onClick={() => persist(unrecorded, "PRESENT", { bulk: true })}>
                 <Check aria-hidden="true" />
                 {unrecorded.length === students.length ? `Tandai semua ${unrecorded.length} siswa Hadir` : `Tandai ${unrecorded.length} siswa lainnya Hadir`}
               </Button>
+            ) : confirming ? (
+              <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" /> Menyimpan…
+              </p>
             ) : (
               <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">
                 <Check aria-hidden="true" className="size-4" /> Semua siswa sudah dicatat

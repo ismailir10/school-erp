@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,9 +8,18 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CheckCircle2, Copy, RefreshCw } from "lucide-react";
 import { SignaturePad } from "@/components/enrollment/signature-pad";
+import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
+import {
+  DOCUMENT_ITEMS,
+  isDocumentKey,
+  missingRequiredDocuments,
+  missingUploads,
+  type DocumentKey,
+  type PublicDocuments,
+} from "@/lib/enrollment/documents";
 import {
   AGAMA_OPTIONS,
   KEWARGANEGARAAN_OPTIONS,
@@ -27,9 +36,23 @@ import {
 import {
   CONSENT_CLAUSES,
   CONSENT_INTRO,
-  CONSENT_CLOSING,
   CONSENT_VERSION,
 } from "@/lib/enrollment/consent-clauses";
+import { formatDateShort } from "@/lib/format";
+import {
+  STEPS,
+  STEP_CONSENT,
+  describeServerIssue,
+  isWaived,
+  parentContactIssues,
+  resumeStep,
+  stepLabel,
+  type ContactFieldKey,
+  type ContactIssue,
+  type OnlyParent,
+  type ParentSide,
+} from "./form-logic";
+import { BringList, withoutWaivedParentDocs } from "./bring-list";
 
 type Program = { id: string; name: string };
 type Prefill = {
@@ -38,7 +61,9 @@ type Prefill = {
   studentData: unknown;
   ayahData: unknown;
   ibuData: unknown;
+  /** `{ agreed, ayah: {name, signed}, ibu: {name, signed} }` — never raw tokens. */
   consentData: unknown;
+  documents: PublicDocuments;
 };
 
 type AddressState = { perumahan: string; blokCluster: string; rtRw: string; kecamatan: string; kodePos: string };
@@ -87,9 +112,12 @@ type StudentState = {
 type ConsentState = {
   agreed: boolean;
   ayahName: string;
-  ayahSignatureToken: string;
   ibuName: string;
-  ibuSignatureToken: string;
+  /** Signature PNGs live server-side; the browser only knows whether one is saved. */
+  ayahSigned: boolean;
+  ibuSigned: boolean;
+  /** R2-P-10: the one parent / wali filling alone ("" = both parents). Saved inside consentData. */
+  onlyParent: OnlyParent;
 };
 
 const EMPTY_ADDR: AddressState = { perumahan: "", blokCluster: "", rtRw: "", kecamatan: "", kodePos: "" };
@@ -140,36 +168,97 @@ function initConsent(p: unknown): ConsentState {
   const ibu = obj(c.ibu);
   return {
     agreed: c.agreed === true,
-    ayahName: str(ayah.name), ayahSignatureToken: str(ayah.signatureToken),
-    ibuName: str(ibu.name), ibuSignatureToken: str(ibu.signatureToken),
+    ayahName: str(ayah.name), ayahSigned: ayah.signed === true,
+    ibuName: str(ibu.name), ibuSigned: ibu.signed === true,
+    onlyParent: c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "",
   };
 }
 
-const STEPS = ["Data Anak", "Data Ayah", "Data Ibu", "Program", "Persetujuan", "Tinjau"] as const;
+/**
+ * One line in the step alert. `step` is set for issues that belong to another
+ * step (a rejected submit); the alert then offers a button that jumps there.
+ */
+type FormIssue = { text: string; step?: number; field?: ContactFieldKey };
+
+const plain = (texts: string[]): FormIssue[] => texts.map((text) => ({ text }));
+const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
+  a.length === b.length && a.every((x, i) => x.text === b[i].text && x.step === b[i].step);
+
+// Public-form controls: 44px / 16px, scoped here so the shared ui/* stay as-is.
+const INPUT_CLASS = "h-11 text-base md:text-base";
+const SELECT_CLASS = "h-11 text-base";
+const AREA_CLASS = "text-base md:text-base";
+const BTN_CLASS = "h-11 min-w-28 px-5 text-base";
 
 export default function PendaftaranClient({
   token,
   programs,
   prefill,
+  requiredDocuments = [],
+  initialStep,
 }: {
   token: string;
   programs: Program[];
   prefill: Prefill;
+  /** Documents the school requires uploaded before submit (empty = all optional). */
+  requiredDocuments?: DocumentKey[];
+  /** Overrides the resume calculation (tests). */
+  initialStep?: number;
 }) {
-  const [step, setStep] = useState(0);
+  // The draft stores no step index, so a returning parent resumes at the first
+  // step that still lacks required data rather than tapping through from 1.
+  const [startStep] = useState(
+    () =>
+      initialStep ??
+      resumeStep({
+        student: initStudent(prefill.studentData),
+        ayah: initParent(prefill.ayahData),
+        ibu: initParent(prefill.ibuData),
+        programId: prefill.programId ?? "",
+        documents: prefill.documents ?? {},
+        requiredDocuments,
+        consent: initConsent(prefill.consentData),
+      }),
+  );
+  const [step, setStep] = useState(startStep);
+  // Furthest step reached; the stepper lets the parent tap back to any of them.
+  const [reached, setReached] = useState(startStep);
   const [student, setStudent] = useState<StudentState>(() => initStudent(prefill.studentData));
   const [ayah, setAyah] = useState<ParentState>(() => ({ ...EMPTY_PARENT, ...initParent(prefill.ayahData) }));
   const [ibu, setIbu] = useState<ParentState>(() => ({ ...EMPTY_PARENT, ...initParent(prefill.ibuData) }));
   const [programId, setProgramId] = useState(prefill.programId ?? "");
   const [dcareAddon, setDcareAddon] = useState(prefill.dcareAddon);
   const [consent, setConsent] = useState<ConsentState>(() => initConsent(prefill.consentData));
-  const [errors, setErrors] = useState<string[]>([]);
+  const [errors, setErrors] = useState<FormIssue[]>([]);
+  // Contact inputs whose format error is showing. The message itself is derived
+  // from the current value, so it clears the moment the parent corrects it.
+  const [flagged, setFlagged] = useState<ContactFieldKey[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // A signature POST in flight per parent. Moving on or submitting meanwhile
+  // would close the row and the late POST would 409, silently losing it.
+  const [sigSaving, setSigSaving] = useState({ ayah: false, ibu: false });
+  // Owned here (not by the Berkas step) so an in-flight upload still shows as
+  // busy if the parent steps away and comes back.
+  const docs = useDocumentUploads(token, prefill.documents ?? {});
+  // Keys the server rejected as missing count as required from then on, even
+  // if the page was loaded before the school's list changed; otherwise Lanjut
+  // would pass and the next submit would bounce again.
+  const [serverRequired, setServerRequired] = useState<DocumentKey[]>([]);
+  const required = [...new Set([...requiredDocuments, ...serverRequired])];
+  // `requiredDocuments` defaults to a fresh [] each render; key the effect on
+  // content so it doesn't re-run (and re-set errors) forever.
+  const requiredKey = required.join(",");
+  const documents = docs.documents;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePending = useRef(false);
 
-  const buildPayload = useCallback(() => {
+  // Rebuilt every render; the ref lets the debounced timer (and the page-hide
+  // flush) read the state as of *fire* time instead of the render that
+  // scheduled them. The old `setX(v); scheduleSave()` closure sent the
+  // previous keystroke's state.
+  const buildPayload = () => {
     const cleanAddr = (a: AddressState) => ({ ...a });
     const cleanParent = (p: ParentState) => ({ ...p, address: cleanAddr(p.address) });
     return {
@@ -182,28 +271,71 @@ export default function PendaftaranClient({
       },
       ayahData: cleanParent(ayah),
       ibuData: cleanParent(ibu),
+      // Names only. Signature tokens are persisted by the signature route and
+      // read from the row on submit; the draft PATCH ignores them anyway.
       consentData: {
         agreed: consent.agreed,
         version: CONSENT_VERSION,
-        ayah: { name: consent.ayahName, signatureToken: consent.ayahSignatureToken },
-        ibu: { name: consent.ibuName, signatureToken: consent.ibuSignatureToken },
+        // Omitted (not "") when both parents fill, so the draft blob carries no stale flag.
+        ...(consent.onlyParent ? { onlyParent: consent.onlyParent } : {}),
+        ayah: { name: consent.ayahName },
+        ibu: { name: consent.ibuName },
       },
     };
-  }, [programId, dcareAddon, student, ayah, ibu, consent]);
+  };
+  const buildPayloadRef = useRef(buildPayload);
+  useEffect(() => {
+    buildPayloadRef.current = buildPayload;
+  });
 
-  // Debounced autosave — fire-and-forget draft PATCH. Failures are silent;
-  // the parent keeps editing and a later save (or final submit) recovers.
-  const scheduleSave = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const payload = buildPayload();
+  const sendDraft = useCallback(
+    (keepalive: boolean) => {
+      savePending.current = false;
       void fetch(`/api/enrollments/token/${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildPayloadRef.current()),
+        keepalive,
       }).catch(() => undefined);
+    },
+    [token],
+  );
+
+  // Debounced autosave: fire-and-forget draft PATCH. Failures are silent;
+  // the parent keeps editing and a later save (or final submit) recovers.
+  const scheduleSave = useCallback(() => {
+    savePending.current = true;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      sendDraft(false);
     }, 1200);
-  }, [buildPayload, token]);
+  }, [sendDraft]);
+
+  // A pending edit must not die with the tab (mobile browsers kill it freely).
+  useEffect(() => {
+    function flush() {
+      if (!savePending.current) return;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      sendDraft(true);
+    }
+    function onVisibility() {
+      if (document.visibilityState === "hidden") flush();
+    }
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush(); // unmount: don't leave a timer behind that reads a dead component
+    };
+  }, [sendDraft]);
+
+  // Berkas-step messages for the given keys, in the order given.
+  function documentErrors(keys: readonly DocumentKey[]): string[] {
+    return keys.map((k) => `${DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k} wajib diunggah.`);
+  }
 
   function validateStep(s: number): string[] {
     const e: string[] = [];
@@ -215,38 +347,92 @@ export default function PendaftaranClient({
       if (!student.agama) e.push("Agama wajib dipilih.");
       if (!student.kewarganegaraan) e.push("Kewarganegaraan wajib dipilih.");
     }
-    if (s === 1 && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
-    if (s === 2 && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
+    if (s === 1 && !isWaived(consent.onlyParent, "ayah") && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
+    if (s === 2 && !isWaived(consent.onlyParent, "ibu") && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
     if (s === 3 && !programId) e.push("Program wajib dipilih.");
-    if (s === 4) {
+    // Step 4 (Berkas): only the school-configured required list blocks; the
+    // rest stays optional.
+    if (s === 4) e.push(...documentErrors(missingUploads(documents, required)));
+    if (s === STEP_CONSENT) {
       if (!consent.agreed) e.push("Persetujuan orang tua wajib dicentang.");
-      if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
-      if (!consent.ayahSignatureToken) e.push("Tanda tangan ayah wajib disimpan.");
-      if (!consent.ibuName.trim()) e.push("Nama jelas ibu wajib diisi.");
-      if (!consent.ibuSignatureToken) e.push("Tanda tangan ibu wajib disimpan.");
+      if (!isWaived(consent.onlyParent, "ayah")) {
+        if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
+        if (!consent.ayahSigned) e.push("Tanda tangan ayah wajib disimpan.");
+      }
+      if (!isWaived(consent.onlyParent, "ibu")) {
+        if (!consent.ibuName.trim()) e.push("Nama jelas ibu wajib diisi.");
+        if (!consent.ibuSigned) e.push("Tanda tangan ibu wajib disimpan.");
+      }
     }
     return e;
   }
 
+  function contactIssuesFor(s: number): ContactIssue[] {
+    if (s === 1 && !isWaived(consent.onlyParent, "ayah")) return parentContactIssues("ayah", ayah);
+    if (s === 2 && !isWaived(consent.onlyParent, "ibu")) return parentContactIssues("ibu", ibu);
+    return [];
+  }
+
+  // While a step's required-field alert is showing, keep it honest: fixing (or
+  // uploading) something updates the list, and the Alert disappears once nothing
+  // is left. An effect, not an onChange callback, so it also covers the state
+  // change from a rejected submit. Issues that belong to other steps (a rejected
+  // submit) are left alone; they clear when their step is opened.
+  useEffect(() => {
+    if (step > STEP_CONSENT) return;
+    setErrors((prev) => {
+      if (!prev.some((i) => i.step === undefined)) return prev;
+      const next = [...plain(validateStep(step)), ...prev.filter((i) => i.step !== undefined)];
+      return sameIssues(prev, next) ? prev : next;
+    });
+    // validateStep/documentErrors read the state listed here and constants.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, student, ayah, ibu, programId, consent, documents, requiredKey]);
+
+  function focusField(key: ContactFieldKey) {
+    document.querySelector<HTMLElement>(`[data-field="${key}"]`)?.focus();
+  }
+
+  /** Open a step without validating the current one (stepper, "Buka langkah"). */
+  function go(i: number, flag: ContactFieldKey[] = []) {
+    // Drop the alert lines for the step being left and the one being opened;
+    // lines for other steps stay so the parent can still jump to them.
+    setErrors((prev) => prev.filter((x) => x.step !== undefined && x.step !== i));
+    setFlagged(flag);
+    setStep(i);
+    setReached((r) => Math.max(r, i));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function next() {
+    if (step === STEP_CONSENT && (sigSaving.ayah || sigSaving.ibu)) return;
     const e = validateStep(step);
-    if (e.length) {
-      setErrors(e);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    const contact = contactIssuesFor(step);
+    if (e.length || contact.length) {
+      setErrors(plain(e));
+      setFlagged(contact.map((c) => c.key));
+      if (contact.length) focusField(contact[0].key);
+      else window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setErrors([]);
+    setFlagged([]);
     scheduleSave();
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    const to = Math.min(step + 1, STEPS.length - 1);
+    setStep(to);
+    setReached((r) => Math.max(r, to));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function back() {
     setErrors([]);
+    setFlagged([]);
     setStep((s) => Math.max(s - 1, 0));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function uploadSignature(which: "ayah" | "ibu", blob: Blob) {
+    if (sigSaving[which]) return;
+    setSigSaving((v) => ({ ...v, [which]: true }));
     const fd = new FormData();
     fd.append("file", blob, `${which}-signature.png`);
     try {
@@ -258,19 +444,59 @@ export default function PendaftaranClient({
         setGlobalError("Gagal menyimpan tanda tangan. Mohon coba lagi.");
         return;
       }
-      const d = (await res.json()) as { signatureToken: string };
-      setConsent((c) => ({
-        ...c,
-        ...(which === "ayah" ? { ayahSignatureToken: d.signatureToken } : { ibuSignatureToken: d.signatureToken }),
-      }));
+      // The route persists the token on the row itself and answers `{ saved: true }`.
+      setConsent((c) => ({ ...c, ...(which === "ayah" ? { ayahSigned: true } : { ibuSigned: true }) }));
       setGlobalError(null);
     } catch {
       setGlobalError("Gagal menyimpan tanda tangan. Mohon coba lagi.");
+    } finally {
+      setSigSaving((v) => ({ ...v, [which]: false }));
     }
   }
 
+  /**
+   * Re-reads which signatures are on the row so a parent who signed from
+   * another device shows up without a reload.
+   */
+  async function refreshSignatures(): Promise<"changed" | "unchanged" | "error"> {
+    try {
+      const res = await fetch(`/api/enrollments/token/${token}/signature`);
+      if (!res.ok) return "error";
+      const d = (await res.json()) as { ayah?: boolean; ibu?: boolean; ayahName?: string; ibuName?: string };
+      const ayahSigned = d.ayah === true;
+      const ibuSigned = d.ibu === true;
+      // Fill a name the other parent typed elsewhere, but never overwrite what
+      // is already typed here.
+      const ayahName = !consent.ayahName && typeof d.ayahName === "string" ? d.ayahName : "";
+      const ibuName = !consent.ibuName && typeof d.ibuName === "string" ? d.ibuName : "";
+      const changed =
+        ayahSigned !== consent.ayahSigned || ibuSigned !== consent.ibuSigned || !!ayahName || !!ibuName;
+      if (changed) {
+        setConsent((c) => ({
+          ...c,
+          ayahSigned,
+          ibuSigned,
+          ayahName: c.ayahName || ayahName,
+          ibuName: c.ibuName || ibuName,
+        }));
+      }
+      return changed ? "changed" : "unchanged";
+    } catch {
+      return "error";
+    }
+  }
+
+  const uploadsInFlight = Object.keys(docs.busy).length;
+  const signatureSavingNow = sigSaving.ayah || sigSaving.ibu;
+
   async function submit() {
-    const all = [0, 1, 2, 3, 4].flatMap(validateStep);
+    if (uploadsInFlight > 0 || signatureSavingNow) return; // late writes after submit would 409
+    // A parent can reach Tinjau by tapping the stepper without ever pressing
+    // Lanjut on a step, so name the step and offer a way back to it.
+    const all: FormIssue[] = [0, 1, 2, 3, 4, 5].flatMap((s) => [
+      ...validateStep(s).map((text) => ({ text: `${stepLabel(s)} — ${text}`, step: s })),
+      ...contactIssuesFor(s).map((c) => ({ text: `${stepLabel(s)} — ${c.message}`, step: s, field: c.key })),
+    ]);
     if (all.length) {
       setErrors(all);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -278,6 +504,9 @@ export default function PendaftaranClient({
     }
     setSubmitting(true);
     setGlobalError(null);
+    // A late draft PATCH after submit would only 409; don't send it.
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    savePending.current = false;
     try {
       const res = await fetch(`/api/enrollments/token/${token}/submit`, {
         method: "POST",
@@ -289,9 +518,27 @@ export default function PendaftaranClient({
         return;
       }
       if (res.status === 422) {
-        const d = (await res.json()) as { fields?: Record<string, string> };
-        setErrors(Object.values(d.fields ?? { _: "Mohon periksa kembali isian formulir." }));
+        const d = (await res.json()) as { fields?: Record<string, string>; missingDocuments?: unknown };
+        // The server's view of the files wins over this tab's: reset those
+        // rows and send the parent to Berkas, where they can fix it.
+        const gone = Array.isArray(d.missingDocuments) ? d.missingDocuments.filter(isDocumentKey) : [];
+        if (gone.length > 0) {
+          docs.markMissing(gone);
+          setServerRequired((prev) => [...new Set([...prev, ...gone])]);
+          setErrors(plain(documentErrors(gone)));
+          setStep(4);
+          setReached((r) => Math.max(r, 4));
+        } else {
+          // Name the step ("Langkah 2 · Data Ayah — …") and keep a way back to it.
+          const entries = Object.entries(d.fields ?? {});
+          const issues: FormIssue[] = entries.map(([path, message]) => {
+            const x = describeServerIssue(path, message);
+            return x.step === null ? { text: x.text } : { text: x.text, step: x.step, field: x.field };
+          });
+          setErrors(issues.length ? issues : plain(["Mohon periksa kembali isian formulir."]));
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
+        scheduleSave(); // submit failed: the latest edits must still reach the draft
         return;
       }
       if (res.status === 409) {
@@ -299,14 +546,17 @@ export default function PendaftaranClient({
         return;
       }
       setGlobalError("Gagal mengirim formulir. Mohon coba lagi.");
+      scheduleSave();
     } catch {
       setGlobalError("Gagal mengirim formulir. Periksa koneksi lalu coba lagi.");
+      scheduleSave();
     } finally {
       setSubmitting(false);
     }
   }
 
   if (done) {
+    const missing = withoutWaivedParentDocs(missingRequiredDocuments(documents), consent.onlyParent);
     return (
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
         <CheckCircle2 className="mx-auto mb-3 text-emerald-600" size={44} />
@@ -315,20 +565,35 @@ export default function PendaftaranClient({
           Formulir pendaftaran ananda <strong>{student.childName}</strong> sudah kami terima. Tim
           penerimaan An Nisaa&apos; Sekolahku akan menghubungi Bapak/Ibu untuk proses selanjutnya.
         </p>
+        <BringList keys={missing} />
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <Stepper step={step} />
+      <Stepper step={step} reached={reached} onGo={(i) => go(i)} />
 
       {errors.length > 0 && (
         <Alert variant="destructive">
           <AlertDescription>
             <ul className="list-disc pl-4">
               {errors.map((e, i) => (
-                <li key={i}>{e}</li>
+                <li key={i}>
+                  {e.text}
+                  {e.step !== undefined && e.step !== step && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center font-medium underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                        onClick={() => go(e.step as number, e.field ? [e.field] : [])}
+                      >
+                        Buka langkah {e.step + 1}
+                      </button>
+                    </>
+                  )}
+                </li>
               ))}
             </ul>
           </AlertDescription>
@@ -343,10 +608,16 @@ export default function PendaftaranClient({
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
-          <ParentStep title="Data Ayah" value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }} />
+          <ParentStep
+            title="Data Ayah" side="ayah" flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }}
+            onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
+          />
         )}
         {step === 2 && (
-          <ParentStep title="Data Ibu" value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }} />
+          <ParentStep
+            title="Data Ibu" side="ibu" flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }}
+            onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
+          />
         )}
         {step === 3 && (
           <ProgramStep
@@ -358,69 +629,160 @@ export default function PendaftaranClient({
           />
         )}
         {step === 4 && (
+          <DocumentsStep
+            documents={docs.documents}
+            required={required}
+            busy={docs.busy}
+            errors={docs.errors}
+            onUpload={docs.upload}
+            onRemove={docs.remove}
+          />
+        )}
+        {step === STEP_CONSENT && (
           <ConsentStep
             value={consent}
             onChange={(v) => { setConsent(v); scheduleSave(); }}
             onUpload={uploadSignature}
+            saving={sigSaving}
+            onRefresh={refreshSignatures}
           />
         )}
-        {step === 5 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} />}
+        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} />}
       </div>
 
       <div className="flex items-center justify-between">
-        <Button type="button" variant="outline" onClick={back} disabled={step === 0 || submitting}>
+        <Button type="button" variant="outline" className={BTN_CLASS} onClick={back} disabled={step === 0 || submitting}>
           Kembali
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next}>
-            Lanjut
+          <Button
+            type="button"
+            onClick={next}
+            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
+            aria-disabled={step === STEP_CONSENT && signatureSavingNow}
+            aria-busy={step === STEP_CONSENT && signatureSavingNow}
+          >
+            {step === STEP_CONSENT && signatureSavingNow ? "Menyimpan tanda tangan…" : "Lanjut"}
           </Button>
         ) : (
-          <Button type="button" onClick={submit} disabled={submitting}>
-            {submitting ? "Mengirim…" : "Kirim Formulir"}
+          <Button
+            type="button"
+            onClick={() => {
+              if (!submitting && uploadsInFlight === 0 && !signatureSavingNow) void submit();
+            }}
+            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
+            aria-disabled={submitting || uploadsInFlight > 0 || signatureSavingNow}
+            aria-busy={submitting || uploadsInFlight > 0 || signatureSavingNow}
+          >
+            {submitting
+              ? "Mengirim…"
+              : uploadsInFlight > 0
+                ? "Menunggu unggahan selesai…"
+                : signatureSavingNow
+                  ? "Menyimpan tanda tangan…"
+                  : "Kirim Formulir"}
           </Button>
         )}
       </div>
+      <p className="text-center text-xs text-emerald-900/70">
+        Data ananda kami jaga sesuai{" "}
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+          Kebijakan Privasi
+        </a>{" "}
+        dan{" "}
+        <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+          Syarat &amp; Ketentuan
+        </a>{" "}
+        (terbuka di tab baru).
+      </p>
     </div>
   );
 }
 
-function Stepper({ step }: { step: number }) {
+function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo: (i: number) => void }) {
   return (
-    <ol className="flex flex-wrap gap-2 text-xs">
-      {STEPS.map((label, i) => (
-        <li
-          key={label}
-          className={
-            "rounded-full px-3 py-1 " +
-            (i === step
-              ? "bg-[#0C5C3F] text-white"
-              : i < step
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-emerald-50 text-emerald-900/50")
-          }
-        >
-          {i + 1}. {label}
-        </li>
-      ))}
+    <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
+      {STEPS.map((label, i) => {
+        const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
+        const text = `${i + 1}. ${label}`;
+        if (i === step) {
+          return (
+            <li key={label} aria-current="step">
+              <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
+            </li>
+          );
+        }
+        if (i <= reached) {
+          // Already-visited steps are real buttons: bordered, darker text, focus ring.
+          return (
+            <li key={label}>
+              <button
+                type="button"
+                onClick={() => onGo(i)}
+                className={
+                  base +
+                  "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
+                }
+              >
+                {text}
+              </button>
+            </li>
+          );
+        }
+        return (
+          <li key={label}>
+            <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
 function TextField({
-  label, value, onChange, type = "text", placeholder, description, required,
+  label, value, onChange, type = "text", placeholder, description, required, error, fieldKey,
 }: {
   label: string; value: string; onChange: (v: string) => void; type?: string;
   placeholder?: string; description?: string; required?: boolean;
+  /** Format error to show under the input. */
+  error?: string | null;
+  /** `data-field` hook so the form can focus this input. */
+  fieldKey?: string;
 }) {
+  const id = useId();
+  const descId = `${id}-desc`;
+  const errId = `${id}-err`;
+  const describedBy = [description ? descId : null, error ? errId : null].filter(Boolean).join(" ") || undefined;
+  return (
+    <Field data-invalid={error ? true : undefined}>
+      <FieldLabel htmlFor={id}>
+        {label}
+        {required && <span className="text-destructive" aria-hidden> *</span>}
+      </FieldLabel>
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        className={INPUT_CLASS}
+        aria-required={required || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        data-field={fieldKey}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {description && <FieldDescription id={descId}>{description}</FieldDescription>}
+      {error && <FieldError id={errId}>{error}</FieldError>}
+    </Field>
+  );
+}
+
+function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId();
   return (
     <Field>
-      <FieldLabel>
-        {label}
-        {required && <span className="text-destructive"> *</span>}
-      </FieldLabel>
-      <Input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-      {description && <FieldDescription>{description}</FieldDescription>}
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Textarea id={id} className={AREA_CLASS} value={value} onChange={(e) => onChange(e.target.value)} rows={2} />
     </Field>
   );
 }
@@ -430,13 +792,21 @@ function SelectField({
 }: {
   label: string; value: string; onChange: (v: string) => void; options: Option[]; required?: boolean; placeholder?: string;
 }) {
+  const id = useId();
   return (
     <Field>
-      <FieldLabel>
+      <FieldLabel htmlFor={id}>
         {label}
-        {required && <span className="text-destructive"> *</span>}
+        {required && <span className="text-destructive" aria-hidden> *</span>}
       </FieldLabel>
-      <NativeSelect className="w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect
+        id={id}
+        className="w-full"
+        selectClassName={SELECT_CLASS}
+        aria-required={required || undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         <NativeSelectOption value="">{placeholder}</NativeSelectOption>
         {options.map((o) => (
           <NativeSelectOption key={o.value} value={o.value}>
@@ -511,19 +881,13 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
         <TextField label="Lingkar kepala (cm)" type="number" value={value.headCircumferenceCm} onChange={(v) => set("headCircumferenceCm", v)} />
         <SelectField label="Golongan darah" value={value.bloodType} onChange={(v) => set("bloodType", v)} options={BLOOD_TYPE_OPTIONS} />
       </div>
-      <Field>
-        <FieldLabel>Alergi makanan</FieldLabel>
-        <Textarea value={value.foodAllergy} onChange={(e) => set("foodAllergy", e.target.value)} rows={2} />
-      </Field>
-      <Field>
-        <FieldLabel>Penyakit berat yang pernah diderita</FieldLabel>
-        <Textarea value={value.seriousIllness} onChange={(e) => set("seriousIllness", e.target.value)} rows={2} />
-      </Field>
+      <TextAreaField label="Alergi makanan" value={value.foodAllergy} onChange={(v) => set("foodAllergy", v)} />
+      <TextAreaField label="Penyakit berat yang pernah diderita" value={value.seriousIllness} onChange={(v) => set("seriousIllness", v)} />
 
       <Separator />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-emerald-900">Keluarga yang pernah bersekolah di An Nisaa&apos;</h3>
-        <Button type="button" variant="outline" size="sm" onClick={addFamily} disabled={value.priorFamilyAttendees.length >= MAX_PRIOR_FAMILY_ATTENDEES}>
+        <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base" onClick={addFamily} disabled={value.priorFamilyAttendees.length >= MAX_PRIOR_FAMILY_ATTENDEES}>
           Tambah
         </Button>
       </div>
@@ -537,18 +901,74 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
   );
 }
 
-function ParentStep({ title, value, onChange }: { title: string; value: ParentState; onChange: (v: ParentState) => void }) {
+/**
+ * R2-P-10: lets a single-parent / wali-only family finish the form. Ticking it on
+ * one parent's step waives that parent (name, contact checks, consent name and
+ * signature); the other step then shows a note with a way to undo it.
+ */
+function SingleParentToggle({
+  side, onlyParent, onChange,
+}: {
+  side: ParentSide; onlyParent: OnlyParent; onChange: (v: OnlyParent) => void;
+}) {
+  const other: ParentSide = side === "ayah" ? "ibu" : "ayah";
+  if (onlyParent === side) {
+    return (
+      <div className="space-y-1 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-3 text-sm text-emerald-950">
+        <p>
+          Hanya satu orang tua / wali yang mengisi, jadi data {other} dilewati.
+        </p>
+        <Button type="button" variant="link" className="h-11 px-0 text-base" onClick={() => onChange("")}>
+          Isi data {other} juga
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+      <Checkbox
+        className="mt-0.5 size-5"
+        checked={onlyParent === other}
+        onCheckedChange={(c) => onChange(c === true ? other : "")}
+      />
+      <span className="text-sm text-emerald-950">
+        <span className="font-medium">Hanya satu orang tua / wali yang mengisi</span>
+        <span className="mt-0.5 block text-emerald-900/70">
+          Centang bila tidak ada data {side}, misalnya orang tua tunggal. Bila wali yang mengisi, isi data wali
+          di langkah Data {other === "ayah" ? "Ayah" : "Ibu"}.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function ParentStep({
+  title, side, flagged, value, onChange, onlyParent, onOnlyParent,
+}: {
+  title: string; side: ParentSide; flagged: ContactFieldKey[]; value: ParentState; onChange: (v: ParentState) => void;
+  onlyParent: OnlyParent; onOnlyParent: (v: OnlyParent) => void;
+}) {
   const set = <K extends keyof ParentState>(k: K, v: ParentState[K]) => onChange({ ...value, [k]: v });
+  // Only inputs the parent has already been told about show a message, and it
+  // follows the current value, so correcting the field clears it immediately.
+  const issues = parentContactIssues(side, value);
+  const err = (k: "phone" | "email" | "employerPhone") => {
+    const key: ContactFieldKey = `${side}.${k}`;
+    return flagged.includes(key) ? (issues.find((i) => i.key === key)?.message ?? null) : null;
+  };
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">{title}</h2>
+      <SingleParentToggle side={side} onlyParent={onlyParent} onChange={onOnlyParent} />
+      {!isWaived(onlyParent, side) && (
+        <>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama" value={value.name} onChange={(v) => set("name", v)} required />
         <TextField label="Tempat lahir" value={value.birthPlace} onChange={(v) => set("birthPlace", v)} />
         <TextField label="Tanggal lahir" type="date" value={value.dateOfBirth} onChange={(v) => set("dateOfBirth", v)} />
         <SelectField label="Agama" value={value.agama} onChange={(v) => set("agama", v)} options={AGAMA_OPTIONS} />
-        <TextField label="No. HP" type="tel" value={value.phone} onChange={(v) => set("phone", v)} />
-        <TextField label="Email" type="email" value={value.email} onChange={(v) => set("email", v)} />
+        <TextField label="No. HP" type="tel" value={value.phone} onChange={(v) => set("phone", v)} error={err("phone")} fieldKey={`${side}.phone`} />
+        <TextField label="Email" type="email" value={value.email} onChange={(v) => set("email", v)} error={err("email")} fieldKey={`${side}.email`} />
         <SelectField label="Pendidikan terakhir" value={value.education} onChange={(v) => set("education", v)} options={EDUCATION_OPTIONS} />
         <SelectField label="Pekerjaan" value={value.occupation} onChange={(v) => set("occupation", v)} options={OCCUPATION_OPTIONS} />
         <SelectField label="Penghasilan" value={value.income} onChange={(v) => set("income", v)} options={INCOME_OPTIONS} />
@@ -560,12 +980,11 @@ function ParentStep({ title, value, onChange }: { title: string; value: ParentSt
       <h3 className="text-sm font-semibold text-emerald-900">Pekerjaan</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama kantor" value={value.employerName} onChange={(v) => set("employerName", v)} />
-        <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} />
+        <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} error={err("employerPhone")} fieldKey={`${side}.employerPhone`} />
       </div>
-      <Field>
-        <FieldLabel>Alamat kantor</FieldLabel>
-        <Textarea value={value.employerAddress} onChange={(e) => set("employerAddress", e.target.value)} rows={2} />
-      </Field>
+      <TextAreaField label="Alamat kantor" value={value.employerAddress} onChange={(v) => set("employerAddress", v)} />
+        </>
+      )}
     </div>
   );
 }
@@ -575,14 +994,23 @@ function ProgramStep({
 }: {
   programs: Program[]; programId: string; dcareAddon: boolean; onProgram: (v: string) => void; onDcare: (v: boolean) => void;
 }) {
+  const programSelectId = useId();
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">Pilihan Program</h2>
       <Field>
-        <FieldLabel>
-          Program <span className="text-destructive">*</span>
+        <FieldLabel htmlFor={programSelectId}>
+          Program <span className="text-destructive" aria-hidden>*</span>
         </FieldLabel>
-        <NativeSelect className="w-full" value={programId} onChange={(e) => onProgram(e.target.value)}>
+        <NativeSelect
+          id={programSelectId}
+          className="w-full"
+          selectClassName={SELECT_CLASS}
+          aria-required
+          aria-describedby={programs.length === 0 ? `${programSelectId}-err` : undefined}
+          value={programId}
+          onChange={(e) => onProgram(e.target.value)}
+        >
           <NativeSelectOption value="">Pilih program…</NativeSelectOption>
           {programs.map((p) => (
             <NativeSelectOption key={p.id} value={p.id}>
@@ -590,10 +1018,10 @@ function ProgramStep({
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        {programs.length === 0 && <FieldError>Belum ada program tersedia. Mohon hubungi sekolah.</FieldError>}
+        {programs.length === 0 && <FieldError id={`${programSelectId}-err`}>Belum ada program tersedia. Mohon hubungi sekolah.</FieldError>}
       </Field>
-      <label className="flex items-center gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
-        <Checkbox checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
+      <label className="flex min-h-11 items-center gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+        <Checkbox className="size-5" checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
         <span className="text-sm text-emerald-950">Tambahan Dcare (penitipan)</span>
       </label>
     </div>
@@ -601,11 +1029,13 @@ function ProgramStep({
 }
 
 function ConsentStep({
-  value, onChange, onUpload,
+  value, onChange, onUpload, onRefresh, saving,
 }: {
   value: ConsentState;
   onChange: (v: ConsentState) => void;
   onUpload: (which: "ayah" | "ibu", blob: Blob) => void;
+  saving: { ayah: boolean; ibu: boolean };
+  onRefresh: () => Promise<"changed" | "unchanged" | "error">;
 }) {
   const set =<K extends keyof ConsentState>(k: K, v: ConsentState[K]) => onChange({ ...value, [k]: v });
   return (
@@ -617,28 +1047,141 @@ function ConsentStep({
           <li key={i}>{c}</li>
         ))}
       </ol>
-      <p className="text-sm font-medium text-emerald-950">{CONSENT_CLOSING}</p>
 
-      <label className="flex items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
-        <Checkbox checked={value.agreed} onCheckedChange={(c) => set("agreed", c === true)} className="mt-0.5" />
+      {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}
+      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+        <Checkbox checked={value.agreed} onCheckedChange={(c) => set("agreed", c === true)} className="mt-0.5 size-5" />
         <span className="text-sm text-emerald-950">
           Kami sudah membaca, memahami, dan menyetujui seluruh isi surat persetujuan ini.
         </span>
       </label>
 
       <Separator />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
-          <SignaturePad label="Tanda tangan Ayah" saved={!!value.ayahSignatureToken} onSave={(b) => onUpload("ayah", b)} />
-        </div>
-        <div className="space-y-2">
-          <TextField label="Nama jelas Ibu" value={value.ibuName} onChange={(v) => set("ibuName", v)} required />
-          <SignaturePad label="Tanda tangan Ibu" saved={!!value.ibuSignatureToken} onSave={(b) => onUpload("ibu", b)} />
-        </div>
+      {/* Above the pads so it is on screen right after the first parent saves. */}
+      {/* Nobody to hand over to when only one parent / wali signs. */}
+      <HandoverNote ayahSigned={value.ayahSigned} ibuSigned={value.ibuSigned} onRefresh={onRefresh} single={value.onlyParent !== ""} />
+      <div className={value.onlyParent ? "grid gap-5" : "grid gap-5 sm:grid-cols-2"}>
+        {!isWaived(value.onlyParent, "ayah") && (
+          <div className="space-y-2">
+            <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
+            <SignaturePad label="Tanda tangan Ayah" saved={value.ayahSigned} saving={saving.ayah} onSave={(b) => onUpload("ayah", b)} />
+          </div>
+        )}
+        {!isWaived(value.onlyParent, "ibu") && (
+          <div className="space-y-2">
+            <TextField label="Nama jelas Ibu" value={value.ibuName} onChange={(v) => set("ibuName", v)} required />
+            <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} saving={saving.ibu} onSave={(b) => onUpload("ibu", b)} />
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * Shown when exactly one parent has signed: the other can open the same link
+ * on their own device. Signatures persist on the server the moment they are
+ * saved, so nothing the first parent did is lost.
+ */
+function HandoverNote({
+  ayahSigned, ibuSigned, onRefresh, single = false,
+}: {
+  ayahSigned: boolean; ibuSigned: boolean; onRefresh: () => Promise<"changed" | "unchanged" | "error">;
+  /** One parent / wali signs alone: there is no other parent to wait for. */
+  single?: boolean;
+}) {
+  const [status, setStatus] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const urlRef = useRef<HTMLInputElement>(null);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (fallbackUrl) urlRef.current?.select();
+  }, [fallbackUrl]);
+
+  const exactlyOne = !single && ayahSigned !== ibuSigned;
+  const missing = ayahSigned ? "Ibu" : "Ayah";
+
+  async function copy() {
+    const href = window.location.href;
+    try {
+      await navigator.clipboard.writeText(href);
+      setFallbackUrl(null);
+      setStatus("Link disalin.");
+    } catch {
+      setFallbackUrl(href);
+      setStatus("Salin link dari kolom di bawah.");
+    }
+  }
+
+  async function check() {
+    if (checking) return;
+    setChecking(true);
+    setStatus("");
+    const r = await onRefresh();
+    setChecking(false);
+    // The note (and this button) may unmount once the signature is found.
+    // Park focus on the status line, which stays mounted, before that happens.
+    if (r === "changed") statusRef.current?.focus();
+    setStatus(
+      r === "changed"
+        ? "Tanda tangan terbaru sudah dimuat."
+        : r === "unchanged"
+          ? "Belum ada tanda tangan baru."
+          : "Gagal memeriksa. Periksa koneksi lalu coba lagi.",
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {exactlyOne && (
+        <Alert role="region" aria-label="Tanda tangan yang belum ada">
+          <AlertTitle>Tanda tangan {missing} belum ada</AlertTitle>
+          <AlertDescription>
+            <p>
+              Jika {missing} berada di tempat lain, bagikan link formulir ini. Data yang sudah diisi
+              tersimpan otomatis, dan tanda tangan {ayahSigned ? "Ayah" : "Ibu"} tidak akan hilang.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base" onClick={copy}>
+                <Copy size={14} aria-hidden /> Salin link
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base aria-disabled:pointer-events-none aria-disabled:opacity-50" onClick={check} aria-disabled={checking} aria-busy={checking}>
+                <RefreshCw size={14} aria-hidden className={checking ? "animate-spin" : undefined} />{" "}
+                {checking ? "Memeriksa…" : "Periksa lagi"}
+              </Button>
+            </div>
+            {fallbackUrl && (
+              <Input
+                ref={urlRef}
+                readOnly
+                aria-label="Link formulir"
+                value={fallbackUrl}
+                className={INPUT_CLASS + " mt-3"}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+      {/* Stable live region so repeated results are announced. */}
+      <p
+        ref={statusRef}
+        tabIndex={-1}
+        role="status"
+        aria-live="polite"
+        className={status ? "text-sm text-emerald-900/80 outline-none" : "sr-only"}
+      >
+        {status}
+      </p>
+    </div>
+  );
+}
+
+/** The date input yields `YYYY-MM-DD`; the review step reads it as "15 Mar 2022". */
+function reviewDate(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDateShort(value) : value;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -652,12 +1195,16 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewStep({
-  student, ayah, ibu, programs, programId, dcareAddon, consent,
+  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading, signatureSaving,
 }: {
   student: StudentState; ayah: ParentState; ibu: ParentState; programs: Program[];
-  programId: string; dcareAddon: boolean; consent: ConsentState;
+  programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number; signatureSaving: boolean;
 }) {
   const programName = programs.find((p) => p.id === programId)?.name ?? "—";
+  const uploaded = Object.keys(documents).length;
+  const missing = missingRequiredDocuments(documents).map(
+    (k) => DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k,
+  );
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">Tinjau &amp; Kirim</h2>
@@ -669,12 +1216,13 @@ function ReviewStep({
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Data Anak</h3>
         <Row label="Nama lengkap" value={student.childName} />
         <Row label="Jenis kelamin" value={student.childGender === "L" ? "Laki-laki" : student.childGender === "P" ? "Perempuan" : ""} />
-        <Row label="Tempat, tanggal lahir" value={[student.birthPlace, student.dateOfBirth].filter(Boolean).join(", ")} />
+        <Row label="Tempat, tanggal lahir" value={[student.birthPlace, reviewDate(student.dateOfBirth)].filter(Boolean).join(", ")} />
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Orang Tua</h3>
-        <Row label="Ayah" value={ayah.name} />
-        <Row label="Ibu" value={ibu.name} />
+        {!isWaived(consent.onlyParent, "ayah") && <Row label="Ayah" value={ayah.name} />}
+        {!isWaived(consent.onlyParent, "ibu") && <Row label="Ibu" value={ibu.name} />}
+        {consent.onlyParent && <Row label="Pengisi" value="Satu orang tua / wali" />}
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Program</h3>
@@ -682,10 +1230,34 @@ function ReviewStep({
         <Row label="Dcare" value={dcareAddon ? "Ya" : ""} />
       </section>
       <section>
+        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Berkas</h3>
+        <Row label="Berkas terunggah" value={String(uploaded)} />
+        {uploading > 0 && (
+          <>
+            <Row label="Sedang diunggah" value={String(uploading)} />
+            <p role="status" className="py-1 text-sm text-emerald-900/80">
+              Masih ada berkas yang sedang diunggah. Mohon tunggu sebentar.
+            </p>
+          </>
+        )}
+        {missing.length > 0 ? (
+          <p className="py-1 text-sm text-emerald-900/80">
+            Belum diunggah — mohon dibawa ke sekolah: {missing.join(", ")}
+          </p>
+        ) : (
+          <p className="py-1 text-sm text-emerald-900/80">Semua berkas wajib sudah diunggah.</p>
+        )}
+      </section>
+      <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Persetujuan</h3>
         <Row label="Disetujui" value={consent.agreed ? "Ya" : "Belum"} />
-        <Row label="Tanda tangan Ayah" value={consent.ayahSignatureToken ? "Tersimpan" : "Belum"} />
-        <Row label="Tanda tangan Ibu" value={consent.ibuSignatureToken ? "Tersimpan" : "Belum"} />
+        {!isWaived(consent.onlyParent, "ayah") && <Row label="Tanda tangan Ayah" value={consent.ayahSigned ? "Tersimpan" : "Belum"} />}
+        {!isWaived(consent.onlyParent, "ibu") && <Row label="Tanda tangan Ibu" value={consent.ibuSigned ? "Tersimpan" : "Belum"} />}
+        {signatureSaving && (
+          <p role="status" className="py-1 text-sm text-emerald-900/80">
+            Tanda tangan sedang disimpan. Mohon tunggu sebentar.
+          </p>
+        )}
       </section>
     </div>
   );

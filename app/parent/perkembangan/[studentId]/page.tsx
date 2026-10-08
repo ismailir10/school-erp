@@ -18,7 +18,8 @@ import {
   formatCurriculumElement,
 } from "@/lib/format";
 import { ElementProgressRow } from "@/components/parent/element-progress-row";
-import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
+import { LevelLegend } from "@/components/parent/level-legend";
+import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { ContextStrip } from "@/components/portal/context-strip";
 import { parentHref } from "@/lib/parent/navigation";
 
@@ -42,7 +43,7 @@ export default async function ParentPerkembanganDetailPage({
     <div className="space-y-5">
       <Link
         href={linkedChildren.length > 1 ? "/parent/perkembangan" : parentHref("/parent", studentId)}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground"
+        className="inline-flex min-h-11 min-w-11 items-center gap-1 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronLeft className="size-4" /> {linkedChildren.length > 1 ? "Pilih anak" : "Beranda"}
       </Link>
@@ -87,6 +88,7 @@ export default async function ParentPerkembanganDetailPage({
               Ini tahapan perkembangan, bukan nilai. Setiap anak berkembang di
               waktunya masing-masing.
             </p>
+            <LevelLegend />
             <ul className="space-y-2" data-testid="perkembangan-elements">
               {data.elements.map((row) => (
                 <ElementProgressRow
@@ -147,9 +149,9 @@ export default async function ParentPerkembanganDetailPage({
                         )}
                       </div>
                       <span
-                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
+                        className={`max-w-[45%] shrink-0 rounded-md px-2 py-0.5 text-right text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
                       >
-                        {LEVEL_LABEL_SHORT[entry.level] ?? entry.level}
+                        {LEVEL_LABEL_LONG[entry.level] ?? entry.level}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">

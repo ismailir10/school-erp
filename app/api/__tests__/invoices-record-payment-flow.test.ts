@@ -83,6 +83,63 @@ describe("POST /api/invoices/[id]/payments — transaction", () => {
     expect(audit).toMatchObject({ entity: "Payment", entityId: "pay-9", action: "record", actorId: "u-admin" });
   });
 
+  describe("FINX-9: Tanggal bayar", () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+    const daysAgo = (n: number) => {
+      const d = new Date(`${today}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    const settles = () =>
+      tx.payment.findMany.mockResolvedValue([
+        { amount: new Prisma.Decimal(400_000) },
+        { amount: new Prisma.Decimal(600_000) },
+      ]);
+
+    it("a back-dated payment is stored at 00:00 Asia/Jakarta of the chosen day", async () => {
+      tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+      const day = daysAgo(3);
+      const res = await POST(req({ amount: 100_000, method: "CASH", paidAt: day }), ctx);
+      expect(res.status).toBe(201);
+      const paidAt = tx.payment.create.mock.calls[0][0].data.paidAt as Date;
+      expect(paidAt.toISOString()).toBe(new Date(`${day}T00:00:00+07:00`).toISOString());
+    });
+
+    it("today's date (or none) keeps the default now — no paidAt is passed to create", async () => {
+      tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+      await POST(req({ amount: 100_000, method: "CASH", paidAt: today }), ctx);
+      await POST(req({ amount: 100_000, method: "CASH" }), ctx);
+      expect(tx.payment.create.mock.calls[0][0].data).not.toHaveProperty("paidAt");
+      expect(tx.payment.create.mock.calls[1][0].data).not.toHaveProperty("paidAt");
+    });
+
+    it("a back-dated payment that settles the invoice also dates its 'lunas' to that day", async () => {
+      settles();
+      const day = daysAgo(2);
+      await POST(req({ amount: 600_000, method: "CASH", paidAt: day }), ctx);
+      const updates = tx.invoice.update.mock.calls.map((c) => c[0]);
+      expect(updates.at(-1)).toEqual({
+        where: { id: "inv-1" },
+        data: { paidAt: new Date(`${day}T00:00:00+07:00`) },
+      });
+    });
+
+    it("a back-dated partial payment leaves the invoice paidAt alone", async () => {
+      tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+      await POST(req({ amount: 100_000, method: "CASH", paidAt: daysAgo(2) }), ctx);
+      expect(tx.invoice.update).toHaveBeenCalledTimes(1); // only the recompute
+    });
+
+    it("a future date is a 400 with the Indonesian message and writes nothing", async () => {
+      const d = new Date(`${today}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      const res = await POST(req({ amount: 100_000, method: "CASH", paidAt: d.toISOString().slice(0, 10) }), ctx);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(await res.json())).toContain("Tanggal bayar tidak boleh di masa depan.");
+      expect(db.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
   it("overpayment: 400 with Rupiah-formatted amounts, attached to the Jumlah field", async () => {
     const res = await POST(req({ amount: 700_000, method: "CASH" }), ctx);
     expect(res.status).toBe(400);

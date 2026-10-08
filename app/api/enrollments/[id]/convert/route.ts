@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { recordAudit } from "@/lib/audit";
+import { invalidateParentChildren } from "@/lib/parent-helpers";
 import { detectSibling } from "@/lib/admission/sibling-detect";
+import { copyEnrollmentDocsToGuardians } from "@/lib/enrollment/guardian-copy";
 import {
   AGAMA_OPTIONS, KEWARGANEGARAAN_OPTIONS, LIVING_WITH_OPTIONS, BIRTH_DELIVERY_OPTIONS,
   BIRTH_TERM_OPTIONS, BLOOD_TYPE_OPTIONS, EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS,
   type Option,
 } from "@/lib/enrollment/constants";
+
+// Admission statuses that still sit before ADMITTED in the pipeline.
+const ADMISSION_PRE_ADMIT = new Set(["INQUIRY", "VISIT_SCHEDULED", "VISITED"]);
+
+const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
+
+// Thrown inside the transaction to abort it with a specific HTTP response.
+class ConvertError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 type Json = Record<string, unknown>;
 const j = (v: unknown): Json => (v && typeof v === "object" ? (v as Json) : {});
@@ -59,7 +75,7 @@ function parentFrom(block: unknown): ParentInput | null {
  * POST /api/enrollments/[id]/convert — promote an ACCEPTED application into a
  * Student + Ayah Parent + Ibu Parent + StudentGuardian links (AYAH primary).
  * Mirrors app/api/admissions/[id]/convert: admin-gated, tenant-scoped,
- * idempotent (already-converted → 400), ACCEPTED-only. Rich bio/health fields
+ * single-winner (already-converted → 409), ACCEPTED-only. Rich bio/health fields
  * with no first-class Student column are stashed in Student.metadata JSON.
  *
  * Parent reuse: a block with an email upserts by (tenantId,email) — merging
@@ -82,7 +98,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (app.studentId) {
-    return NextResponse.json({ error: "Pendaftaran ini sudah dikonversi menjadi siswa" }, { status: 400 });
+    return NextResponse.json({ error: ALREADY_CONVERTED }, { status: 409 });
   }
   if (app.status !== "ACCEPTED") {
     return NextResponse.json(
@@ -125,7 +141,24 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   // Resolve each parent to an existing or new Parent row OUTSIDE the tx is
   // unsafe (sibling-detect reads + tx writes); do it all inside the tx.
-  const { student } = await prisma.$transaction(async (tx) => {
+  //
+  // STR-1: the studentId/status reads above are outside the transaction, so N
+  // parallel converts all pass them. The tx therefore opens by row-locking the
+  // application (FOR UPDATE) and re-reading studentId/status: concurrent
+  // converts queue on the lock, and each loser — which sees the winner's
+  // committed studentId — aborts with 409 before creating any Student/Parent.
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const locked = await tx.$queryRaw<Array<{ studentId: string | null; status: string }>>`
+      SELECT "studentId", "status" FROM "EnrollmentApplication"
+      WHERE "id" = ${id} AND "tenantId" = ${tenantId}
+      FOR UPDATE
+    `;
+    if (locked.length === 0) throw new ConvertError("Not found", 404);
+    if (locked[0].studentId) throw new ConvertError(ALREADY_CONVERTED, 409);
+    if (locked[0].status !== "ACCEPTED") {
+      throw new ConvertError("Hanya formulir dengan status Diterima yang bisa dikonversi", 400);
+    }
+
     async function resolveParent(p: ParentInput) {
       if (p.email) {
         return tx.parent.upsert({
@@ -173,12 +206,69 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     await tx.enrollmentApplication.update({ where: { id }, data: { studentId: student.id } });
     // Link the originating inquiry too so it reads as converted (only if free).
-    if (app.admission && !app.admission.studentId) {
-      await tx.admission.update({ where: { id: app.admission.id }, data: { studentId: student.id } });
+    // Lock + re-read: the admission's own convert route may have linked it
+    // since the pre-tx read, and an unconditional update would overwrite that.
+    if (app.admission) {
+      const adm = await tx.$queryRaw<Array<{ studentId: string | null; status: string }>>`
+        SELECT "studentId", "status" FROM "Admission" WHERE "id" = ${app.admission.id} FOR UPDATE
+      `;
+      if (adm.length > 0 && !adm[0].studentId) {
+        // ADM-6: an accepted application means the family is admitted — move
+        // an early-pipeline inquiry to ADMITTED so the funnel doesn't leave a
+        // converted child stuck at INQUIRY. ADMITTED/CANCELLED never regress.
+        const advance = ADMISSION_PRE_ADMIT.has(adm[0].status);
+        await tx.admission.update({
+          where: { id: app.admission.id },
+          data: advance ? { studentId: student.id, status: "ADMITTED" } : { studentId: student.id },
+        });
+      }
     }
 
-    return { student };
+    await recordAudit(
+      {
+        tenantId,
+        actorId: session.id,
+        entity: "EnrollmentApplication",
+        entityId: id,
+        action: "convert",
+        after: { studentId: student.id },
+      },
+      tx,
+    );
+
+    // Ids of the Parent rows actually linked to the student. An Ibu that
+    // resolved to the Ayah's row (shared email) is not a separate guardian.
+    return {
+      student,
+      ayahId: ayah?.id ?? null,
+      ibuId: ibu && ibu.id !== ayah?.id ? ibu.id : null,
+    };
+  }).catch((e: unknown) => {
+    if (e instanceof ConvertError) return e;
+    throw e;
+  });
+  if (result instanceof ConvertError) {
+    return NextResponse.json({ error: result.message }, { status: result.status });
+  }
+  const { student, ayahId, ibuId } = result;
+
+  // Guardians were linked inside the committed transaction; evict the cached
+  // parent→children lookup so the family sees the new child right away.
+  invalidateParentChildren();
+
+  // After commit, best-effort: give each guardian their own copy of the KTP/KK
+  // the parent uploaded. Never throws and never overwrites an existing document,
+  // so a storage hiccup cannot undo a conversion that already succeeded.
+  const documentsCopied = await copyEnrollmentDocsToGuardians({
+    tenantId,
+    applicationDocuments: app.documents,
+    ayahId,
+    ibuId,
   });
 
-  return NextResponse.json({ student, message: "Siswa berhasil dibuat dari formulir pendaftaran" });
+  return NextResponse.json({
+    student,
+    message: "Siswa berhasil dibuat dari formulir pendaftaran",
+    documentsCopied,
+  });
 }

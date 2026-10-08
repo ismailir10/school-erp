@@ -7,6 +7,10 @@ import { recordAudit } from "@/lib/audit";
 import { classUpdateSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
 import {
+  CLASS_NAME_CLASH_MESSAGE,
+  findClassNameClash,
+} from "@/lib/classes/name-clash";
+import {
   auditActionForUpdate,
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -15,6 +19,12 @@ import {
   isUniqueViolation,
   rosterEnrollmentVisible,
 } from "../_helpers";
+
+class CapacityBelowRoster extends Error {
+  constructor(readonly activeCount: number) {
+    super("CAPACITY_BELOW_ROSTER");
+  }
+}
 
 export async function GET(
   _req: NextRequest,
@@ -82,6 +92,8 @@ async function update(
       ageGroup: true,
       status: true,
       classTrackId: true,
+      academicYearId: true,
+      campusId: true,
     },
   });
   if (!before) {
@@ -103,6 +115,32 @@ async function update(
   if (body.ageGroup !== undefined) data.ageGroup = body.ageGroup;
   if (body.status !== undefined) data.status = body.status;
 
+  // Renames are unique ignoring case within the year + campus. The check runs
+  // whenever the name is sent but differs from the stored one (a case-only
+  // change of the same class passes: excludeId keeps it from clashing with
+  // itself). The DB unique stays as the race backstop (isUniqueViolation).
+  if (body.name !== undefined && body.name.trim() !== before.name) {
+    const clash = await findClassNameClash(prisma, {
+      tenantId: session.tenantId,
+      academicYearId: before.academicYearId,
+      campusId: before.campusId,
+      name: body.name,
+      excludeId: id,
+    });
+    if (clash) {
+      return NextResponse.json(
+        {
+          error: CLASS_NAME_CLASH_MESSAGE,
+          field: "name",
+          // Same shape as the capacity 409 so applyServerErrors lands it
+          // inline on the Nama field.
+          errors: [{ field: "name", message: CLASS_NAME_CLASH_MESSAGE }],
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json(
       { error: "Tidak ada perubahan" },
@@ -110,8 +148,25 @@ async function update(
     );
   }
 
+  // Lowering capacity below the ACTIVE roster would render "2/1". Only checked
+  // when the value actually changes, so an unrelated edit (name, slot) on an
+  // already-overfull class is not blocked. Runs inside the transaction under
+  // the same advisory lock the enrol routes take, so a concurrent enrol cannot
+  // slip in between the count and the write.
+  const capacityChanging =
+    body.capacity !== undefined && body.capacity !== before.capacity;
+
   try {
     await prisma.$transaction(async (tx) => {
+      if (capacityChanging) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+        const activeCount = await tx.studentEnrollment.count({
+          where: { classSectionId: id, status: "ACTIVE" },
+        });
+        if (activeCount > (body.capacity as number)) {
+          throw new CapacityBelowRoster(activeCount);
+        }
+      }
       await tx.classSection.updateMany({
         where: { id, tenantId: session.tenantId },
         data,
@@ -158,11 +213,25 @@ async function update(
     });
     return NextResponse.json(updated);
   } catch (err) {
+    if (err instanceof CapacityBelowRoster) {
+      const message = `Kapasitas tidak bisa lebih kecil dari jumlah siswa aktif (${err.activeCount} siswa).`;
+      return NextResponse.json(
+        {
+          error: message,
+          field: "capacity",
+          // Same shape as the validateBody 400 so applyServerErrors can land
+          // the message inline on the Kapasitas field.
+          errors: [{ field: "capacity", message }],
+        },
+        { status: 409 },
+      );
+    }
     if (isUniqueViolation(err)) {
       return NextResponse.json(
         {
-          error:
-            "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
+          error: CLASS_NAME_CLASH_MESSAGE,
+          field: "name",
+          errors: [{ field: "name", message: CLASS_NAME_CLASH_MESSAGE }],
         },
         { status: 409 },
       );

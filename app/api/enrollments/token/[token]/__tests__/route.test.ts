@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, update, programFindFirst } = vi.hoisted(() => ({
+const { findUnique, updateMany: update, programFindFirst, writeConsent } = vi.hoisted(() => ({
   findUnique: vi.fn(),
-  update: vi.fn(),
+  updateMany: vi.fn(),
   programFindFirst: vi.fn(),
+  writeConsent: vi.fn(),
 }));
+
+vi.mock("@/lib/enrollment/json-merge", () => ({ writeConsentPreservingSignatures: writeConsent }));
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    enrollmentApplication: { findUnique, update },
+    enrollmentApplication: { findUnique, updateMany: update },
     program: { findFirst: programFindFirst },
   },
 }));
@@ -30,7 +33,8 @@ const future = new Date(Date.now() + 86_400_000);
 beforeEach(() => {
   vi.clearAllMocks();
   __resetRateLimitForTest();
-  update.mockResolvedValue({});
+  update.mockResolvedValue({ count: 1 });
+  writeConsent.mockResolvedValue(true);
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) });
 });
 
@@ -60,7 +64,7 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
     const res = await PATCH(req({ studentData: { childName: "  Aisyah  " }, dcareAddon: true }), ctx);
     expect(res.status).toBe(200);
     const arg = update.mock.calls[0][0];
-    expect(arg.where).toEqual({ id: "a" });
+    expect(arg.where).toEqual({ id: "a", status: "INVITED" });
     expect(arg.data.studentData).toEqual({ childName: "  Aisyah  " });
     expect(arg.data.childName).toBe("Aisyah");
     expect(arg.data.dcareAddon).toBe(true);
@@ -83,7 +87,101 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
   it("drops (does not persist) a programId that fails the tenant-ownership check", async () => {
     findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
     programFindFirst.mockResolvedValue(null);
-    await PATCH(req({ programId: "program_from-another-tenant" }), ctx);
-    expect("programId" in update.mock.calls[0][0].data).toBe(false);
+    const res = await PATCH(req({ programId: "program_from-another-tenant" }), ctx);
+    expect(res.status).toBe(200);
+    // Nothing left to write, so no update at all (and certainly no programId).
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH — consentData and signatures", () => {
+  const invited = () =>
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+
+  it("writes consentData through the signature-preserving helper, never via prisma.update", async () => {
+    invited();
+    const res = await PATCH(req({ consentData: { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } } }), ctx);
+    expect(res.status).toBe(200);
+    expect(writeConsent).toHaveBeenCalledWith("a", { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } });
+    expect(update).not.toHaveBeenCalled(); // nothing else to write
+  });
+
+  it("strips client-sent signatureToken/signedAt and forces ayah/ibu to objects", async () => {
+    invited();
+    await PATCH(
+      req({
+        consentData: {
+          agreed: false,
+          ayah: { name: "A", signatureToken: "", signedAt: "2020-01-01" },
+          ibu: "not-an-object",
+        },
+      }),
+      ctx,
+    );
+    const [, incoming] = writeConsent.mock.calls[0];
+    expect(incoming).toEqual({ agreed: false, ayah: { name: "A" }, ibu: {} });
+    expect(JSON.stringify(incoming)).not.toContain("signatureToken");
+  });
+
+  it("keeps the single-parent flag (R2-P-10) in the saved consent blob so resume can restore it", async () => {
+    invited();
+    await PATCH(req({ consentData: { agreed: false, onlyParent: "ibu", ayah: { name: "" }, ibu: { name: "Siti" } } }), ctx);
+    expect(writeConsent.mock.calls[0][1]).toEqual({
+      agreed: false,
+      onlyParent: "ibu",
+      ayah: { name: "" },
+      ibu: { name: "Siti" },
+    });
+  });
+
+  it("creates ayah/ibu objects when the client sends consentData without them", async () => {
+    invited();
+    await PATCH(req({ consentData: { agreed: true } }), ctx);
+    expect(writeConsent.mock.calls[0][1]).toEqual({ agreed: true, ayah: {}, ibu: {} });
+  });
+
+  it("409 and no other write when the INVITED-guarded consent write matches no row", async () => {
+    invited();
+    writeConsent.mockResolvedValue(false);
+    const res = await PATCH(req({ consentData: { agreed: true }, dcareAddon: true }), ctx);
+    expect(res.status).toBe(409);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("still updates the remaining fields alongside consentData", async () => {
+    invited();
+    await PATCH(req({ consentData: { agreed: true }, dcareAddon: true }), ctx);
+    expect(writeConsent).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0].data).toEqual({ dcareAddon: true });
+    expect("consentData" in update.mock.calls[0][0].data).toBe(false);
+  });
+
+  it("skips prisma.update entirely for an empty patch", async () => {
+    invited();
+    const res = await PATCH(req({}), ctx);
+    expect(res.status).toBe(200);
+    expect(update).not.toHaveBeenCalled();
+    expect(writeConsent).not.toHaveBeenCalled();
+  });
+
+  it("ignores a client-sent `documents` key (zod strips it; documents are never written here)", async () => {
+    invited();
+    const res = await PATCH(req({ documents: { akta: { fileToken: "evil" } }, dcareAddon: true }), ctx);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(update.mock.calls[0][0])).not.toContain("evil");
+    expect("documents" in update.mock.calls[0][0].data).toBe(false);
+    // a body with ONLY documents degrades to a no-op
+    update.mockClear();
+    await PATCH(req({ documents: { akta: { fileToken: "evil" } } }), ctx);
+    expect(update).not.toHaveBeenCalled();
+    expect(writeConsent).not.toHaveBeenCalled();
+  });
+
+  it("409 ALREADY_SUBMITTED when the INVITED-guarded update matches no row", async () => {
+    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+    update.mockResolvedValue({ count: 0 });
+    const res = await PATCH(req({ dcareAddon: true }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
   });
 });

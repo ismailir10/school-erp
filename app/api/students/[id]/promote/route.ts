@@ -93,7 +93,7 @@ export async function POST(
     orderBy: { classSection: { academicYear: { startDate: "asc" } } },
   });
   if (!currentEnrollment) {
-    return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
+    return NextResponse.json({ error: "Siswa belum terdaftar di kelas aktif" }, { status: 400 });
   }
 
   const today = getTodayInTimezone("Asia/Jakarta");

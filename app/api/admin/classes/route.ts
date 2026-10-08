@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
-import { parsePagination, parseSort } from "@/lib/api/pagination";
+import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { classCreateSchema } from "@/lib/validations/class";
 import { ensureYearWritableById } from "@/lib/classes/year-guard";
+import {
+  CLASS_NAME_CLASH_MESSAGE,
+  findClassNameClash,
+} from "@/lib/classes/name-clash";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
 import {
   attendanceLast7Days,
@@ -86,7 +90,7 @@ export async function GET(req: NextRequest) {
   if (campusId && campusId !== "all") where.campusId = campusId;
   const programId = searchParams.get("programId");
   if (programId && programId !== "all") where.programId = programId;
-  const q = searchParams.get("q");
+  const q = escapeLike(cleanSearch(searchParams.get("q")));
   if (q) where.name = { contains: q, mode: "insensitive" };
 
   const [rows, total] = await Promise.all([
@@ -182,26 +186,43 @@ export async function POST(req: NextRequest) {
 
   const sectionName = body.name.trim();
 
+  // Class names are unique ignoring case — "TK A" and "tk a" are the same class.
+  const clash = await findClassNameClash(prisma, {
+    tenantId: session.tenantId,
+    academicYearId: body.academicYearId,
+    campusId: body.campusId,
+    name: sectionName,
+  });
+  if (clash) {
+    return NextResponse.json({ error: CLASS_NAME_CLASH_MESSAGE }, { status: 409 });
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Find-or-create ClassTrack on the unique key; reactivate if INACTIVE.
-      const track = await tx.classTrack.upsert({
+      // Find-or-create ClassTrack, matching the name ignoring case so "tk a"
+      // reuses the existing "TK A" track; reactivate if INACTIVE.
+      const existingTrack = await tx.classTrack.findFirst({
         where: {
-          tenantId_campusId_programId_name: {
-            tenantId: session.tenantId,
-            campusId: body.campusId,
-            programId: body.programId,
-            name: sectionName,
-          },
-        },
-        create: {
           tenantId: session.tenantId,
           campusId: body.campusId,
           programId: body.programId,
-          name: sectionName,
+          name: { equals: sectionName, mode: "insensitive" },
         },
-        update: { status: "ACTIVE" },
+        select: { id: true },
       });
+      const track = existingTrack
+        ? await tx.classTrack.update({
+            where: { id: existingTrack.id },
+            data: { status: "ACTIVE" },
+          })
+        : await tx.classTrack.create({
+            data: {
+              tenantId: session.tenantId,
+              campusId: body.campusId,
+              programId: body.programId,
+              name: sectionName,
+            },
+          });
       const created = await tx.classSection.create({
         data: {
           tenantId: session.tenantId,
@@ -254,10 +275,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (isUniqueViolation(err)) {
       return NextResponse.json(
-        {
-          error:
-            "Kelas dengan nama ini sudah ada di kampus dan tahun ajaran tersebut.",
-        },
+        { error: CLASS_NAME_CLASH_MESSAGE },
         { status: 409 },
       );
     }

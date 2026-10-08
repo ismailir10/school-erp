@@ -20,6 +20,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 import { generatePayrollSchema } from "@/lib/validations/payroll";
 import { useZodForm } from "@/lib/forms/use-zod-form";
+import { formatDateShort } from "@/lib/format";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { ApiError } from "@/lib/api/client-errors";
 import type { Control } from "react-hook-form";
@@ -62,7 +63,7 @@ const columns: ColumnDef<PayrollRun>[] = [
       const run = row.original;
       return (
         <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
-          {run.periodStart} — {run.periodEnd}
+          {formatDateShort(run.periodStart)} — {formatDateShort(run.periodEnd)}
         </DataTableLinkCell>
       );
     },
@@ -133,7 +134,7 @@ export default function PayrollListPage() {
   }, [searchParams, openCreate, router]);
 
   const handleGenerate = createForm.handleSubmit(async (values) => {
-    const fallback = "Gagal membuat draft";
+    const fallback = "Draf penggajian belum bisa dibuat. Coba lagi sebentar.";
     setBlockers(null);
     try {
       const res = await fetch("/api/payroll/generate", {
@@ -143,7 +144,7 @@ export default function PayrollListPage() {
       });
       if (res.ok) {
         const d = await res.json();
-        toast.success("Draft penggajian dibuat");
+        toast.success("Draf penggajian dibuat");
         setCreateOpen(false);
         router.push(`/admin/payroll/${d.id}`);
         return;
@@ -214,7 +215,7 @@ export default function PayrollListPage() {
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data penggajian");
+      toast.error("Data penggajian belum bisa dimuat. Coba lagi sebentar.");
     } finally {
       setLoading(false);
     }
@@ -258,7 +259,7 @@ export default function PayrollListPage() {
       )}
       <StatsCardsRow>
         <StatCard label="Total Penggajian" value={statsStatus === "ready" ? stats!.total : statsStatus === "loading" ? "…" : "—"} icon={Banknote} color="primary" index={0} />
-        <StatCard label="Draft" value={statsStatus === "ready" ? stats!.draft : statsStatus === "loading" ? "…" : "—"} icon={Clock} color="warning" index={1} />
+        <StatCard label="Draf" value={statsStatus === "ready" ? stats!.draft : statsStatus === "loading" ? "…" : "—"} icon={Clock} color="warning" index={1} />
         <StatCard label="Disetujui" value={statsStatus === "ready" ? stats!.approved : statsStatus === "loading" ? "…" : "—"} icon={FileCheck} color="success" index={2} />
         <StatCard label="Slip Terkirim" value={statsStatus === "ready" ? stats!.slipsSent : statsStatus === "loading" ? "…" : "—"} icon={Send} color="primary" index={3} />
       </StatsCardsRow>
@@ -275,7 +276,7 @@ export default function PayrollListPage() {
             },
             options: [
               { value: "all", label: "Semua Status" },
-              { value: "DRAFT", label: "Draft" },
+              { value: "DRAFT", label: "Draf" },
               { value: "APPROVED", label: "Disetujui" },
               // F-22: `EXPORTED` removed — no code path produces this status.
               { value: "SLIPS_SENT", label: "Slip Terkirim" },
@@ -308,7 +309,7 @@ export default function PayrollListPage() {
             formId={createFormId}
             pending={createForm.formState.isSubmitting}
             onCancel={() => setCreateOpen(false)}
-            submitLabel="Buat Draft Penggajian"
+            submitLabel="Buat Draf Penggajian"
             pendingLabel="Memproses..."
           />
         }

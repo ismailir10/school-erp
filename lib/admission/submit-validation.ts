@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { optionalTrimmed } from "@/lib/validations/zod-helpers";
 import { programIdSchema } from "@/lib/validations/program-id";
+import { PHONE_FORMAT_ERROR, WHATSAPP_FORMAT_ERROR, admissionDobError } from "@/lib/validations/admission";
 
 // Phone shape: digits, +, spaces, dashes, parens. 6–20 chars.
 // Permissive on purpose — Indonesian families type numbers in many shapes
@@ -26,25 +27,33 @@ const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
  * route never reads them after parse.
  */
 export const submitAdmissionSchema = z.object({
+  // `{ error }` on each z.string() is the message for a missing / non-string
+  // value — without it Zod's English default ("Invalid input: expected string…")
+  // reaches any client that skips the form's own checks (R2-P-13).
   childName: z
-    .string()
+    .string({ error: "Nama anak wajib diisi" })
     .trim()
     .min(1, "Nama anak wajib diisi")
     .max(80, "Nama anak terlalu panjang"),
   dateOfBirth: z
-    .string()
-    .regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
+    .string({ error: "Tanggal lahir wajib diisi (format YYYY-MM-DD)" })
+    .regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)")
+    // Plausible PAUD/TK range, 1–8 years as of today (Asia/Jakarta) — PUBX-2.
+    .superRefine((value, ctx) => {
+      const message = admissionDobError(value);
+      if (message) ctx.addIssue({ code: "custom", message });
+    }),
   childGender: z.enum(["L", "P"], { error: "Pilih jenis kelamin" }),
   parentName: z
-    .string()
+    .string({ error: "Nama orang tua wajib diisi" })
     .trim()
     .min(1, "Nama orang tua wajib diisi")
     .max(80, "Nama orang tua terlalu panjang"),
   parentPhone: z
-    .string()
+    .string({ error: "Nomor telepon wajib diisi" })
     .trim()
-    .regex(PHONE_REGEX, "Nomor telepon tidak valid"),
-  parentWhatsapp: optionalTrimmed(z.string().regex(PHONE_REGEX, "Nomor WhatsApp tidak valid")),
+    .regex(PHONE_REGEX, PHONE_FORMAT_ERROR),
+  parentWhatsapp: optionalTrimmed(z.string().regex(PHONE_REGEX, WHATSAPP_FORMAT_ERROR)),
   parentEmail: optionalTrimmed(z.string().email("Email tidak valid")),
   programId: optionalTrimmed(programIdSchema),
   notes: optionalTrimmed(z.string().max(500, "Catatan terlalu panjang (maksimal 500 karakter)")),

@@ -128,3 +128,93 @@ it("keeps conflicting class attendance explicit in the home action and child car
  const action=(html.match(/<a\b[^>]*>[\s\S]*?<\/a>/g)??[]).find(link=>link.includes("Periksa kehadiran Alya Nur Rahma"));
  expect(action).toContain('href="/parent/attendance?child=child-a"');expect(action).toContain("Catatan berbeda antar kelas");
 });
+
+describe("parent home round-2 fixes", () => {
+  it("R2-P-1: a child with past-due invoices gets a red 'N lewat tempo' and the danger tone, not a past 'jatuh tempo terdekat'", async () => {
+    mocks.outstanding.mockResolvedValue({
+      count: 3, total: 500_000, nearestDue: "2026-08-24",
+      items: [
+        { studentId: "child-a", dueDate: "2026-08-24", remaining: 100_000 },
+        { studentId: "child-a", dueDate: "2026-09-10", remaining: 100_000 },
+        { studentId: "child-a", dueDate: "2026-09-30", remaining: 100_000 },
+        { studentId: "child-b", dueDate: "2026-09-30", remaining: 200_000 },
+      ],
+    });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    const links = html.match(/<a\b[^>]*>[\s\S]*?<\/a>/g) ?? [];
+    const overdueRow = links.find(link => link.includes("Tagihan Alya Nur Rahma"))!;
+    expect(overdueRow).toContain("3 tagihan");
+    expect(overdueRow).toMatch(/text-status-absent-text[^>]*>2 lewat tempo</);
+    expect(overdueRow).toContain("bg-status-absent-subtle");
+    expect(overdueRow).not.toContain("jatuh tempo terdekat");
+    // The sibling with only a future due date keeps the calm wording and tone.
+    const calmRow = links.find(link => link.includes("Tagihan Alya Nur Zahra"))!;
+    expect(calmRow).toContain("jatuh tempo terdekat");
+    expect(calmRow).not.toContain("lewat tempo");
+    expect(calmRow).not.toContain("bg-status-absent-subtle");
+  });
+
+  it("R2-P-1: a due date of today is not overdue yet (Jakarta calendar day)", async () => {
+    mocks.outstanding.mockResolvedValue({
+      count: 1, total: 100_000, nearestDue: "2026-09-25",
+      items: [{ studentId: "child-a", dueDate: "2026-09-25", remaining: 100_000 }],
+    });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).not.toContain("lewat tempo");
+  });
+
+  it("R2-P-8: when one child owes, the family header is dropped so the same total is not printed twice", async () => {
+    mocks.outstanding.mockResolvedValue({
+      count: 1, total: 750_000, nearestDue: "2026-09-30",
+      items: [{ studentId: "child-a", dueDate: "2026-09-30", remaining: 750_000 }],
+    });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).toContain("Tagihan Alya Nur Rahma");
+    expect(html).not.toContain("Tagihan keluarga");
+    expect(html.match(/750\.000/g)).toHaveLength(1);
+  });
+
+  it("R2-P-8: two children owing keep the family total above the per-child rows", async () => {
+    mocks.outstanding.mockResolvedValue({
+      count: 2, total: 300_000, nearestDue: "2026-09-29",
+      items: [
+        { studentId: "child-a", dueDate: "2026-09-30", remaining: 100_000 },
+        { studentId: "child-b", dueDate: "2026-09-29", remaining: 200_000 },
+      ],
+    });
+    expect(renderToStaticMarkup(await ParentDashboard())).toContain("Tagihan keluarga");
+  });
+
+  it("R2-P-8: spells the program out next to a bare class abbreviation", async () => {
+    mocks.family.mockResolvedValue({
+      parent: { id: "parent-a", name: "Ibu Rina" },
+      children: [{ ...children[0], className: "KB", programName: "Kelompok Bermain" }],
+    });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).toContain("KB · Kelompok Bermain");
+  });
+
+  it("R2-P-9: perkembangan chips are neutral below the top stage and the card explains they are stages, not grades", async () => {
+    const entry = (level: string, indicatorContent: string) => ({
+      date: "2026-09-25", indicatorContent, element: "RELIGIOUS_MORAL", source: "HOMEROOM", center: null, level,
+    });
+    mocks.development.mockResolvedValue({
+      hasActiveWeek: true,
+      latestThisWeek: [
+        entry("CONSISTENT", "Mengucapkan salam"),
+        entry("EMERGING", "Berbagi mainan"),
+        entry("NEEDS_REINFORCEMENT", "Merapikan sepatu"),
+      ],
+    });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).toContain("Ini tahapan perkembangan, bukan nilai.");
+    const chip = (label: string) => html.match(new RegExp(`<span class="[^"]*">${label}</span>`))![0];
+    expect(chip("Mampu dan Konsisten")).toContain("bg-status-present-subtle");
+    for (const label of ["Mampu Belum Konsisten", "Perlu Penguatan"]) {
+      expect(chip(label)).toContain("bg-secondary");
+      expect(chip(label)).not.toContain("status-late");
+    }
+    // Indicator text wraps to two lines instead of cutting off with an ellipsis.
+    expect(html).toContain("line-clamp-2 text-xs text-foreground");
+  });
+});

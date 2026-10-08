@@ -139,7 +139,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
       makeClassSection({ startDate: "2026-07-01", ageMin: 36, ageMax: 72 }),
     );
     // Born 2024-06-01, year starts 2026-07-01 → 25 months old.
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: "2024-06-01" });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: "2024-06-01" });
 
     const res = await POST(req({ studentId: "s1" }), ctx);
     expect(res.status).toBe(409);
@@ -158,7 +158,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
     db.classSection.findFirst.mockResolvedValue(
       makeClassSection({ academicYearId: "ay-2025-2026", programType: "SEMESTER" }),
     );
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     const tx = makeTx({
       conflicts: [
         {
@@ -185,7 +185,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
     db.classSection.findFirst.mockResolvedValue(
       makeClassSection({ academicYearId: "ay-2025-2026", programType: "YEAR_ROUND", programName: "Day Care" }),
     );
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     const tx = makeTx({
       conflicts: [
         {
@@ -206,7 +206,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
   it("reactivates a WITHDRAWN row for the same class instead of inserting (CORE-2)", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.classSection.findFirst.mockResolvedValue(makeClassSection());
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     const tx = makeTx({ existingRow: { id: "e-withdrawn", status: "WITHDRAWN" } });
     db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
 
@@ -225,7 +225,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
   it("returns 422 CAPACITY_EXCEEDED when the class is full (existing behaviour preserved)", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.classSection.findFirst.mockResolvedValue(makeClassSection({ capacity: 10 }));
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     const tx = makeTx({ activeCount: 10 });
     db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
 
@@ -238,7 +238,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
   it("returns 201 with the created enrollment on success", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.classSection.findFirst.mockResolvedValue(makeClassSection());
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: null });
     const tx = makeTx({ activeCount: 3 });
     db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
 
@@ -254,7 +254,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
     db.classSection.findFirst.mockResolvedValue(
       makeClassSection({ startDate: "2026-07-01", ageMin: 36, ageMax: 72, programId: "p1" }),
     );
-    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: "2024-06-01" });
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: "2024-06-01" });
     const tx = makeTx({
       createResult: {
         id: "e-new",
@@ -301,7 +301,7 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
       vi.setSystemTime(new Date("2026-10-04T18:00:00Z")); // 2026-10-05 01:00 WIB
       requirePermission.mockResolvedValue(ALLOW);
       db.classSection.findFirst.mockResolvedValue(makeClassSection());
-      db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+      db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null, status: "ACTIVE" });
       const tx = makeTx({ activeCount: 3 });
       db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
 
@@ -315,5 +315,47 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("POST /api/admin/classes/[id]/enrollments — lifecycle + ordering guards", () => {
+  it.each([
+    ["WITHDRAWN", "Keluar"],
+    ["GRADUATED", "Lulus"],
+    ["INACTIVE", "Tidak Aktif"],
+  ])("409 STUDENT_NOT_ACTIVE for a %s student, before the age check and any write (ADM-1)", async (status, label) => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.classSection.findFirst.mockResolvedValue(makeClassSection());
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status, dateOfBirth: null });
+
+    const res = await POST(req({ studentId: "s1" }), ctx);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: `Siswa berstatus ${label} tidak bisa didaftarkan ke kelas. Aktifkan kembali dulu.`,
+      code: "STUDENT_NOT_ACTIVE",
+    });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("answers ALREADY_ENROLLED before demanding an age-override reason (ADM-10)", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.classSection.findFirst.mockResolvedValue(
+      makeClassSection({ startDate: "2026-07-01", ageMin: 36, ageMax: 72 }),
+    );
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", status: "ACTIVE", dateOfBirth: "2024-06-01" });
+    db.studentEnrollment.findFirst.mockResolvedValueOnce({
+      id: "e-old",
+      classSectionId: "cs-old",
+      classSection: { name: "KB Lama" },
+    });
+
+    const res = await POST(req({ studentId: "s1" }), ctx);
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("ALREADY_ENROLLED");
+    expect(body.existingClassSectionId).toBe("cs-old");
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 });

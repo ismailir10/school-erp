@@ -7,12 +7,14 @@ vi.mock("../invoice-detail-sheet", () => ({
   InvoiceDetailSheet: ({
     open,
     invoiceId,
+    paymentPending,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     invoiceId: string | null;
+    paymentPending?: boolean;
   }) => (
-    <div data-testid="invoice-detail-sheet">
+    <div data-testid="invoice-detail-sheet" data-payment-pending={String(!!paymentPending)}>
       {open && <div>Sheet open: {invoiceId}</div>}
     </div>
   ),
@@ -113,6 +115,34 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.getByText(/2 tagihan/)).toBeInTheDocument();
     });
 
+    it("says how many are overdue instead of a bare chip (FIN-22)", () => {
+      const future = { ...mockInvoices[1], id: "inv-future", periodLabel: "Januari 2999", dueDate: "2999-01-31" };
+      render(<InvoicesClient data={[mockInvoices[0], future]} />);
+      // inv-1 (2024) is overdue; the 2999 one is not.
+      expect(screen.getByText("1 lewat tempo")).toBeInTheDocument();
+      expect(screen.queryByText("Lewat tempo")).not.toBeInTheDocument();
+      expect(screen.getByText("2 tagihan")).toBeInTheDocument();
+    });
+
+    it("counts every overdue invoice when all are late", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByText("2 lewat tempo")).toBeInTheDocument();
+    });
+
+    it("shows no overdue chip when nothing is past due", () => {
+      const future = { ...mockInvoices[1], id: "inv-future", dueDate: "2999-01-31" };
+      render(<InvoicesClient data={[future]} />);
+      expect(screen.queryByText(/lewat tempo/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/jatuh tempo terdekat/)).toBeInTheDocument();
+    });
+
+    it("leads an overdue row's description with the marker so a clamp cannot cut it (PAR-9)", () => {
+      render(<InvoicesClient data={mockInvoices} />);
+      const list = screen.getByRole("list", { name: "Tagihan belum dibayar" });
+      const row = within(list).getByRole("button", { name: /September 2024/ });
+      expect(row.textContent).toMatch(/Lewat tempo · Dibayar sebagian · Jatuh tempo/);
+    });
+
     it("renders Belum dibayar eyebrow group", () => {
       render(<InvoicesClient data={mockInvoices} />);
       // Eyebrow appears twice: inside focal card + as section heading
@@ -136,8 +166,21 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.queryByText("Juli 2024")).not.toBeInTheDocument();
       await user.click(history);
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
-      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(1);
+      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(2);
       expect(screen.getByText("Agustus 2024").compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("lists the money already received on a partly paid invoice in Riwayat, with what is left (R2-P-6)", async () => {
+      const user = userEvent.setup();
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByRole("button", { name: /Riwayat pembayaran \(2\)/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /Riwayat pembayaran/ }));
+      const history = within(screen.getByRole("list", { name: "Riwayat pembayaran" }));
+      const partial = history.getByRole("button", { name: /September 2024/ });
+      expect(partial).toHaveTextContent("Dibayar sebagian");
+      expect(partial).toHaveTextContent(/sisa Rp\s?500\.000/);
+      // An unpaid invoice with nothing received is not history.
+      expect(history.queryByRole("button", { name: /Agustus 2024/ })).not.toBeInTheDocument();
     });
   });
 
@@ -224,6 +267,27 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(refreshFn).toHaveBeenCalled();
       expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
       expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+    });
+
+    it("marks the sheet's invoice as payment-pending after a 'sedang diperiksa' return (PARX-8)", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+    });
+
+    it("releases the pending flag once the invoice's paid amount changes", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      const { rerender } = render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+      const updated = mockInvoices.map((i) => (i.id === "inv-1" ? { ...i, totalPaid: 400000, status: "PARTIALLY_PAID" } : i));
+      rerender(<InvoicesClient data={updated} />);
+      expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "false");
+    });
+
+    it("never flags pending when the return was a cancel", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=cancel");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "false");
     });
 
     it("fires neutral cancel toast on ?invoice=&xenditStatus=cancel", () => {

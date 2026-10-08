@@ -75,6 +75,6 @@ export const SECTION_SESSIONS = "sessions";
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   // The API surfaces dates as YYYY-MM-DD strings; format to YYYY-MM-DD literally
-  // (spec calls for that exact shape on roster + teacher rows).
+  // (spec calls for that exact shape on roster rows).
   return value.slice(0, 10);
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paymentMethodLabel, PAYMENT_METHODS } from "@/lib/constants/payment-methods";
 
 /**
@@ -138,7 +139,8 @@ export async function resolveLedgerRequest(
     return { ok: false, error: "Metode pembayaran tidak valid" };
   }
 
-  const search = (searchParams.get("search") ?? "").trim();
+  // NUL / control characters 500 in Postgres; % and _ are LIKE wildcards.
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
   const sortByRaw = searchParams.get("sortBy") ?? "paidAt";
   if (!["paidAt", "amount", "method", "reference"].includes(sortByRaw)) {
     return { ok: false, error: "Kolom urut tidak valid" };

@@ -3,10 +3,14 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PortalTabs, type PortalTab } from "@/components/portal/portal-tabs";
 import { parentHref } from "@/lib/parent/navigation";
+import { childShortName } from "@/lib/parent/child-name";
+import { ChildParamNotice } from "@/components/parent/child-param-notice";
 
 type ChildInfo = {
   studentId: string;
   studentName: string;
+  /** Pass through so the tab reads like the rest of the portal ("Zafran", not "Ahmad"). */
+  studentNickname?: string | null;
   className: string | null;
 };
 
@@ -28,16 +32,25 @@ export function ChildSelectorTabs({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  if (items.length <= 1) return null;
+  const selected = items.find((child) => child.studentId === selectedChildId);
+  const notice = selected ? (
+    <ChildParamNotice
+      knownIds={items.map((child) => child.studentId)}
+      selectedChildId={selectedChildId}
+      selectedName={childShortName({ name: selected.studentName, nickname: selected.studentNickname })}
+    />
+  ) : null;
+
+  if (items.length <= 1) return notice;
 
   const tabs: PortalTab[] = items.map((child) => {
-    // Pill label = first name only. Frame 4/8/11 of cycle-4 prototype.
-    // Full name + class would overflow at 375px and the class chip rendered
-    // in a contrasting tone breaks the active-pill (teal-on-teal) palette.
-    const firstName = child.studentName.trim().split(/\s+/)[0] ?? child.studentName;
+    // Pill label = short name only (nickname, else first word) — same rule as
+    // journal / invoice sheet / attendance banner. Frame 4/8/11 of cycle-4
+    // prototype. Full name + class would overflow at 375px and the class chip
+    // rendered in a contrasting tone breaks the active-pill (teal-on-teal) palette.
     return {
       id: child.studentId,
-      label: firstName,
+      label: childShortName({ name: child.studentName, nickname: child.studentNickname }),
     };
   });
 
@@ -48,15 +61,18 @@ export function ChildSelectorTabs({
   };
 
   return (
-    <div className={sticky ? "mb-4" : "mb-4 -mx-1 px-1"}>
-      <PortalTabs
-        items={tabs}
-        activeId={selectedChildId}
-        onSelect={handleSelect}
-        variant="pills"
-        ariaLabel="Pilih anak"
-        sticky={sticky}
-      />
-    </div>
+    <>
+      {notice}
+      <div className={sticky ? "mb-4" : "mb-4 -mx-1 px-1"}>
+        <PortalTabs
+          items={tabs}
+          activeId={selectedChildId}
+          onSelect={handleSelect}
+          variant="pills"
+          ariaLabel="Pilih anak"
+          sticky={sticky}
+        />
+      </div>
+    </>
   );
 }

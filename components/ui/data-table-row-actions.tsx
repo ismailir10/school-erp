@@ -55,7 +55,8 @@ export function DataTableRowActions({
           <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11" aria-label={rowLabel ? `Aksi untuk ${rowLabel}` : "Buka menu aksi"} />}>
             <MoreHorizontal size={14} />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          {/* Sizes to content: the anchor is a 32px icon button, so the primitive's w-(--anchor-width) made 128px menus that wrapped labels word by word. */}
+          <DropdownMenuContent align="end" className="w-auto min-w-40">
             {onEdit && (
               <DropdownMenuItem onClick={onEdit}>
                 <Pencil size={14} className="mr-2" />

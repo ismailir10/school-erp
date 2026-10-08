@@ -66,11 +66,30 @@ const isoDateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD");
 
+/** Inclusive calendar-day count of a YYYY-MM-DD period (end >= start). */
+export function calendarDaysInPeriod(periodStart: string, periodEnd: string): number {
+  const start = new Date(`${periodStart}T00:00:00Z`).getTime();
+  const end = new Date(`${periodEnd}T00:00:00Z`).getTime();
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+/** HRX-3: the one message for a Hari Kerja Aktual outside 1..days-in-period. */
+export function actualWorkDaysRangeMessage(maxDays: number): string {
+  return `Hari kerja aktual harus antara 1 dan ${maxDays} hari.`;
+}
+
+// HRX-3: the lower bound is here; the upper bound needs the run's period, so
+// the PUT route (and the edit form's refine below) check it against
+// `calendarDaysInPeriod`.
 export const updatePayrollRunSchema = z
   .object({
     periodStart: isoDateString.optional(),
     periodEnd: isoDateString.optional(),
-    actualWorkDays: z.number().int().nonnegative().optional(),
+    actualWorkDays: z
+      .number()
+      .int("Hari kerja aktual harus bilangan bulat")
+      .min(1, "Hari kerja aktual minimal 1 hari")
+      .optional(),
   })
   .refine(
     (v) =>
@@ -120,8 +139,20 @@ export type GeneratePayrollInput = z.infer<typeof generatePayrollSchema>;
 
 // PUT /api/payroll/[id]/items/[itemId]/lines/[lineId] — manual line adjustment.
 // Mirrors adjustInvoiceLineSchema; amount 0 clears a previous adjustment.
+//
+// HRX-4/FINX-2: whole rupiah within ±1 miljar — a fractional amount breaks the
+// BSI integer export and 1e15 overflowed the Decimal column (500). The "line may
+// not go negative" rule needs the line's base amount, so the route owns it.
+export const MAX_PAYROLL_ADJUSTMENT = 1_000_000_000;
+const adjustmentAmountField = z
+  .number()
+  .finite("Jumlah penyesuaian tidak valid")
+  .int("Penyesuaian harus bilangan bulat (tanpa desimal)")
+  .min(-MAX_PAYROLL_ADJUSTMENT, "Penyesuaian maksimal Rp 1.000.000.000")
+  .max(MAX_PAYROLL_ADJUSTMENT, "Penyesuaian maksimal Rp 1.000.000.000");
+
 export const adjustPayrollLineSchema = z.object({
-  adjustmentAmount: z.number().finite("Jumlah penyesuaian tidak valid"),
+  adjustmentAmount: adjustmentAmountField,
   adjustmentNote: z.string().trim().min(1, "Catatan penyesuaian wajib diisi"),
 });
 
@@ -133,7 +164,12 @@ export type AdjustPayrollLineInput = z.infer<typeof adjustPayrollLineSchema>;
 // `parseFloat(adjAmount) || 0` — z.coerce.number() already turns "" into 0,
 // so no separate blank case is needed here).
 export const adjustPayrollLineFormSchema = adjustPayrollLineSchema.extend({
-  adjustmentAmount: z.coerce.number({ message: "Jumlah penyesuaian harus berupa angka" }).finite("Jumlah penyesuaian tidak valid"),
+  adjustmentAmount: z.coerce
+    .number({ message: "Jumlah penyesuaian harus berupa angka" })
+    .finite("Jumlah penyesuaian tidak valid")
+    .int("Penyesuaian harus bilangan bulat (tanpa desimal)")
+    .min(-MAX_PAYROLL_ADJUSTMENT, "Penyesuaian maksimal Rp 1.000.000.000")
+    .max(MAX_PAYROLL_ADJUSTMENT, "Penyesuaian maksimal Rp 1.000.000.000"),
 });
 
 // PUT /api/payroll/[id]/items/[itemId]/variables — had no schema at all
@@ -150,9 +186,13 @@ function payrollVariableField(fieldLabel: string, { integer }: { integer: boolea
   const base = integer
     ? z.coerce.number({ message: `${fieldLabel} harus berupa angka` }).int(`${fieldLabel} harus bilangan bulat`)
     : z.coerce.number({ message: `${fieldLabel} harus berupa angka` }).finite(`${fieldLabel} harus berupa angka`);
+  // HRX-4: the exact ceiling is the run's days-in-period (checked in the
+  // variables route); MAX_PERIOD_DAYS keeps absurd values out of the Int column.
   return z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? 0 : v),
-    base.nonnegative(`${fieldLabel} tidak boleh negatif`),
+    base
+      .nonnegative(`${fieldLabel} tidak boleh negatif`)
+      .max(MAX_PERIOD_DAYS, `${fieldLabel} maksimal ${MAX_PERIOD_DAYS} hari`),
   );
 }
 
@@ -192,12 +232,23 @@ export const payrollEditFormSchema = z
       z.coerce
         .number({ message: "Hari kerja aktual wajib diisi" })
         .int("Hari kerja aktual harus bilangan bulat")
-        .nonnegative("Hari kerja aktual tidak boleh negatif"),
+        .min(1, "Hari kerja aktual minimal 1 hari"),
     ),
   })
   .refine((v) => v.periodStart <= v.periodEnd, {
     message: "Tanggal mulai periode harus sebelum atau sama dengan tanggal selesai",
     path: ["periodStart"],
+  })
+  .superRefine((v, ctx) => {
+    if (v.periodStart > v.periodEnd) return; // reported by the refine above
+    const maxDays = calendarDaysInPeriod(v.periodStart, v.periodEnd);
+    if (v.actualWorkDays > maxDays) {
+      ctx.addIssue({
+        code: "custom",
+        message: actualWorkDaysRangeMessage(maxDays),
+        path: ["actualWorkDays"],
+      });
+    }
   });
 
 export type PayrollEditFormInput = z.infer<typeof payrollEditFormSchema>;

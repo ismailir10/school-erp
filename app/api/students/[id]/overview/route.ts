@@ -18,6 +18,7 @@ import {
   pickCurrentTerm,
   resolveStudentAgeGroup,
 } from "@/lib/student/dossier-aggregates";
+import { documentProgress } from "@/lib/enrollment/documents";
 
 /**
  * GET /api/students/[id]/overview — the student dossier's number tiles.
@@ -89,10 +90,11 @@ export async function GET(
       loadTerms(tenantId),
       loadRaportEntries(tenantId, id),
       resolveStudentAgeGroup(tenantId, id),
-      // Presence + provenance only. The full form is its own route.
+      // Presence + provenance only (`documents` is reduced to a done/required
+      // count below, never returned). The full form is its own route.
       prisma.enrollmentApplication.findFirst({
         where: { studentId: id, tenantId },
-        select: { id: true, status: true, submittedAt: true, consentData: true },
+        select: { id: true, status: true, submittedAt: true, consentData: true, documents: true },
       }),
     ]);
 
@@ -164,6 +166,9 @@ export async function GET(
       ktpTotal: student.guardians.length,
       // "The parents signed the consent letter", not "a file exists".
       consent: consent.agreed === true,
+      // Kelengkapan Berkas from the pendaftaran form: required items uploaded or
+      // marked received. null for a student with no application.
+      enrollment: application ? documentProgress(application.documents) : null,
     },
     enrollmentApplication: application
       ? {

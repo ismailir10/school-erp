@@ -40,6 +40,12 @@ export interface AsyncComboboxProps<T> {
   getTriggerLabel?: (item: T) => string
   renderItem?: (item: T) => React.ReactNode
   /**
+   * Rows that stay visible but cannot be chosen (e.g. a full class). The
+   * caller's `renderItem` should say why — a greyed row with no reason reads
+   * as a bug.
+   */
+  isItemDisabled?: (item: T) => boolean
+  /**
    * Optional grouping key — renders one `CommandGroup` per distinct value,
    * groups sorted alphabetically (`localeCompare`), matching
    * class-section-picker's original `groupByCampus` order (and its
@@ -93,6 +99,7 @@ export function AsyncCombobox<T>({
   getLabel,
   getTriggerLabel,
   renderItem,
+  isItemDisabled,
   getGroup,
   footer,
   placeholder = "Pilih...",
@@ -213,6 +220,7 @@ export function AsyncCombobox<T>({
       <CommandItem
         key={getKey(item)}
         value={`${getLabel(item)} ${getKey(item)}`}
+        disabled={isItemDisabled?.(item)}
         onSelect={() => handleSelect(item)}
       >
         {renderItem ? renderItem(item) : getLabel(item)}

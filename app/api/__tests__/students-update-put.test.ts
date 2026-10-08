@@ -14,6 +14,7 @@ import type { SessionUser } from "@/lib/auth";
 
 const studentFindUnique = vi.fn();
 const studentUpdate = vi.fn();
+const studentFindFirst = vi.fn();
 const enrollmentUpdateMany = vi.fn();
 const invoiceUpdateMany = vi.fn();
 const transaction = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     student: {
       findUnique: studentFindUnique,
+      findFirst: studentFindFirst,
       update: studentUpdate,
     },
     studentEnrollment: {
@@ -98,6 +100,7 @@ beforeEach(() => {
     })
   );
   studentUpdate.mockResolvedValue({ id: "s1" });
+  studentFindFirst.mockResolvedValue(null);
   enrollmentUpdateMany.mockResolvedValue({ count: 0 });
   invoiceUpdateMany.mockResolvedValue({ count: 0 });
 });
@@ -224,5 +227,143 @@ describe("PUT /api/students/[id] — atomic cascade", () => {
     expect(res.status).toBe(200);
     expect(transaction).not.toHaveBeenCalled();
     expect(studentUpdate).toHaveBeenCalledOnce();
+  });
+});
+
+describe("PUT /api/students/[id] — reactivation (ADM-1)", () => {
+  async function put(body: Record<string, unknown>) {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    const { PUT } = await import("../students/[id]/route");
+    return PUT(makeReq(body) as never, { params: Promise.resolve({ id: "s1" }) });
+  }
+
+  it("status ACTIVE on a WITHDRAWN student clears withdrawalDate + withdrawalReason and creates no enrollment", async () => {
+    studentFindUnique.mockResolvedValue(
+      makeExisting({ status: "WITHDRAWN", withdrawalDate: "2026-08-01", withdrawalReason: "Pindah kota" }),
+    );
+
+    const res = await put({ status: "ACTIVE" });
+
+    expect(res.status).toBe(200);
+    expect(studentUpdate).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: expect.objectContaining({ status: "ACTIVE", withdrawalDate: null, withdrawalReason: null }),
+    });
+    // Plain update, no cascade transaction (that is for INACTIVE/WITHDRAWN).
+    expect(transaction).not.toHaveBeenCalled();
+    expect(enrollmentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("an ordinary edit of a WITHDRAWN student leaves the withdrawal fields alone", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "WITHDRAWN" }));
+
+    await put({ name: "Nama Baru" });
+
+    const data = studentUpdate.mock.calls[0][0].data;
+    expect(data.withdrawalDate).toBeUndefined();
+    expect(data.withdrawalReason).toBeUndefined();
+  });
+
+  it("status ACTIVE on an already ACTIVE student does not touch the withdrawal fields", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "ACTIVE" }));
+
+    await put({ status: "ACTIVE" });
+
+    const data = studentUpdate.mock.calls[0][0].data;
+    expect(data.withdrawalDate).toBeUndefined();
+    expect(data.withdrawalReason).toBeUndefined();
+  });
+});
+
+describe("PUT /api/students/[id] — reactivating a GRADUATED student (R2-ADMIN-8)", () => {
+  async function put(body: Record<string, unknown>) {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    const { PUT } = await import("../students/[id]/route");
+    return PUT(makeReq(body) as never, { params: Promise.resolve({ id: "s1" }) });
+  }
+
+  it("status ACTIVE on a GRADUATED student clears graduationDate and re-creates no enrollment", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "GRADUATED", graduationDate: "2026-06-30" }));
+
+    const res = await put({ status: "ACTIVE" });
+
+    expect(res.status).toBe(200);
+    expect(studentUpdate).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: expect.objectContaining({ status: "ACTIVE", graduationDate: null }),
+    });
+    // The withdrawal record is untouched by a graduation undo.
+    const data = studentUpdate.mock.calls[0][0].data;
+    expect(data.withdrawalDate).toBeUndefined();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(enrollmentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("an ordinary edit of a GRADUATED student leaves graduationDate alone", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "GRADUATED", graduationDate: "2026-06-30" }));
+    await put({ name: "Nama Baru" });
+    expect(studentUpdate.mock.calls[0][0].data.graduationDate).toBeUndefined();
+  });
+
+  it("reactivating a WITHDRAWN student does not touch graduationDate", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "WITHDRAWN" }));
+    await put({ status: "ACTIVE" });
+    expect(studentUpdate.mock.calls[0][0].data.graduationDate).toBeUndefined();
+  });
+});
+
+describe("PUT /api/students/[id] — NIS uniqueness (ADM-2)", () => {
+  async function put(body: Record<string, unknown>) {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    const { PUT } = await import("../students/[id]/route");
+    return PUT(makeReq(body) as never, { params: Promise.resolve({ id: "s1" }) });
+  }
+
+  it("409 NIS_TAKEN when the new NIS belongs to another student, and nothing is written", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ nis: "111" }));
+    studentFindFirst.mockResolvedValue({ id: "s2", name: "Aisyah" });
+
+    const res = await put({ nis: " 999 " });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "NIS sudah dipakai oleh Aisyah.",
+      code: "NIS_TAKEN",
+      field: "nis",
+    });
+    expect(studentFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: "t1", nis: "999", id: { not: "s1" } } }),
+    );
+    expect(studentUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not look up NIS when it is unchanged", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ nis: "111" }));
+
+    const res = await put({ nis: "111", name: "X" });
+
+    expect(res.status).toBe(200);
+    expect(studentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("clearing the NIS is allowed without a lookup", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ nis: "111" }));
+
+    const res = await put({ nis: "" });
+
+    expect(res.status).toBe(200);
+    expect(studentFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("an edit never raises DUPLICATE_STUDENT for name + date of birth", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting());
+
+    const res = await put({ name: "Sama Persis", dateOfBirth: "2015-01-01" });
+
+    expect(res.status).toBe(200);
+    expect(studentFindFirst).not.toHaveBeenCalled();
   });
 });

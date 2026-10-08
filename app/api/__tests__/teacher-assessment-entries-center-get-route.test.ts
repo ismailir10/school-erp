@@ -5,11 +5,13 @@ const {
   studentEnrollmentFindMany,
   achievementIndicatorFindMany,
   assessmentEntryFindMany,
+  teachingAssignmentFindMany,
 } = vi.hoisted(() => ({
   weekFindFirst: vi.fn(),
   studentEnrollmentFindMany: vi.fn(),
   achievementIndicatorFindMany: vi.fn(),
   assessmentEntryFindMany: vi.fn(),
+  teachingAssignmentFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -18,6 +20,7 @@ vi.mock("@/lib/db", () => ({
     studentEnrollment: { findMany: studentEnrollmentFindMany },
     achievementIndicator: { findMany: achievementIndicatorFindMany },
     assessmentEntry: { findMany: assessmentEntryFindMany },
+    teachingAssignment: { findMany: teachingAssignmentFindMany },
   },
 }));
 
@@ -73,6 +76,7 @@ const happy = () => {
       student: { id: "stu1", name: "Ali", nickname: "Ali", status: "ACTIVE" },
     },
   ]);
+  teachingAssignmentFindMany.mockResolvedValue([{ classSectionId: "cs1" }]);
   achievementIndicatorFindMany.mockResolvedValue([
     {
       id: "ind1",
@@ -194,5 +198,32 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
     });
     const callArgs = achievementIndicatorFindMany.mock.calls[0][0];
     expect(callArgs.where.objective).toEqual({ ageGroup: "A" });
+  });
+  it("R2-T-7: each student carries class label + id, and the payload lists the teacher's own class ids (tenant-scoped)", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happy();
+    studentEnrollmentFindMany.mockResolvedValue([
+      {
+        classSection: { id: "cs1", name: "TKIT A" },
+        student: { id: "stu1", name: "Abdul Zahra", nickname: null, status: "ACTIVE" },
+      },
+      {
+        classSection: { id: "cs2", name: "POPUP Weekend" },
+        student: { id: "stu2", name: "Abdul Zahra", nickname: null, status: "ACTIVE" },
+      },
+    ]);
+    const res = await GET(req() as never, {
+      params: Promise.resolve({ center: "WORSHIP" }),
+    });
+    const body = await res.json();
+    expect(body.students).toEqual([
+      expect.objectContaining({ id: "stu1", classSectionId: "cs1", className: "TKIT A" }),
+      expect.objectContaining({ id: "stu2", classSectionId: "cs2", className: "POPUP Weekend" }),
+    ]);
+    expect(body.myClassSectionIds).toEqual(["cs1"]);
+    expect(teachingAssignmentFindMany.mock.calls[0][0].where).toEqual({
+      employeeId: "emp1",
+      classSection: { tenantId: "t1" },
+    });
   });
 });

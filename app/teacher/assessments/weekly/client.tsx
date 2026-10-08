@@ -355,7 +355,7 @@ export function WeeklyClient({
         )}
       </div>
 
-      {students.length > 0 ? (
+      {students.length > 0 && indicators.length > 0 ? (
         // Space is reserved so the line appearing never pushes the roster mid-tap.
         <div className="min-h-6" data-testid="weekly-save-state">
           {saveState !== "idle" ? (
@@ -373,7 +373,12 @@ export function WeeklyClient({
         </div>
       ) : null}
 
-      {students.length === 0 ? (
+      {/*
+        TCH-5: with no IKTP for the week there is nothing to rate against, so the
+        disabled level chips and the "Ketuk tingkat…" hint are noise — the empty
+        state above is the whole message.
+      */}
+      {indicators.length === 0 ? null : students.length === 0 ? (
         <EmptyState
           icon={Users}
           title="Belum ada siswa di kelas ini"
@@ -449,14 +454,19 @@ export function WeeklyClient({
         </ul>
       )}
 
-      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-        <NotebookPen className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-        {/*
-          The old line ended "…bisa ditambahkan dari detail siswa", pointing at
-          a screen this page has no link to. Say what the tap does instead.
-        */}
-        Ketuk tingkat untuk menyimpan. Penilaian tersimpan otomatis.
-      </p>
+      {indicators.length > 0 && (
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <NotebookPen className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          {/*
+            The old line ended "…bisa ditambahkan dari detail siswa", pointing at
+            a screen this page has no link to. Say what the tap does instead.
+          */}
+          {/* R2-T-8: the status line above says "belum tersimpan" after a failed
+              tap; claiming auto-save in the same breath contradicts it. */}
+          Ketuk tingkat untuk menyimpan.
+          {saveState === "saving" || saveState === "error" ? "" : " Penilaian tersimpan otomatis."}
+        </p>
+      )}
     </div>
   );
 }

@@ -17,9 +17,11 @@ import { ContextStrip } from "@/components/portal/context-strip";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 
-function shortMonthDay(ymdStr: string): string {
+// DD/MM, like the journal WeekGrid. MM/DD printed "10/05" for 5 Oktober, which
+// an Indonesian reader takes as 10 Mei (X-12).
+function shortDayMonth(ymdStr: string): string {
   const [, m, d] = ymdStr.split("-");
-  return `${m}/${d}`;
+  return `${d}/${m}`;
 }
 
 export default async function ParentAttendancePage({
@@ -82,6 +84,7 @@ export default async function ParentAttendancePage({
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
     studentName: c.studentName,
+    studentNickname: c.studentNickname,
     className: c.className,
   }));
 
@@ -140,11 +143,14 @@ export default async function ParentAttendancePage({
               <p className="text-sm font-semibold text-status-late-text">
                 {bannerState.line}
               </p>
-              {/* Get-well wishes only when the school actually recorded Sakit. */}
+              {/* Alpa leads (the parent has to act on it); get-well wishes only
+                  for a Sakit-only week. */}
               <p className="mt-1 text-xs text-muted-foreground">
                 {bannerState.reason === "sick"
                   ? `${childName} tercatat sakit pekan ini, semoga lekas sehat.`
-                  : `${childName} tercatat tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar.`}
+                  : bannerState.alsoSick
+                    ? `${childName} pekan ini sempat sakit, dan ada hari tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar.`
+                    : `${childName} tercatat tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar.`}
               </p>
             </div>
           </div>
@@ -171,6 +177,8 @@ export default async function ParentAttendancePage({
         label={weekRangeLabel}
         prevHref={parentHref("/parent/attendance", selected.studentId, { week: prevWeek })}
         nextHref={parentHref("/parent/attendance", selected.studentId, { week: nextWeek })}
+        // Only when off the current week; today is always inside `days` on it.
+        todayHref={days.includes(today) ? undefined : parentHref("/parent/attendance", selected.studentId)}
       />
 
       {/* Week grid */}
@@ -193,8 +201,9 @@ export default async function ParentAttendancePage({
           <table className="w-full min-w-[324px] border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-card py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
-                  Status
+                {/* Corner cell: the visible "Status" label belongs to the data row only. */}
+                <th scope="col" className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
+                  <span className="sr-only">Hari</span>
                 </th>
                 {days.map((d, i) => {
                   const isToday = d === today;
@@ -205,7 +214,7 @@ export default async function ParentAttendancePage({
                     >
                       <div>{DAY_LABELS[i] ?? ""}</div>
                       <div className={`text-xs font-normal ${isToday ? "text-primary-text" : "text-muted-foreground/70"}`}>
-                        {shortMonthDay(d)}
+                        {shortDayMonth(d)}
                       </div>
                     </th>
                   );
@@ -214,9 +223,9 @@ export default async function ParentAttendancePage({
             </thead>
             <tbody>
               <tr className="border-b border-border/40">
-                <td className="sticky left-0 z-10 bg-card py-2 pr-2 text-xs text-foreground">
-                  Hadir
-                </td>
+                <th scope="row" className="sticky left-0 z-10 bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
+                  Status
+                </th>
                 {days.map((d) => {
                   const isToday = d === today;
                   const status = statusByDate.get(d);
@@ -228,19 +237,42 @@ export default async function ParentAttendancePage({
                     >
                       <span className="inline-flex h-9 w-9 items-center justify-center">
                         {status === "MIXED" ? (
-                          <span className="text-xs font-semibold text-muted-foreground" aria-label="Catatan berbeda">≠</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>
+                            <span className="sr-only">Catatan berbeda</span>
+                          </>
                         ) : status === "PRESENT" ? (
-                          <Check size={16} strokeWidth={2.5} className="text-primary" />
+                          <>
+                            <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-primary" />
+                            <span className="sr-only">Hadir</span>
+                          </>
                         ) : status === "SICK" ? (
-                          <span className="text-xs font-bold text-status-late-text">S</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-late-text">S</span>
+                            <span className="sr-only">Sakit</span>
+                          </>
                         ) : status === "ABSENT" ? (
-                          <span className="text-xs font-bold text-status-absent-text">A</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-absent-text">A</span>
+                            <span className="sr-only">Alpa</span>
+                          </>
                         ) : status === "PERMISSION" ? (
-                          <span className="text-xs font-bold text-status-leave-text">I</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-leave-text">I</span>
+                            <span className="sr-only">Izin</span>
+                          </>
                         ) : isFuture ? (
-                          <span className="text-muted-foreground/40">·</span>
+                          <>
+                            <span aria-hidden="true" className="text-muted-foreground/60">-</span>
+                            <span className="sr-only">Belum berlangsung</span>
+                          </>
                         ) : (
-                          <span className="block size-3.5 rounded-sm border border-muted-foreground/30" />
+                          // Past or today with no saved record: an empty box, never the
+                          // same mark as a day that has not happened yet.
+                          <>
+                            <span aria-hidden="true" className="block size-3.5 rounded-sm border border-muted-foreground/30" />
+                            <span className="sr-only">Belum dicatat</span>
+                          </>
                         )}
                       </span>
                     </td>
@@ -254,6 +286,8 @@ export default async function ParentAttendancePage({
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
             <span><b className="text-status-leave-text">I</b> Izin</span>
+            <span><span aria-hidden="true" className="mr-1 inline-block size-3 rounded-sm border border-muted-foreground/30 align-middle" />Belum dicatat</span>
+            <span><span aria-hidden="true">-</span> Belum berlangsung</span>
             {mixedDays.length > 0 ? <span>≠ Catatan berbeda</span> : null}
           </div>
         </div>

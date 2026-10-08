@@ -218,16 +218,20 @@ test.describe("Teacher flows", () => {
     )?.trim();
     expect(studentName).toBeTruthy();
 
-    // Set a status — cycle-tap the status badge once (Hadir → Alpa → ...).
-    await targetRow.getByRole("button", { name: /^Ubah status/ }).click();
+    // The status pill cycles Hadir → Sakit → Izin → Alpa → Hadir (TCH-15).
+    // Masuk/pulang exist only for Hadir (TCHX-8), so go once round the cycle
+    // and land back on Hadir.
+    const statusPill = targetRow.getByRole("button", { name: /^Status .*Ketuk untuk ganti\.$/ });
+    for (let i = 0; i < 4; i++) await statusPill.click();
+    await expect(statusPill).toHaveAccessibleName(/: Hadir\./);
 
     // Tap In — enables Tap Out.
     await targetRow.getByRole("button", { name: /^Ketuk masuk$/ }).click();
-    await expect(targetRow.getByRole("button", { name: /^Masuk \d/ })).toBeVisible();
+    await expect(targetRow.getByText(/^Masuk \d/)).toBeVisible();
 
     // Tap Out — reveals the pickup-relation Select.
     await targetRow.getByRole("button", { name: /^Ketuk pulang$/ }).click();
-    await expect(targetRow.getByRole("button", { name: /^Pulang \d/ })).toBeVisible();
+    await expect(targetRow.getByText(/^Pulang \d/)).toBeVisible();
 
     // Pickup relation — pick "Orang tua" (PARENT), which needs no name.
     await targetRow.getByRole("combobox").click();
@@ -247,10 +251,10 @@ test.describe("Teacher flows", () => {
       .filter({ hasText: studentName! })
       .first();
     await expect(reloadedRow).toBeVisible({ timeout: 15_000 });
-    // Check-in button now reads "Masuk HH:MM" (disabled, persisted value).
-    await expect(reloadedRow.getByRole("button", { name: /^Masuk \d/ })).toBeVisible();
+    // Check-in shows as a "Masuk HH:MM" chip (persisted value).
+    await expect(reloadedRow.getByText(/^Masuk \d/)).toBeVisible();
     // Check-out persisted → pickup Select renders with "Orang tua" selected.
-    await expect(reloadedRow.getByRole("button", { name: /^Pulang \d/ })).toBeVisible();
+    await expect(reloadedRow.getByText(/^Pulang \d/)).toBeVisible();
     await expect(reloadedRow.getByRole("combobox")).toContainText("Orang tua");
   });
 
@@ -370,7 +374,7 @@ test.describe("Teacher flows", () => {
       )).toBe(true);
 
       const bottomContent = page.getByText(
-        "Slip ini dihasilkan otomatis oleh sistem An Nisaa' ERP. Dokumen resmi.",
+        "Slip ini dihasilkan otomatis oleh Talib by An Nisaa' Sekolahku. Dokumen resmi.",
         { exact: true },
       );
       await bottomContent.scrollIntoViewIfNeeded();

@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort, formatRupiah } from "@/lib/format";
 import { studentDetailEditFormSchema } from "@/lib/validations/student";
 import { useZodForm } from "@/lib/forms/use-zod-form";
-import { applyServerErrors } from "@/lib/forms/server-errors";
-import { sendJson } from "@/lib/api/send-json";
+import { sendStudentJson, applyStudentErrors } from "@/components/admin/students/student-request";
+import { STUDENT_LIST_QUERY_KEY } from "@/components/admin/students/list-query";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import type { ClassSection } from "@/components/admin/class-section-picker";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
@@ -131,6 +132,19 @@ export default function StudentDetailPage() {
   const [promoteSections, setPromoteSections] = useState<ClassSection[]>([]);
   const [graduateOpen, setGraduateOpen] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
+
+  // "Kembali ke Daftar Siswa" restores the list's search / status / page —
+  // the list mirrors them into sessionStorage (see components/admin/students/list-query.ts).
+  const [listHref, setListHref] = useState("/admin/students");
+  useEffect(() => {
+    try {
+      const qs = sessionStorage.getItem(STUDENT_LIST_QUERY_KEY);
+      if (qs) setListHref(`/admin/students?${qs}`);
+    } catch {
+      // Storage unavailable — the plain list link is fine.
+    }
+  }, []);
 
   async function openPromoteDialog() {
     try {
@@ -340,14 +354,43 @@ export default function StudentDetailPage() {
     setSectionOpen(SECTION_DATA_ANAK, true);
   }
 
+  // Unsaved Data Anak edits: sidebar / breadcrumb clicks ask before leaving
+  // (same guard the Rapor editor uses). Must run before the early returns below.
+  const dataAnakDirty = isEditingDataAnak && dataAnakForm.formState.isDirty;
+  useUnsavedChangesGuard(
+    dataAnakDirty,
+    "Perubahan data siswa yang belum disimpan akan hilang.",
+  );
+  // R2-ADMIN-7: the guard above covers app-shell links (sidebar, breadcrumb,
+  // and DetailPageHeader's "Kembali" link, which is a GuardedLink). Reload /
+  // tab-close / hard navigation get the browser's own prompt. In-app browser
+  // Back is a popstate the App Router handles itself — not interceptable
+  // without a history shim, so it stays best-effort.
+  useEffect(() => {
+    if (!dataAnakDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dataAnakDirty]);
+
+  // In-flight latch for save: a fast double click (or Enter + click) must not
+  // send two PUTs. The button's `disabled` only lands after the next render.
+  const savingDataAnak = useRef(false);
   const saveDataAnak = dataAnakForm.handleSubmit(async (values) => {
+    if (savingDataAnak.current) return;
+    savingDataAnak.current = true;
     try {
-      await sendJson(`/api/students/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendStudentJson(`/api/students/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
       toast.success("Data siswa diperbarui");
       setIsEditingDataAnak(false);
       fetchStudent();
     } catch (err) {
-      applyServerErrors(dataAnakForm, err, "Gagal menyimpan");
+      applyStudentErrors(dataAnakForm, err, "Gagal menyimpan");
+    } finally {
+      savingDataAnak.current = false;
     }
   });
 
@@ -401,6 +444,7 @@ export default function StudentDetailPage() {
     ? [primaryEnrollment, ...currentEnrollments.filter(e => e.id !== primaryEnrollment.id)]
     : [];
   const activeEnrollment = primaryEnrollment;
+  const hasActiveEnrollment = student.enrollments.some((e) => e.status === "ACTIVE");
 
   const activeGuardians = student.guardians.filter((g) => g.status !== "INACTIVE");
   const siblings = deriveSiblings(student.guardians, student.id);
@@ -435,6 +479,15 @@ export default function StudentDetailPage() {
     // had a consent letter to sign, so listing it as missing would invent a gap.
     ...(overview?.enrollmentApplication
       ? [{ label: "Surat persetujuan", present: overview.documents?.consent === true }]
+      : []),
+    // Paper-form checklist (x / N). Only for a converted student, same reason.
+    ...(overview?.documents?.enrollment
+      ? [
+          {
+            label: `Berkas pendaftaran (${overview.documents.enrollment.done} / ${overview.documents.enrollment.required})`,
+            present: overview.documents.enrollment.done >= overview.documents.enrollment.required,
+          },
+        ]
       : []),
   ];
   const docsPresent = docItems.filter((d) => d.present).length;
@@ -588,18 +641,33 @@ export default function StudentDetailPage() {
     ...(!isEditingDataAnak
       ? [{ label: "Edit", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditingDataAnak }]
       : []),
-    {
-      label: "Daftarkan ke Kelas",
-      icon: <Plus size={14} aria-hidden="true" />,
-      onClick: () => setEnrollDialog(true),
-    },
+    // Only an ACTIVE student can be enrolled (the API refuses anyone else with
+    // STUDENT_NOT_ACTIVE). A WITHDRAWN or GRADUATED student gets the way back
+    // instead (R2-ADMIN-8: a mistaken Luluskan used to be a dead end).
+    ...(student.status === "ACTIVE"
+      ? [{
+          label: "Daftarkan ke Kelas",
+          icon: <Plus size={14} aria-hidden="true" />,
+          onClick: () => setEnrollDialog(true),
+        }]
+      : []),
+    ...(student.status === "WITHDRAWN" || student.status === "GRADUATED"
+      ? [{
+          label: "Aktifkan kembali",
+          icon: <RotateCcw size={14} aria-hidden="true" />,
+          onClick: () => setReactivateOpen(true),
+        }]
+      : []),
   ];
 
   const menuHeaderActions: DetailPageHeaderAction[] = [
     ...(student.status === "ACTIVE" && activeEnrollment
       ? [{ label: "Naik Kelas", onClick: openPromoteDialog }]
       : []),
-    ...(student.status === "ACTIVE"
+    // Graduating ends the active enrolments — with none there is nothing to
+    // graduate from (the API answers 409 "kelas aktif"). Any ACTIVE row counts,
+    // including a stale one in an archived year, matching the server's check.
+    ...(student.status === "ACTIVE" && hasActiveEnrollment
       ? [{ label: "Luluskan", onClick: () => setGraduateOpen(true) }]
       : []),
     ...(student.status === "ACTIVE"
@@ -623,7 +691,7 @@ export default function StudentDetailPage() {
   return (
     <>
       <DetailPageHeader
-        backHref="/admin/students"
+        backHref={listHref}
         backLabel="Kembali ke Daftar Siswa"
         title={student.name}
         description={
@@ -806,7 +874,7 @@ export default function StudentDetailPage() {
               badge={
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   {application.submittedAt
-                    ? formatDateShort(application.submittedAt.slice(0, 10))
+                    ? formatDateShort(application.submittedAt)
                     : "Belum dikirim"}
                 </span>
               }
@@ -814,7 +882,11 @@ export default function StudentDetailPage() {
               onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}
               keepMounted
             >
-              <StudentEnrollmentApplicationBlock studentId={id} active={pendaftaranActive} />
+              <StudentEnrollmentApplicationBlock
+                studentId={id}
+                active={pendaftaranActive}
+                onDocumentsChange={fetchOverview}
+              />
             </DossierSection>
           )}
 
@@ -875,6 +947,9 @@ export default function StudentDetailPage() {
         onGraduateOpenChange={setGraduateOpen}
         withdrawOpen={withdrawDialogOpen}
         onWithdrawOpenChange={setWithdrawDialogOpen}
+        studentStatus={student.status}
+        reactivateOpen={reactivateOpen}
+        onReactivateOpenChange={setReactivateOpen}
         onChanged={fetchStudent}
       />
     </>

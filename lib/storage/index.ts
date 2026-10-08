@@ -30,11 +30,23 @@
  * 404, which is the right user-visible outcome since the underlying files
  * never persisted on Vercel anyway.
  *
+ * Demo disk backend (`demo:v1:`): when `DEMO_MODE=true` AND no Supabase
+ * service-role key AND not on Vercel, files live under
+ * `os.tmpdir()/talib-demo-storage`. Exists so E2E and local usability checks
+ * can exercise real uploads without Supabase credentials. The condition is
+ * re-evaluated on every call, and `demo:v1:` tokens are refused outside it, so
+ * the backend can never engage (or be reached) on a deployment.
+ *
  * Entity-generic: NEVER hardcode "students" / "photo" / "parent" / "ktp"
  * inside this module.
  */
 
 import { createHash } from "crypto";
+import { createReadStream } from "fs";
+import { mkdir, writeFile, unlink } from "fs/promises";
+import os from "os";
+import path from "path";
+import { Readable } from "stream";
 import { uploadObject, downloadObject, removeObject } from "./supabase";
 
 export type SaveArgs = {
@@ -54,6 +66,20 @@ export type StreamResult = {
 
 const TOKEN_PREFIX = "supabase:v1:";
 const LEGACY_LOCAL_PREFIX = "local:v1:";
+const DEMO_PREFIX = "demo:v1:";
+
+/** Re-read per call — env can change between tests / process phases. */
+function isDemoBackend(): boolean {
+  return (
+    process.env.DEMO_MODE === "true" &&
+    !process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !process.env.VERCEL
+  );
+}
+
+function demoRoot(): string {
+  return path.join(os.tmpdir(), "talib-demo-storage");
+}
 
 const ALLOWED_EXTS = new Set(["jpg", "jpeg", "png", "pdf"]);
 const SAFE_SEGMENT = /^[a-zA-Z0-9_-]+$/;
@@ -95,15 +121,23 @@ export async function saveFile(args: SaveArgs): Promise<SaveResult> {
 
   const hash = hashBytes(file.bytes);
   const filename = `${field}-${hash}.${ext}`;
-  const path = `${entity}/${entityId}/${filename}`;
-  await uploadObject({ path, bytes: file.bytes, mimeType: file.mimeType });
+  const objectPath = `${entity}/${entityId}/${filename}`;
 
-  const token = `${TOKEN_PREFIX}${path}`;
+  if (isDemoBackend()) {
+    const dest = path.join(demoRoot(), entity, entityId, filename);
+    await mkdir(path.dirname(dest), { recursive: true });
+    await writeFile(dest, file.bytes);
+    return { token: `${DEMO_PREFIX}${objectPath}` };
+  }
+
+  await uploadObject({ path: objectPath, bytes: file.bytes, mimeType: file.mimeType });
+
+  const token = `${TOKEN_PREFIX}${objectPath}`;
   return { token };
 }
 
 type ParsedToken = {
-  backend: "supabase" | "local";
+  backend: "supabase" | "local" | "demo";
   path: string;
   filename: string;
   ext: string;
@@ -118,11 +152,14 @@ type ParsedToken = {
  * the bucket policy enforces on the server side.
  */
 function parseToken(token: string): ParsedToken {
-  let backend: "supabase" | "local";
+  let backend: "supabase" | "local" | "demo";
   let rest: string;
   if (token.startsWith(TOKEN_PREFIX)) {
     backend = "supabase";
     rest = token.slice(TOKEN_PREFIX.length);
+  } else if (token.startsWith(DEMO_PREFIX)) {
+    backend = "demo";
+    rest = token.slice(DEMO_PREFIX.length);
   } else if (token.startsWith(LEGACY_LOCAL_PREFIX)) {
     backend = "local";
     rest = token.slice(LEGACY_LOCAL_PREFIX.length);
@@ -168,11 +205,23 @@ function parseToken(token: string): ParsedToken {
  * `requireAdmin` or a guardian-link check.
  */
 export async function streamFile(token: string): Promise<StreamResult> {
-  const { backend, path, filename, ext } = parseToken(token);
+  const { backend, path: objectPath, filename, ext } = parseToken(token);
   if (backend === "local") {
     throw new Error("Legacy local-disk token — file unavailable");
   }
-  const { bytes } = await downloadObject(path);
+  if (backend === "demo") {
+    if (!isDemoBackend()) throw new Error("Demo storage token refused outside demo mode");
+    const mimeType = EXT_TO_MIME[ext] ?? "application/octet-stream";
+    const nodeStream = createReadStream(path.join(demoRoot(), ...objectPath.split("/")));
+    // Fail now (ENOENT) rather than mid-response: wait for the fd to open.
+    await new Promise<void>((resolve, reject) => {
+      nodeStream.once("open", () => resolve());
+      nodeStream.once("error", reject);
+    });
+    const stream = Readable.toWeb(nodeStream) as unknown as ReadableStream<Uint8Array>;
+    return { stream, mimeType, filename };
+  }
+  const { bytes } = await downloadObject(objectPath);
   // Construct a Web ReadableStream from the buffer so the route can pass
   // it straight to Response. Single chunk is fine for the 2-5 MB ceiling.
   const stream = new ReadableStream<Uint8Array>({
@@ -200,8 +249,17 @@ export async function deleteFile(token: string): Promise<void> {
   if (parsed.backend === "local") {
     return;
   }
+  if (parsed.backend === "demo") {
+    if (!isDemoBackend()) throw new Error("Demo storage token refused outside demo mode");
+    try {
+      await unlink(path.join(demoRoot(), ...parsed.path.split("/")));
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+    return;
+  }
   await removeObject(parsed.path);
 }
 
 // Exported for tests that need to assert path resolution / token parsing.
-export const __internal = { parseToken, TOKEN_PREFIX, LEGACY_LOCAL_PREFIX };
+export const __internal = { parseToken, TOKEN_PREFIX, LEGACY_LOCAL_PREFIX, DEMO_PREFIX };

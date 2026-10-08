@@ -63,14 +63,14 @@ const salaryValues = [
 
 type Calls = { url: string; method: string }[];
 
-function stubFetch(over: { salary?: unknown; salaryOk?: boolean } = {}) {
+function stubFetch(over: { salary?: unknown; salaryOk?: boolean; employee?: unknown } = {}) {
   const calls: Calls = [];
   const fn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push({ url, method: init?.method ?? "GET" });
 
     if (url === "/api/employees/e1") {
-      return Promise.resolve({ ok: true, json: async () => employee } as Response);
+      return Promise.resolve({ ok: true, json: async () => over.employee ?? employee } as Response);
     }
     if (url === "/api/employees/e1/salary") {
       const ok = over.salaryOk ?? true;
@@ -105,6 +105,20 @@ describe("employee dossier — hash-addressable sections", () => {
     // between tests, so leaking it would make later renders think they
     // already have a target to jump to.
     window.location.hash = "";
+  });
+
+  it("shows leave remaining against the allowance (sisa X dari Y hari), in the section and the rail", async () => {
+    const { fn } = stubFetch({ employee: { ...employee, leaveUsedAnnual: 3, leaveUsedSick: 0 } });
+    vi.stubGlobal("fetch", fn);
+    render(<EmployeeDetailPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Budi Santoso" })).toBeInTheDocument());
+
+    expect(screen.getByText("Sisa 9 dari 12 hari")).toBeInTheDocument();
+    expect(screen.getByText("Sisa 14 dari 14 hari")).toBeInTheDocument();
+    // Rail tiles: remaining as the figure, allowance as the hint.
+    expect(screen.getByText("sisa dari 12 hari")).toBeInTheDocument();
+    expect(screen.getByText("sisa dari 14 hari")).toBeInTheDocument();
   });
 
   it("renders every visible section with a hash-addressable id", async () => {

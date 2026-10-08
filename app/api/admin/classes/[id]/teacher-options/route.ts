@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
-import { parsePagination } from "@/lib/api/pagination";
+import { parsePagination, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 
 // Teacher picker for the class detail page (add-teacher + swap-session
@@ -35,7 +35,7 @@ export async function GET(
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
-  const search = (searchParams.get("search") ?? "").trim();
+  const search = escapeLike(cleanSearch(searchParams.get("search")));
 
   const where = {
     tenantId: session.tenantId,

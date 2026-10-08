@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, ChevronUp, MessageSquarePlus } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SectionLabel } from "@/components/portal/section-label";
+import { BULK_ABSENCE_LABELS, type BulkAbsences } from "@/components/student-journal/class-bulk-sheet";
 
 type Indicator = {
   id: string;
@@ -51,9 +52,11 @@ type ClassDayGridProps = {
   visibleDate?: string;
   /** Set of `${studentId}:${indicatorId}` keys currently saving — renders a subtle saving affordance. */
   pendingCells?: Set<string>;
+  /** Today's Sakit/Izin/Alpa children (R2-T-5): badged in the row, same labels as the bulk sheet. */
+  absences?: BulkAbsences;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet, onAddNote, noteCounts, unreadCounts, visibleDate, pendingCells }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet, onAddNote, noteCounts, unreadCounts, visibleDate, pendingCells, absences }: ClassDayGridProps) {
   const router = useRouter();
   // The row-stagger ignored the OS reduced-motion setting, unlike every other
   // animated surface in the portal.
@@ -148,6 +151,14 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                       <p className="text-xs text-muted-foreground">{secondaryName(student)}</p>
                     )}
                   </div>
+                  {absences?.[student.id] ? (
+                    <span
+                      className="shrink-0 rounded-full bg-status-absent-subtle px-2 py-0.5 text-xs font-medium text-status-absent-text"
+                      data-testid={`absence-badge-${student.id}`}
+                    >
+                      {BULK_ABSENCE_LABELS[absences[student.id]]}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {unreadCount > 0 ? (

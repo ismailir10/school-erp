@@ -10,7 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
-import { ClassBulkSheet, type BulkApply } from "@/components/student-journal/class-bulk-sheet";
+import {
+  ClassBulkSheet,
+  isBulkAbsenceStatus,
+  type BulkAbsences,
+  type BulkApply,
+} from "@/components/student-journal/class-bulk-sheet";
 import { ListChecks, Users } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -26,6 +31,8 @@ import {
 } from "@/lib/student-journal/optimistic-save";
 import {
   JournalWriteCoalescer,
+  KEEPALIVE_BUDGET_BYTES,
+  bindFlushOnPageHide,
   type FlushBatch,
 } from "@/lib/student-journal/coalesce-writes";
 import {
@@ -67,6 +74,34 @@ type EntryRow = {
   checked: boolean;
 };
 
+/** How long the grid waits for the (optional) attendance lookup before showing without it. */
+const ABSENCE_LOOKUP_MS = 3000;
+
+/**
+ * Today's Sakit/Izin/Alpa children, keyed by student id (TCHX-7). One extra
+ * request, and strictly best-effort: on any failure the bulk sheet falls back
+ * to selecting everyone, exactly as before.
+ */
+async function fetchAbsences(classId: string, date: string): Promise<BulkAbsences> {
+  try {
+    const res = await fetch(
+      `/api/student-attendance?classSectionId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`,
+    );
+    if (!res.ok) return {};
+    const rows: unknown = await res.json();
+    if (!Array.isArray(rows)) return {};
+    const absences: BulkAbsences = {};
+    for (const row of rows as Array<{ student?: { id?: string }; attendance?: { status?: string } | null }>) {
+      const id = row?.student?.id;
+      const status = row?.attendance?.status;
+      if (id && isBulkAbsenceStatus(status)) absences[id] = status;
+    }
+    return absences;
+  } catch {
+    return {};
+  }
+}
+
 export default function StudentJournalEntryPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get("classId") ?? "";
@@ -82,6 +117,7 @@ export default function StudentJournalEntryPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [classSection, setClassSection] = useState<ClassSection | null>(null);
+  const [absences, setAbsences] = useState<BulkAbsences>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   /** state[studentId][indicatorId] = checked */
   const [gridState, setGridState] = useState<GridState>({});
@@ -114,9 +150,12 @@ export default function StudentJournalEntryPage() {
     setLoadError(false);
     setFailedCells({}); setHasSaved(false); setBulkUndo(null);
     try {
-    const res = await fetch(
+    const gridFetch = fetch(
       `/api/student-journal/class-grid?classSectionId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`
     );
+    // Started alongside the grid so it adds no latency; never rejects.
+    const absencesPromise = fetchAbsences(classId, date);
+    const res = await gridFetch;
     if (requestId !== loadRequestId.current) return;
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -132,6 +171,18 @@ export default function StudentJournalEntryPage() {
     const loadedCategories: Category[] = data.categories;
     const loadedEntries: EntryRow[] = data.entries;
 
+    // Bounded wait: attendance is a nicety, the grid is the page.
+    let lookupTimer: ReturnType<typeof setTimeout> | undefined;
+    const loadedAbsences = await Promise.race([
+      absencesPromise,
+      new Promise<BulkAbsences>((resolve) => {
+        lookupTimer = setTimeout(() => resolve({}), ABSENCE_LOOKUP_MS);
+      }),
+    ]);
+    clearTimeout(lookupTimer);
+    if (requestId !== loadRequestId.current) return;
+
+    setAbsences(loadedAbsences);
     setStudents(loadedStudents);
     setCategories(loadedCategories);
     setClassSection(data.classSection ?? null);
@@ -179,8 +230,10 @@ export default function StudentJournalEntryPage() {
       // track failure per cell: a chunk that fails rolls back only its own
       // cells, and the chunks that landed stay saved.
       const failedKeys = new Set<string>();
-      for (const chunk of chunkItems(batch.entries, JOURNAL_BATCH_CHUNK)) {
-        let chunkFailed = false;
+      const postChunk = async (
+        chunk: FlushBatch["entries"],
+        keepalive: boolean,
+      ): Promise<boolean> => {
         try {
           const res = await fetch("/api/student-journal/entries/batch", {
             method: "POST",
@@ -190,14 +243,41 @@ export default function StudentJournalEntryPage() {
               date,
               entries: chunk,
             }),
+            ...(keepalive ? { keepalive: true } : {}),
           });
-          if (!res.ok) chunkFailed = true;
+          return !res.ok;
         } catch {
-          chunkFailed = true;
+          return true;
         }
-        if (chunkFailed) {
-          for (const e of chunk) failedKeys.add(getJournalCellKey(e.studentId, e.indicatorId));
+      };
+      const chunks = chunkItems(batch.entries, JOURNAL_BATCH_CHUNK);
+      const failedChunks: FlushBatch["entries"][] = [];
+
+      if (batch.keepalive) {
+        // The page is going away (TCHX-17): nothing after the first await is
+        // guaranteed to run, so fire every chunk at once with `keepalive`.
+        // Browsers cap the combined keepalive body at 64KB — chunks past the
+        // budget go out as ordinary requests, best effort, rather than making
+        // fetch throw.
+        let budget = KEEPALIVE_BUDGET_BYTES;
+        const sizeOf = (chunk: FlushBatch["entries"]) =>
+          JSON.stringify({ classSectionId: classId, date, entries: chunk }).length;
+        const results = await Promise.all(
+          chunks.map((chunk) => {
+            const size = sizeOf(chunk);
+            const keepalive = size <= budget;
+            if (keepalive) budget -= size;
+            return postChunk(chunk, keepalive).then((failed) => ({ chunk, failed }));
+          }),
+        );
+        for (const r of results) if (r.failed) failedChunks.push(r.chunk);
+      } else {
+        for (const chunk of chunks) {
+          if (await postChunk(chunk, false)) failedChunks.push(chunk);
         }
+      }
+      for (const chunk of failedChunks) {
+        for (const e of chunk) failedKeys.add(getJournalCellKey(e.studentId, e.indicatorId));
       }
 
       if (activeContext.current !== contextToken) return;
@@ -272,8 +352,12 @@ export default function StudentJournalEntryPage() {
   useEffect(() => {
     const previous = coalescerRef.current;
     if (previous?.hasPending) void previous.flushNow();
-    coalescerRef.current = new JournalWriteCoalescer(flushBatch);
+    const coalescer = new JournalWriteCoalescer(flushBatch);
+    coalescerRef.current = coalescer;
+    // Closing the tab inside the 500ms window must not lose the last tap (TCHX-17).
+    const unbindPageHide = bindFlushOnPageHide(coalescer);
     return () => {
+      unbindPageHide();
       const c = coalescerRef.current;
       if (c?.hasPending) void c.flushNow();
     };
@@ -373,7 +457,7 @@ export default function StudentJournalEntryPage() {
   // loaded payload — the guru is looking at this number precisely while they
   // tap, and a figure that only moved on reload would be worse than none.
   const progress = getJournalProgress({
-    studentIds: students.map(s => s.id), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
+    studentIds: students.map(s => s.id), excludedStudentIds: Object.keys(absences), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
     entries: Object.entries(gridState).flatMap(([studentId, row]) => Object.entries(row).map(([indicatorId, checked]) => ({studentId, indicatorId, checked}))),
   });
   const completeStudents = progress.completeStudents;
@@ -450,7 +534,7 @@ export default function StudentJournalEntryPage() {
       />
 
       <p className="-mt-4 mb-4 text-xs text-muted-foreground" data-testid="class-progress">
-        {progress.configured ? `${completeStudents}/${students.length} siswa lengkap` : "Indikator sekolah belum disiapkan. Hubungi admin."}
+        {progress.configured ? `${completeStudents}/${progress.totalStudents} siswa lengkap${progress.absentCount ? ` · ${progress.absentCount} tidak hadir` : ""}` : "Indikator sekolah belum disiapkan. Hubungi admin."}
       </p>
 
       {progress.configured ? (
@@ -479,10 +563,13 @@ export default function StudentJournalEntryPage() {
         </div>
       ) : null}
 
-      {pendingCells.size > 0 || Object.keys(failedCells).length > 0 || hasSaved ? <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      {/* Height is reserved so "Jurnal tersimpan" appearing never shifts the grid mid-tap (TCH-8). */}
+      <div className="mb-4 flex min-h-6 flex-wrap items-center justify-between gap-2" data-testid="journal-save-state">
+        {pendingCells.size > 0 || Object.keys(failedCells).length > 0 || hasSaved ? <>
         <SaveStatus state={Object.keys(failedCells).length > 0 ? "error" : pendingCells.size > 0 ? "saving" : "saved"} message={Object.keys(failedCells).length > 0 ? "Sebagian perubahan belum tersimpan." : pendingCells.size > 0 ? "Menyimpan jurnal…" : "Jurnal tersimpan"} />
         {Object.keys(failedCells).length > 0 ? <Button variant="outline" className="min-h-11" onClick={() => Object.values(failedCells).forEach(cell => setCell(cell.studentId, cell.indicatorId, cell.checked))}>Coba simpan lagi</Button> : null}
-      </div> : null}
+        </> : null}
+      </div>
 
       <ClassDayGrid
         students={students}
@@ -494,6 +581,7 @@ export default function StudentJournalEntryPage() {
         noteCounts={noteCounts}
         unreadCounts={unreadCounts}
         pendingCells={pendingCells}
+        absences={absences}
         visibleDate={date}
       />
 
@@ -503,6 +591,7 @@ export default function StudentJournalEntryPage() {
         students={students}
         categories={categories}
         state={gridState}
+        absences={absences}
         onApply={applyClassBulk}
       />
 
