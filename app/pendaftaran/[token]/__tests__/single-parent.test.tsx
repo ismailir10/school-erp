@@ -7,6 +7,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
+import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 import { BringList } from "../bring-list";
 
 vi.mock("@/components/enrollment/signature-pad", () => ({
@@ -33,14 +34,14 @@ const onlyIbu = {
   studentData: student,
   ayahData: {},
   ibuData: { name: "Siti" },
-  consentData: { agreed: true, onlyParent: "ibu", ayah: { name: "", signed: false }, ibu: { name: "Siti", signed: true } },
+  consentData: { agreed: true, version: CONSENT_VERSION, onlyParent: "ibu", ayah: { name: "", signed: false }, ibu: { name: "Siti", signed: true } },
   documents: {},
 };
 
 const bothParents = {
   ...onlyIbu,
   ayahData: { name: "Budi" },
-  consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+  consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
 };
 
 function ok(body: unknown) {
@@ -118,7 +119,7 @@ describe("single parent / wali: client validation", () => {
 
   it("without the flag the consent step still wants both signatures", async () => {
     const user = userEvent.setup();
-    const prefill = { ...bothParents, consentData: { agreed: true, ayah: { name: "Budi", signed: false }, ibu: { name: "Siti", signed: true } } };
+    const prefill = { ...bothParents, consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: false }, ibu: { name: "Siti", signed: true } } };
     render(<PendaftaranClient initialStep={5} token="tok" programs={programs} prefill={prefill} />);
     await user.click(lanjut());
     expect(screen.getByText("Tanda tangan ayah wajib disimpan.")).toBeInTheDocument();
@@ -205,6 +206,14 @@ describe("BringList (R2-P-15)", () => {
     render(<BringList keys={["kk", "akta"]} />);
     expect(screen.getByRole("heading", { name: "Berkas yang perlu dibawa ke sekolah" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("keeps one ul with every label as a listitem when rows are staggered in", () => {
+    const { container } = render(<BringList keys={["kk", "akta", "ktp_ibu"]} />);
+    expect(container.querySelectorAll("ul")).toHaveLength(1);
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual(expect.arrayContaining(["KTP Ibu"]));
+    expect(rows).toHaveLength(3);
   });
 
   it("renders nothing when everything is in", () => {

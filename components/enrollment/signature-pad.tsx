@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, Eraser, Loader2 } from "lucide-react";
+import { Eraser, Loader2 } from "lucide-react";
+import { DrawCheck } from "@/components/reactbits/draw-check";
 
 /**
  * Drawn-signature pad for the enrollment consent step. The parent draws with a
@@ -97,7 +98,7 @@ export function SignaturePad({
         <span className="text-sm font-medium text-emerald-950">{label}</span>
         {saved && (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-            <Check size={14} /> Tersimpan
+            <DrawCheck size={16} strokeWidth={2.5} /> Tersimpan
           </span>
         )}
       </div>

@@ -18,7 +18,7 @@ Source is public; school data and secrets are not. Deployed single-tenant — a 
 | Database | Supabase Postgres (Singapore `ap-southeast-1`); Prisma datasource is Postgres-only, so local dev points at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth — Google OAuth only, invitation-only. `/auth/callback` gates on an ACTIVE `User`/`Employee`/`Parent` row |
-| UI | Shadcn Base UI + Tailwind + TanStack Table; admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, blur-in sign-in headline; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn Base UI + Tailwind + TanStack Table; admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, blur-in sign-in headline; step-enter, stagger and draw-check primitives for the public enrollment form; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
 | Payments | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout or Xendit, selected by `PAYMENT_GATEWAY` |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
@@ -50,7 +50,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
 | Public | `/daftar` | — | Mobile-first | Admission inquiry, three steps |
-| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — seven steps incl. document upload (Berkas; optional unless the school marks some required under Pengaturan → Berkas Wajib Pendaftaran), autosave + resume; each parent can sign from their own device on the same link |
+| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — seven steps incl. document upload (Berkas; optional unless the school marks some required under Pengaturan → Berkas Wajib Pendaftaran), autosave + resume, animated progress bar, step transitions, consent reveal and a draw-in success check (reduced-motion safe); each parent can sign from their own device on the same link; the signed Surat Persetujuan (v2) includes a photo/video clause for school documentation and social media, agreed by registering |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything, including payroll and salary |
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions (incl. Kelengkapan Berkas: view uploads, tick papers received; KK/KTP copied to the guardian on convert and shown on the student page), academics, attendance, invoices, employees |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first | Own attendance and leave; assigned classes only |

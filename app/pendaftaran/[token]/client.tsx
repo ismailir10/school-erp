@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +9,13 @@ import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Copy, RefreshCw } from "lucide-react";
+import { Camera, Check, Copy, RefreshCw } from "lucide-react";
+import { motion } from "framer-motion";
+import { BlurText } from "@/components/reactbits/blur-text";
+import { DrawCheck } from "@/components/reactbits/draw-check";
+import { Stagger, StaggerItem } from "@/components/reactbits/stagger";
+import { StepTransition } from "@/components/reactbits/step-transition";
+import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import { SignaturePad } from "@/components/enrollment/signature-pad";
 import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
 import {
@@ -37,6 +43,8 @@ import {
   CONSENT_CLAUSES,
   CONSENT_INTRO,
   CONSENT_VERSION,
+  PHOTO_CLAUSE_INDEX,
+  PHOTO_CLAUSE_TITLE,
 } from "@/lib/enrollment/consent-clauses";
 import { formatDateShort } from "@/lib/format";
 import {
@@ -61,7 +69,7 @@ type Prefill = {
   studentData: unknown;
   ayahData: unknown;
   ibuData: unknown;
-  /** `{ agreed, ayah: {name, signed}, ibu: {name, signed} }` — never raw tokens. */
+  /** `{ agreed, version, ayah: {name, signed}, ibu: {name, signed} }` — never raw tokens. */
   consentData: unknown;
   documents: PublicDocuments;
 };
@@ -167,7 +175,10 @@ function initConsent(p: unknown): ConsentState {
   const ayah = obj(c.ayah);
   const ibu = obj(c.ibu);
   return {
-    agreed: c.agreed === true,
+    // The tick belongs to the letter the parent saw. A draft saved under another
+    // version (or none) must be ticked again on the current wording; names,
+    // signatures and onlyParent stay as stored.
+    agreed: c.agreed === true && c.version === CONSENT_VERSION,
     ayahName: str(ayah.name), ayahSigned: ayah.signed === true,
     ibuName: str(ibu.name), ibuSigned: ibu.signed === true,
     onlyParent: c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "",
@@ -188,7 +199,11 @@ const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
 const INPUT_CLASS = "h-11 text-base md:text-base";
 const SELECT_CLASS = "h-11 text-base";
 const AREA_CLASS = "text-base md:text-base";
-const BTN_CLASS = "h-11 min-w-28 px-5 text-base";
+// Press feedback is pure CSS: a compositor-only transform, off under reduced motion. The Button base
+// already has transition-all, which covers `scale`; adding transition-transform here would drop its
+// colour and ring easing. aria-disabled buttons stay put, because they read as unavailable.
+const BTN_CLASS =
+  "h-11 min-w-28 px-5 text-base motion-safe:active:scale-[0.97] aria-disabled:active:scale-100";
 
 export default function PendaftaranClient({
   token,
@@ -221,6 +236,15 @@ export default function PendaftaranClient({
       }),
   );
   const [step, setStep] = useState(startStep);
+  // Direction of travel for the step transition: +1 forward, -1 when going back or jumping to an
+  // earlier step. Derived during render from the previous step (React's "adjust state on prop change"
+  // pattern), so it is right on the very render that swaps the step, whoever called setStep.
+  const [prevStep, setPrevStep] = useState(startStep);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  if (step !== prevStep) {
+    setPrevStep(step);
+    setDirection(step < prevStep ? -1 : 1);
+  }
   // Furthest step reached; the stepper lets the parent tap back to any of them.
   const [reached, setReached] = useState(startStep);
   const [student, setStudent] = useState<StudentState>(() => initStudent(prefill.studentData));
@@ -236,6 +260,9 @@ export default function PendaftaranClient({
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // The consent letter's reveal (stagger + one highlight) plays the first time this visit reaches the step,
+  // not again after Kembali or a jump. ConsentStep reports in once it has mounted.
+  const [consentSeen, setConsentSeen] = useState(false);
   // A signature POST in flight per parent. Moving on or submitting meanwhile
   // would close the row and the late POST would 409, silently losing it.
   const [sigSaving, setSigSaving] = useState({ ayah: false, ibu: false });
@@ -559,8 +586,8 @@ export default function PendaftaranClient({
     const missing = withoutWaivedParentDocs(missingRequiredDocuments(documents), consent.onlyParent);
     return (
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
-        <CheckCircle2 className="mx-auto mb-3 text-emerald-600" size={44} />
-        <h2 className="text-xl font-semibold text-emerald-950">Jazakumullah khairan, Bapak/Ibu</h2>
+        <DrawCheck size={56} className="mx-auto mb-3 text-emerald-600" />
+        <BlurText as="h2" text="Jazakumullah khairan, Bapak/Ibu" className="text-xl font-semibold text-emerald-950" />
         <p className="mt-3 text-sm leading-relaxed text-emerald-900/70">
           Formulir pendaftaran ananda <strong>{student.childName}</strong> sudah kami terima. Tim
           penerimaan An Nisaa&apos; Sekolahku akan menghubungi Bapak/Ibu untuk proses selanjutnya.
@@ -605,7 +632,10 @@ export default function PendaftaranClient({
         </Alert>
       )}
 
-      <div className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
+      {/* overflow-x-clip: the 12px enter slide must not add transient horizontal scroll on phones. The
+          card's own padding keeps input focus rings inside the clip. */}
+      <div className="overflow-x-clip rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
+        <StepTransition stepKey={step} direction={direction}>
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
           <ParentStep
@@ -645,9 +675,12 @@ export default function PendaftaranClient({
             onUpload={uploadSignature}
             saving={sigSaving}
             onRefresh={refreshSignatures}
+            reveal={!consentSeen}
+            onRevealed={() => setConsentSeen(true)}
           />
         )}
         {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} />}
+        </StepTransition>
       </div>
 
       <div className="flex items-center justify-between">
@@ -700,42 +733,73 @@ export default function PendaftaranClient({
 }
 
 function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo: (i: number) => void }) {
+  const reduced = usePrefersReducedMotion();
+  // Steps already completed when the form opened (resumed draft) show their check at rest; only a step
+  // completed during this visit pops.
+  const [openedAt] = useState(step);
+  const progress = (step + 1) / STEPS.length;
   return (
-    <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
-      {STEPS.map((label, i) => {
-        const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
-        const text = `${i + 1}. ${label}`;
-        if (i === step) {
-          return (
-            <li key={label} aria-current="step">
-              <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
-            </li>
-          );
-        }
-        if (i <= reached) {
-          // Already-visited steps are real buttons: bordered, darker text, focus ring.
+    <div className="space-y-3">
+      {/* Decorative: the pills below carry the state for assistive tech. scaleX, never width. */}
+      <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-emerald-100">
+        <motion.div
+          data-testid="stepper-progress"
+          data-step={step}
+          className="h-full origin-left rounded-full bg-[#0C5C3F]"
+          initial={false}
+          animate={{ scaleX: progress }}
+          transition={reduced ? { duration: 0 } : { duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </div>
+      <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
+        {STEPS.map((label, i) => {
+          const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
+          const text = `${i + 1}. ${label}`;
+          if (i === step) {
+            return (
+              <li key={label} aria-current="step">
+                <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
+              </li>
+            );
+          }
+          if (i <= reached) {
+            const completed = i < step;
+            // Already-visited steps are real buttons: bordered, darker text, focus ring.
+            return (
+              <li key={label}>
+                <button
+                  type="button"
+                  onClick={() => onGo(i)}
+                  className={
+                    base +
+                    (completed ? "gap-1.5 " : "") +
+                    "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
+                  }
+                >
+                  {completed && (
+                    <motion.span
+                      aria-hidden="true"
+                      className="inline-flex"
+                      initial={reduced || i < openedAt ? false : { scale: 0.4 }}
+                      animate={{ scale: 1 }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <Check size={14} aria-hidden="true" />
+                    </motion.span>
+                  )}
+                  {text}
+                </button>
+              </li>
+            );
+          }
           return (
             <li key={label}>
-              <button
-                type="button"
-                onClick={() => onGo(i)}
-                className={
-                  base +
-                  "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
-                }
-              >
-                {text}
-              </button>
+              <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
             </li>
           );
-        }
-        return (
-          <li key={label}>
-            <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
-          </li>
-        );
-      })}
-    </ol>
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -1028,25 +1092,71 @@ function ProgramStep({
   );
 }
 
+const subscribeNoop = () => () => {};
+
 function ConsentStep({
-  value, onChange, onUpload, onRefresh, saving,
+  value, onChange, onUpload, onRefresh, saving, reveal: revealProp = false, onRevealed,
 }: {
   value: ConsentState;
   onChange: (v: ConsentState) => void;
   onUpload: (which: "ayah" | "ibu", blob: Blob) => void;
   saving: { ayah: boolean; ibu: boolean };
   onRefresh: () => Promise<"changed" | "unchanged" | "error">;
+  /** First arrival at this step in this visit: play the clause reveal and the photo-clause highlight. */
+  reveal?: boolean;
+  /** Called once after mount so the parent can switch `reveal` off for later visits to the step. */
+  onRevealed?: () => void;
 }) {
+  // Captured at mount so the parent flipping `reveal` off mid-animation cannot cut the highlight short.
+  // Off while hydrating (a hard load straight onto this step shows the letter at once, like Stagger) and
+  // under reduced motion, so the page is the same static letter as before.
+  const isHydrating = useSyncExternalStore(subscribeNoop, () => false, () => true);
+  const reduced = usePrefersReducedMotion();
+  const [reveal] = useState(() => revealProp && !isHydrating && !reduced);
+  useEffect(() => {
+    onRevealed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- report once, on mount
+  }, []);
   const set =<K extends keyof ConsentState>(k: K, v: ConsentState[K]) => onChange({ ...value, [k]: v });
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">Surat Persetujuan Orang Tua</h2>
       <p className="text-sm text-emerald-900/70">{CONSENT_INTRO}</p>
-      <ol className="list-decimal space-y-2 rounded-xl border border-emerald-900/10 bg-emerald-50/40 p-4 pl-8 text-sm text-emerald-900/90">
-        {CONSENT_CLAUSES.map((c, i) => (
-          <li key={i}>{c}</li>
-        ))}
-      </ol>
+      <Stagger
+        as="ol"
+        count={CONSENT_CLAUSES.length}
+        enabled={reveal}
+        data-reveal={reveal ? "true" : "false"}
+        className="list-decimal space-y-2 rounded-xl border border-emerald-900/10 bg-emerald-50/40 p-4 pl-8 text-sm text-emerald-900/90"
+      >
+        {CONSENT_CLAUSES.map((c, i) =>
+          i === PHOTO_CLAUSE_INDEX ? (
+            // Same <ol>, so numbering and the stored clause set stay in step;
+            // only the look differs, so the photo permission is not lost in the list.
+            // The pulse waits (900ms) for the stagger to settle; the class is only present on the first reveal.
+            <StaggerItem
+              key={i}
+              as="li"
+              data-testid="photo-consent-clause"
+              data-photo-clause
+              className={`rounded-lg bg-emerald-100/70 p-3 ring-1 ring-emerald-900/15 marker:font-medium${
+                reveal ? " motion-safe:animate-highlight-once motion-safe:[animation-delay:900ms]" : ""
+              }`}
+            >
+              <strong className="flex items-center gap-2 font-semibold text-emerald-950">
+                <Camera size={16} aria-hidden className="shrink-0 text-emerald-800" />
+                {PHOTO_CLAUSE_TITLE}
+                <span className="sr-only">.</span>
+              </strong>
+              <span className="mt-1 block">{c}</span>
+            </StaggerItem>
+          ) : (
+            <StaggerItem key={i} as="li">
+              {c}
+            </StaggerItem>
+          ),
+        )}
+      </Stagger>
 
       {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}
       <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">

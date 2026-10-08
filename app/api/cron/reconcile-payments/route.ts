@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { limit } from "@/lib/finance/concurrency-limit";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { reconcileInvoicePayment } from "@/lib/payments/reconcile";
 
 /**
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   // nothing to report and the poll would burn a request to learn nothing.
   const candidates = await prisma.invoice.findMany({
     where: {
-      status: { in: ["SENT", "OVERDUE", "PARTIAL"] },
+      status: { in: [...UNPAID_INVOICE_STATUSES] },
       xenditPaymentUrl: { not: null },
     },
     select: { id: true },

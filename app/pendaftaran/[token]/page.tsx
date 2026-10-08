@@ -43,7 +43,9 @@ function toPublicConsent(raw: unknown) {
   };
   // `onlyParent` (R2-P-10): the one parent / wali filling alone, "" when both do.
   const onlyParent = c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "";
-  return { agreed: c.agreed === true, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
+  // `version` lets the form tell a draft ticked on an older letter from one ticked on this one.
+  const version = typeof c.version === "string" ? c.version : "";
+  return { agreed: c.agreed === true, version, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

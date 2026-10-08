@@ -72,4 +72,33 @@ describe("AdminPenilaianPage", () => {
     expect(badge.className).toContain("text-status-late-text");
     expect(badge.className).not.toMatch(/status-late\/\d+/);
   });
+
+  it("defaults both date pickers to the Jakarta calendar day, not the UTC day (01:00 WIB = 18:00Z the day before)", async () => {
+    // Coarse pointer → DatePicker renders a native <input type="date">, so the
+    // initial value is directly readable.
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query: string) =>
+        ({
+          matches: query.includes("coarse"),
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+    stubFetchOnce();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-04T18:00:00Z")); // 2026-10-05 01:00 WIB
+      render(<AdminPenilaianPage />);
+      expect(document.getElementById("week-date")).toHaveValue("2026-10-05");
+      expect(document.getElementById("sentra-day")).toHaveValue("2026-10-05");
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
 });

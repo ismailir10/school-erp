@@ -9,6 +9,8 @@ import { enrollmentAddSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
 import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
 import { findStreamConflict, findWithdrawnEnrollment } from "@/lib/enrollment/active";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 import { studentNotActiveResponse } from "@/lib/students/guards";
 import {
   CLASS_WRITE_BUDGET,
@@ -156,7 +158,7 @@ export async function POST(
     // identically in this door and in
     // app/api/students/[id]/enroll/route.ts — so two concurrent requests can
     // never deadlock by acquiring the two locks in opposite orders.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayInTimezone(JAKARTA_TZ);
     const created = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${studentId}:${classSection.academicYearId}:${classSection.program.type}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
