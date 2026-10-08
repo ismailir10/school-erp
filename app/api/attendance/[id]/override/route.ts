@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import {
-  ATTENDANCE_STATUSES,
   attendanceOverrideSchema,
+  attendanceOverrideUpdateSchema,
 } from "@/lib/validations/attendance";
+import { localTimeExists, zonedDateTimeToUtc } from "@/lib/attendance/timezone";
+
+const NONEXISTENT_TIME_ERROR =
+  "Jam itu tidak ada pada tanggal tersebut di zona waktu sekolah. Pilih jam lain.";
+
+// The school's configured timezone for this tenant (same fallback as check-in).
+async function getTenantTimezone(tenantId: string): Promise<string> {
+  const orgConfig = await prisma.orgConfig.findUnique({ where: { tenantId } });
+  return orgConfig?.timezone ?? "Asia/Jakarta";
+}
 
 // PUT updates an existing record by id; date is immutable.
-// Allow datetimes with or without timezone offset — legacy callers send
-// `2026-04-15T07:00:00` (no Z) and `2026-04-15T07:00:00.000Z` interchangeably.
-const updateOverrideSchema = z.object({
-  status: z.enum(ATTENDANCE_STATUSES),
-  checkInTime: z.string().datetime({ local: true }).optional(),
-  checkOutTime: z.string().datetime({ local: true }).optional(),
-  reason: z
-    .string()
-    .trim()
-    .min(1, "Alasan wajib diisi")
-    .max(500, "Alasan maksimal 500 karakter"),
-});
+// checkInTime is `HH:MM` school-local (modal) or, for legacy callers, a full
+// datetime with or without offset — see attendanceOverrideUpdateSchema.
 
 export async function PUT(
   req: NextRequest,
@@ -50,7 +49,7 @@ export async function PUT(
     return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
 
-  const result = await validateBody(updateOverrideSchema, rawBody);
+  const result = await validateBody(attendanceOverrideUpdateSchema, rawBody);
   if (result.error) return result.error;
   const { status, checkInTime, checkOutTime, reason } = result.data;
 
@@ -62,11 +61,25 @@ export async function PUT(
     );
   }
 
+  let checkInAt: Date | undefined;
+  if (checkInTime) {
+    if (/^\d{2}:\d{2}$/.test(checkInTime)) {
+      if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      const timezone = await getTenantTimezone(session.tenantId!);
+      if (!localTimeExists(existing.date, checkInTime, timezone)) {
+        return NextResponse.json({ error: NONEXISTENT_TIME_ERROR }, { status: 400 });
+      }
+      checkInAt = zonedDateTimeToUtc(existing.date, checkInTime, timezone);
+    } else {
+      checkInAt = new Date(checkInTime);
+    }
+  }
+
   const record = await prisma.attendanceRecord.update({
     where: { id },
     data: {
       status,
-      checkInTime: checkInTime ? new Date(checkInTime) : undefined,
+      checkInTime: checkInAt,
       checkOutTime: checkOutTime ? new Date(checkOutTime) : undefined,
       isManualOverride: true,
       overrideReason: reason,
@@ -107,7 +120,7 @@ export async function POST(
 
   const result = await validateBody(attendanceOverrideSchema, rawBody);
   if (result.error) return result.error;
-  const { date, status, reason } = result.data;
+  const { date, status, checkInTime, reason } = result.data;
 
   // Mirror the PUT guard at line 58: a payroll-locked record cannot be
   // overwritten by re-hitting POST on the same {employeeId, date} composite key.
@@ -121,10 +134,20 @@ export async function POST(
     );
   }
 
+  let checkInAt: Date | undefined;
+  if (checkInTime) {
+    const timezone = await getTenantTimezone(session.tenantId!);
+    if (!localTimeExists(date, checkInTime, timezone)) {
+      return NextResponse.json({ error: NONEXISTENT_TIME_ERROR }, { status: 400 });
+    }
+    checkInAt = zonedDateTimeToUtc(date, checkInTime, timezone);
+  }
+
   const record = await prisma.attendanceRecord.upsert({
     where: { employeeId_date: { employeeId, date } },
     update: {
       status,
+      checkInTime: checkInAt,
       isManualOverride: true,
       overrideReason: reason,
       overriddenBy: session.id,
@@ -134,6 +157,7 @@ export async function POST(
       employeeId,
       date,
       status,
+      checkInTime: checkInAt,
       isManualOverride: true,
       overrideReason: reason,
       overriddenBy: session.id,
