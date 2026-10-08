@@ -18,7 +18,7 @@ Source is public; school data and secrets are not. Deployed single-tenant — a 
 | Database | Supabase Postgres (Singapore `ap-southeast-1`); Prisma datasource is Postgres-only, so local dev points at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth — Google OAuth only, invitation-only. `/auth/callback` gates on an ACTIVE `User`/`Employee`/`Parent` row |
-| UI | Shadcn Base UI + Tailwind + TanStack Table; admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, blur-in sign-in headline; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn Base UI + Tailwind + TanStack Table; admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, blur-in sign-in headline; step-enter, stagger and draw-check primitives for the public enrollment form; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
 | Payments | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout or Xendit, selected by `PAYMENT_GATEWAY` |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
