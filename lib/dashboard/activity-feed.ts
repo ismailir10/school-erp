@@ -17,6 +17,7 @@ type WhitelistedEntity =
   | "LeaveRequest"
   | "PayrollRun"
   | "Invoice"
+  | "BillingRun"
   | "Payment"
   | "Admission"
   | "EnrollmentApplication"
@@ -36,6 +37,14 @@ function payloadString(json: unknown, key: string): string | undefined {
   if (json && typeof json === "object" && !Array.isArray(json)) {
     const v = (json as Record<string, unknown>)[key];
     if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function payloadNumber(json: unknown, key: string): number | undefined {
+  if (json && typeof json === "object" && !Array.isArray(json)) {
+    const v = (json as Record<string, unknown>)[key];
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
   }
   return undefined;
 }
@@ -63,6 +72,14 @@ const VERB_MAP: Record<VerbKey, VerbBuilder> = {
   "Invoice.create": (t) => ({ verb: `membuat tagihan ${t}`, href: "/admin/invoices" }),
   "Invoice.payment": (t) => ({ verb: `mencatat pembayaran ${t}`, href: "/admin/invoices" }),
   "Invoice.void": (t) => ({ verb: `membatalkan tagihan ${t}`, href: "/admin/invoices" }),
+  // Written by POST /api/billing-runs/[id]/commit, once per committed chunk.
+  "BillingRun.commit": (t, { after }) => {
+    const n = payloadNumber(after, "invoiceCount");
+    return {
+      verb: n ? `menerbitkan ${n} tagihan ${t}` : `menerbitkan tagihan ${t}`,
+      href: "/admin/invoices",
+    };
+  },
   "Payment.record": (t) => ({ verb: `mencatat pembayaran ${t}`, href: "/admin/invoices" }),
   "Payment.reverse": (t) => ({ verb: `membatalkan pembayaran ${t}`, href: "/admin/invoices" }),
   "Admission.create": (t) => ({ verb: `pendaftaran baru: ${t}`, href: "/admin/admissions" }),
@@ -138,6 +155,7 @@ const ENTITY_TARGET: Record<WhitelistedEntity, TargetSpec> = {
   },
   PayrollRun: field("periodStart"),
   Invoice: field("invoiceNumber"),
+  BillingRun: field("periodLabel"),
   Payment: nested("invoice", "invoiceNumber"),
   Admission: field("childName"),
   EnrollmentApplication: field("childName"),

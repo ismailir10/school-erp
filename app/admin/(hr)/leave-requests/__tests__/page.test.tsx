@@ -181,6 +181,9 @@ describe("AdminLeavePage — review dialog", () => {
     await clickRowMenuItem(trigger, "Setujui");
 
     const dialog = await screen.findByRole("dialog", { name: "Setujui Cuti" });
+    // R2-ADMIN-13: no raw enum code in the helper copy.
+    expect(within(dialog).getByText(/berstatus Izin/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/LEAVE/)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Setujui" }));
 
     await waitFor(() => {

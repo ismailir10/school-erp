@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 import {
@@ -33,13 +33,27 @@ export type ClassSection = {
   capacity: number;
 };
 
-function label(s: ClassSection) {
+function baseLabel(s: ClassSection) {
   return formatClassOptionLabel({
     name: s.name,
     academicYearName: s.academicYear.name,
     enrolled: s._count.enrollments,
     capacity: s.capacity,
   });
+}
+
+// The same class name + year can run on two campuses ("KB · TA 2026/2027" on
+// both Taman Aster and Metland), which reads as duplicate options. Append the
+// campus only to labels that would otherwise be identical, so the common case
+// stays short.
+function buildLabels(sections: ClassSection[]): (s: ClassSection) => string {
+  const identity = (s: ClassSection) => `${s.name}|${s.academicYear.name}`;
+  const counts = new Map<string, number>();
+  for (const s of sections) counts.set(identity(s), (counts.get(identity(s)) ?? 0) + 1);
+  return (s) => {
+    const base = baseLabel(s);
+    return (counts.get(identity(s)) ?? 0) > 1 ? `${base} · ${s.campus.name}` : base;
+  };
 }
 
 // A class at capacity cannot take another student (the enrol and promote
@@ -88,6 +102,7 @@ export function ClassSectionCombobox({
   disabled?: boolean;
 }) {
   const selected = sections.find((s) => s.id === value) ?? null;
+  const label = useMemo(() => buildLabels(sections), [sections]);
 
   // Kampus is the group heading only — it is deliberately NOT part of each
   // item's search text. Both campus names share the "An Nisaa' Sekolahku "
@@ -100,7 +115,7 @@ export function ClassSectionCombobox({
       if (!q) return sections;
       return sections.filter((s) => label(s).toLowerCase().includes(q));
     },
-    [sections],
+    [sections, label],
   );
 
   return (
@@ -113,7 +128,10 @@ export function ClassSectionCombobox({
       getLabel={(s) => label(s)}
       // The trigger names the kampus explicitly — in the grouped list it is
       // the group heading, but once collapsed there is no other cue.
-      getTriggerLabel={(s) => `${label(s)} · ${s.campus.name}`}
+      getTriggerLabel={(s) => {
+        const l = label(s);
+        return l.endsWith(s.campus.name) ? l : `${l} · ${s.campus.name}`;
+      }}
       getGroup={(s) => s.campus.name}
       isItemDisabled={isFull}
       renderItem={(s) => (
@@ -167,6 +185,7 @@ export function ClassSectionMultiPicker({
   const [open, setOpen] = useState(false);
   const selectedSet = new Set(value);
   const { byCampus, campusNames } = groupByCampus(sections);
+  const label = useMemo(() => buildLabels(sections), [sections]);
 
   function toggle(sectionId: string) {
     if (selectedSet.has(sectionId)) {

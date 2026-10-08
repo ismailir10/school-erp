@@ -58,3 +58,18 @@ describe("ClassSectionCombobox — full classes (CORE-20)", () => {
     expect(onChange).toHaveBeenCalledWith("open");
   });
 });
+
+describe("ClassSectionCombobox — duplicate labels (R2-ADMIN-4)", () => {
+  it("appends the campus only to options that would otherwise read identical", async () => {
+    const user = userEvent.setup();
+    const metland = { ...section("kb-m", "KB", 15, 18), campus: { name: "Metland Cibitung" } };
+    const list = [section("kb-a", "KB", 15, 18), metland, section("tk", "TK A 1", 3, 10)];
+    render(
+      <ClassSectionCombobox sections={list} value="" onChange={vi.fn()} placeholder="Pilih kelas..." />,
+    );
+    await user.click(screen.getByRole("combobox"));
+    expect(await screen.findByText("KB · TA 2026/2027 · 15/18 · Taman Aster")).toBeInTheDocument();
+    expect(screen.getByText("KB · TA 2026/2027 · 15/18 · Metland Cibitung")).toBeInTheDocument();
+    expect(screen.getByText("TK A 1 · TA 2026/2027 · 3/10")).toBeInTheDocument();
+  });
+});

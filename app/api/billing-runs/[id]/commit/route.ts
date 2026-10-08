@@ -1,4 +1,5 @@
 import { hasPermission } from "@/lib/permissions";
+import { recordAudit } from "@/lib/audit";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -292,6 +293,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // No row update here — the claim above already set invoiceId + status,
       // which is the whole point of claiming first.
+
+      // R2-ADMIN-9: one audit row per committed chunk, in the same
+      // transaction so an invoice batch can never exist without it (the
+      // activity feed reads "menerbitkan N tagihan <periode>" from this).
+      await recordAudit(
+        {
+          tenantId,
+          actorId: session.id,
+          entity: "BillingRun",
+          entityId: id,
+          action: "commit",
+          after: { invoiceCount: plan.length, periodLabel: run.periodLabel },
+        },
+        tx,
+      );
 
       return plan.map<CreatedRow>(({ row, invoiceId, invoiceNumber }) => ({
         rowId: row.id,

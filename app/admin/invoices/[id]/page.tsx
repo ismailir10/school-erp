@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useCallback } from "react";
+import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
@@ -233,6 +233,32 @@ export default function InvoiceDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
 
+  // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so
+  // "Catat Pembayaran" lands straight in the existing dialog. Honoured once,
+  // after the invoice has loaded, then stripped so a refresh does not reopen it.
+  const autoOpenedPayment = useRef(false);
+  useEffect(() => {
+    if (!invoice || autoOpenedPayment.current) return;
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("bayar") !== "1") return;
+    autoOpenedPayment.current = true;
+    url.searchParams.delete("bayar");
+    window.history.replaceState(window.history.state, "", url.toString());
+    if (invoice.status === "PAID" || invoice.status === "CANCELLED" || !invoice.capabilities?.recordPayment) return;
+    payForm.reset({
+      amount: Number(invoice.totalDue) - Number(invoice.totalPaid),
+      method: "CASH",
+      reference: "",
+      notes: "",
+      paidAt: getTodayInTimezone("Asia/Jakarta"),
+    });
+    setPayStep("form");
+    setPaymentDialog(true);
+    // payForm is stable (react-hook-form); only the loaded invoice matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice]);
+
   // Step 1 -> 2: validate the form, then show the review. No request yet.
   const handleReviewPayment = payForm.handleSubmit((values) => {
     const due = invoice ? Number(invoice.totalDue) - Number(invoice.totalPaid) : 0;
@@ -459,7 +485,7 @@ export default function InvoiceDetailPage() {
           ...(canRefreshPayment
             ? [
                 {
-                  label: refreshingPayment ? "Memeriksa..." : "Cek status di gateway",
+                  label: refreshingPayment ? "Memeriksa..." : "Cek status pembayaran",
                   icon: (
                     <RefreshCw
                       size={14}

@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => ({
     leaveRequest: { findMany: vi.fn() },
     payrollRun: { findMany: vi.fn() },
     invoice: { findMany: vi.fn() },
+    billingRun: { findMany: vi.fn() },
     admission: { findMany: vi.fn() },
     studentEnrollment: { findMany: vi.fn() },
     payment: { findMany: vi.fn() },
@@ -348,5 +349,32 @@ describe("getRecentActivity — real audit rows", () => {
     // One batched lookup per entity, however many rows reference it.
     expect(prisma.student.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.leaveRequest.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("BillingRun.commit (R2-ADMIN-9)", () => {
+  it("describes a committed run as 'menerbitkan N tagihan <periode>'", () => {
+    expect(describeAuditEntry("BillingRun", "commit", "Oktober 2026", { before: null, after: { invoiceCount: 20, periodLabel: "Oktober 2026" } })).toEqual({
+      verb: "menerbitkan 20 tagihan Oktober 2026",
+      href: "/admin/invoices",
+    });
+  });
+
+  it("drops the count when the payload has none", () => {
+    expect(describeAuditEntry("BillingRun", "commit", "Oktober 2026")?.verb).toBe("menerbitkan tagihan Oktober 2026");
+  });
+
+  it("renders in the feed with actor + period resolved from the run", async () => {
+    mockAudit.mockResolvedValue([
+      {
+        id: "a1", tenantId: "tenant-1", actorId: "u1", entity: "BillingRun", entityId: "br1", action: "commit",
+        before: null, after: { invoiceCount: 20, periodLabel: "Oktober 2026" }, createdAt: new Date("2026-10-08T01:00:00Z"),
+      },
+    ]);
+    mockUser.mockResolvedValue([{ id: "u1", name: "Bu Sari", email: "s@s.id" }]);
+    (prisma.billingRun.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: "br1", periodLabel: "Oktober 2026" }]);
+    const events = await getRecentActivity("tenant-1");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ actorName: "Bu Sari", verb: "menerbitkan 20 tagihan Oktober 2026", href: "/admin/invoices" });
   });
 });

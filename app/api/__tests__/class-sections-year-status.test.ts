@@ -145,3 +145,16 @@ describe("GET /api/class-sections — yearStatus filter", () => {
     );
   });
 });
+
+describe("GET /api/class-sections — seat count (R2-ADMIN-4)", () => {
+  it("counts only ACTIVE enrolments so a withdrawn student frees the seat", async () => {
+    await mockSession(adminSession());
+    classSectionFindMany.mockResolvedValue([]);
+    const { GET } = await import("@/app/api/class-sections/route");
+    await GET(new Request("http://localhost/api/class-sections") as never);
+    const arg = classSectionFindMany.mock.calls.at(-1)![0];
+    expect(arg.include._count).toEqual({
+      select: { enrollments: { where: { status: "ACTIVE" } } },
+    });
+  });
+});

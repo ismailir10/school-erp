@@ -25,7 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Download, Check, Pencil, Settings2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatRupiah } from "@/lib/format";
+import { formatRupiah, formatDate, formatDateShort } from "@/lib/format";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { adjustPayrollLineFormSchema, payrollEditFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -209,6 +210,7 @@ export default function PayrollDetailPage() {
             {delta !== undefined && (
               <p className={`font-currency text-xs ${delta >= 0 ? "text-success" : "text-destructive"}`}>
                 {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
+                <span className="ml-1 font-sans text-muted-foreground">vs periode lalu</span>
               </p>
             )}
           </div>
@@ -354,14 +356,28 @@ export default function PayrollDetailPage() {
   const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
   const isDraft = data.status === "DRAFT";
   const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
+  // Mirrors POST /api/payroll/[id]/approve (HRX-5): the whole of periodEnd still
+  // counts as a working day, so approval opens the day after it (Asia/Jakarta).
+  // The server 409s earlier attempts; disabling here saves the round trip.
+  const periodStillOpen = isDraft && data.periodEnd >= getTodayInTimezone("Asia/Jakarta");
+  const approveFrom = (() => {
+    const d = new Date(`${data.periodEnd}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
 
   return (
     <>
       <DetailPageHeader
         backHref="/admin/payroll"
-        title={`${data.periodStart} — ${data.periodEnd}`}
+        title={`${formatDateShort(data.periodStart)} — ${formatDateShort(data.periodEnd)}`}
         description={`${data.items.length} karyawan · ${data.actualWorkDays} hari kerja`}
-        badge={<StatusBadge status={data.status} />}
+        badge={
+          <>
+            <StatusBadge status={data.status} />
+            {isDraft && <Badge variant="outline" data-testid="payroll-draft-provisional">Sementara</Badge>}
+          </>
+        }
         actions={
           <>
             {isDraft && !isEditing && (
@@ -374,7 +390,21 @@ export default function PayrollDetailPage() {
                 <Trash2 size={14} className="mr-1.5" /> Batalkan draf
               </Button>
             )}
-            {isDraft && <Button size="sm" onClick={() => setApproveModal(true)}><Check size={14} className="mr-1.5" /> Setujui</Button>}
+            {periodStillOpen && (
+              <span id="payroll-approve-hint" className="text-xs text-muted-foreground">
+                Bisa disetujui mulai {formatDate(approveFrom)}
+              </span>
+            )}
+            {isDraft && (
+              <Button
+                size="sm"
+                onClick={() => setApproveModal(true)}
+                disabled={periodStillOpen}
+                aria-describedby={periodStillOpen ? "payroll-approve-hint" : undefined}
+              >
+                <Check size={14} className="mr-1.5" /> Setujui
+              </Button>
+            )}
             {isApproved && <Button size="sm" variant="outline" onClick={handleExport}><Download size={14} className="mr-1.5" /> Ekspor BSI</Button>}
           </>
         }
@@ -405,11 +435,11 @@ export default function PayrollDetailPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-muted-foreground">Periode Mulai</p>
-              <p className="text-sm font-medium" data-testid="payroll-period-start">{data.periodStart}</p>
+              <p className="text-sm font-medium" data-testid="payroll-period-start">{formatDateShort(data.periodStart)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Periode Akhir</p>
-              <p className="text-sm font-medium">{data.periodEnd}</p>
+              <p className="text-sm font-medium">{formatDateShort(data.periodEnd)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Hari Kerja Aktual</p>
@@ -464,7 +494,12 @@ export default function PayrollDetailPage() {
 
       {prevPeriod && (
         <p className="text-xs text-muted-foreground mb-4">
-          Dibandingkan dengan periode sebelumnya: {prevPeriod}
+          Dibandingkan dengan periode sebelumnya: {prevPeriod.split(" — ").map((d) => formatDateShort(d)).join(" — ")}
+        </p>
+      )}
+      {periodStillOpen && (
+        <p className="text-xs text-muted-foreground mb-4" data-testid="payroll-provisional-note">
+          Angka sementara: dihitung dari kehadiran sampai hari ini, jadi selisih dengan periode lalu belum bermakna.
         </p>
       )}
 
@@ -683,7 +718,7 @@ export default function PayrollDetailPage() {
         loading={approving}
       >
         <div className="py-2 space-y-2 text-sm">
-          <p>Periode: {data.periodStart} — {data.periodEnd}</p>
+          <p>Periode: {formatDateShort(data.periodStart)} — {formatDateShort(data.periodEnd)}</p>
           <p>Karyawan: {data.items.length}</p>
           <p>Total Bersih: <span className="font-currency font-bold">{formatRupiah(totalNet)}</span></p>
           {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
