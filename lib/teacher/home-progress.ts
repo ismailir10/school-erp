@@ -2,12 +2,36 @@ export type JournalProgressInput = {
   studentIds: string[];
   indicatorIds: string[];
   entries: { studentId: string; indicatorId: string; checked: boolean }[];
+  /** Pupils not at school today (Sakit/Izin/Alpa). They leave both sides of the count. */
+  excludedStudentIds?: Iterable<string>;
 };
 
+export type JournalProgress = {
+  configured: boolean;
+  /** Pupils expected to be filled in today: the roster minus `absentCount`. */
+  totalStudents: number;
+  completeStudents: number;
+  completed: boolean;
+  /** Roster pupils left out because they are absent today. */
+  absentCount?: number;
+};
+
+/** Attendance statuses the journal skips. Same set the bulk sheet excludes
+ * (`BULK_ABSENCE_LABELS` in class-bulk-sheet.tsx); a test keeps them in step. */
+const JOURNAL_ABSENT_STATUSES: ReadonlySet<string> = new Set(["SICK", "PERMISSION", "ABSENT"]);
+export function isJournalAbsentStatus(status: unknown): boolean {
+  return typeof status === "string" && JOURNAL_ABSENT_STATUSES.has(status);
+}
+
 /** Count complete pupils, not interchangeable ticks. Ignore retired indicators,
- * duplicate rows, and pupils who no longer belong to the active roster. */
-export function getJournalProgress({ studentIds, indicatorIds, entries }: JournalProgressInput) {
-  const roster = new Set(studentIds);
+ * duplicate rows, and pupils who no longer belong to the active roster. Pupils
+ * marked absent today are in neither the numerator nor the denominator, so a
+ * day with absences can still reach "lengkap". */
+export function getJournalProgress({ studentIds, indicatorIds, entries, excludedStudentIds }: JournalProgressInput): JournalProgress {
+  const excluded = new Set(excludedStudentIds ?? []);
+  const rosterAll = new Set(studentIds);
+  const roster = new Set([...rosterAll].filter(id => !excluded.has(id)));
+  const absentCount = rosterAll.size - roster.size;
   const indicators = new Set(indicatorIds);
   const checked = new Map<string, Set<string>>();
   for (const entry of entries) {
@@ -19,8 +43,10 @@ export function getJournalProgress({ studentIds, indicatorIds, entries }: Journa
   const configured = indicators.size > 0;
   const completeStudents = configured
     ? [...roster].filter(id => checked.get(id)?.size === indicators.size).length : 0;
-  return { configured, totalStudents: roster.size, completeStudents,
-    completed: configured && roster.size > 0 && completeStudents === roster.size };
+  // A class with nobody present has nothing left to fill; a class with no pupils at all still isn't "done".
+  const hasWork = roster.size > 0 || absentCount > 0;
+  return { configured, totalStudents: roster.size, completeStudents, absentCount,
+    completed: configured && hasWork && completeStudents === roster.size };
 }
 
 export function resolveTeacherDate(raw: string | null | undefined, fallback: string) {
@@ -35,7 +61,7 @@ export type TeacherClassSummary = {
   rosterCount: number;
   isHomeroom?: boolean;
   attendanceRecorded: number | null;
-  journal: ReturnType<typeof getJournalProgress> | null;
+  journal: JournalProgress | null;
   replies: { studentId: string; studentName: string; count: number }[] | null;
   slot: string | null;
 };

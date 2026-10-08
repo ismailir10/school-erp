@@ -100,7 +100,7 @@ describe("payroll summary states", () => {
 
     render(<PayrollListPage />);
 
-    const link = await screen.findByRole("link", { name: /2026-08-21/ });
+    const link = await screen.findByRole("link", { name: /21 Agu 2026/ });
     expect(link).toHaveAttribute("href", "/admin/payroll/run-1");
     expect(screen.queryByRole("button", { name: /Lihat/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Lihat")).not.toBeInTheDocument();

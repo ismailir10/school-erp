@@ -11,6 +11,7 @@ const txMock = {
   invoiceLine: {
     createMany: vi.fn(),
   },
+  auditLog: { create: vi.fn() },
   billingRunRow: {
     update: vi.fn(),
     // The commit route claims each row inside the transaction with a
@@ -737,5 +738,45 @@ describe("POST /api/billing-runs/[id]/commit — cache invalidation", () => {
     const res = await commitRun(makeReq({ rowIds: ["row-1"] }) as never, makeParams("run-1"));
     expect(res.status).toBe(200);
     expect(revalidateTag).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/billing-runs/[id]/commit — audit (R2-ADMIN-9)", () => {
+  it("writes a BillingRun/commit audit row inside the transaction with the chunk's invoice count and period", async () => {
+    await primeAdminSession();
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(draftRun() as never);
+    const rows = [pendingRow(), pendingRow({ id: "row-2", studentId: "s-2", studentNameSnapshot: "Sari" })];
+    vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue(rows as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    wireHappyTx(rows);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x" });
+    vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
+
+    const res = await commitRun(makeReq({ rowIds: ["row-1", "row-2"] }) as never, makeParams("run-1"));
+    expect(res.status).toBe(200);
+
+    expect(txMock.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(txMock.auditLog.create.mock.calls[0][0].data).toMatchObject({
+      tenantId: "tnt-1",
+      actorId: "u-1",
+      entity: "BillingRun",
+      entityId: "run-1",
+      action: "commit",
+      after: { invoiceCount: 2, periodLabel: "April 2026" },
+    });
+  });
+
+  it("writes no audit row when the chunk creates nothing", async () => {
+    await primeAdminSession();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(draftRun() as never);
+    vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue([pendingRow({ status: "COMMITTED", invoiceId: "inv-x" })] as never);
+    vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
+    const res = await commitRun(makeReq({ rowIds: ["row-1"] }) as never, makeParams("run-1"));
+    expect(res.status).toBe(200);
+    expect(txMock.auditLog.create).not.toHaveBeenCalled();
   });
 });

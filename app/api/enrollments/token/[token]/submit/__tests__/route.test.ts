@@ -211,6 +211,65 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
   });
 });
 
+describe("POST /submit — single parent / wali (R2-P-10)", () => {
+  function onlyIbuBody() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+    const b = validBody() as Record<string, any>;
+    b.ayahData = { name: "draft yang dibuang" };
+    b.consentData.onlyParent = "ibu";
+    b.consentData.ayah = { name: "Draft Ayah" }; // autosaved name of the waived parent
+    return b;
+  }
+
+  it("201 with only the ibu's name and signature; the waived ayah has no data and no signer block", async () => {
+    mockRow({ ibu: { signatureToken: DB_IBU } }); // ayah never signed
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(201);
+    const data = updateMany.mock.calls[0][0].data;
+    expect(data.ayahData).toEqual({});
+    expect(data.ibuData.name).toBe("Ibu Fatimah");
+    expect(data.consentData.onlyParent).toBe("ibu");
+    expect(data.consentData.ibu.signatureToken).toBe(DB_IBU);
+    expect(data.consentData.ibu.signedAt).toBeTruthy();
+    expect(data.consentData.ayah).toBeUndefined();
+  });
+
+  it("a stored signature of the waived parent does not resurface", async () => {
+    // default mockRow holds BOTH tokens, e.g. ayah signed before being waived
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(201);
+    const consent = updateMany.mock.calls[0][0].data.consentData;
+    expect(consent.ayah).toBeUndefined();
+    expect(JSON.stringify(consent)).not.toContain(DB_AYAH);
+  });
+
+  it("422 when the filling parent has not signed, even though the waived one is skipped", async () => {
+    mockRow({ ayah: { signatureToken: DB_AYAH } }); // only the waived parent signed
+    const res = await POST(req(onlyIbuBody()), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["consentData.ibu.signatureToken"]).toBeTruthy();
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("422 when the filling parent's name is blank", async () => {
+    mockRow({ ibu: { signatureToken: DB_IBU } });
+    const b = onlyIbuBody();
+    b.ibuData.name = "";
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["ibuData.name"]).toBe("Nama wajib diisi");
+  });
+
+  it("without the flag both parents are still required (422 names the missing ayah)", async () => {
+    const b = onlyIbuBody();
+    delete b.consentData.onlyParent;
+    delete b.ayahData;
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields["ayahData.name"]).toBe("Nama wajib diisi");
+  });
+});
+
 describe("POST /submit — transaction + row lock", () => {
   it("takes the row lock FOR UPDATE before reading the stored tokens, all inside one transaction", async () => {
     const order: string[] = [];

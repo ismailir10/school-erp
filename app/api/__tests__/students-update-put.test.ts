@@ -276,6 +276,44 @@ describe("PUT /api/students/[id] — reactivation (ADM-1)", () => {
   });
 });
 
+describe("PUT /api/students/[id] — reactivating a GRADUATED student (R2-ADMIN-8)", () => {
+  async function put(body: Record<string, unknown>) {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    const { PUT } = await import("../students/[id]/route");
+    return PUT(makeReq(body) as never, { params: Promise.resolve({ id: "s1" }) });
+  }
+
+  it("status ACTIVE on a GRADUATED student clears graduationDate and re-creates no enrollment", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "GRADUATED", graduationDate: "2026-06-30" }));
+
+    const res = await put({ status: "ACTIVE" });
+
+    expect(res.status).toBe(200);
+    expect(studentUpdate).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: expect.objectContaining({ status: "ACTIVE", graduationDate: null }),
+    });
+    // The withdrawal record is untouched by a graduation undo.
+    const data = studentUpdate.mock.calls[0][0].data;
+    expect(data.withdrawalDate).toBeUndefined();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(enrollmentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("an ordinary edit of a GRADUATED student leaves graduationDate alone", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "GRADUATED", graduationDate: "2026-06-30" }));
+    await put({ name: "Nama Baru" });
+    expect(studentUpdate.mock.calls[0][0].data.graduationDate).toBeUndefined();
+  });
+
+  it("reactivating a WITHDRAWN student does not touch graduationDate", async () => {
+    studentFindUnique.mockResolvedValue(makeExisting({ status: "WITHDRAWN" }));
+    await put({ status: "ACTIVE" });
+    expect(studentUpdate.mock.calls[0][0].data.graduationDate).toBeUndefined();
+  });
+});
+
 describe("PUT /api/students/[id] — NIS uniqueness (ADM-2)", () => {
   async function put(body: Record<string, unknown>) {
     const { getSession } = await import("@/lib/auth");

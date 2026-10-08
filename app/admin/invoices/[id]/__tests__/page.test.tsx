@@ -352,10 +352,10 @@ describe("InvoiceDetailPage — payment history, reversal and cancel", () => {
     expect(screen.queryByTestId("invoice-refresh-payment-btn")).not.toBeInTheDocument();
   });
 
-  it("FIN-20: an unpaid invoice with a link labels the refresh action 'Cek status di gateway'", async () => {
+  it("FIN-20: an unpaid invoice with a link labels the refresh action 'Cek status pembayaran'", async () => {
     fixture({ invoice: { xenditPaymentUrl: "https://pay.example/abc" } });
     render(<InvoiceDetailPage />);
-    expect(await screen.findByTestId("invoice-refresh-payment-btn")).toHaveTextContent("Cek status di gateway");
+    expect(await screen.findByTestId("invoice-refresh-payment-btn")).toHaveTextContent("Cek status pembayaran");
   });
 });
 
@@ -397,5 +397,37 @@ describe("InvoiceDetailPage — Unduh kuitansi (FINX-9)", () => {
     render(<InvoiceDetailPage />);
     await screen.findByText("Total Tagihan");
     expect(screen.queryByTestId("invoice-receipt-btn")).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — ?bayar=1 auto-opens Catat Pembayaran (R2-ADMIN-12)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("opens the dialog once with the balance prefilled and strips the flag from the URL", async () => {
+    window.history.replaceState(null, "", "/admin/invoices/inv-1?bayar=1");
+    fixture({ invoice: { status: "SENT", totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    const dialog = await screen.findByRole("dialog", { name: "Catat Pembayaran" });
+    expect(within(dialog).getByText("Sisa tagihan: Rp 1.000.000")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("does not open for a PAID invoice", async () => {
+    window.history.replaceState(null, "", "/admin/invoices/inv-1?bayar=1");
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByRole("dialog", { name: "Catat Pembayaran" })).not.toBeInTheDocument();
+  });
+
+  it("stays closed without the flag", async () => {
+    fixture({ invoice: { status: "SENT", totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByRole("dialog", { name: "Catat Pembayaran" })).not.toBeInTheDocument();
   });
 });

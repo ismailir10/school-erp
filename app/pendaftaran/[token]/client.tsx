@@ -43,13 +43,16 @@ import {
   STEPS,
   STEP_CONSENT,
   describeServerIssue,
+  isWaived,
   parentContactIssues,
   resumeStep,
   stepLabel,
   type ContactFieldKey,
   type ContactIssue,
+  type OnlyParent,
   type ParentSide,
 } from "./form-logic";
+import { BringList, withoutWaivedParentDocs } from "./bring-list";
 
 type Program = { id: string; name: string };
 type Prefill = {
@@ -113,6 +116,8 @@ type ConsentState = {
   /** Signature PNGs live server-side; the browser only knows whether one is saved. */
   ayahSigned: boolean;
   ibuSigned: boolean;
+  /** R2-P-10: the one parent / wali filling alone ("" = both parents). Saved inside consentData. */
+  onlyParent: OnlyParent;
 };
 
 const EMPTY_ADDR: AddressState = { perumahan: "", blokCluster: "", rtRw: "", kecamatan: "", kodePos: "" };
@@ -165,6 +170,7 @@ function initConsent(p: unknown): ConsentState {
     agreed: c.agreed === true,
     ayahName: str(ayah.name), ayahSigned: ayah.signed === true,
     ibuName: str(ibu.name), ibuSigned: ibu.signed === true,
+    onlyParent: c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "",
   };
 }
 
@@ -270,6 +276,8 @@ export default function PendaftaranClient({
       consentData: {
         agreed: consent.agreed,
         version: CONSENT_VERSION,
+        // Omitted (not "") when both parents fill, so the draft blob carries no stale flag.
+        ...(consent.onlyParent ? { onlyParent: consent.onlyParent } : {}),
         ayah: { name: consent.ayahName },
         ibu: { name: consent.ibuName },
       },
@@ -339,25 +347,29 @@ export default function PendaftaranClient({
       if (!student.agama) e.push("Agama wajib dipilih.");
       if (!student.kewarganegaraan) e.push("Kewarganegaraan wajib dipilih.");
     }
-    if (s === 1 && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
-    if (s === 2 && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
+    if (s === 1 && !isWaived(consent.onlyParent, "ayah") && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
+    if (s === 2 && !isWaived(consent.onlyParent, "ibu") && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
     if (s === 3 && !programId) e.push("Program wajib dipilih.");
     // Step 4 (Berkas): only the school-configured required list blocks; the
     // rest stays optional.
     if (s === 4) e.push(...documentErrors(missingUploads(documents, required)));
     if (s === STEP_CONSENT) {
       if (!consent.agreed) e.push("Persetujuan orang tua wajib dicentang.");
-      if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
-      if (!consent.ayahSigned) e.push("Tanda tangan ayah wajib disimpan.");
-      if (!consent.ibuName.trim()) e.push("Nama jelas ibu wajib diisi.");
-      if (!consent.ibuSigned) e.push("Tanda tangan ibu wajib disimpan.");
+      if (!isWaived(consent.onlyParent, "ayah")) {
+        if (!consent.ayahName.trim()) e.push("Nama jelas ayah wajib diisi.");
+        if (!consent.ayahSigned) e.push("Tanda tangan ayah wajib disimpan.");
+      }
+      if (!isWaived(consent.onlyParent, "ibu")) {
+        if (!consent.ibuName.trim()) e.push("Nama jelas ibu wajib diisi.");
+        if (!consent.ibuSigned) e.push("Tanda tangan ibu wajib disimpan.");
+      }
     }
     return e;
   }
 
   function contactIssuesFor(s: number): ContactIssue[] {
-    if (s === 1) return parentContactIssues("ayah", ayah);
-    if (s === 2) return parentContactIssues("ibu", ibu);
+    if (s === 1 && !isWaived(consent.onlyParent, "ayah")) return parentContactIssues("ayah", ayah);
+    if (s === 2 && !isWaived(consent.onlyParent, "ibu")) return parentContactIssues("ibu", ibu);
     return [];
   }
 
@@ -544,7 +556,7 @@ export default function PendaftaranClient({
   }
 
   if (done) {
-    const missing = missingRequiredDocuments(documents);
+    const missing = withoutWaivedParentDocs(missingRequiredDocuments(documents), consent.onlyParent);
     return (
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
         <CheckCircle2 className="mx-auto mb-3 text-emerald-600" size={44} />
@@ -553,16 +565,7 @@ export default function PendaftaranClient({
           Formulir pendaftaran ananda <strong>{student.childName}</strong> sudah kami terima. Tim
           penerimaan An Nisaa&apos; Sekolahku akan menghubungi Bapak/Ibu untuk proses selanjutnya.
         </p>
-        {missing.length > 0 && (
-          <div className="mt-5 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-4 text-left">
-            <h3 className="text-sm font-semibold text-emerald-950">Berkas yang perlu dibawa ke sekolah</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-900/80">
-              {missing.map((k) => (
-                <li key={k}>{DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <BringList keys={missing} />
       </div>
     );
   }
@@ -605,10 +608,16 @@ export default function PendaftaranClient({
       <div className="rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
-          <ParentStep title="Data Ayah" side="ayah" flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }} />
+          <ParentStep
+            title="Data Ayah" side="ayah" flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }}
+            onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
+          />
         )}
         {step === 2 && (
-          <ParentStep title="Data Ibu" side="ibu" flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }} />
+          <ParentStep
+            title="Data Ibu" side="ibu" flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }}
+            onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
+          />
         )}
         {step === 3 && (
           <ProgramStep
@@ -892,10 +901,52 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
   );
 }
 
+/**
+ * R2-P-10: lets a single-parent / wali-only family finish the form. Ticking it on
+ * one parent's step waives that parent (name, contact checks, consent name and
+ * signature); the other step then shows a note with a way to undo it.
+ */
+function SingleParentToggle({
+  side, onlyParent, onChange,
+}: {
+  side: ParentSide; onlyParent: OnlyParent; onChange: (v: OnlyParent) => void;
+}) {
+  const other: ParentSide = side === "ayah" ? "ibu" : "ayah";
+  if (onlyParent === side) {
+    return (
+      <div className="space-y-1 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-3 text-sm text-emerald-950">
+        <p>
+          Hanya satu orang tua / wali yang mengisi, jadi data {other} dilewati.
+        </p>
+        <Button type="button" variant="link" className="h-11 px-0 text-base" onClick={() => onChange("")}>
+          Isi data {other} juga
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+      <Checkbox
+        className="mt-0.5 size-5"
+        checked={onlyParent === other}
+        onCheckedChange={(c) => onChange(c === true ? other : "")}
+      />
+      <span className="text-sm text-emerald-950">
+        <span className="font-medium">Hanya satu orang tua / wali yang mengisi</span>
+        <span className="mt-0.5 block text-emerald-900/70">
+          Centang bila tidak ada data {side}, misalnya orang tua tunggal. Bila wali yang mengisi, isi data wali
+          di langkah Data {other === "ayah" ? "Ayah" : "Ibu"}.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 function ParentStep({
-  title, side, flagged, value, onChange,
+  title, side, flagged, value, onChange, onlyParent, onOnlyParent,
 }: {
   title: string; side: ParentSide; flagged: ContactFieldKey[]; value: ParentState; onChange: (v: ParentState) => void;
+  onlyParent: OnlyParent; onOnlyParent: (v: OnlyParent) => void;
 }) {
   const set = <K extends keyof ParentState>(k: K, v: ParentState[K]) => onChange({ ...value, [k]: v });
   // Only inputs the parent has already been told about show a message, and it
@@ -908,6 +959,9 @@ function ParentStep({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-emerald-950">{title}</h2>
+      <SingleParentToggle side={side} onlyParent={onlyParent} onChange={onOnlyParent} />
+      {!isWaived(onlyParent, side) && (
+        <>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama" value={value.name} onChange={(v) => set("name", v)} required />
         <TextField label="Tempat lahir" value={value.birthPlace} onChange={(v) => set("birthPlace", v)} />
@@ -929,6 +983,8 @@ function ParentStep({
         <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} error={err("employerPhone")} fieldKey={`${side}.employerPhone`} />
       </div>
       <TextAreaField label="Alamat kantor" value={value.employerAddress} onChange={(v) => set("employerAddress", v)} />
+        </>
+      )}
     </div>
   );
 }
@@ -1002,16 +1058,21 @@ function ConsentStep({
 
       <Separator />
       {/* Above the pads so it is on screen right after the first parent saves. */}
-      <HandoverNote ayahSigned={value.ayahSigned} ibuSigned={value.ibuSigned} onRefresh={onRefresh} />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
-          <SignaturePad label="Tanda tangan Ayah" saved={value.ayahSigned} saving={saving.ayah} onSave={(b) => onUpload("ayah", b)} />
-        </div>
-        <div className="space-y-2">
-          <TextField label="Nama jelas Ibu" value={value.ibuName} onChange={(v) => set("ibuName", v)} required />
-          <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} saving={saving.ibu} onSave={(b) => onUpload("ibu", b)} />
-        </div>
+      {/* Nobody to hand over to when only one parent / wali signs. */}
+      <HandoverNote ayahSigned={value.ayahSigned} ibuSigned={value.ibuSigned} onRefresh={onRefresh} single={value.onlyParent !== ""} />
+      <div className={value.onlyParent ? "grid gap-5" : "grid gap-5 sm:grid-cols-2"}>
+        {!isWaived(value.onlyParent, "ayah") && (
+          <div className="space-y-2">
+            <TextField label="Nama jelas Ayah" value={value.ayahName} onChange={(v) => set("ayahName", v)} required />
+            <SignaturePad label="Tanda tangan Ayah" saved={value.ayahSigned} saving={saving.ayah} onSave={(b) => onUpload("ayah", b)} />
+          </div>
+        )}
+        {!isWaived(value.onlyParent, "ibu") && (
+          <div className="space-y-2">
+            <TextField label="Nama jelas Ibu" value={value.ibuName} onChange={(v) => set("ibuName", v)} required />
+            <SignaturePad label="Tanda tangan Ibu" saved={value.ibuSigned} saving={saving.ibu} onSave={(b) => onUpload("ibu", b)} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1023,9 +1084,11 @@ function ConsentStep({
  * saved, so nothing the first parent did is lost.
  */
 function HandoverNote({
-  ayahSigned, ibuSigned, onRefresh,
+  ayahSigned, ibuSigned, onRefresh, single = false,
 }: {
   ayahSigned: boolean; ibuSigned: boolean; onRefresh: () => Promise<"changed" | "unchanged" | "error">;
+  /** One parent / wali signs alone: there is no other parent to wait for. */
+  single?: boolean;
 }) {
   const [status, setStatus] = useState("");
   const [checking, setChecking] = useState(false);
@@ -1037,7 +1100,7 @@ function HandoverNote({
     if (fallbackUrl) urlRef.current?.select();
   }, [fallbackUrl]);
 
-  const exactlyOne = ayahSigned !== ibuSigned;
+  const exactlyOne = !single && ayahSigned !== ibuSigned;
   const missing = ayahSigned ? "Ibu" : "Ayah";
 
   async function copy() {
@@ -1157,8 +1220,9 @@ function ReviewStep({
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Orang Tua</h3>
-        <Row label="Ayah" value={ayah.name} />
-        <Row label="Ibu" value={ibu.name} />
+        {!isWaived(consent.onlyParent, "ayah") && <Row label="Ayah" value={ayah.name} />}
+        {!isWaived(consent.onlyParent, "ibu") && <Row label="Ibu" value={ibu.name} />}
+        {consent.onlyParent && <Row label="Pengisi" value="Satu orang tua / wali" />}
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Program</h3>
@@ -1187,8 +1251,8 @@ function ReviewStep({
       <section>
         <h3 className="mb-1 text-sm font-semibold text-emerald-900">Persetujuan</h3>
         <Row label="Disetujui" value={consent.agreed ? "Ya" : "Belum"} />
-        <Row label="Tanda tangan Ayah" value={consent.ayahSigned ? "Tersimpan" : "Belum"} />
-        <Row label="Tanda tangan Ibu" value={consent.ibuSigned ? "Tersimpan" : "Belum"} />
+        {!isWaived(consent.onlyParent, "ayah") && <Row label="Tanda tangan Ayah" value={consent.ayahSigned ? "Tersimpan" : "Belum"} />}
+        {!isWaived(consent.onlyParent, "ibu") && <Row label="Tanda tangan Ibu" value={consent.ibuSigned ? "Tersimpan" : "Belum"} />}
         {signatureSaving && (
           <p role="status" className="py-1 text-sm text-emerald-900/80">
             Tanda tangan sedang disimpan. Mohon tunggu sebentar.

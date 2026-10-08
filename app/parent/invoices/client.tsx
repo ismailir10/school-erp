@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { formatDate, formatInvoicePeriod } from "@/lib/format";
+import { formatDate, formatInvoicePeriod, formatRupiah } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
@@ -50,6 +50,11 @@ function isOutstanding(inv: InvoiceItem): boolean {
 
 function isPaid(inv: InvoiceItem): boolean {
   return inv.status === "PAID";
+}
+
+/** A partly paid bill is still owed, but the money already received belongs in Riwayat too (R2-P-6). */
+function isPartiallyPaid(inv: InvoiceItem): boolean {
+  return isOutstanding(inv) && inv.totalPaid > 0;
 }
 
 type OtherChildOutstanding = {
@@ -315,11 +320,12 @@ export function InvoicesClient({
   // localeCompare on it produces alphabetic chaos. Falls back to dueDate
   // (also reliable) when paidAt is somehow missing on a PAID invoice.
   const paid = filteredData
-    .filter(isPaid)
+    .filter((inv) => isPaid(inv) || isPartiallyPaid(inv))
     .sort((a, b) => {
       if (sortMode === "due-asc") return a.dueDate.localeCompare(b.dueDate);
       if (sortMode === "due-desc") return b.dueDate.localeCompare(a.dueDate);
       if (sortMode === "amount-desc") return b.totalDue - a.totalDue;
+      // A partly paid invoice has no paidAt yet; dueDate keeps it in a stable slot.
       const aKey = a.paidAt ?? a.dueDate;
       const bKey = b.paidAt ?? b.dueDate;
       return bKey.localeCompare(aKey);
@@ -579,7 +585,9 @@ function InvoiceRow({
   highlight?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
-  const amount = tone === "due" ? remaining : invoice.totalDue;
+  // In Riwayat a partly paid row shows what was received, not the full bill.
+  const partialInHistory = tone === "paid" && invoice.status !== "PAID";
+  const amount = tone === "due" ? remaining : partialInHistory ? invoice.totalPaid : invoice.totalDue;
 
   // Years are not optional here. The list mixes 2025 and 2026 invoices, so a
   // bare "Jatuh tempo 10 Agustus" left a wali unable to tell a five-month-old
@@ -590,7 +598,9 @@ function InvoiceRow({
   const secondary =
     tone === "due"
       ? `${isOverdue ? "Lewat tempo · " : ""}${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}`
-      : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
+      : partialInHistory
+        ? `Dibayar sebagian · sisa ${formatRupiah(remaining)}`
+        : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
     <li>

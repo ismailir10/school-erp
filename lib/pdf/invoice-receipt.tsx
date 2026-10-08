@@ -241,6 +241,9 @@ export type InvoiceReceiptData = {
 };
 
 export function InvoiceReceiptPdf({ data }: { data: InvoiceReceiptData }) {
+  // The Referensi column only earns its width when a gateway reference exists
+  // (manual payments carry none on a receipt), otherwise it is a column of dashes.
+  const showReference = data.payments.some((p) => p.reference);
   const classLine =
     data.className && data.programName
       ? `${data.className} • ${data.programName}`
@@ -346,14 +349,14 @@ export function InvoiceReceiptPdf({ data }: { data: InvoiceReceiptData }) {
               <View style={s.tableHeader}>
                 <Text style={[s.tableHeaderText, { width: 90 }]}>Tanggal</Text>
                 <Text style={[s.tableHeaderText, { width: 90 }]}>Metode</Text>
-                <Text style={[s.tableHeaderText, { flex: 1 }]}>Referensi</Text>
+                {showReference ? <Text style={[s.tableHeaderText, { flex: 1 }]}>Referensi</Text> : <View style={{ flex: 1 }} />}
                 <Text style={[s.tableHeaderText, { width: 110, textAlign: "right" }]}>Jumlah</Text>
               </View>
               {data.payments.map((p, i) => (
                 <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={s.payDate}>{p.paidAt}</Text>
                   <Text style={s.payMethod}>{p.method}</Text>
-                  <Text style={s.payRef}>{p.reference ?? "—"}</Text>
+                  {showReference ? <Text style={s.payRef}>{p.reference ?? "—"}</Text> : <View style={{ flex: 1 }} />}
                   <Text style={s.payAmount}>{formatRupiah(p.amount)}</Text>
                 </View>
               ))}
@@ -362,7 +365,8 @@ export function InvoiceReceiptPdf({ data }: { data: InvoiceReceiptData }) {
 
           {/* Paid box */}
           <View style={s.paidBox}>
-            <Text style={s.paidLabel}>Lunas</Text>
+            {/* A partly paid invoice also gets a receipt; it must not claim "Lunas". */}
+            <Text style={s.paidLabel}>{data.remaining > 0 ? "Dibayar" : "Lunas"}</Text>
             <Text style={s.paidAmount}>{formatRupiah(data.totalPaid)}</Text>
           </View>
         </View>

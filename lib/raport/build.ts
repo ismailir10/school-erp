@@ -76,9 +76,34 @@ export type RaportEntryFields = {
   memorizationNotes: string | null;
 };
 
-/** Decimal-ish measurement → display string (null when absent). */
-function measurementStr(v: unknown): string | null {
-  return v != null ? String(v) : null;
+/**
+ * Decimal-ish measurement → id-ID display string ("104,5"; null when absent).
+ * `String(Decimal)` printed "104.5", a decimal point an Indonesian reader takes
+ * for a thousands separator.
+ */
+export function formatMeasurement(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return n.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+}
+
+/**
+ * Download name for a raport PDF: `rapor-<nama-anak>-triwulan-<n>.pdf`.
+ * The raw student/term cuids it replaced meant nothing to a wali looking at
+ * a Downloads folder. Diacritics fold to ASCII so the header stays a valid
+ * quoted filename.
+ */
+export function raportFileName(studentName: string, termNumber: number): string {
+  const slug = studentName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
+  return `rapor-${slug || "anak"}-triwulan-${termNumber}.pdf`;
 }
 
 /**
@@ -109,8 +134,8 @@ export function buildReportCardData(input: {
       total: entry.totalSchoolDays,
     },
     hafalan: entry.memorizationNotes,
-    height: measurementStr(input.measurement?.heightCm),
-    weight: measurementStr(input.measurement?.weightKg),
+    height: formatMeasurement(input.measurement?.heightCm),
+    weight: formatMeasurement(input.measurement?.weightKg),
     generatedDate: new Date().toLocaleDateString("id-ID", {
       day: "numeric",
       month: "long",

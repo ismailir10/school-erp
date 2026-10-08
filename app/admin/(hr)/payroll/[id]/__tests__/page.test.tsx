@@ -16,6 +16,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { toast } from "sonner";
 import PayrollDetailPage from "../page";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 const item = {
   id: "item-1",
@@ -408,5 +409,63 @@ describe("PayrollDetailPage — HRX-3 / HR-8 / HR-19", () => {
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Periode belum selesai. Penggajian bisa disetujui mulai 21 Oktober 2026."),
     );
+  });
+});
+
+function shiftDay(ymd: string, days: number) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+describe("PayrollDetailPage — draft before period end (R2-ADMIN-10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  function openDraft(periodEnd: string, comparison?: unknown) {
+    const run = { ...payrollRun, periodStart: shiftDay(periodEnd, -29), periodEnd };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input === "/api/payroll/run-1") return Promise.resolve(jsonResponse(run));
+        if (input.startsWith("/api/payroll/compare")) return Promise.resolve(jsonResponse(comparison ?? {}));
+        return Promise.resolve(jsonResponse({}));
+      }),
+    );
+    render(<PayrollDetailPage />);
+  }
+
+  it("disables Setujui with the first approvable date while today <= periodEnd", async () => {
+    const today = getTodayInTimezone("Asia/Jakarta");
+    openDraft(today);
+    const btn = await screen.findByRole("button", { name: "Setujui" });
+    expect(btn).toBeDisabled();
+    // The server's own wording: the day after periodEnd, long form.
+    const from = new Date(`${shiftDay(today, 1)}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    expect(screen.getByText(`Bisa disetujui mulai ${from}`)).toBeInTheDocument();
+    expect(screen.getByTestId("payroll-draft-provisional")).toHaveTextContent("Sementara");
+    expect(screen.getByTestId("payroll-provisional-note")).toBeInTheDocument();
+  });
+
+  it("enables Setujui and shows no hint once the period has ended", async () => {
+    openDraft(shiftDay(getTodayInTimezone("Asia/Jakarta"), -1));
+    const btn = await screen.findByRole("button", { name: "Setujui" });
+    expect(btn).toBeEnabled();
+    expect(screen.queryByText(/Bisa disetujui mulai/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("payroll-provisional-note")).not.toBeInTheDocument();
+  });
+
+  it("shows periods with the app date formatter, not raw ISO, and labels the delta", async () => {
+    openDraft("2026-09-20", {
+      previousPeriod: "2026-07-21 — 2026-08-20",
+      comparison: [{ employeeId: "e-1", delta: -591000 }],
+    });
+    expect(await screen.findByText("22 Agu 2026 — 20 Sep 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/2026-09-20/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/21 Jul 2026 — 20 Agu 2026/)).toBeInTheDocument();
+    expect(screen.getByText("vs periode lalu")).toBeInTheDocument();
   });
 });

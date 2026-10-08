@@ -12,6 +12,8 @@ export type DetectSiblingInput = {
   tenantId: string;
   parentEmail?: string | null;
   parentPhone?: string | null;
+  /** Compared like a phone: an applicant's WhatsApp often matches the guardian's phone and vice versa. */
+  parentWhatsapp?: string | null;
 };
 
 export type DetectSiblingResult = {
@@ -20,9 +22,12 @@ export type DetectSiblingResult = {
 };
 
 /**
- * Detect whether a /daftar applicant matches an existing Parent in the same
- * tenant. Precedence: email > phone. Tenant-scoped on every query. Returns
- * null when no match (caller treats as the no-sibling case).
+ * Detect whether an applicant (public /daftar or admin-entered) matches an
+ * existing Parent in the same tenant. Precedence: email > phone/WhatsApp.
+ * Applicant phone and WhatsApp are both compared against both the Parent's
+ * phone and WhatsApp (digits-normalised), since the same number is often
+ * typed into either field. Tenant-scoped on every query. Returns null when no
+ * match (caller treats as the no-sibling case).
  *
  * The lib does NO writes — caller decides whether to persist the match via
  * prisma.admission.update. Failures inside the lib propagate; the route
@@ -33,7 +38,7 @@ export async function detectSibling(
   input: DetectSiblingInput,
   prisma: ParentTable
 ): Promise<DetectSiblingResult | null> {
-  const { tenantId, parentEmail, parentPhone } = input;
+  const { tenantId, parentEmail, parentPhone, parentWhatsapp } = input;
 
   if (parentEmail) {
     const normEmail = normaliseEmail(parentEmail);
@@ -48,16 +53,25 @@ export async function detectSibling(
     }
   }
 
-  if (parentPhone) {
-    const normApplicant = normalisePhone(parentPhone);
-    if (normApplicant) {
-      const candidates = await prisma.parent.findMany({
-        where: { tenantId, status: "ACTIVE", phone: { not: null } },
-        select: { id: true, phone: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      });
-      for (const p of candidates) {
-        if (p.phone && normalisePhone(p.phone) === normApplicant) {
+  const applicantNumbers = new Set<string>();
+  for (const raw of [parentPhone, parentWhatsapp]) {
+    const norm = raw ? normalisePhone(raw) : "";
+    if (norm) applicantNumbers.add(norm);
+  }
+
+  if (applicantNumbers.size > 0) {
+    const candidates = await prisma.parent.findMany({
+      where: {
+        tenantId,
+        status: "ACTIVE",
+        OR: [{ phone: { not: null } }, { whatsapp: { not: null } }],
+      },
+      select: { id: true, phone: true, whatsapp: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const p of candidates) {
+      for (const stored of [p.phone, p.whatsapp]) {
+        if (stored && applicantNumbers.has(normalisePhone(stored))) {
           return { parentId: p.id, matchReason: "phone" };
         }
       }

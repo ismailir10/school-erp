@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDate } from "@/lib/format";
 import type { ParentReportCard } from "@/lib/parent-helpers";
+import { formatMeasurement } from "@/lib/raport/build";
 import { LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 
 // Visual reference: design-system.html portal shell — celebration gold card
@@ -191,9 +192,9 @@ function ReportCardDetail({
           <div>
             <h3 className="text-h2 font-semibold text-foreground mb-3">Pertumbuhan</h3>
             <p className="text-sm text-foreground">
-              {card.height ? `Tinggi: ${card.height} cm` : ""}
+              {card.height ? `Tinggi: ${formatMeasurement(card.height)} cm` : ""}
               {card.height && card.weight ? "   ·   " : ""}
-              {card.weight ? `Berat: ${card.weight} kg` : ""}
+              {card.weight ? `Berat: ${formatMeasurement(card.weight)} kg` : ""}
             </p>
           </div>
         ) : null}

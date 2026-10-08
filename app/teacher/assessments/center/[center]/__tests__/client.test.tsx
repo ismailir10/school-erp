@@ -254,4 +254,90 @@ describe("CenterSessionClient", () => {
       errorSpy.mockRestore();
     });
   });
+  describe("class label, own-class default and search (R2-T-7)", () => {
+    const roster = () => ({
+      ...session(),
+      myClassSectionIds: ["cs-a"],
+      students: [
+        { id: "s1", name: "Abdul Zahra", nickname: null, status: "ACTIVE", classSectionId: "cs-a", className: "TKIT A" },
+        { id: "s2", name: "Abdul Zahra", nickname: null, status: "ACTIVE", classSectionId: "cs-w", className: "POPUP Weekend" },
+        { id: "s3", name: "Budi", nickname: "Bud", status: "ACTIVE", classSectionId: "cs-w", className: "POPUP Weekend" },
+      ],
+    });
+
+    async function open() {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(roster())));
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+    }
+
+    it("defaults to the teacher's own class and shows its class chip", async () => {
+      await open();
+      expect(screen.getByTestId("center-row-s1")).toBeInTheDocument();
+      expect(screen.queryByTestId("center-row-s2")).toBeNull();
+      expect(screen.queryByTestId("center-row-s3")).toBeNull();
+      expect(screen.getByTestId("center-class-s1")).toHaveTextContent("TKIT A");
+    });
+
+    it("'Semua kelas' reveals everyone, and same-named children differ by class label", async () => {
+      await open();
+      const toggle = screen.getByTestId("center-all-classes");
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("center-class-s1")).toHaveTextContent("TKIT A");
+      expect(screen.getByTestId("center-class-s2")).toHaveTextContent("POPUP Weekend");
+      expect(screen.getAllByText("Abdul Zahra")).toHaveLength(2);
+    });
+
+    it("filters by name (and nickname) client-side without touching the network", async () => {
+      await open();
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      const fetchMock = vi.mocked(fetch);
+      const calls = fetchMock.mock.calls.length;
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "bud" } });
+      expect(screen.getByTestId("center-row-s3")).toBeInTheDocument();
+      expect(screen.queryByTestId("center-row-s1")).toBeNull();
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "zzz" } });
+      expect(screen.getByTestId("center-no-match")).toHaveTextContent("Tidak ada siswa dengan nama itu.");
+      expect(fetchMock.mock.calls.length).toBe(calls);
+    });
+
+    it("keeps unsaved levels for students hidden by the filter and does not mark the form dirty", async () => {
+      await open();
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getAllByRole("radio", { name: /^Mampu untuk Budi/ })[0]!);
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "abdul" } });
+      expect(screen.queryByTestId("center-row-s3")).toBeNull();
+      fireEvent.change(screen.getByTestId("center-student-search"), { target: { value: "" } });
+      expect(screen.getByRole("radio", { name: /^Mampu untuk Budi/ })).toHaveAttribute("aria-checked", "true");
+    });
+
+    it("shows no filter toggle for a payload without class info (older payload)", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(session())));
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      expect(screen.queryByTestId("center-all-classes")).toBeNull();
+      expect(screen.getByTestId("center-row-student-1")).toBeInTheDocument();
+    });
+
+    it("saves entries for hidden students too (filter is view-only)", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(ok(roster()))
+        .mockResolvedValueOnce(ok({ written: 1 }));
+      vi.stubGlobal("fetch", fetchMock);
+      renderClient();
+      fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+      fireEvent.click(screen.getByTestId("center-all-classes"));
+      fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+      fireEvent.click(screen.getByRole("radio", { name: /^Mampu untuk Budi/ }));
+      fireEvent.click(screen.getByTestId("center-all-classes")); // hide Budi again
+      fireEvent.click(screen.getByTestId("center-save"));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const body = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(body.entries.map((e: { studentId: string }) => e.studentId)).toEqual(["s3"]);
+    });
+  });
 });

@@ -5,6 +5,9 @@
  *   ADM-2   NIS_TAKEN on the Data Anak edit lands on the NIS field
  *   ADM-3   Data Anak edit registers an unsaved-changes guard; save is single-flight
  *   ADM-4   the back link restores the list's ?q=&status=&page=
+ * Round-2 fixes (2026-10-08):
+ *   R2-ADMIN-7  the back link goes through the unsaved-changes guard
+ *   R2-ADMIN-8  GRADUATED gets "Aktifkan kembali" too
  *
  * Stubs mirror lifecycle-and-forms.test.tsx (ResizeObserver, class picker).
  */
@@ -13,9 +16,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
+import { UnsavedChangesProvider } from "@/components/admin/unsaved-changes-provider";
 
+const routerPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "s1" }),
+  useRouter: () => ({ push: routerPush }),
 }));
 
 const toastError = vi.fn();
@@ -25,11 +31,18 @@ vi.mock("sonner", () => ({
 }));
 
 const guardCalls: Array<{ dirty: boolean; message?: string }> = [];
-vi.mock("@/components/admin/unsaved-changes-provider", () => ({
-  useUnsavedChangesGuard: (dirty: boolean, message?: string) => {
-    guardCalls.push({ dirty, message });
-  },
-}));
+// Spy on the page's guard registration but keep the real provider/hook, so the
+// back link's GuardedLink can be exercised end to end (R2-ADMIN-7).
+vi.mock("@/components/admin/unsaved-changes-provider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/admin/unsaved-changes-provider")>();
+  return {
+    ...actual,
+    useUnsavedChangesGuard: (dirty: boolean, message?: string) => {
+      guardCalls.push({ dirty, message });
+      actual.useUnsavedChangesGuard(dirty, message);
+    },
+  };
+});
 
 vi.mock("@/components/admin/class-section-picker", () => ({
   ClassSectionCombobox: ({
@@ -131,6 +144,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   toastError.mockClear();
   toastSuccess.mockClear();
+  routerPush.mockClear();
   guardCalls.length = 0;
   calls = [];
   try {
@@ -157,13 +171,42 @@ describe("ADM-1 — header actions follow the student's status", () => {
     expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
   });
 
-  it("GRADUATED: neither enrol nor reactivate is offered", async () => {
-    vi.stubGlobal("fetch", stubFetch(makeStudent({ status: "GRADUATED", enrollments: [] })));
+  it("GRADUATED: enrol is hidden and Aktifkan kembali is offered (R2-ADMIN-8)", async () => {
+    vi.stubGlobal("fetch", stubFetch(makeStudent({ status: "GRADUATED", graduationDate: "2026-06-30", enrollments: [] })));
     render(<StudentDetailPage />);
 
-    await screen.findByRole("heading", { name: "Aisyah Putri" });
+    expect(await screen.findByRole("button", { name: "Aktifkan kembali" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Aktifkan kembali" })).not.toBeInTheDocument();
+  });
+
+  it("GRADUATED: Aktifkan kembali confirms with graduation-aware copy, then PUTs { status: ACTIVE }", async () => {
+    const user = userEvent.setup();
+    let student = makeStudent({ status: "GRADUATED", graduationDate: "2026-06-30", enrollments: [] });
+    vi.stubGlobal(
+      "fetch",
+      stubFetch(student, (url, method) => {
+        if (url === "/api/students/s1" && method === "PUT") {
+          student = makeStudent({ status: "ACTIVE", enrollments: [] });
+          return { ok: true, status: 200, json: async () => student } as Response;
+        }
+        if (url === "/api/students/s1" && method === "GET") {
+          return { ok: true, json: async () => student } as Response;
+        }
+        return undefined;
+      }),
+    );
+    render(<StudentDetailPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Aktifkan kembali" }));
+    const confirm = await screen.findByRole("alertdialog");
+    expect(within(confirm).getByText(/tanggal lulus dihapus/)).toBeInTheDocument();
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+
+    await user.click(within(confirm).getByRole("button", { name: "Aktifkan kembali" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Siswa aktif kembali"));
+    expect(calls.find((c) => c.method === "PUT")?.body).toEqual({ status: "ACTIVE" });
+    expect(await screen.findByRole("button", { name: "Daftarkan ke Kelas" })).toBeInTheDocument();
   });
 
   it("Aktifkan kembali confirms, PUTs { status: ACTIVE }, toasts and refetches", async () => {
@@ -347,5 +390,68 @@ describe("ADM-4 — back link keeps the list state", () => {
     render(<StudentDetailPage />);
 
     expect(await screen.findByRole("link", { name: /Kembali ke Daftar Siswa/ })).toHaveAttribute("href", "/admin/students");
+  });
+});
+
+describe("R2-ADMIN-7 — the back link respects unsaved Data Anak edits", () => {
+  async function startDirtyEdit(user: ReturnType<typeof userEvent.setup>) {
+    vi.stubGlobal("fetch", stubFetch(makeStudent()));
+    render(
+      <UnsavedChangesProvider>
+        <StudentDetailPage />
+      </UnsavedChangesProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.type(screen.getByLabelText("Nama Panggilan"), "Aisy");
+  }
+
+  it("asks before leaving via 'Kembali ke Daftar Siswa' and only navigates on confirm", async () => {
+    const user = userEvent.setup();
+    await startDirtyEdit(user);
+
+    await user.click(screen.getByRole("link", { name: /Kembali ke Daftar Siswa/ }));
+
+    const confirm = await screen.findByRole("alertdialog");
+    expect(within(confirm).getByText("Keluar tanpa menyimpan?")).toBeInTheDocument();
+    expect(within(confirm).getByText("Perubahan data siswa yang belum disimpan akan hilang.")).toBeInTheDocument();
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await user.click(within(confirm).getByRole("button", { name: "Ya, Keluar" }));
+    expect(routerPush).toHaveBeenCalledWith("/admin/students");
+  });
+
+  it("does not interrupt the back link when nothing was typed", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetch(makeStudent()));
+    render(
+      <UnsavedChangesProvider>
+        <StudentDetailPage />
+      </UnsavedChangesProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    // Next's Link would navigate; jsdom has no router, so just assert no dialog.
+    const link = screen.getByRole("link", { name: /Kembali ke Daftar Siswa/ });
+    link.addEventListener("click", (e) => e.preventDefault());
+    await user.click(link);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("registers a beforeunload prompt only while the edit is dirty", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetch(makeStudent()));
+    render(
+      <UnsavedChangesProvider>
+        <StudentDetailPage />
+      </UnsavedChangesProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const clean = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+
+    await user.type(screen.getByLabelText("Nama Panggilan"), "Aisy");
+    const dirty = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
   });
 });

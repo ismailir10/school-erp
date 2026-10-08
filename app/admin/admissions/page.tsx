@@ -29,7 +29,11 @@ import {
   type EmailConflict,
 } from "@/components/admin/admissions/convert-dialog";
 import { createAdmissionColumns } from "@/components/admin/admissions/columns";
-import { NEXT_STATUS } from "@/components/admin/admissions/constants";
+import {
+  AdmissionDuplicateDialog,
+  type PossibleDuplicate,
+} from "@/components/admin/admissions/duplicate-dialog";
+import { NEXT_STATUS, ADMISSION_STATUS_LABELS } from "@/components/admin/admissions/constants";
 import type { Admission, Program, Campus } from "@/components/admin/admissions/types";
 
 type Pagination = {
@@ -93,6 +97,9 @@ export default function AdmissionsPage() {
   // T10: convert-confirm + email-conflict UI state.
   const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
   const [emailConflict, setEmailConflict] = useState<EmailConflict | null>(null);
+  // R2-ADMIN-1: convert answered 409 POSSIBLE_DUPLICATE — ask before adding a second record.
+  const [duplicate, setDuplicate] = useState<PossibleDuplicate | null>(null);
+  const [duplicatePending, setDuplicatePending] = useState(false);
   const admissionFormId = useId();
   const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
 
@@ -164,11 +171,16 @@ export default function AdmissionsPage() {
   // a confirmation dialog (state below). For admissions without detection the
   // direct path runs unchanged. The runConvert helper does the actual POST so
   // both call sites + the dialog confirm action route through one place.
-  const runConvert = useCallback(async (admissionId: string, mergeWithDetected: boolean) => {
+  const runConvert = useCallback(async (
+    admissionId: string,
+    mergeWithDetected: boolean,
+    confirmDuplicate = false,
+    childName = "",
+  ) => {
     const res = await fetch(`/api/admissions/${admissionId}/convert`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mergeWithDetected }),
+      body: JSON.stringify({ mergeWithDetected, ...(confirmDuplicate ? { confirmDuplicate: true } : {}) }),
     });
     if (res.ok) {
       toast.success(
@@ -176,6 +188,7 @@ export default function AdmissionsPage() {
       );
       setConvertTarget(null);
       setEmailConflict(null);
+      setDuplicate(null);
       fetchAdmissions();
       fetchStats();
       return;
@@ -185,7 +198,20 @@ export default function AdmissionsPage() {
         error?: string;
         conflictingParentName?: string;
         message?: string;
+        existingStudents?: PossibleDuplicate["existingStudents"];
+        existingParent?: PossibleDuplicate["existingParent"];
       };
+      if (d.error === "POSSIBLE_DUPLICATE") {
+        setConvertTarget(null);
+        setDuplicate({
+          admissionId,
+          childName,
+          mergeWithDetected,
+          existingStudents: d.existingStudents ?? [],
+          existingParent: d.existingParent ?? null,
+        });
+        return;
+      }
       if (d.error === "EMAIL_CONFLICT") {
         setEmailConflict({
           message:
@@ -199,6 +225,15 @@ export default function AdmissionsPage() {
     const d = await res.json().catch(() => ({}));
     toast.error(d.error || "Gagal mengonversi pendaftaran. Coba lagi.");
   }, [fetchAdmissions, fetchStats]);
+
+  const confirmDuplicateConvert = useCallback(async (dup: PossibleDuplicate) => {
+    setDuplicatePending(true);
+    try {
+      await runConvert(dup.admissionId, dup.mergeWithDetected, true, dup.childName);
+    } finally {
+      setDuplicatePending(false);
+    }
+  }, [runConvert]);
 
   // Cycle A: "Kirim Formulir" — invite the parent to complete the rich
   // enrollment application. Creates/refreshes the EnrollmentApplication +
@@ -236,7 +271,7 @@ export default function AdmissionsPage() {
       return;
     }
     // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
-    void runConvert(a.id, true);
+    void runConvert(a.id, true, false, a.childName);
   }, [runConvert]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
@@ -262,7 +297,7 @@ export default function AdmissionsPage() {
       body: JSON.stringify({ status: next.status }),
     });
     if (res.ok) {
-      toast.success(`Status diubah ke ${next.label}`);
+      toast.success(`Status diubah ke ${ADMISSION_STATUS_LABELS[next.status] ?? next.status}`);
       fetchAdmissions(); fetchStats();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -345,6 +380,7 @@ export default function AdmissionsPage() {
       />
 
       <AdminLinkTabs
+        className="mb-4"
         items={[
           { href: "/admin/admissions", label: "Calon Siswa" },
           { href: "/admin/enrollments", label: "Formulir" },
@@ -353,8 +389,8 @@ export default function AdmissionsPage() {
 
       <StatsCardsRow cols={3}>
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label="Pertanyaan" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
-        <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
+        <StatCard label={ADMISSION_STATUS_LABELS.INQUIRY} value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
+        <StatCard label={ADMISSION_STATUS_LABELS.ADMITTED} value={stats.admitted} icon={CheckCircle} color="success" index={2} />
       </StatsCardsRow>
 
       <DataTableToolbar
@@ -371,11 +407,7 @@ export default function AdmissionsPage() {
             },
             options: [
               { value: "all", label: "Semua Status" },
-              { value: "INQUIRY", label: "Pertanyaan" },
-              { value: "VISIT_SCHEDULED", label: "Kunjungan" },
-              { value: "VISITED", label: "Sudah Kunjungan" },
-              { value: "ADMITTED", label: "Diterima" },
-              { value: "CANCELLED", label: "Dibatalkan" },
+              ...Object.entries(ADMISSION_STATUS_LABELS).map(([value, label]) => ({ value, label })),
             ],
           },
         ]}
@@ -444,7 +476,16 @@ export default function AdmissionsPage() {
           setConvertTarget(null);
           setEmailConflict(null);
         }}
-        onConvert={(admissionId, mergeWithDetected) => void runConvert(admissionId, mergeWithDetected)}
+        onConvert={(admissionId, mergeWithDetected) =>
+          void runConvert(admissionId, mergeWithDetected, false, convertTarget?.childName)
+        }
+      />
+
+      <AdmissionDuplicateDialog
+        duplicate={duplicate}
+        pending={duplicatePending}
+        onClose={() => setDuplicate(null)}
+        onConfirm={(dup) => void confirmDuplicateConvert(dup)}
       />
     </>
   );

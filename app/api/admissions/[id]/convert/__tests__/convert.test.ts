@@ -5,6 +5,8 @@ const {
   admissionFindUnique,
   parentFindUnique,
   parentFindFirst,
+  parentFindMany,
+  studentFindMany,
   studentCreate,
   parentUpsert,
   parentCreate,
@@ -20,6 +22,10 @@ const {
   parentFindUnique: vi.fn(),
   // X-1: detected-parent lookup (tenant-scoped findFirst) outside the tx.
   parentFindFirst: vi.fn(),
+  // R2-ADMIN-1: contact-based parent detection (phone/WhatsApp scan) and the
+  // same-name student duplicate check, both outside the tx.
+  parentFindMany: vi.fn(),
+  studentFindMany: vi.fn(),
   studentCreate: vi.fn(),
   parentUpsert: vi.fn(),
   parentCreate: vi.fn(),
@@ -34,7 +40,8 @@ const {
 vi.mock("@/lib/db", () => ({
   prisma: {
     admission: { findUnique: admissionFindUnique },
-    parent: { findUnique: parentFindUnique, findFirst: parentFindFirst },
+    parent: { findUnique: parentFindUnique, findFirst: parentFindFirst, findMany: parentFindMany },
+    student: { findMany: studentFindMany },
     $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
         $queryRaw: queryRaw,
@@ -93,6 +100,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   parentFindUnique.mockResolvedValue(null);
   parentFindFirst.mockResolvedValue(null);
+  parentFindMany.mockResolvedValue([]);
+  studentFindMany.mockResolvedValue([]);
   studentCreate.mockResolvedValue({ id: "stu-1" });
   parentUpsert.mockResolvedValue({ id: "par-1" });
   parentCreate.mockResolvedValue({ id: "par-1" });
@@ -461,5 +470,149 @@ describe("POST /api/admissions/[id]/convert — merge into detected parent (X-1)
     admissionFindUnique.mockResolvedValue(makeAdmission());
     studentCreate.mockRejectedValue(new Error("db down"));
     await expect(POST(postReq(undefined), params)).rejects.toThrow("db down");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// R2-ADMIN-1 — duplicate gate: POSSIBLE_DUPLICATE 409 + reuse of the Parent
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/admissions/[id]/convert — possible duplicate (R2-ADMIN-1)", () => {
+  const params = { params: Promise.resolve({ id: "adm-1" }) };
+  const waOnly = { parentEmail: null, parentPhone: null, parentWhatsapp: "08215678901" };
+
+  it("same name + same DOB as an existing student → 409 POSSIBLE_DUPLICATE, nothing written", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    studentFindMany.mockResolvedValue([
+      { id: "stu-old", name: "aisyah", status: "ACTIVE", dateOfBirth: "2021-03-15", guardians: [] },
+    ]);
+    const res = await POST(postReq({}), params);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("POSSIBLE_DUPLICATE");
+    expect(body.existingStudents).toEqual([{ id: "stu-old", name: "aisyah", status: "ACTIVE" }]);
+    expect(body.existingParent).toBeNull();
+    expect(studentCreate).not.toHaveBeenCalled();
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("same name + a guardian with the same WhatsApp (different formatting) → 409", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ ...waOnly, dateOfBirth: null }));
+    studentFindMany.mockResolvedValue([
+      {
+        id: "stu-old",
+        name: "Aisyah",
+        status: "ACTIVE",
+        dateOfBirth: null,
+        guardians: [{ parent: { id: "par-x", phone: "+62 821-5678-901", whatsapp: null } }],
+      },
+    ]);
+    const res = await POST(postReq({}), params);
+    expect(res.status).toBe(409);
+    expect((await res.json()).existingStudents).toHaveLength(1);
+  });
+
+  it("same name only (different DOB, unrelated guardian) is NOT a duplicate", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    studentFindMany.mockResolvedValue([
+      {
+        id: "stu-other",
+        name: "Aisyah",
+        status: "ACTIVE",
+        dateOfBirth: "2019-01-01",
+        guardians: [{ parent: { id: "par-y", phone: "0899000111", whatsapp: null } }],
+      },
+    ]);
+    const res = await POST(postReq({}), params);
+    expect(res.status).toBe(200);
+    expect(studentCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("an existing Parent with the same WhatsApp → 409 naming that parent", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission(waOnly));
+    parentFindMany.mockResolvedValue([
+      { id: "par-old", phone: "08215678901", whatsapp: null, createdAt: new Date("2026-01-01") },
+    ]);
+    parentFindFirst.mockResolvedValue({ id: "par-old", name: "Dewi Sartika" });
+    const res = await POST(postReq({}), params);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("POSSIBLE_DUPLICATE");
+    expect(body.existingParent).toEqual({ id: "par-old", name: "Dewi Sartika" });
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(studentCreate).not.toHaveBeenCalled();
+  });
+
+  it("confirmDuplicate REUSES the matched Parent instead of creating a second one", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission(waOnly));
+    parentFindMany.mockResolvedValue([
+      { id: "par-old", phone: "08215678901", whatsapp: null, createdAt: new Date("2026-01-01") },
+    ]);
+    parentFindFirst.mockResolvedValue({ id: "par-old", name: "Dewi Sartika" });
+    const res = await POST(postReq({ confirmDuplicate: true }), params);
+    expect(res.status).toBe(200);
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(studentGuardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ studentId: "stu-1", parentId: "par-old", isPrimary: true }),
+    });
+  });
+
+  it("confirmDuplicate with a student match still creates the student", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    studentFindMany.mockResolvedValue([
+      { id: "stu-old", name: "Aisyah", status: "ACTIVE", dateOfBirth: "2021-03-15", guardians: [] },
+    ]);
+    const res = await POST(postReq({ confirmDuplicate: true }), params);
+    expect(res.status).toBe(200);
+    expect(studentCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stamped detectedParent (already confirmed in the merge dialog) does not re-trigger the parent gate", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ detectedParentId: "par-detected" }));
+    parentFindFirst.mockResolvedValue({ id: "par-detected" });
+    const res = await POST(postReq({ mergeWithDetected: true }), params);
+    expect(res.status).toBe(200);
+    expect(parentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("same-name child under the detected parent still asks to confirm", async () => {
+    admissionFindUnique.mockResolvedValue(
+      makeAdmission({ detectedParentId: "par-detected", dateOfBirth: null }),
+    );
+    parentFindFirst.mockResolvedValue({ id: "par-detected" });
+    studentFindMany.mockResolvedValue([
+      {
+        id: "stu-old",
+        name: "Aisyah",
+        status: "ACTIVE",
+        dateOfBirth: null,
+        guardians: [{ parent: { id: "par-detected", phone: null, whatsapp: null } }],
+      },
+    ]);
+    const res = await POST(postReq({ mergeWithDetected: true }), params);
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("POSSIBLE_DUPLICATE");
+  });
+
+  it("mergeWithDetected=false skips the parent half of the gate (admin chose a separate parent)", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission(waOnly));
+    parentFindMany.mockResolvedValue([
+      { id: "par-old", phone: "08215678901", whatsapp: null, createdAt: new Date("2026-01-01") },
+    ]);
+    const res = await POST(postReq({ mergeWithDetected: false }), params);
+    expect(res.status).toBe(200);
+    expect(parentCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("the FOR UPDATE race guard still 409s after a confirmed duplicate", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission());
+    queryRaw.mockResolvedValue([{ studentId: "stu-winner", status: "ADMITTED" }]);
+    const res = await POST(postReq({ confirmDuplicate: true }), params);
+    expect(res.status).toBe(409);
+    expect(studentCreate).not.toHaveBeenCalled();
   });
 });

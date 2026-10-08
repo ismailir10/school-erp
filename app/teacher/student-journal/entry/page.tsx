@@ -457,7 +457,7 @@ export default function StudentJournalEntryPage() {
   // loaded payload — the guru is looking at this number precisely while they
   // tap, and a figure that only moved on reload would be worse than none.
   const progress = getJournalProgress({
-    studentIds: students.map(s => s.id), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
+    studentIds: students.map(s => s.id), excludedStudentIds: Object.keys(absences), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
     entries: Object.entries(gridState).flatMap(([studentId, row]) => Object.entries(row).map(([indicatorId, checked]) => ({studentId, indicatorId, checked}))),
   });
   const completeStudents = progress.completeStudents;
@@ -534,7 +534,7 @@ export default function StudentJournalEntryPage() {
       />
 
       <p className="-mt-4 mb-4 text-xs text-muted-foreground" data-testid="class-progress">
-        {progress.configured ? `${completeStudents}/${students.length} siswa lengkap` : "Indikator sekolah belum disiapkan. Hubungi admin."}
+        {progress.configured ? `${completeStudents}/${progress.totalStudents} siswa lengkap${progress.absentCount ? ` · ${progress.absentCount} tidak hadir` : ""}` : "Indikator sekolah belum disiapkan. Hubungi admin."}
       </p>
 
       {progress.configured ? (
@@ -581,6 +581,7 @@ export default function StudentJournalEntryPage() {
         noteCounts={noteCounts}
         unreadCounts={unreadCounts}
         pendingCells={pendingCells}
+        absences={absences}
         visibleDate={date}
       />
 

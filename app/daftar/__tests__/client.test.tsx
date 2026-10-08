@@ -128,4 +128,16 @@ describe("DaftarClient step 1 + 3 details", () => {
       await screen.findByText(/Isi email agar formulir pendaftaran lengkap bisa kami kirimkan\./),
     ).toBeInTheDocument();
   });
+
+  it("tells the parent the phone format when the number is invalid (R2-P-13)", async () => {
+    window.sessionStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ step: 2, form: { parentName: "Ibu Fatimah", parentPhone: "abc", parentWhatsapp: "xyz" } }),
+    );
+    const user = userEvent.setup();
+    render(<DaftarClient programs={PROGRAMS} />);
+    await user.click(await screen.findByTestId("daftar-next"));
+    expect(await screen.findByText("Nomor telepon tidak valid. Contoh: 0812 3456 7890")).toBeInTheDocument();
+    expect(screen.getByText("Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890")).toBeInTheDocument();
+  });
 });

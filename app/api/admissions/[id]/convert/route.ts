@@ -5,6 +5,8 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { recordAudit } from "@/lib/audit";
 import { invalidateParentChildren } from "@/lib/parent-helpers";
+import { detectSibling } from "@/lib/admission/sibling-detect";
+import { normaliseName, normalisePhone } from "@/lib/parent/match";
 
 const ALREADY_CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa.";
 
@@ -13,6 +15,55 @@ class ConvertError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
   }
+}
+
+type DuplicateAdmission = {
+  childName: string;
+  dateOfBirth: string | null;
+  parentPhone: string | null;
+  parentWhatsapp: string | null;
+};
+
+/**
+ * Students that look like the child being converted: same name (case- and
+ * whitespace-insensitive) plus either the same date of birth or a guardian who
+ * shares the admission's phone/WhatsApp (or is one of `knownParentIds`).
+ * A bare name match is NOT enough — common names repeat across families.
+ */
+async function findDuplicateStudents(
+  tenantId: string,
+  admission: DuplicateAdmission,
+  knownParentIds: Set<string>,
+): Promise<Array<{ id: string; name: string; status: string }>> {
+  const name = normaliseName(admission.childName);
+  if (!name) return [];
+  const candidates = await prisma.student.findMany({
+    where: { tenantId, name: { equals: admission.childName.trim(), mode: "insensitive" } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      dateOfBirth: true,
+      guardians: { select: { parent: { select: { id: true, phone: true, whatsapp: true } } } },
+    },
+    take: 20,
+  });
+  const numbers = new Set(
+    [admission.parentPhone, admission.parentWhatsapp]
+      .map((n) => (n ? normalisePhone(n) : ""))
+      .filter(Boolean),
+  );
+  return candidates
+    .filter((c: (typeof candidates)[number]) => {
+      if (normaliseName(c.name) !== name) return false;
+      if (admission.dateOfBirth && c.dateOfBirth && admission.dateOfBirth === c.dateOfBirth) return true;
+      return c.guardians.some(
+        (g: (typeof c.guardians)[number]) =>
+          knownParentIds.has(g.parent.id) ||
+          [g.parent.phone, g.parent.whatsapp].some((n) => n && numbers.has(normalisePhone(n))),
+      );
+    })
+    .map((c: (typeof candidates)[number]) => ({ id: c.id, name: c.name, status: c.status }));
 }
 
 // Convert admission to student record
@@ -33,11 +84,15 @@ export async function POST(
   // is set). Empty / non-JSON body falls through to the default — convert was
   // historically POST-with-no-body.
   let mergeWithDetected = true;
+  // R2-ADMIN-1: the admin has seen the "Kemungkinan siswa/wali ini sudah
+  // terdaftar" warning and chose "Tetap konversi".
+  let confirmDuplicate = false;
   try {
     const body = await req.json();
     if (body && typeof body.mergeWithDetected === "boolean") {
       mergeWithDetected = body.mergeWithDetected;
     }
+    if (body && body.confirmDuplicate === true) confirmDuplicate = true;
   } catch {
     // No body → keep default
   }
@@ -97,6 +152,56 @@ export async function POST(
           select: { id: true },
         })
       : null;
+
+  // R2-ADMIN-1 duplicate gate. Admin-entered inquiries used to convert straight
+  // into a second Student + second Parent for a family already on the books.
+  // Look for (a) an existing Student with the same name AND (same date of birth
+  // OR a guardian sharing the admission's phone/WhatsApp or the matched
+  // parent), and (b) — when no sibling was stamped on the admission and the
+  // admin is merging — an existing Parent with the same email/phone/WhatsApp.
+  // Either one answers 409 POSSIBLE_DUPLICATE until the body carries
+  // confirmDuplicate. A confirmed (b) match is REUSED rather than duplicated.
+  // A stamped detectedParent was already confirmed in the merge dialog, so it
+  // does not re-trigger the parent half. Runs before the transaction; the
+  // FOR UPDATE race guard below is untouched.
+  let contactParent: { id: string; name: string } | null = null;
+  if (mergeWithDetected && !detectedParent) {
+    const match = await detectSibling(
+      {
+        tenantId: session.tenantId,
+        parentEmail: admission.parentEmail,
+        parentPhone: admission.parentPhone,
+        parentWhatsapp: admission.parentWhatsapp,
+      },
+      prisma,
+    );
+    if (match) {
+      contactParent = await prisma.parent.findFirst({
+        where: { id: match.parentId, tenantId: session.tenantId },
+        select: { id: true, name: true },
+      });
+    }
+  }
+
+  const existingStudents = await findDuplicateStudents(
+    session.tenantId,
+    admission,
+    new Set([detectedParent?.id, contactParent?.id].filter((v): v is string => !!v)),
+  );
+
+  if ((existingStudents.length > 0 || contactParent) && !confirmDuplicate) {
+    return NextResponse.json(
+      {
+        error: "POSSIBLE_DUPLICATE",
+        code: "POSSIBLE_DUPLICATE",
+        message:
+          "Kemungkinan siswa atau wali ini sudah terdaftar. Periksa dulu sebelum menambah data baru.",
+        existingStudents,
+        existingParent: contactParent,
+      },
+      { status: 409 },
+    );
+  }
 
   // T11 field-parity audit — every transferable Admission column maps to:
   //   childName            → Student.name
@@ -158,10 +263,10 @@ export async function POST(
     // already returned 409 if a Parent with that email exists, so reaching
     // here on the no-merge branch implies the email is unique OR the admin
     // explicitly accepted creating a brand-new parent without email merge.
-    if (detectedParent) {
+    if (detectedParent || contactParent) {
       // Existing guardian record stays untouched — the admission's contact
       // details may be a different relative's; only the link is added below.
-      parent = detectedParent;
+      parent = (detectedParent ?? contactParent)!;
     } else if (parentEmail && mergeWithDetected) {
       parent = await tx.parent.upsert({
         where: { tenantId_email: { tenantId: session.tenantId!, email: parentEmail } },

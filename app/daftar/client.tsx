@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Check, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
+import { PHONE_FORMAT_ERROR, WHATSAPP_FORMAT_ERROR, admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
 import { clearDraft, formatAdmissionRef, loadDraft, saveDraft } from "./draft";
 
 type Program = { id: string; name: string };
@@ -117,10 +117,10 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       if (!form.parentPhone.trim()) {
         errs.parentPhone = "Nomor telepon wajib diisi";
       } else if (!PHONE_RE.test(form.parentPhone.trim())) {
-        errs.parentPhone = "Nomor telepon tidak valid";
+        errs.parentPhone = PHONE_FORMAT_ERROR;
       }
       if (form.parentWhatsapp.trim() && !PHONE_RE.test(form.parentWhatsapp.trim())) {
-        errs.parentWhatsapp = "Nomor WhatsApp tidak valid";
+        errs.parentWhatsapp = WHATSAPP_FORMAT_ERROR;
       }
       if (form.parentEmail.trim() && !EMAIL_RE.test(form.parentEmail.trim())) {
         errs.parentEmail = "Email tidak valid";

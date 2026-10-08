@@ -328,7 +328,7 @@ test.describe("Admin flows", () => {
   // Roll-forward smoke (academic-hierarchy-refactor Task 9). The seed ships a
   // single academic year ("2025/2026") so a meaningful roll-forward needs a
   // distinct target year — we create one via the API in setup, then trigger
-  // the "Salin Kelas ke Tahun Ini" row action on it, picking the seed year as
+  // the "Salin kelas dari tahun sebelumnya" row action on it, picking the seed year as
   // source. Focused smoke: assert the success toast, not exact counts.
   test("academic-year roll-forward clones source sections into a fresh target year", async ({ page }) => {
     // Source year — the seed's ACTIVE year with ACTIVE class sections.
@@ -384,7 +384,7 @@ test.describe("Admin flows", () => {
     const targetRow = page.getByRole("row").filter({ hasText: targetName });
     await expect(targetRow).toBeVisible({ timeout: 10_000 });
     await targetRow.getByRole("button", { name: /Aksi untuk|Buka menu/i }).click();
-    await page.getByRole("menuitem", { name: /Salin Kelas ke Tahun Ini/i }).click();
+    await page.getByRole("menuitem", { name: /Salin kelas dari tahun sebelumnya/i }).click();
 
     // Roll-forward dialog: pick the source year, submit.
     const dialog = page.getByRole("dialog", { name: /Salin Kelas ke Tahun Ajaran/i });

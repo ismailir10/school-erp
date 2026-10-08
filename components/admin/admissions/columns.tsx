@@ -29,6 +29,17 @@ export type AdmissionColumnHandlers = {
   onSendEnrollmentForm: (a: Admission) => void;
 };
 
+/**
+ * One chip for the list and the mobile name cell. An ADMITTED row keeps the
+ * "Diterima" label whether or not it has been converted — the stat card counts
+ * it as "Diterima", and R2-ADMIN-14 found the row saying "Terdaftar" for the
+ * same record. Conversion is already shown in the actions cell ("Sudah jadi
+ * siswa").
+ */
+function AdmissionStatusChip({ admission }: { admission: Admission }) {
+  return <StatusBadge status={admission.status} />;
+}
+
 export function createAdmissionColumns({
   canEdit,
   onEdit,
@@ -62,8 +73,18 @@ export function createAdmissionColumns({
             </div>
             <p className="text-xs text-muted-foreground">
               {a.parentName}
-              {a.parentPhone && ` · ${a.parentPhone}`}
+              {/* R2-ADMIN-14: a WhatsApp-only inquiry still shows a way to reach the family. */}
+              {a.parentPhone
+                ? ` · ${a.parentPhone}`
+                : a.parentWhatsapp
+                  ? ` · WA ${a.parentWhatsapp}`
+                  : ""}
             </p>
+            {/* R2-ADMIN-16: the Status column is hidden below md, so a phone list of
+                inquiries would be indistinguishable — show the chip under the name. */}
+            <div className="mt-1 md:hidden">
+              <AdmissionStatusChip admission={a} />
+            </div>
           </div>
         );
       },
@@ -109,13 +130,8 @@ export function createAdmissionColumns({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
-      cell: ({ row }) => {
-        const a = row.original;
-        if (a.status === "ADMITTED" && a.studentId) {
-          return <StatusBadge status="REGISTERED" />;
-        }
-        return <StatusBadge status={a.status} />;
-      },
+      meta: { priority: "low" },
+      cell: ({ row }) => <AdmissionStatusChip admission={row.original} />,
     },
     {
       id: "sibling",
@@ -174,7 +190,7 @@ export function createAdmissionColumns({
         const extras: { label: string; icon?: React.ReactNode; onClick: () => void }[] = [];
         if (next) {
           extras.push({
-            label: `Lanjutkan ke ${next.label}`,
+            label: next.label,
             icon: <ArrowRight size={14} />,
             onClick: () => onAdvanceStatus(a),
           });

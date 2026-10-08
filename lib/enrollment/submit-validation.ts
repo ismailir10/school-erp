@@ -24,7 +24,7 @@ const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 /** Required membership in an option Set (from constants.ts). */
 const inSet = (set: Set<string>, msg: string) =>
   z
-    .string()
+    .string({ error: msg })
     .trim()
     .refine((v) => set.has(v), msg);
 
@@ -58,11 +58,11 @@ const priorFamilyAttendeeSchema = z.object({
 });
 
 const studentSchema = z.object({
-  childName: z.string().trim().min(1, "Nama lengkap anak wajib diisi").max(80, "Nama terlalu panjang"),
+  childName: z.string({ error: "Nama lengkap anak wajib diisi" }).trim().min(1, "Nama lengkap anak wajib diisi").max(80, "Nama terlalu panjang"),
   nickname: optionalTrimmed(z.string().max(40)),
   childGender: z.enum(["L", "P"], { error: "Pilih jenis kelamin" }),
-  birthPlace: z.string().trim().min(1, "Tempat lahir wajib diisi").max(80),
-  dateOfBirth: z.string().regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
+  birthPlace: z.string({ error: "Tempat lahir wajib diisi" }).trim().min(1, "Tempat lahir wajib diisi").max(80),
+  dateOfBirth: z.string({ error: "Tanggal lahir wajib diisi (format YYYY-MM-DD)" }).regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
   agama: inSet(AGAMA_VALUES, "Pilih agama"),
   kewarganegaraan: inSet(KEWARGANEGARAAN_VALUES, "Pilih kewarganegaraan"),
   bloodType: optInSet(BLOOD_TYPE_VALUES, "Golongan darah tidak valid"),
@@ -88,8 +88,8 @@ const studentSchema = z.object({
     .optional(),
 });
 
-const parentSchema = z.object({
-  name: z.string().trim().min(1, "Nama wajib diisi").max(80, "Nama terlalu panjang"),
+export const parentSchema = z.object({
+  name: z.string({ error: "Nama wajib diisi" }).trim().min(1, "Nama wajib diisi").max(80, "Nama terlalu panjang"),
   birthPlace: optionalTrimmed(z.string().max(80)),
   dateOfBirth: optionalTrimmed(z.string().regex(ISO_DATE_REGEX, "Tanggal lahir tidak valid (format YYYY-MM-DD)")),
   agama: optInSet(AGAMA_VALUES, "Agama tidak valid"),
@@ -108,18 +108,40 @@ const parentSchema = z.object({
 // storage token (lib/storage) of the uploaded drawn-signature PNG; the route
 // issues it before submit. signedAt is server-stamped — accepted but not trusted.
 const consentSignerSchema = z.object({
-  name: z.string().trim().min(1, "Nama penandatangan wajib diisi").max(80),
-  signatureToken: z.string().trim().min(1, "Tanda tangan wajib diisi"),
+  name: z.string({ error: "Nama penandatangan wajib diisi" }).trim().min(1, "Nama penandatangan wajib diisi").max(80),
+  signatureToken: z.string({ error: "Tanda tangan wajib diisi" }).trim().min(1, "Tanda tangan wajib diisi"),
   signedAt: optionalTrimmed(z.string()),
 });
+
+/**
+ * R2-P-10: one parent / wali may fill the form alone. `onlyParent` names the one
+ * who does ("ayah" or "ibu"; a wali uses whichever block fits); the OTHER side's
+ * data block and consent signer are then optional. Lives inside the consentData
+ * JSON — no column. Empty string (a cleared form select) means "both parents".
+ */
+export const ONLY_PARENT_VALUES = ["ayah", "ibu"] as const;
+export type OnlyParent = (typeof ONLY_PARENT_VALUES)[number];
+
+const onlyParentSchema = z.preprocess(
+  (v) => (v === "" || v === null ? undefined : v),
+  z.enum(ONLY_PARENT_VALUES, { error: "Pilihan orang tua yang mengisi tidak valid" }).optional(),
+);
+
+/** True when `side` is the waived one, i.e. the other parent is the only filler. */
+export function isSideWaived(only: OnlyParent | "" | null | undefined, side: OnlyParent): boolean {
+  return !!only && only !== side;
+}
 
 const consentSchema = z.object({
   agreed: z.literal(true, { error: "Persetujuan orang tua wajib dicentang" }),
   version: z
     .string()
     .refine((v) => v === CONSENT_VERSION, "Versi surat persetujuan kedaluwarsa — muat ulang halaman"),
-  ayah: consentSignerSchema,
-  ibu: consentSignerSchema,
+  onlyParent: onlyParentSchema,
+  // Optional here only so a waived side may be absent; the superRefine below
+  // makes them required again for every side that is not waived.
+  ayah: consentSignerSchema.optional(),
+  ibu: consentSignerSchema.optional(),
 });
 
 /**
@@ -127,14 +149,31 @@ const consentSchema = z.object({
  * trusts client-supplied `status`, `accessToken`, `tenantId`, or `studentId`
  * — those are server-owned; Zod strip mode drops any such extra keys.
  */
-export const submitEnrollmentSchema = z.object({
-  programId: programIdSchema,
-  dcareAddon: z.boolean().optional().default(false),
-  studentData: studentSchema,
-  ayahData: parentSchema,
-  ibuData: parentSchema,
-  consentData: consentSchema,
-});
+export const submitEnrollmentSchema = z
+  .object({
+    programId: programIdSchema,
+    dcareAddon: z.boolean().optional().default(false),
+    studentData: studentSchema,
+    ayahData: parentSchema.optional(),
+    ibuData: parentSchema.optional(),
+    consentData: consentSchema,
+  })
+  .superRefine((v, ctx) => {
+    const only = v.consentData.onlyParent;
+    for (const side of ONLY_PARENT_VALUES) {
+      if (isSideWaived(only, side)) continue;
+      // Re-run the real schemas on `{}` so a missing block reports the same
+      // field-level messages ("ayahData.name": "Nama wajib diisi") a blank one does.
+      if (v[`${side}Data`] === undefined) {
+        const r = parentSchema.safeParse({});
+        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: [`${side}Data`, ...i.path] });
+      }
+      if (v.consentData[side] === undefined) {
+        const r = consentSignerSchema.safeParse({});
+        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: ["consentData", side, ...i.path] });
+      }
+    }
+  });
 
 export type SubmitEnrollmentInput = z.infer<typeof submitEnrollmentSchema>;
 

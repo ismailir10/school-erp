@@ -184,6 +184,65 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
     ]);
   });
 
+  it("hides the admin's internal payment reference but keeps a gateway reference (R2-P-6)", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
+    db.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "April 2026",
+      dueDate: new Date("2026-04-30"),
+      totalDue: 500_000,
+      totalPaid: 500_000,
+      status: "PAID",
+      paidAt: new Date("2026-04-15"),
+      lines: [],
+      payments: [
+        { id: "p1", amount: 250_000, method: "CASH", reference: "TT-Bulan-1", paidAt: new Date("2026-04-10") },
+        { id: "p2", amount: 250_000, method: "XENDIT", reference: "xnd_va_123", paidAt: new Date("2026-04-15") },
+      ],
+      student: { name: "Anak", nickname: "Nak", enrollments: [] },
+    });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    const props = renderToBuffer.mock.calls[0]![0].props.data;
+    expect(props.payments.map((p: { reference: string | null }) => p.reference)).toEqual([null, "xnd_va_123"]);
+  });
+
+  it("issues a receipt for a PARTIALLY_PAID invoice, showing what is still owed (R2-P-6)", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
+    db.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "Juli 2026",
+      dueDate: new Date("2026-07-30"),
+      totalDue: 850_000,
+      totalPaid: 400_000,
+      status: "PARTIALLY_PAID",
+      paidAt: null,
+      lines: [],
+      payments: [{ id: "p1", amount: 400_000, method: "CASH", reference: "Cicilan-1", paidAt: new Date("2026-07-10") }],
+      student: { name: "Anak", nickname: "Nak", enrollments: [] },
+    });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    const props = renderToBuffer.mock.calls[0]![0].props.data;
+    expect(props.totalPaid).toBe(400_000);
+    expect(props.remaining).toBe(450_000);
+    expect(props.payments[0].reference).toBeNull();
+  });
+
   it("404 for a non-PAID invoice — no unpaid receipt leaks", async () => {
     getSession.mockResolvedValue(guardianSession());
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });

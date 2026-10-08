@@ -461,7 +461,10 @@ export function WeeklyClient({
             The old line ended "…bisa ditambahkan dari detail siswa", pointing at
             a screen this page has no link to. Say what the tap does instead.
           */}
-          Ketuk tingkat untuk menyimpan. Penilaian tersimpan otomatis.
+          {/* R2-T-8: the status line above says "belum tersimpan" after a failed
+              tap; claiming auto-save in the same breath contradicts it. */}
+          Ketuk tingkat untuk menyimpan.
+          {saveState === "saving" || saveState === "error" ? "" : " Penilaian tersimpan otomatis."}
         </p>
       )}
     </div>

@@ -190,7 +190,10 @@ export async function PUT(
   // ADM-1: bringing a WITHDRAWN student back clears the exit record so the
   // detail page stops showing "Keluar sejak …". Enrollments are not re-created
   // — the admin re-enrols through "Daftarkan ke Kelas".
-  const reactivating = body.status === "ACTIVE" && existing.status === "WITHDRAWN";
+  // R2-ADMIN-8: a mistaken graduation is undone the same way — graduationDate
+  // is cleared, and the (already ended) enrollments are not re-created.
+  const reactivatingFromWithdrawn = body.status === "ACTIVE" && existing.status === "WITHDRAWN";
+  const reactivatingFromGraduated = body.status === "ACTIVE" && existing.status === "GRADUATED";
 
   const data = {
     name: body.name?.trim(),
@@ -209,8 +212,9 @@ export async function PUT(
     status: body.status ?? existing.status,
     // Inline edit from Student detail "Riwayat Status" sub-card (T5).
     // Undefined → Prisma skips the column; date stays owned by /withdraw API.
-    withdrawalReason: reactivating ? null : body.withdrawalReason,
-    withdrawalDate: reactivating ? null : undefined,
+    withdrawalReason: reactivatingFromWithdrawn ? null : body.withdrawalReason,
+    withdrawalDate: reactivatingFromWithdrawn ? null : undefined,
+    graduationDate: reactivatingFromGraduated ? null : undefined,
   };
 
   // Cascade: withdraw enrollments + cancel draft/sent invoices when student is

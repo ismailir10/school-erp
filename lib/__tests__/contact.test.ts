@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { telHref, whatsappHref, whatsappHrefWithText, schoolContactPhone } from "@/lib/contact";
+import { telHref, whatsappHref, whatsappHrefWithText, schoolContactPhone, SCHOOL_CONTACT_FALLBACK_TEXT } from "@/lib/contact";
 
 describe("telHref", () => {
   it("strips formatting", () => {
@@ -57,5 +57,11 @@ describe("whatsappHrefWithText / schoolContactPhone", () => {
       if (prev === undefined) delete process.env.SCHOOL_CONTACT_PHONE;
       else process.env.SCHOOL_CONTACT_PHONE = prev;
     }
+  });
+});
+
+describe("SCHOOL_CONTACT_FALLBACK_TEXT", () => {
+  it("names a concrete office instead of a dead 'hubungi admin'", () => {
+    expect(SCHOOL_CONTACT_FALLBACK_TEXT).toBe("Silakan hubungi bagian tata usaha sekolah.");
   });
 });

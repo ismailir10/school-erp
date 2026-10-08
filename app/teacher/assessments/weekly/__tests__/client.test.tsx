@@ -177,9 +177,26 @@ describe("WeeklyClient radio groups", () => {
 
       await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Penilaian belum tersimpan");
+      // R2-T-8: never "belum tersimpan" and "tersimpan otomatis" together.
+      expect(screen.queryByText(/Penilaian tersimpan otomatis/)).toBeNull();
+      expect(screen.getByText(/Ketuk tingkat untuk menyimpan\./)).toBeInTheDocument();
 
       await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
       await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+      expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument();
+    });
+
+    it("hides the auto-save line while a save is pending, shows it when idle", async () => {
+      const user = userEvent.setup();
+      const save = deferred<{ ok: boolean }>();
+      vi.stubGlobal("fetch", vi.fn().mockReturnValue(save.promise));
+      renderWeeklyClient();
+      expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument();
+      await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+      await screen.findByText("Menyimpan penilaian…");
+      expect(screen.queryByText(/Penilaian tersimpan otomatis/)).toBeNull();
+      save.resolve({ ok: true });
+      await waitFor(() => expect(screen.getByText(/Penilaian tersimpan otomatis/)).toBeInTheDocument());
     });
   });
 });

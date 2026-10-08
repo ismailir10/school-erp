@@ -201,8 +201,9 @@ export default async function ParentAttendancePage({
           <table className="w-full min-w-[324px] border-collapse text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
-                  Status
+                {/* Corner cell: the visible "Status" label belongs to the data row only. */}
+                <th scope="col" className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
+                  <span className="sr-only">Hari</span>
                 </th>
                 {days.map((d, i) => {
                   const isToday = d === today;
@@ -222,9 +223,9 @@ export default async function ParentAttendancePage({
             </thead>
             <tbody>
               <tr className="border-b border-border/40">
-                <td className="sticky left-0 z-10 bg-background py-2 pr-2 text-xs text-foreground">
+                <th scope="row" className="sticky left-0 z-10 bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
                   Status
-                </td>
+                </th>
                 {days.map((d) => {
                   const isToday = d === today;
                   const status = statusByDate.get(d);
@@ -236,19 +237,42 @@ export default async function ParentAttendancePage({
                     >
                       <span className="inline-flex h-9 w-9 items-center justify-center">
                         {status === "MIXED" ? (
-                          <span className="text-xs font-semibold text-muted-foreground" aria-label="Catatan berbeda">≠</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>
+                            <span className="sr-only">Catatan berbeda</span>
+                          </>
                         ) : status === "PRESENT" ? (
-                          <Check size={16} strokeWidth={2.5} className="text-primary" />
+                          <>
+                            <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-primary" />
+                            <span className="sr-only">Hadir</span>
+                          </>
                         ) : status === "SICK" ? (
-                          <span className="text-xs font-bold text-status-late-text">S</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-late-text">S</span>
+                            <span className="sr-only">Sakit</span>
+                          </>
                         ) : status === "ABSENT" ? (
-                          <span className="text-xs font-bold text-status-absent-text">A</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-absent-text">A</span>
+                            <span className="sr-only">Alpa</span>
+                          </>
                         ) : status === "PERMISSION" ? (
-                          <span className="text-xs font-bold text-status-leave-text">I</span>
+                          <>
+                            <span aria-hidden="true" className="text-xs font-bold text-status-leave-text">I</span>
+                            <span className="sr-only">Izin</span>
+                          </>
                         ) : isFuture ? (
-                          <span className="text-muted-foreground/40">·</span>
+                          <>
+                            <span aria-hidden="true" className="text-muted-foreground/60">-</span>
+                            <span className="sr-only">Belum berlangsung</span>
+                          </>
                         ) : (
-                          <span className="block size-3.5 rounded-sm border border-muted-foreground/30" />
+                          // Past or today with no saved record: an empty box, never the
+                          // same mark as a day that has not happened yet.
+                          <>
+                            <span aria-hidden="true" className="block size-3.5 rounded-sm border border-muted-foreground/30" />
+                            <span className="sr-only">Belum dicatat</span>
+                          </>
                         )}
                       </span>
                     </td>
@@ -262,6 +286,8 @@ export default async function ParentAttendancePage({
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
             <span><b className="text-status-leave-text">I</b> Izin</span>
+            <span><span aria-hidden="true" className="mr-1 inline-block size-3 rounded-sm border border-muted-foreground/30 align-middle" />Belum dicatat</span>
+            <span><span aria-hidden="true">-</span> Belum berlangsung</span>
             {mixedDays.length > 0 ? <span>≠ Catatan berbeda</span> : null}
           </div>
         </div>

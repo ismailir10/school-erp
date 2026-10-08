@@ -14,10 +14,11 @@ import { cn } from "@/lib/utils";
 
 type TaskRowBaseProps = {
   title: string;
-  description?: string;
+  /** Plain text, or inline markup when one phrase needs its own tone (e.g. "2 lewat tempo"). */
+  description?: ReactNode;
   icon?: ReactNode;
   meta?: ReactNode;
-  tone?: "teal" | "warm" | "purple";
+  tone?: "teal" | "warm" | "purple" | "danger";
   className?: string;
 };
 
@@ -58,6 +59,7 @@ export function TaskRow({
             "size-10 rounded-lg bg-secondary text-primary-text",
             tone === "warm" && "bg-status-late-subtle text-status-late-text",
             tone === "purple" && "bg-status-holiday-subtle text-status-holiday-text",
+            tone === "danger" && "bg-status-absent-subtle text-status-absent-text",
           )}
         >
           {icon}

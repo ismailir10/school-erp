@@ -50,6 +50,12 @@ export const updateAdmissionSchema = partialWithoutDefaults(createAdmissionSchem
   status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
 });
 
+// ── Public inquiry: phone messages (R2-P-13) ─────────────────────────────────
+// Shared by /daftar's inline validation and the API schema so both say the same
+// thing, including a format example (the bare "tidak valid" told parents nothing).
+export const PHONE_FORMAT_ERROR = "Nomor telepon tidak valid. Contoh: 0812 3456 7890";
+export const WHATSAPP_FORMAT_ERROR = "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890";
+
 // ── Public inquiry: plausible birth date (PUBX-2) ────────────────────────────
 // /daftar serves PAUD/TK/Day Care, so a child is between 1 and 8 years old
 // (completed) today. Dates are YYYY-MM-DD strings compared lexicographically;

@@ -260,3 +260,40 @@ describe("ClassesClient — Ubah Kelas capacity guard (ADM-5)", () => {
     expect(capacity).toHaveAttribute("aria-invalid", "true");
   });
 });
+
+// R2-ADMIN-2 — ?yearId= seeds the selected year and stays in the URL.
+describe("ClassesClient — yearId from the URL (R2-ADMIN-2)", () => {
+  const planning = { id: "y2", name: "2027/2028", status: "PLANNING", startDate: "2027-07-12", endDate: "2028-07-09" };
+
+  function stubTwoYears() {
+    return vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/academic-years")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [planning, year] }) } as Response);
+      }
+      if (url.includes("/api/admin/classes")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) } as Response);
+    });
+  }
+  const classCalls = (f: ReturnType<typeof stubTwoYears>) =>
+    f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/admin/classes"));
+
+  it("loads the year named in initialYearId and writes it to the URL", async () => {
+    const f = stubTwoYears();
+    vi.stubGlobal("fetch", f);
+    render(<ClassesClient canWrite={true} initialYearId="y2" />);
+    await waitFor(() => expect(classCalls(f).some((u) => u.includes("yearId=y2"))).toBe(true));
+    expect(classCalls(f).some((u) => u.includes("yearId=y1"))).toBe(false);
+    expect(window.location.search).toContain("yearId=y2");
+  });
+
+  it("falls back to the default year when initialYearId is unknown", async () => {
+    const f = stubTwoYears();
+    vi.stubGlobal("fetch", f);
+    render(<ClassesClient canWrite={true} initialYearId="nope" />);
+    await waitFor(() => expect(classCalls(f).some((u) => u.includes("yearId=y1"))).toBe(true));
+    expect(window.location.search).toContain("yearId=y1");
+  });
+});

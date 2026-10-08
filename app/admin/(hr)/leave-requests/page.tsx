@@ -126,8 +126,8 @@ function LeaveReviewBody({
           />
           {reviewAction === "approve" && (
             <p className="text-xs text-muted-foreground">
-              Menyetujui akan otomatis membuat catatan kehadiran LEAVE untuk tanggal
-              tersebut.
+              Menyetujui akan otomatis membuat catatan kehadiran berstatus Izin untuk
+              tanggal tersebut.
             </p>
           )}
         </>

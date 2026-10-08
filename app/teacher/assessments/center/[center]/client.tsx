@@ -35,6 +35,9 @@ type Student = {
   name: string;
   nickname: string | null;
   status: string;
+  // Optional: older payloads carry no class info; then no label / no filter.
+  classSectionId?: string;
+  className?: string;
 };
 
 type Indicator = {
@@ -61,6 +64,7 @@ type Payload =
       date: string;
       ageGroup: "A" | "B";
       students: Student[];
+      myClassSectionIds?: string[];
       indicators: Indicator[];
       entries: Entry[];
       lastActivity: string | null;
@@ -94,6 +98,10 @@ export function CenterSessionClient({
   const [saving, setSaving] = useState<boolean>(false);
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
+  // R2-T-7: the roster is every same-age child in the school. Default to the
+  // teacher's own class(es); view state only, never marks the form dirty.
+  const [showAllClasses, setShowAllClasses] = useState(false);
+  const [studentQuery, setStudentQuery] = useState("");
   const loadRequestId = useRef(0);
   // TCHX-3: set by any teacher edit (activity, IKTP pick, level, note), cleared
   // when a payload hydrates or a save succeeds. Drives the leave guard and the
@@ -192,8 +200,30 @@ export function CenterSessionClient({
   }
 
   const indicators = payload?.ok ? payload.indicators : [];
-  const students = payload?.ok ? payload.students : [];
+  const students = useMemo(() => (payload?.ok ? payload.students : []), [payload]);
   const isWritable = payload?.ok && payload.writable;
+  const myClassIds = useMemo(
+    () => new Set(payload?.ok ? (payload.myClassSectionIds ?? []) : []),
+    [payload],
+  );
+  // The class filter only means something when the teacher has a class and the
+  // roster actually has children outside it.
+  const hasClassFilter =
+    myClassIds.size > 0 &&
+    students.some((s) => !s.classSectionId || !myClassIds.has(s.classSectionId));
+  const visibleStudents = useMemo(() => {
+    const q = studentQuery.trim().toLowerCase();
+    return students.filter((s) => {
+      if (hasClassFilter && !showAllClasses && !(s.classSectionId && myClassIds.has(s.classSectionId))) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        (s.nickname?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [students, hasClassFilter, showAllClasses, myClassIds, studentQuery]);
 
   function handleAgeGroupKeyDown(
     event: KeyboardEvent<HTMLInputElement>,
@@ -577,14 +607,60 @@ export function CenterSessionClient({
           </div>
 
           {pickedIndicators.length > 0 && students.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                type="search"
+                className="tap-target sm:flex-1"
+                data-testid="center-student-search"
+                aria-label="Cari nama siswa"
+                placeholder="Cari nama siswa"
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+              />
+              {hasClassFilter && (
+                <Button
+                  type="button"
+                  variant={showAllClasses ? "default" : "outline"}
+                  className="tap-target"
+                  aria-pressed={showAllClasses}
+                  data-testid="center-all-classes"
+                  onClick={() => setShowAllClasses((v) => !v)}
+                >
+                  Semua kelas
+                </Button>
+              )}
+            </div>
+          )}
+
+          {pickedIndicators.length > 0 &&
+            students.length > 0 &&
+            visibleStudents.length === 0 && (
+              <p role="status" className="text-sm text-muted-foreground" data-testid="center-no-match">
+                {studentQuery.trim()
+                  ? "Tidak ada siswa dengan nama itu."
+                  : "Belum ada siswa dari kelas Anda di kelompok usia ini. Ketuk “Semua kelas” untuk melihat semuanya."}
+              </p>
+            )}
+
+          {pickedIndicators.length > 0 && visibleStudents.length > 0 && (
             <ul className="space-y-3" data-testid="center-roster">
-              {students.map((student) => (
+              {visibleStudents.map((student) => (
                 <li
                   key={student.id}
                   className="space-y-2 rounded-lg border border-input p-3"
                   data-testid={`center-row-${student.id}`}
                 >
-                  <p className="text-sm font-medium">{student.name}</p>
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                    {student.name}
+                    {student.className && (
+                      <span
+                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
+                        data-testid={`center-class-${student.id}`}
+                      >
+                        {student.className}
+                      </span>
+                    )}
+                  </p>
                   <ul className="space-y-2">
                     {pickedIndicators.map((ind) => {
                       const key = cellKey(student.id, ind.id);

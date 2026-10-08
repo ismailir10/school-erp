@@ -20,6 +20,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 import { generatePayrollSchema } from "@/lib/validations/payroll";
 import { useZodForm } from "@/lib/forms/use-zod-form";
+import { formatDateShort } from "@/lib/format";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { ApiError } from "@/lib/api/client-errors";
 import type { Control } from "react-hook-form";
@@ -62,7 +63,7 @@ const columns: ColumnDef<PayrollRun>[] = [
       const run = row.original;
       return (
         <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
-          {run.periodStart} — {run.periodEnd}
+          {formatDateShort(run.periodStart)} — {formatDateShort(run.periodEnd)}
         </DataTableLinkCell>
       );
     },
