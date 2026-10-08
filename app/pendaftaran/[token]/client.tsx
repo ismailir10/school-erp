@@ -9,7 +9,7 @@ import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Copy, RefreshCw } from "lucide-react";
+import { Camera, CheckCircle2, Copy, RefreshCw } from "lucide-react";
 import { SignaturePad } from "@/components/enrollment/signature-pad";
 import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
 import {
@@ -37,6 +37,8 @@ import {
   CONSENT_CLAUSES,
   CONSENT_INTRO,
   CONSENT_VERSION,
+  PHOTO_CLAUSE_INDEX,
+  PHOTO_CLAUSE_TITLE,
 } from "@/lib/enrollment/consent-clauses";
 import { formatDateShort } from "@/lib/format";
 import {
@@ -61,7 +63,7 @@ type Prefill = {
   studentData: unknown;
   ayahData: unknown;
   ibuData: unknown;
-  /** `{ agreed, ayah: {name, signed}, ibu: {name, signed} }` — never raw tokens. */
+  /** `{ agreed, version, ayah: {name, signed}, ibu: {name, signed} }` — never raw tokens. */
   consentData: unknown;
   documents: PublicDocuments;
 };
@@ -167,7 +169,10 @@ function initConsent(p: unknown): ConsentState {
   const ayah = obj(c.ayah);
   const ibu = obj(c.ibu);
   return {
-    agreed: c.agreed === true,
+    // The tick belongs to the letter the parent saw. A draft saved under another
+    // version (or none) must be ticked again on the current wording; names,
+    // signatures and onlyParent stay as stored.
+    agreed: c.agreed === true && c.version === CONSENT_VERSION,
     ayahName: str(ayah.name), ayahSigned: ayah.signed === true,
     ibuName: str(ibu.name), ibuSigned: ibu.signed === true,
     onlyParent: c.onlyParent === "ayah" || c.onlyParent === "ibu" ? c.onlyParent : "",
@@ -1043,9 +1048,27 @@ function ConsentStep({
       <h2 className="text-lg font-semibold text-emerald-950">Surat Persetujuan Orang Tua</h2>
       <p className="text-sm text-emerald-900/70">{CONSENT_INTRO}</p>
       <ol className="list-decimal space-y-2 rounded-xl border border-emerald-900/10 bg-emerald-50/40 p-4 pl-8 text-sm text-emerald-900/90">
-        {CONSENT_CLAUSES.map((c, i) => (
-          <li key={i}>{c}</li>
-        ))}
+        {CONSENT_CLAUSES.map((c, i) =>
+          i === PHOTO_CLAUSE_INDEX ? (
+            // Same <ol>, so numbering and the stored clause set stay in step;
+            // only the look differs, so the photo permission is not lost in the list.
+            <li
+              key={i}
+              data-testid="photo-consent-clause"
+              data-photo-clause
+              className="rounded-lg bg-emerald-100/70 p-3 ring-1 ring-emerald-900/15 marker:font-medium"
+            >
+              <strong className="flex items-center gap-2 font-semibold text-emerald-950">
+                <Camera size={16} aria-hidden className="shrink-0 text-emerald-800" />
+                {PHOTO_CLAUSE_TITLE}
+                <span className="sr-only">.</span>
+              </strong>
+              <span className="mt-1 block">{c}</span>
+            </li>
+          ) : (
+            <li key={i}>{c}</li>
+          ),
+        )}
       </ol>
 
       {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}

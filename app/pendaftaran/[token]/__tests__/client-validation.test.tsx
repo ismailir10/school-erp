@@ -7,6 +7,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
+import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
 vi.mock("@/components/enrollment/signature-pad", () => ({
   SignaturePad: ({ label }: { label: string }) => <div>{label}</div>,
@@ -27,7 +28,7 @@ const filled = {
   },
   ayahData: { name: "Budi" },
   ibuData: { name: "Siti" },
-  consentData: { agreed: true, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
+  consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "Budi", signed: true }, ibu: { name: "Siti", signed: true } },
   documents: {},
 };
 

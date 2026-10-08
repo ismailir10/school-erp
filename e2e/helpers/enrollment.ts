@@ -10,7 +10,7 @@ import { expect, type APIRequestContext, type Browser, type BrowserContext } fro
  */
 
 export const ADMIN_USER_ID = "u_super_admin";
-export const CONSENT_VERSION = "annisaa-2026-v1";
+export const CONSENT_VERSION = "annisaa-2026-v2";
 
 /** Hard-coded valid 1x1 PNG (the server only checks the magic bytes). */
 export const PNG_1X1 = Buffer.from(
@@ -105,7 +105,7 @@ export async function prefillDraft(
       },
       ayahData: { name: "E2E Ayah" },
       ibuData: { name: "E2E Ibu" },
-      consentData: { agreed: true, ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
+      consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
     },
   });
   expect(res.status()).toBe(200);

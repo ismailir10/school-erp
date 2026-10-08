@@ -50,7 +50,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
 | Public | `/daftar` | — | Mobile-first | Admission inquiry, three steps |
-| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — seven steps incl. document upload (Berkas; optional unless the school marks some required under Pengaturan → Berkas Wajib Pendaftaran), autosave + resume; each parent can sign from their own device on the same link |
+| Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token — seven steps incl. document upload (Berkas; optional unless the school marks some required under Pengaturan → Berkas Wajib Pendaftaran), autosave + resume; each parent can sign from their own device on the same link; the signed Surat Persetujuan (v2) includes a photo/video clause for school documentation and social media, agreed by registering |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything, including payroll and salary |
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions (incl. Kelengkapan Berkas: view uploads, tick papers received; KK/KTP copied to the guardian on convert and shown on the student page), academics, attendance, invoices, employees |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first | Own attendance and leave; assigned classes only |

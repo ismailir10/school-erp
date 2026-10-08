@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type BrowserContext } from "@playwright/test";
 import {
+  CONSENT_VERSION,
   PNG_1X1,
   createInvite,
   firstProgramId,
@@ -79,7 +80,7 @@ function submitBody(opts: {
     ibuData: { name: "E2E Ibu", ...opts.ibu },
     consentData: {
       agreed: true,
-      version: "annisaa-2026-v1",
+      version: CONSENT_VERSION,
       ayah: { name: "E2E Ayah" },
       ibu: { name: "E2E Ibu" },
     },
@@ -224,7 +225,7 @@ test.describe("Enrollment documents follow-ups", () => {
         studentData: submitBody({ programId, child: CHILD_COPY }).studentData,
         ayahData: ayah,
         ibuData: ibu,
-        consentData: { agreed: true, ayah: { name: ayah.name }, ibu: { name: ibu.name } },
+        consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: ayah.name }, ibu: { name: ibu.name } },
       },
     });
     expect(draft.status()).toBe(200);
