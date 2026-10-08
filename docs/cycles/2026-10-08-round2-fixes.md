@@ -61,7 +61,7 @@ The user asked to "restart the round-2 testing and fix what it finds". That is t
 2. Reactivating a GRADUATED student sets status ACTIVE and clears graduation fields. Enrolments are not recreated, matching the WITHDRAWN path from #614.
 
 ## Tasks
-- [ ] **T1 — Teacher home + journal.** `app/teacher/home-client.tsx` (+ the home page/server file that feeds it), `lib/teacher/home-progress.ts`, `app/teacher/student-journal/**` list view (+ tests). R2-T-1, T-2, T-3, T-5, T-12. Independent.
+- [x] **T1 — Teacher home + journal.** `app/teacher/home-client.tsx` (+ the home page/server file that feeds it), `lib/teacher/home-progress.ts`, `app/teacher/student-journal/**` list view (+ tests). R2-T-1, T-2, T-3, T-5, T-12. Independent.
 - [ ] **T2 — Teacher attendance, sentra, weekly, leave sheet.** `app/api/student-attendance/mark/route.ts`, `app/teacher/assessments/center/[center]/**`, `app/teacher/assessments/weekly/**`, `components/teacher/leave-sheet.tsx` (+ tests). R2-T-4, T-7, T-8, T-9, T-10. Independent.
 - [ ] **T3 — Parent portal.** `app/parent/**` (home, attendance, invoices sheet), `components/parent/**`, `lib/contact.ts`, `app/api/guardian/invoices/[id]/pdf/route.ts`, `lib/pdf/receipt-data.ts`, `app/api/guardian/report-cards/**/pdf` (+ tests). P-1, P-2, P-4, P-6, P-7, P-8, P-9, P-11 (contact on public cards via `lib/contact.ts` only), P-17. Independent.
 - [ ] **T4 — Public forms.** `app/pendaftaran/**`, `lib/enrollment/**`, `app/daftar/**`, `lib/admission/submit-validation.ts` (+ tests). P-10, P-15, P-13. Independent.
@@ -70,7 +70,11 @@ The user asked to "restart the round-2 testing and fix what it finds". That is t
 - [ ] **T7 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T6.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; T1–T6 in parallel on disjoint files; T7 by the driver, who reviews each diff and commits per task.
+- T1 (R2-T-1/2/3/5/12): the personal check-in row renders right under the header in both states. Check-in errors go through `fetch-error-copy` (offline → "Koneksi terputus…"; no raw server English; no "Coba lagi" after 401/403). The driver overrides the shared 403 copy with "Akun Anda belum bisa mencatat kehadiran. Hubungi admin sekolah.", since the shared one talks about a class. A LATE record shows "Terlambat N menit" (minutes from work start via `lib/attendance/status.ts`, as the API computes them). `getJournalProgress` takes `excludedStudentIds` (today's SICK/PERMISSION/ABSENT, `isJournalAbsentStatus` kept in parity with the bulk sheet's labels by a test), so home and the entry page count present children only ("x/y siswa lengkap · K tidak hadir") and the CTA clears. Absent children carry the Sakit/Izin/Alpa pill in the list (`class-day-grid.tsx`, a new optional `absences` prop). No-class empty states no longer point "di atas"/"di bawah".
 
 ## Verification
+- Frontend diffs checked against `.claude/standards/design-system.html` (existing pills, tones and spacing; no new colours).
+- T1: `npx vitest run app/teacher lib/teacher components/student-journal` → 36 files, 243 passed; after the driver's 403 copy tweak `npx vitest run app/teacher/__tests__/home-checkin.test.tsx lib/teacher app/teacher/student-journal` → 11 files, 90 passed.
 
 ## Ship Notes

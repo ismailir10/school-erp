@@ -132,7 +132,25 @@ describe("class-level bulk fill (TCH-7)", () => {
     await waitFor(() => expect(posts).toHaveLength(1));
     const touched = new Set(posts[0].entries.map((e) => e.studentId));
     expect([...touched].sort()).toEqual(["s1", "s5"]);
-    expect(screen.getByTestId("class-progress")).toHaveTextContent("2/5 siswa lengkap");
+    // Absent children leave the count (R2-T-5): the two present ones are all that is left to fill.
+    expect(screen.getByTestId("class-progress")).toHaveTextContent("2/2 siswa lengkap · 3 tidak hadir");
+  });
+
+  it("badges Sakit/Izin/Alpa children in the journal list rows (R2-T-5)", async () => {
+    stub(4);
+    attendance = [
+      { student: { id: "s1" }, attendance: { status: "PRESENT" } },
+      { student: { id: "s2" }, attendance: { status: "SICK" } },
+      { student: { id: "s3" }, attendance: { status: "PERMISSION" } },
+      { student: { id: "s4" }, attendance: { status: "ABSENT" } },
+    ];
+    render(<Page />);
+    await screen.findByTestId("bulk-open");
+    expect(screen.getByTestId("absence-badge-s2")).toHaveTextContent("Sakit");
+    expect(screen.getByTestId("absence-badge-s3")).toHaveTextContent("Izin");
+    expect(screen.getByTestId("absence-badge-s4")).toHaveTextContent("Alpa");
+    expect(screen.queryByTestId("absence-badge-s1")).toBeNull();
+    expect(screen.getByTestId("class-progress")).toHaveTextContent("0/1 siswa lengkap · 3 tidak hadir");
   });
 
   it("falls back to selecting everyone when the attendance lookup fails", async () => {
