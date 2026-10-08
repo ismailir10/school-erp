@@ -67,7 +67,7 @@ The user asked to "restart the round-2 testing and fix what it finds". That is t
 - [x] **T4 — Public forms.** `app/pendaftaran/**`, `lib/enrollment/**`, `app/daftar/**`, `lib/admission/submit-validation.ts` (+ tests). P-10, P-15, P-13. Independent.
 - [x] **T5 — Admin admissions + students.** `app/api/admissions/**`, `lib/admission/sibling-detect.ts`, `app/admin/admissions/**`, `components/admin/admissions/**`, `app/admin/students/[id]/page.tsx`, `components/admin/students/**`, guardian link dialog, `app/api/students/[id]/route.ts` (+ tests). ADMIN-1, 6, 7, 8, 14, 16. Independent.
 - [x] **T6 — Admin classes, dashboard, finance, HR.** `app/admin/classes/**`, `app/api/class-sections/route.ts`, `components/admin/class-section-picker.tsx`, `app/admin/page.tsx` + dashboard components, `app/api/billing-runs/[id]/commit/route.ts`, `lib/dashboard/activity-feed.ts`, `app/admin/(hr)/payroll/**`, `app/admin/invoices/**` (row menu, labels), leave approve dialog, `app/admin/academic-years/**` (+ tests). ADMIN-2, 3, 4, 9, 10, 11, 12, 13, 15. Independent.
-- [ ] **T7 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T6.
+- [x] **T7 — End-of-cycle gate, verification, Ship Notes.** Depends on T1–T6.
 
 ## Implementation
 - Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5-5; T1–T6 in parallel on disjoint files; T7 by the driver, who reviews each diff and commits per task.
@@ -88,5 +88,23 @@ The user asked to "restart the round-2 testing and fix what it finds". That is t
 - T1: `npx vitest run app/teacher lib/teacher components/student-journal` → 36 files, 243 passed; after the driver's 403 copy tweak `npx vitest run app/teacher/__tests__/home-checkin.test.tsx lib/teacher app/teacher/student-journal` → 11 files, 90 passed.
 - CI run 1 on #616 (`74992e7`, T1–T4): `Playwright E2E` 170 passed / 3 failed in `e2e/parent.spec.ts`, all intended changes, reproduced locally. (1) The fixture parent has one child, and P-8 removed the single-child "Tagihan keluarga" total, which the household test anchored on; the spec now also accepts that child's bill row. (2) The INV-01 parity test read "N tagihan belum dibayar", which only the removed total carried; the per-child row now says "N tagihan belum dibayar · …" (clearer than "N tagihan" anyway), so single- and multi-child homes both carry it. (3) The attendance "Status" label is a row header since P-4; the spec queries `rowheader`. Locally against a rebuilt server, `e2e/parent.spec.ts` 10/11 passed before the copy rebuild (the 11th needed the rebuilt page).
 - End-of-cycle gate on `23bbfc4` (all six tasks): `npm run build` passed; `npx vitest run` → 551 files passed, 2 skipped; 5589 tests passed, 42 todo.
+- Playwright, local, full suite against a production build (`DEMO_MODE=true next start`, fresh disposable Postgres `talib_c7`) with the parent copy fix: 173 passed, 1 skipped, 0 failed (4.3 min).
+- Ship verification route: app behaviour, non-auth (no session, cookie, login or permission-guard change; the sentra API adds fields to an existing teacher route). Local demo-auth production build on `talib_c7`, source = this branch after `9371694`:
+  - Teacher: home lists the check-in row before the class card; a PRESENT record with masuk/pulang times marked Alpa → `ABSENT in=null out=null`. Sentra (after choosing an IKTP): name search and "Semua kelas" present; own class shows 19 children (page about 4,600 px) and the toggle shows the whole school (about 15,300 px).
+  - Parent (`u_rightjet`): home shows "2 lewat tempo"; attendance has one visible "Status" label; profile has "Hubungi sekolah"; guardian kuitansi for a PARTIALLY_PAID invoice → 200 `application/pdf`; rapor PDF `rapor-ahmad-zafran-hidayat-triwulan-1.pdf`.
+  - Public: a dead enrolment link shows "Silakan hubungi bagian tata usaha sekolah."; `POST /api/admission/submit {}` returns Indonesian field messages ("Nama anak wajib diisi", …); a reopened INVITED link shows "Hanya satu orang tua / wali yang mengisi" on Data Ayah with its helper text.
+  - Admin: an admission copying an existing child + guardian phone → 201 with `detectedParentId`, convert → 409 `POSSIBLE_DUPLICATE` (1 existing student); GRADUATED → PUT ACTIVE → `ACTIVE grad=null`; `/api/class-sections` counts equal ACTIVE enrolments for 14/14 classes; the dashboard shows "Lewat tempo" and "Piutang"; `/admin/classes?yearId=<non-active year>` opens that year; `/admin/invoices/<SENT>?bayar=1` opens Catat Pembayaran; the invoice list still says "Link Dibuat"; the draft payroll "Setujui" is disabled with "Bisa disetujui mulai …"; the new-year placeholder suggests the next year; no "Terdaftar" chip on admissions.
+  - No console errors or 5xx on portal pages. Public pages log a pre-existing "Refused to execute script … MIME type" warning (R2-P-14, out of scope).
 
 ## Ship Notes
+- No schema migration, no new dependency, no env var. The single-parent choice lives in the existing `EnrollmentApplication.consentData` JSON (`onlyParent`).
+- `SCHOOL_CONTACT_PHONE` is still the only source of the school's phone (Tenant/Campus have no phone column). Setting it in Vercel turns every "hubungi sekolah" fallback into WhatsApp/Telepon buttons.
+- Behaviour changes users will notice:
+  - Converting an admission that matches an existing child or guardian now asks for confirmation, and reuses the guardian. An email-only match used to be merged silently.
+  - Withdrawn and graduated students can both be reactivated.
+  - Sakit/Izin/Alpa clears a child's arrival/departure times for that day.
+  - The guardian kuitansi is available for partly paid invoices and hides manual references (the admin kuitansi too).
+  - Leave balance shows pending days.
+  - The billing commit writes one audit row per 25-invoice chunk.
+- Existing data is untouched: duplicate students/guardians created before this fix stay as they are.
+- Rollback: revert the squash commit on `staging`; no data shape changed. Audit rows and `onlyParent` flags written meanwhile are harmless.
