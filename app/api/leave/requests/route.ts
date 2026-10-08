@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   const start = new Date(startDate);
   const end = new Date(endDate);
   if (end < start) {
-    return NextResponse.json({ error: "Tanggal selesai harus setelah tanggal mulai" }, { status: 400 });
+    return NextResponse.json({ error: "Tanggal selesai harus sama atau setelah tanggal mulai" }, { status: 400 });
   }
 
   // F-07: holiday-aware working-day count. Previous loop skipped weekends

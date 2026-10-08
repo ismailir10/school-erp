@@ -354,4 +354,51 @@ describe("POST /api/student-attendance/mark — integrity (api-integrity T5)", (
     expect(res.status).toBe(200);
     expect(upsert.mock.calls[0][0].update.notes).toBeNull();
   });
+  it.each(["SICK", "PERMISSION", "ABSENT"])(
+    "R2-T-4: %s clears checkInTime/checkOutTime on the legacy update path, even if times are sent",
+    async (status) => {
+      const { update } = await setupLegacyPath({ id: "att-1", status: "PRESENT" });
+      const { POST } = await import("../student-attendance/mark/route");
+      const res = await POST(
+        makeReq({
+          ...validBody,
+          records: [{ studentId: "s-1", status, checkInTime: "2026-04-20T00:42:00.000Z" }],
+        }) as never,
+      );
+      expect(res.status).toBe(200);
+      const data = (update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+      expect(data.checkInTime).toBeNull();
+      expect(data.checkOutTime).toBeNull();
+    },
+  );
+
+  it("R2-T-4: PRESENT without times leaves existing times alone (undefined)", async () => {
+    const { update } = await setupLegacyPath({ id: "att-1", status: "SICK" });
+    const { POST } = await import("../student-attendance/mark/route");
+    await POST(makeReq(validBody) as never);
+    const data = (update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(data.checkInTime).toBeUndefined();
+    expect(data.checkOutTime).toBeUndefined();
+  });
+
+  it("R2-T-4: single-session path nulls times on SICK in both create and update", async () => {
+    const { prisma } = await setupLegacyPath(null);
+    const upsert = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) =>
+      cb({
+        $executeRaw: vi.fn(),
+        classSession: { findMany: vi.fn().mockResolvedValue([{ id: "sess-1" }]) },
+        studentAttendance: {
+          findUnique: vi.fn().mockResolvedValue({ status: "PRESENT" }),
+          upsert,
+        },
+      })) as never);
+    const { POST } = await import("../student-attendance/mark/route");
+    await POST(makeReq({ ...validBody, records: [{ studentId: "s-1", status: "SICK" }] }) as never);
+    const arg = upsert.mock.calls[0][0];
+    expect(arg.update.checkInTime).toBeNull();
+    expect(arg.update.checkOutTime).toBeNull();
+    expect(arg.create.checkInTime).toBeNull();
+    expect(arg.create.checkOutTime).toBeNull();
+  });
 });

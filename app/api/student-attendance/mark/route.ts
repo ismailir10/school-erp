@@ -35,6 +35,21 @@ function resolveNotes(
   return existing && existing.status !== nextStatus ? null : undefined;
 }
 
+/** Check-in/out times for the row. A child who is not PRESENT never arrived, so
+ * SICK/PERMISSION/ABSENT clears both (null) — including a check-in inherited
+ * from the session screen. PRESENT keeps the old "undefined = leave as is"
+ * on update. */
+function resolveTimes(
+  record: { status: string; checkInTime?: string | null; checkOutTime?: string | null },
+  fallback: null | undefined,
+): { checkInTime: Date | null | undefined; checkOutTime: Date | null | undefined } {
+  if (record.status !== "PRESENT") return { checkInTime: null, checkOutTime: null };
+  return {
+    checkInTime: record.checkInTime ? new Date(record.checkInTime) : fallback,
+    checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : fallback,
+  };
+}
+
 // Mark attendance for multiple students at once (teacher submits class attendance)
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -156,6 +171,8 @@ export async function POST(req: NextRequest) {
           select: { status: true },
         });
         const notes = resolveNotes(record.notes, existingRow, record.status);
+        const createTimes = resolveTimes(record, null);
+        const updateTimes = resolveTimes(record, undefined);
         await tx.studentAttendance.upsert({
           where: {
             studentId_sessionId: { studentId: record.studentId, sessionId: singleSessionId },
@@ -166,15 +183,13 @@ export async function POST(req: NextRequest) {
             sessionId: singleSessionId,
             date,
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            ...createTimes,
             notes: record.notes ?? null,
             checkedInBy: session.employeeId!,
           },
           update: {
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
+            ...updateTimes,
             notes,
             checkedInBy: session.employeeId!,
           },
@@ -207,8 +222,7 @@ export async function POST(req: NextRequest) {
           where: { id: existing.id },
           data: {
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : undefined,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : undefined,
+            ...resolveTimes(record, undefined),
             notes: resolveNotes(record.notes, existing, record.status),
             checkedInBy: session.employeeId!,
           },
@@ -220,8 +234,7 @@ export async function POST(req: NextRequest) {
             classSectionId,
             date,
             status: record.status,
-            checkInTime: record.checkInTime ? new Date(record.checkInTime) : null,
-            checkOutTime: record.checkOutTime ? new Date(record.checkOutTime) : null,
+            ...resolveTimes(record, null),
             notes: record.notes ?? null,
             checkedInBy: session.employeeId!,
           },
