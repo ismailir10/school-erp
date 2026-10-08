@@ -64,22 +64,22 @@ describe("step transition on the enrollment form", () => {
     expect(screen.queryByRole("heading", { name: "Data Anak" })).not.toBeInTheDocument();
   });
 
-  it("slides in from the direction of travel: forward from the right, back and jumps from the left", async () => {
+  it("travels in the right direction: forward, back and jumps to an earlier step", async () => {
     const user = userEvent.setup();
     renderForm();
 
     await user.click(lanjut());
-    // Mid-flight the offset is somewhere between ±12px and 0, so assert the side, not the exact value.
-    expect(panelOf(heading("Data Ayah")).style.transform).toMatch(/^translateX\(\d/);
+    expect(panelOf(heading("Data Ayah")).dataset.direction).toBe("1");
 
     await user.click(kembali());
-    expect(panelOf(heading("Data Anak")).style.transform).toMatch(/^translateX\(-/);
+    expect(panelOf(heading("Data Anak")).dataset.direction).toBe("-1");
 
     // Jump to an earlier step through the stepper counts as going back too.
     await user.click(lanjut());
     await user.click(lanjut());
+    expect(panelOf(heading("Data Ibu")).dataset.direction).toBe("1");
     await user.click(screen.getByRole("button", { name: "1. Data Anak" }));
-    expect(panelOf(heading("Data Anak")).style.transform).toMatch(/^translateX\(-/);
+    expect(panelOf(heading("Data Anak")).dataset.direction).toBe("-1");
   });
 
   it("applies no opacity or transform to the step panel under reduced motion", async () => {

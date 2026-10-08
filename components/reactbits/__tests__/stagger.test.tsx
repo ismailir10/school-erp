@@ -69,3 +69,59 @@ describe("Stagger", () => {
     expect(container.firstElementChild?.getAttribute("style")).toBeNull();
   });
 });
+
+describe("Stagger enabled / forwarded props", () => {
+  it("enabled={false} renders plain elements even with motion allowed", () => {
+    stubMatchMedia(false);
+    const { container } = render(
+      <Stagger as="ol" count={3} enabled={false} className="list" data-reveal="false">
+        {[1, 2, 3].map((n) => (
+          <StaggerItem key={n} as="li" className="row">
+            Butir {n}
+          </StaggerItem>
+        ))}
+      </Stagger>,
+    );
+    const ol = container.querySelector("ol") as HTMLElement;
+    expect(ol).toHaveClass("list");
+    expect(ol).toHaveAttribute("data-reveal", "false");
+    expect(ol.getAttribute("style")).toBeNull();
+    const items = ol.querySelectorAll(":scope > li");
+    expect(items).toHaveLength(3);
+    items.forEach((li) => expect(li.getAttribute("style")).toBeNull());
+  });
+
+  it("forwards data-*, aria-* and id onto the animated list and items", () => {
+    stubMatchMedia(false);
+    const { container } = render(
+      <Stagger as="ol" count={1} data-reveal="true" aria-label="Butir">
+        <StaggerItem as="li" id="photo" data-testid="x" data-photo-clause aria-describedby="d" className="row">
+          satu
+        </StaggerItem>
+      </Stagger>,
+    );
+    const ol = container.querySelector("ol") as HTMLElement;
+    expect(ol).toHaveAttribute("data-reveal", "true");
+    expect(ol).toHaveAttribute("aria-label", "Butir");
+    const li = screen.getByTestId("x");
+    expect(li.style.opacity).toBe("0");
+    expect(li).toHaveAttribute("id", "photo");
+    expect(li).toHaveAttribute("data-photo-clause");
+    expect(li).toHaveAttribute("aria-describedby", "d");
+    expect(li).toHaveClass("row");
+  });
+
+  it("StaggerItem forwards data-* in the static path too", () => {
+    stubMatchMedia(true);
+    render(
+      <Stagger as="ol" count={1}>
+        <StaggerItem as="li" data-testid="y" data-photo-clause>
+          satu
+        </StaggerItem>
+      </Stagger>,
+    );
+    const li = screen.getByTestId("y");
+    expect(li).toHaveAttribute("data-photo-clause");
+    expect(li.getAttribute("style")).toBeNull();
+  });
+});

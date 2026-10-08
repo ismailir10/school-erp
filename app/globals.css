@@ -139,14 +139,16 @@
   --animate-highlight-once: highlight-once 1600ms ease-out;
 
   @keyframes highlight-once {
-    0% {
-      box-shadow: 0 0 0 0 transparent;
+    /* The element's own Tailwind ring (box-shadow based) is kept in every frame, so it never drops out
+     * while the halo plays; the fallback keeps this usable on elements that have no ring. */
+    0%,
+    100% {
+      box-shadow: var(--tw-ring-shadow, 0 0 #0000);
     }
     35% {
-      box-shadow: 0 0 0 6px color-mix(in oklch, var(--primary) 22%, transparent);
-    }
-    100% {
-      box-shadow: 0 0 0 0 transparent;
+      box-shadow:
+        var(--tw-ring-shadow, 0 0 #0000),
+        0 0 0 6px color-mix(in oklch, var(--primary) 22%, transparent);
     }
   }
 

@@ -1,3 +1,4 @@
+import { Stagger, StaggerItem } from "@/components/reactbits/stagger";
 import { DOCUMENT_ITEMS, type DocumentKey } from "@/lib/enrollment/documents";
 
 /** Documents that belong to one parent only. */
@@ -27,11 +28,13 @@ export function BringList({ keys }: { keys: readonly DocumentKey[] }) {
   return (
     <div className="mt-5 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-4 text-left">
       <h3 className="text-sm font-semibold text-emerald-950">Berkas yang perlu dibawa ke sekolah</h3>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-900/80">
+      <Stagger as="ul" count={keys.length} className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-900/80">
         {keys.map((k) => (
-          <li key={k}>{DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k}</li>
+          <StaggerItem key={k} as="li">
+            {DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k}
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </div>
   );
 }

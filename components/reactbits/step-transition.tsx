@@ -19,6 +19,8 @@ const OFFSET_PX = 12;
  * - **Re-keys the subtree.** Content under a changed `stepKey` remounts (its local state resets).
  * - **First render never animates** (`initial={false}` until the key first changes), so server HTML and
  *   hydration are never hidden. Only opacity and transform are animated.
+ * - `data-direction` ("1" / "-1") is always rendered so tests and styling can read the direction of travel
+ *   without sampling a mid-flight transform.
  * - **Reduced motion** (and server / hydration, see `usePrefersReducedMotion`) passes no motion props, so
  *   the `motion.div` renders a plain `<div>` with no inline styles. The element type is the same in every
  *   mode on purpose: swapping a plain div for a motion div after hydration would remount the children.
@@ -44,7 +46,7 @@ export function StepTransition({
 
   if (reduced) {
     return (
-      <motion.div key={stepKey} className={className}>
+      <motion.div key={stepKey} className={className} data-direction={direction}>
         {children}
       </motion.div>
     );
@@ -54,6 +56,7 @@ export function StepTransition({
     <motion.div
       key={stepKey}
       className={className}
+      data-direction={direction}
       initial={navigated ? { opacity: 0, x: OFFSET_PX * direction } : false}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}

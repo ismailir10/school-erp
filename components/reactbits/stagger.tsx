@@ -5,7 +5,14 @@
 // See docs/cycles/2026-10-08-pendaftaran-photo-consent-motion.md.
 
 import { motion } from "framer-motion";
-import { createContext, useContext, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useSyncExternalStore,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 
 const subscribeNoop = () => () => {};
@@ -19,6 +26,15 @@ const MAX_STEP_S = 0.04;
 
 const MOTION_LIST = { ol: motion.ol, ul: motion.ul, div: motion.div } as const;
 const MOTION_ITEM = { li: motion.li, div: motion.div } as const;
+
+/**
+ * Extra attributes forwarded onto the rendered element (`data-*`, `aria-*`, `id`, `role`, ...). Anything
+ * that framer-motion also owns (style, drag/animation handlers) is left out on purpose.
+ */
+type ForwardedProps = Omit<
+  HTMLAttributes<HTMLElement>,
+  "className" | "children" | "style" | "onAnimationStart" | "onAnimationEnd" | "onDrag" | "onDragStart" | "onDragEnd"
+>;
 
 const listVariants = (step: number) => ({
   hidden: {},
@@ -42,18 +58,25 @@ const itemVariants = {
  * onto a page that contains a Stagger therefore shows its content immediately instead of animating.
  *
  * `count` should be the number of <StaggerItem>s. Keep `as="ol"|"ul"` paired with `StaggerItem as="li"`.
+ * `enabled={false}` renders the plain static element, so a parent can play the reveal only once. The
+ * decision is captured on mount, like the other gates: flipping `enabled` later does not replay or cancel.
+ * Extra props (`data-*`, `aria-*`, `id`) are forwarded onto the element.
  */
 export function Stagger({
   as = "div",
   count,
   className,
+  enabled = true,
   children,
+  ...rest
 }: {
   as?: "ol" | "ul" | "div";
   count: number;
   className?: string;
+  /** Default true. When false the list renders as plain elements (no motion props). */
+  enabled?: boolean;
   children: ReactNode;
-}) {
+} & ForwardedProps) {
   // true during SSR and hydration, false on a fresh client mount. Captured on first render only.
   const isHydrating = useSyncExternalStore(
     subscribeNoop,
@@ -61,44 +84,53 @@ export function Stagger({
     () => true,
   );
   const reduced = usePrefersReducedMotion();
-  const [animating] = useState(() => !isHydrating && !reduced);
+  const [animating] = useState(() => enabled && !isHydrating && !reduced);
 
   if (!animating) {
     const Tag = as;
-    return <Tag className={className}>{children}</Tag>;
+    return (
+      <Tag className={className} {...rest}>
+        {children}
+      </Tag>
+    );
   }
 
   const step = Math.min(MAX_STEP_S, MAX_TOTAL_S / Math.max(count, 1));
   const MotionTag = MOTION_LIST[as];
   return (
     <StaggerContext.Provider value={true}>
-      <MotionTag className={className} variants={listVariants(step)} initial="hidden" animate="show">
+      <MotionTag className={className} variants={listVariants(step)} initial="hidden" animate="show" {...rest}>
         {children}
       </MotionTag>
     </StaggerContext.Provider>
   );
 }
 
-/** One revealed child of <Stagger>. Plain element when the parent is static. */
+/** One revealed child of <Stagger>. Plain element when the parent is static. Extra props are forwarded. */
 export function StaggerItem({
   as = "div",
   className,
   children,
+  ...rest
 }: {
   as?: "li" | "div";
   className?: string;
   children: ReactNode;
-}) {
+} & ForwardedProps) {
   const animating = useContext(StaggerContext);
 
   if (!animating) {
     const Tag = as;
-    return <Tag className={className}>{children}</Tag>;
+    return (
+      <Tag className={className} {...rest}>
+        {children}
+      </Tag>
+    );
   }
 
   const MotionTag = MOTION_ITEM[as];
   return (
-    <MotionTag className={className} variants={itemVariants}>
+    <MotionTag className={className} variants={itemVariants} {...rest}>
       {children}
     </MotionTag>
   );

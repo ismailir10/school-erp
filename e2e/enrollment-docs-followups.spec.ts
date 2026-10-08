@@ -176,7 +176,7 @@ test.describe("Enrollment documents follow-ups", () => {
       await page.getByRole("button", { name: "Lanjut" }).click();
       await expect(page.getByRole("heading", { name: /Tinjau/ })).toBeVisible();
       await page.getByRole("button", { name: "Kirim Formulir" }).click();
-      await expect(page.getByText("Jazakumullah khairan")).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Jazakumullah khairan/ })).toBeVisible();
     } finally {
       await parent.close();
       await setRequiredDocuments(admin.request, []);
