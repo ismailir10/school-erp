@@ -72,6 +72,21 @@ describe("InvoiceDetailSheet — partial payment wording (PAR-8)", () => {
   });
 });
 
+describe("InvoiceDetailSheet — kuitansi on partial payment (R2-P-6)", () => {
+  it("offers the kuitansi for a partly paid invoice, labelled as partial proof", async () => {
+    renderSheet();
+    const link = await screen.findByRole("link", { name: /Kuitansi\.pdf/ });
+    expect(link).toHaveAttribute("href", "/api/guardian/invoices/inv-3/pdf");
+    expect(link).toHaveTextContent("Bukti pembayaran sebagian");
+  });
+
+  it("offers no kuitansi while nothing has been paid", async () => {
+    renderSheet({ status: "SENT", totalPaid: 0, payments: [] });
+    await screen.findByTestId("invoice-totals");
+    expect(screen.queryByRole("link", { name: /Kuitansi\.pdf/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("InvoiceDetailSheet — no payment link (PAR-7)", () => {
   it("offers WhatsApp + telephone links with the invoice number prefilled when the school contact is configured", async () => {
     renderSheet({ schoolContactPhone: "0812-8877-4402" });
@@ -87,7 +102,7 @@ describe("InvoiceDetailSheet — no payment link (PAR-7)", () => {
   it("without a configured number still says to contact the school and quote the invoice number (no dead links)", async () => {
     renderSheet({ schoolContactPhone: null });
     const box = await screen.findByTestId("contact-school");
-    expect(box).toHaveTextContent("hubungi admin sekolah");
+    expect(box).toHaveTextContent("hubungi bagian tata usaha sekolah");
     expect(box).toHaveTextContent("INV-2026-0003");
     expect(within(box).queryByRole("link")).not.toBeInTheDocument();
   });

@@ -33,6 +33,17 @@ import { parentHref } from "@/lib/parent/navigation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
+/**
+ * Home chips: only the top stage keeps its green. "Mampu Belum Konsisten" was
+ * warning orange here, which reads as a bad grade to an anxious parent; the
+ * stages are a developmental path, so every other one is quiet and neutral.
+ */
+function homeLevelChipClass(level: string): string {
+  return level === "CONSISTENT"
+    ? LEVEL_CHIP_CLASS_OFF.CONSISTENT
+    : "bg-secondary text-secondary-foreground";
+}
+
 function knownAttendanceStatus(status: string | undefined): status is NonNullable<KidCardProps["todayStatus"]> {
   return status === "PRESENT" || status === "ABSENT" || status === "SICK" || status === "PERMISSION" || status === "MIXED";
 }
@@ -181,6 +192,8 @@ export default async function ParentDashboard() {
       name: child.studentName,
       count: items.length,
       total: items.reduce((sum, item) => sum + item.remaining, 0),
+      // Past due by the Jakarta calendar day (`today`); remaining > 0 already holds.
+      overdue: items.filter((item) => item.dueDate < today).length,
       nearestDue: items.reduce<string | null>((date, item) => !date || item.dueDate < date ? item.dueDate : date, null),
     };
   }).filter((child) => child.count > 0)
@@ -191,12 +204,24 @@ export default async function ParentDashboard() {
       key={bill.id}
       href={parentHref("/parent/invoices", bill.id)}
       title={`Tagihan ${bill.name}`}
-      description={`${bill.count} tagihan · jatuh tempo terdekat ${formatDate(bill.nearestDue!, { day: "numeric", month: "short", year: "numeric" })}`}
+      description={
+        bill.overdue > 0 ? (
+          <>
+            {bill.count} tagihan ·{" "}
+            <span className="font-semibold text-status-absent-text">{bill.overdue} lewat tempo</span>
+          </>
+        ) : (
+          `${bill.count} tagihan · jatuh tempo terdekat ${formatDate(bill.nearestDue!, { day: "numeric", month: "short", year: "numeric" })}`
+        )
+      }
       icon={<Receipt className="size-5" />}
       meta={<Amount value={bill.total} size="row" />}
-      tone="warm"
+      tone={bill.overdue > 0 ? "danger" : "warm"}
     />
   );
+  // One child owing means the family total IS that child's row (the totals are
+  // sums over the same invoices), so the header would print the same amount twice.
+  const singleBill = billsByChild.length === 1;
 
   // `Parent.name` already carries an honorific ("Ibu Rina"), and the guardian
   // relationship is stored in Indonesian (AYAH/IBU/WALI) — both handled in
@@ -237,7 +262,8 @@ export default async function ParentDashboard() {
     return {
       id: c.studentId,
       name: displayName,
-      className: c.className ?? "—",
+      // "KB" alone is cryptic; the other parent pages spell it "KB · Kelompok Bermain".
+      className: [c.className, c.programName && c.programName !== c.className ? c.programName : null].filter(Boolean).join(" · ") || "—",
       todayStatus: knownAttendanceStatus(todayStatus) ? todayStatus : null,
       teacherNote,
       foot,
@@ -288,13 +314,15 @@ export default async function ParentDashboard() {
         )}
         {unpaidTotal > 0 ? (
           <Card className="gap-0 py-0">
-            <CardContent className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">Tagihan keluarga</p>
-                <p className="text-xs text-muted-foreground">{unpaidCount} tagihan belum dibayar</p>
-              </div>
-              <Amount value={unpaidTotal} size="row" className="shrink-0" />
-            </CardContent>
+            {singleBill ? null : (
+              <CardContent className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Tagihan keluarga</p>
+                  <p className="text-xs text-muted-foreground">{unpaidCount} tagihan belum dibayar</p>
+                </div>
+                <Amount value={unpaidTotal} size="row" className="shrink-0" />
+              </CardContent>
+            )}
             {billsByChild[0] && billRow(billsByChild[0])}
             {billsByChild.length > 1 && (
               <Collapsible className="border-t border-border">
@@ -350,6 +378,7 @@ export default async function ParentDashboard() {
         return (
           <section data-testid="home-perkembangan-section">
             <SectionLabel>Perkembangan pekan ini</SectionLabel>
+            <p className="-mt-1 mb-2 text-xs text-muted-foreground">Ini tahapan perkembangan, bukan nilai.</p>
             <div className="space-y-3">
               {perkembanganKids.map(({ child, data }) => {
                 const displayName = child.studentName;
@@ -390,12 +419,12 @@ export default async function ParentDashboard() {
                                 <> · {formatLearningCenter(entry.center)}</>
                               )}
                             </p>
-                            <p className="text-xs text-foreground truncate">
+                            <p className="line-clamp-2 text-xs text-foreground">
                               {entry.indicatorContent}
                             </p>
                           </div>
                           <span
-                            className={`max-w-[45%] shrink-0 rounded-md px-1.5 py-0.5 text-right text-xs font-medium ${LEVEL_CHIP_CLASS_OFF[entry.level] ?? ""}`}
+                            className={`max-w-[45%] shrink-0 rounded-md px-1.5 py-0.5 text-right text-xs font-medium ${homeLevelChipClass(entry.level)}`}
                           >
                             {LEVEL_LABEL_LONG[entry.level] ?? entry.level}
                           </span>

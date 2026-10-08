@@ -83,6 +83,9 @@ const fmtIdDate = (d: Date | string) =>
 const fmtIdDateShort = (d: Date | string) =>
   new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
 
+/** Payment methods whose `reference` is a gateway id a wali can quote to the bank. */
+const GATEWAY_METHODS = new Set(["XENDIT", "DOKU"]);
+
 /** Map a loaded invoice (see {@link RECEIPT_INVOICE_SELECT}) to the kuitansi PDF's props. */
 export function buildReceiptData(invoice: ReceiptInvoice, tenantName: string | null | undefined): InvoiceReceiptData {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
@@ -116,7 +119,9 @@ export function buildReceiptData(invoice: ReceiptInvoice, tenantName: string | n
     payments: invoice.payments.map((p) => ({
       paidAt: fmtIdDateShort(p.paidAt),
       method: parentPaymentMethodLabel(p.method),
-      reference: p.reference,
+      // A manual payment's reference ("TT-Bulan-1", transfer no.) is the
+      // admin's own bookkeeping, not something a wali needs on a receipt.
+      reference: GATEWAY_METHODS.has(p.method) ? p.reference : null,
       amount: Number(p.amount),
     })),
     generatedDate: fmtIdDate(new Date()),

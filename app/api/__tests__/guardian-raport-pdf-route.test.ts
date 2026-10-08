@@ -132,7 +132,12 @@ describe("GET /api/guardian/report-cards/[studentId]/[termId]/pdf", () => {
     const res = await GET({} as never, ctx);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    // R2-P-7: a readable name, not the raw student/term cuids.
+    expect(res.headers.get("Content-Disposition")).toBe('inline; filename="rapor-ali-triwulan-1.pdf"');
     const props = renderToBuffer.mock.calls[0]![0].props.data;
+    // R2-P-7: id-ID decimal comma.
+    expect(props.height).toBe("110,5");
+    expect(props.weight).toBe("18,2");
     expect(props.sections).toHaveLength(8);
     expect(props.className).toBe("TKIT A");
     const religious = props.sections.find((s: { label: string }) => s.label.includes("Agama"));

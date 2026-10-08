@@ -166,8 +166,21 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.queryByText("Juli 2024")).not.toBeInTheDocument();
       await user.click(history);
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
-      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(1);
+      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(2);
       expect(screen.getByText("Agustus 2024").compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("lists the money already received on a partly paid invoice in Riwayat, with what is left (R2-P-6)", async () => {
+      const user = userEvent.setup();
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(screen.getByRole("button", { name: /Riwayat pembayaran \(2\)/ })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /Riwayat pembayaran/ }));
+      const history = within(screen.getByRole("list", { name: "Riwayat pembayaran" }));
+      const partial = history.getByRole("button", { name: /September 2024/ });
+      expect(partial).toHaveTextContent("Dibayar sebagian");
+      expect(partial).toHaveTextContent(/sisa Rp\s?500\.000/);
+      // An unpaid invoice with nothing received is not history.
+      expect(history.queryByRole("button", { name: /Agustus 2024/ })).not.toBeInTheDocument();
     });
   });
 

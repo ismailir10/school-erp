@@ -1,12 +1,13 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Mail, Phone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, MessageCircle, Phone, School } from "lucide-react";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
 import { SectionLabel } from "@/components/portal/section-label";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
+import { SCHOOL_CONTACT_FALLBACK_TEXT, schoolContactPhone, telHref, whatsappHref } from "@/lib/contact";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -30,6 +31,10 @@ export default async function ParentProfilePage({ searchParams }: {
   // Email shown comes from session (the OAuth-verified address Anda use to
   // sign in). Falls back to the parent record's email if seed-imported.
   const displayEmail = session.email ?? parent.email ?? null;
+
+  const schoolPhone = schoolContactPhone();
+  const schoolWa = whatsappHref(schoolPhone);
+  const schoolTel = telHref(schoolPhone);
 
   return (
     <div className="space-y-6 pb-4">
@@ -66,6 +71,37 @@ export default async function ParentProfilePage({ searchParams }: {
         <div className="space-y-2">
           <ContactCard icon={Phone} primary={parent.phone ?? "—"} secondary="Nomor terdaftar" />
           <ContactCard icon={Mail} primary={displayEmail ?? "—"} secondary="Email terdaftar" />
+        </div>
+      </section>
+
+      {/* Hubungi sekolah — the one place in the portal that always names a way to reach
+          the school, so a wrong phone number or a missing pay link has somewhere to go. */}
+      <section aria-labelledby="school-contact-heading" data-testid="school-contact">
+        <SectionLabel as="h2" id="school-contact-heading">Hubungi sekolah</SectionLabel>
+        <div className="space-y-2">
+          <ContactCard
+            icon={School}
+            primary="Bagian tata usaha"
+            secondary={
+              schoolWa || schoolTel
+                ? "Untuk tagihan, data diri yang perlu diperbaiki, atau pertanyaan lain."
+                : `${SCHOOL_CONTACT_FALLBACK_TEXT} Untuk tagihan atau data diri yang perlu diperbaiki.`
+            }
+          />
+          {schoolWa || schoolTel ? (
+            <div className="flex flex-wrap gap-2">
+              {schoolWa ? (
+                <a href={schoolWa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                  <MessageCircle size={16} aria-hidden="true" /> Chat WhatsApp
+                </a>
+              ) : null}
+              {schoolTel ? (
+                <a href={schoolTel} className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                  <Phone size={16} aria-hidden="true" /> Telepon sekolah
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
 

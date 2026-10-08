@@ -332,8 +332,8 @@ export function InvoiceDetailSheet({
             </section>
           ) : null}
 
-          {/* Bukti pembayaran — paid only */}
-          {isPaid ? (
+          {/* Bukti pembayaran — once money has been received (fully or in part) */}
+          {isPaid || isPartiallyPaid ? (
             <section>
               <SectionLabel>Bukti pembayaran</SectionLabel>
               <a
@@ -348,9 +348,11 @@ export function InvoiceDetailSheet({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">Kuitansi.pdf</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {invoice.paidAt
-                      ? `Diterbitkan ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
-                      : "Diterbitkan"}
+                    {isPartiallyPaid
+                      ? "Bukti pembayaran sebagian"
+                      : invoice.paidAt
+                        ? `Diterbitkan ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
+                        : "Diterbitkan"}
                   </p>
                 </div>
                 <Download size={16} className="shrink-0 text-muted-foreground" />
@@ -449,7 +451,7 @@ export function InvoiceDetailSheet({
                   <div className="flex items-start gap-2">
                     <Info size={14} className="mt-0.5 shrink-0" />
                     <span>
-                      Link pembayaran belum tersedia. Silakan <strong>hubungi admin sekolah</strong> untuk info
+                      Link pembayaran belum tersedia. Silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
                       pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
                     </span>
                   </div>

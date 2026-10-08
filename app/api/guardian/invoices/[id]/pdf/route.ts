@@ -8,8 +8,10 @@ import React from "react";
 
 /**
  * GET /api/guardian/invoices/[id]/pdf
- * Returns the paid-invoice receipt (kuitansi) PDF for a guardian.
- * Only accessible by GUARDIAN role, only for their own children's PAID invoices.
+ * Returns the kuitansi PDF for a guardian.
+ * Only accessible by GUARDIAN role, only for their own children's invoices that
+ * have received money (PAID / PARTIALLY_PAID, like the admin route): a wali who
+ * paid part in cash still needs proof of it.
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -54,8 +56,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Paid-status guard — no leaked draft/unpaid receipts
-  if (invoice.status !== "PAID") {
+  // Money-received guard — no leaked draft/unpaid receipts
+  if (invoice.status !== "PAID" && invoice.status !== "PARTIALLY_PAID") {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
