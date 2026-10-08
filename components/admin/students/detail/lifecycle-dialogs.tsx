@@ -43,6 +43,7 @@ export function StudentLifecycleDialogs({
   onGraduateOpenChange,
   withdrawOpen,
   onWithdrawOpenChange,
+  studentStatus,
   reactivateOpen = false,
   onReactivateOpenChange,
   onChanged,
@@ -62,7 +63,9 @@ export function StudentLifecycleDialogs({
   onGraduateOpenChange: (open: boolean) => void;
   withdrawOpen: boolean;
   onWithdrawOpenChange: (open: boolean) => void;
-  /** Aktifkan kembali — only offered for a WITHDRAWN student. */
+  /** The student's current status — the Aktifkan kembali copy differs for GRADUATED. */
+  studentStatus?: string;
+  /** Aktifkan kembali — offered for a WITHDRAWN or GRADUATED student. */
   reactivateOpen?: boolean;
   onReactivateOpenChange?: (open: boolean) => void;
   /** Called after any of the actions succeeds, so the page can refetch. */
@@ -217,7 +220,11 @@ export function StudentLifecycleDialogs({
         open={reactivateOpen}
         onOpenChange={(o) => onReactivateOpenChange?.(o)}
         title={`Aktifkan kembali ${studentName}?`}
-        description="Status siswa kembali Aktif. Daftarkan ke kelas setelahnya."
+        description={
+          studentStatus === "GRADUATED"
+            ? "Status siswa kembali Aktif dan tanggal lulus dihapus. Kelas tidak dibuat ulang, jadi daftarkan ke kelas setelahnya."
+            : "Status siswa kembali Aktif. Daftarkan ke kelas setelahnya."
+        }
         confirmLabel="Aktifkan kembali"
         onConfirm={handleReactivate}
       />

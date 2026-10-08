@@ -361,6 +361,20 @@ export default function StudentDetailPage() {
     dataAnakDirty,
     "Perubahan data siswa yang belum disimpan akan hilang.",
   );
+  // R2-ADMIN-7: the guard above covers app-shell links (sidebar, breadcrumb,
+  // and DetailPageHeader's "Kembali" link, which is a GuardedLink). Reload /
+  // tab-close / hard navigation get the browser's own prompt. In-app browser
+  // Back is a popstate the App Router handles itself — not interceptable
+  // without a history shim, so it stays best-effort.
+  useEffect(() => {
+    if (!dataAnakDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dataAnakDirty]);
 
   // In-flight latch for save: a fast double click (or Enter + click) must not
   // send two PUTs. The button's `disabled` only lands after the next render.
@@ -628,7 +642,8 @@ export default function StudentDetailPage() {
       ? [{ label: "Edit", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditingDataAnak }]
       : []),
     // Only an ACTIVE student can be enrolled (the API refuses anyone else with
-    // STUDENT_NOT_ACTIVE). A WITHDRAWN student gets the way back instead.
+    // STUDENT_NOT_ACTIVE). A WITHDRAWN or GRADUATED student gets the way back
+    // instead (R2-ADMIN-8: a mistaken Luluskan used to be a dead end).
     ...(student.status === "ACTIVE"
       ? [{
           label: "Daftarkan ke Kelas",
@@ -636,7 +651,7 @@ export default function StudentDetailPage() {
           onClick: () => setEnrollDialog(true),
         }]
       : []),
-    ...(student.status === "WITHDRAWN"
+    ...(student.status === "WITHDRAWN" || student.status === "GRADUATED"
       ? [{
           label: "Aktifkan kembali",
           icon: <RotateCcw size={14} aria-hidden="true" />,
@@ -932,6 +947,7 @@ export default function StudentDetailPage() {
         onGraduateOpenChange={setGraduateOpen}
         withdrawOpen={withdrawDialogOpen}
         onWithdrawOpenChange={setWithdrawDialogOpen}
+        studentStatus={student.status}
         reactivateOpen={reactivateOpen}
         onReactivateOpenChange={setReactivateOpen}
         onChanged={fetchStudent}

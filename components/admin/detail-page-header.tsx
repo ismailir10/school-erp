@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import Link from "next/link";
+import { GuardedLink } from "@/components/admin/guarded-link";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,13 +153,15 @@ export function DetailPageHeader({
 
   return (
     <div className="mb-section min-w-0">
-      <Link
+      {/* GuardedLink: a page with unsaved edits (useUnsavedChangesGuard) gets the
+          "Keluar tanpa menyimpan?" confirm instead of silently losing them. */}
+      <GuardedLink
         href={backHref}
         className="mb-field inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-body text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft size={14} aria-hidden="true" />
         {backLabel}
-      </Link>
+      </GuardedLink>
       <div className="flex min-w-0 flex-col gap-field sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
