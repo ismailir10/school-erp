@@ -19,7 +19,7 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@base-ui/react": "^1.7.0",
+    "@base-ui/react": "^1.8.0",
     "@hookform/resolvers": "^5.9.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
