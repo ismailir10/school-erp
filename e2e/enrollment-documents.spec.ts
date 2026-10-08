@@ -123,7 +123,7 @@ test.describe("Enrollment form — Kelengkapan Berkas upload and staff checklist
     await expect(missing).not.toContainText(KK_LABEL);
 
     await page.getByRole("button", { name: "Kirim Formulir" }).click();
-    await expect(page.getByText("Jazakumullah khairan")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Jazakumullah khairan/ })).toBeVisible();
     await expect(page.getByText("Berkas yang perlu dibawa ke sekolah")).toBeVisible();
   });
 

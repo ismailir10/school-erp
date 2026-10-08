@@ -149,7 +149,7 @@ test.describe("Enrollment form — signature handover between two devices", () =
     await expect(pageA.getByText("E2E Ayah").first()).toBeVisible();
 
     await pageA.getByRole("button", { name: "Kirim Formulir" }).click();
-    await expect(pageA.getByText("Jazakumullah khairan")).toBeVisible();
+    await expect(pageA.getByRole("heading", { name: /Jazakumullah khairan/ })).toBeVisible();
   });
 
   test("admin can stream both stored signatures of the submitted application", async () => {

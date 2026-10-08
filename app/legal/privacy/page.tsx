@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <>
       <h1>Kebijakan Privasi</h1>
       <p className="text-sm text-muted-foreground">
-        Berlaku sejak: 2 Mei 2026 · Tunduk pada UU No. 27 Tahun 2022 tentang
+        Berlaku sejak: 8 Oktober 2026 · Tunduk pada UU No. 27 Tahun 2022 tentang
         Pelindungan Data Pribadi.
       </p>
 
@@ -68,7 +68,20 @@ export default function PrivacyPage() {
         Akses internal dibatasi pada staf yang diberi wewenang.
       </p>
 
-      <h2>8. Perubahan Kebijakan</h2>
+      <h2>8. Foto &amp; Video Kegiatan</h2>
+      <p>
+        Sekolah dapat mengambil foto dan video peserta didik saat kegiatan
+        sekolah. Hasilnya digunakan untuk dokumentasi dan media sosial
+        sekolah. Dasarnya adalah persetujuan orang tua/wali yang diberikan
+        saat pendaftaran melalui Surat Persetujuan Orang Tua (butir 17).
+      </p>
+      <p>
+        Orang tua/wali dapat meminta pembatasan penggunaan foto atau video
+        ananda kapan saja dengan menyampaikannya kepada wali kelas. Permintaan
+        juga dapat diajukan melalui kontak sekolah pada bagian 5.
+      </p>
+
+      <h2>9. Perubahan Kebijakan</h2>
       <p>
         Perubahan akan diumumkan di halaman ini dan, untuk perubahan material,
         dikomunikasikan melalui email.

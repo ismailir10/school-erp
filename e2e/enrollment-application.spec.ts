@@ -91,7 +91,7 @@ test.describe("Cycle A — Enrollment application funnel", () => {
       },
       ayahData: { name: "E2E Ayah" },
       ibuData: { name: "E2E Ibu" },
-      consentData: { agreed: true, version: "annisaa-2026-v1", ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
+      consentData: { agreed: true, version: "annisaa-2026-v2", ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
     };
 
     // 5a. Nothing stored yet: even client-sent "tokens" can't satisfy submit.
