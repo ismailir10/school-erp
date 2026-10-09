@@ -55,6 +55,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | Admin (staff) | `/admin` | `SCHOOL_ADMIN` | Desktop sidebar | Students, admissions (incl. Kelengkapan Berkas: view uploads, tick papers received; KK/KTP copied to the guardian on convert and shown on the student page), academics, attendance, invoices, employees |
 | Teacher | `/teacher` | `TEACHER` | Mobile-first | Own attendance and leave; assigned classes only |
 | Parent | `/parent` | `GUARDIAN` | Mobile-first | Own children only |
+| Staff guide | `/panduan` | `SUPER_ADMIN`, `SCHOOL_ADMIN`, `TEACHER` | Mobile-first, scales to a projector | Ten-slide product tour in Indonesian (module map, admissions, classes, attendance, curriculum, rapor, finance, HR, access). Static copy and inline SVG under `components/deck/`, no data read; parents are redirected to `/parent`. Linked from the admin sidebar footer and the teacher *Lainnya* sheet |
 
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
 

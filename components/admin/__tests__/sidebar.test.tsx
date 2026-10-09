@@ -82,4 +82,17 @@ describe("AppSidebar — collapsible group chevron", () => {
 
     expect(trigger).not.toHaveAttribute("data-panel-open");
   });
+
+  it("keeps the product tour link in the footer, above Keluar, whatever the permissions", () => {
+    render(
+      <SidebarProvider>
+        <AppSidebar permissions={[]} />
+      </SidebarProvider>,
+    );
+
+    const tour = screen.getByRole("link", { name: "Panduan Talib" });
+    expect(tour).toHaveAttribute("href", "/panduan");
+    const logout = screen.getByRole("button", { name: "Keluar" });
+    expect(tour.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
