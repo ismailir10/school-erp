@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
@@ -15,14 +14,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
+import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";

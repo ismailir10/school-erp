@@ -38,7 +38,7 @@ The outcome is zero warnings and a lint script that fails on any new one, so the
 ## Tasks
 
 - [x] **T1 — Teach the linter the `_` convention.** Edit `eslint.config.mjs`. *Accept:* `npm run lint` warning count drops from 56 to ~34; no source file changed in this task. *Depends on:* nothing.
-- [ ] **T2 — Remove dead code.** Edit the files listed in Spec bullet 2. *Accept:* the corresponding `no-unused-vars` warnings are gone; `npx tsc --noEmit -p .` clean; touched suites pass. *Depends on:* T1 (so the count is attributable).
+- [x] **T2 — Remove dead code.** Edit the files listed in Spec bullet 2. *Accept:* the corresponding `no-unused-vars` warnings are gone; `npx tsc --noEmit -p .` clean; touched suites pass. *Depends on:* T1 (so the count is attributable).
 - [ ] **T3 — Hooks, suppressions with reasons, stale directives.** Memoise the three fallbacks; add reasoned suppressions; run `npx eslint . --fix` to drop the unused directives. *Accept:* `npm run lint` → 0 problems; `npx vitest run` green. *Depends on:* T2.
 - [ ] **T4 — Ratchet.** `package.json` `"lint": "eslint --max-warnings=0"`; cycle bookkeeping (Verification, Ship Notes), `bash scripts/audit-docs.sh`. *Accept:* `npm run lint` exits 0 with zero warnings, and exits non-zero when one warning is injected (checked then reverted). *Depends on:* T3.
 
@@ -46,6 +46,7 @@ The outcome is zero warnings and a lint script that fails on any new one, so the
 
 - Subagent plan: driver=claude-sonnet-5-5, dirty-work=none; tasks [T1,T2,T3,T4] inline. Reason: small, interlocking edits where each step's lint count is the acceptance check, so a subagent would need the whole plan as context. One independent read-only reviewer agent runs on the final diff.
 - Task 1: Teach the linter the `_` convention — `eslint.config.mjs` — `no-unused-vars` ignores `^_` args/vars/destructured/caught names and rest siblings; unprefixed names still warn. 56 → 36 warnings, no source change.
+- Task 2: Remove dead code — `app/admin/invoices/[id]/page.tsx` (Link, Skeleton, ArrowLeft), `app/teacher/assessments/center/[center]/page.tsx` (CalendarOff), `app/api/admin/curriculum/import-promes/route.ts` (AgeGroupInput), `app/api/admin/classes/route.ts` (WEEKDAY_CODES const → literal union type), `app/admin/guardians/page.tsx` (`editGuardianId` state + 2 setter calls; written, never read), `app/teacher/error.tsx` (unused `error` binding) — 36 → 28 warnings.
 
 ## Verification
 
