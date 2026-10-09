@@ -101,4 +101,22 @@ describe("Login page (Google sign-in screen)", () => {
       expect(el.style.backgroundImage).not.toContain("data:image/svg")
     }
   })
+
+  it("renders one legal footer, last in the DOM so it ends the page on a phone", () => {
+    render(<LoginPageWrapper />)
+    // Exactly one copy of each link: nothing hidden-and-duplicated for assistive tech.
+    const terms = screen.getAllByRole("link", { name: "Syarat & Ketentuan" })
+    const privacy = screen.getAllByRole("link", { name: "Kebijakan Privasi" })
+    expect(terms).toHaveLength(1)
+    expect(privacy).toHaveLength(1)
+    expect(terms[0]).toHaveAttribute("href", "/legal/terms")
+    expect(privacy[0]).toHaveAttribute("href", "/legal/privacy")
+
+    const main = screen.getByRole("main")
+    const action = screen.getByRole("button", { name: /Masuk dengan Google/ })
+    // Sign-in action stays first in reading order; the footer comes after the pitch panel.
+    const cells = Array.from(main.children)
+    expect(cells.findIndex((el) => el.contains(action))).toBe(0)
+    expect(cells.findIndex((el) => el.contains(terms[0]))).toBe(cells.length - 1)
+  })
 })

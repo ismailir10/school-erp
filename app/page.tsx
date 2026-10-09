@@ -124,14 +124,18 @@ function SignInPage() {
   }
 
   return (
-    <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-[1.05fr_1fr]">
+    <main className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-[1.05fr_1fr] lg:grid-rows-[1fr_auto]">
       {/*
         Sign-in is FIRST in the DOM so it is first on mobile — thumb-reachable,
         with no scrolling past the pitch to reach the only action — and first
-        for keyboard and screen-reader users at every width. `lg:order-2` moves
-        it to the right column on desktop without changing that order.
+        for keyboard and screen-reader users at every width. On desktop the
+        three cells are placed explicitly (`lg:col-start-*` / `lg:row-start-*`),
+        so the DOM order never changes: sign-in, brand panel, legal footer.
+        On a phone that same order stacks them top to bottom, which puts the
+        footer at the end of the page; on desktop it is the bottom row of the
+        right-hand column. One footer element, never duplicated.
       */}
-      <section className="order-1 flex flex-col justify-center bg-card px-6 py-10 lg:order-2 lg:px-12 lg:py-12">
+      <section className="flex flex-col justify-center bg-card px-6 py-10 lg:col-start-2 lg:row-start-1 lg:px-12 lg:py-12">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -185,13 +189,11 @@ function SignInPage() {
             Gunakan akun Google yang terdaftar di sekolah. Belum punya akses?
             Hubungi admin sekolah.
           </p>
-
-          <LegalFooter tone="onLight" className="mt-10 items-start" />
         </motion.div>
       </section>
 
-      {/* Brand panel — below the action on mobile, left column on desktop. */}
-      <section className="relative order-2 isolate overflow-hidden bg-secondary px-6 py-10 lg:order-1 lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-12 lg:py-12">
+      {/* Brand panel — below the action on mobile, left column (both rows) on desktop. */}
+      <section className="relative isolate overflow-hidden bg-secondary px-6 py-10 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:flex lg:flex-col lg:justify-center lg:gap-8 lg:px-12 lg:py-12">
         {/* Soft drifting aurora (React Bits port). Curves only — no tiled or angular shapes. */}
         <Aurora paused={motionPaused} />
         {/*
@@ -246,6 +248,11 @@ function SignInPage() {
           ))}
         </ul>
       </section>
+
+      {/* Legal links — last on a phone (after the pitch), bottom of the sign-in column on desktop. */}
+      <div className="bg-background px-6 pt-6 pb-8 lg:col-start-2 lg:row-start-2 lg:bg-card lg:px-12 lg:pt-4 lg:pb-8">
+        <LegalFooter tone="onLight" className="mx-auto mt-0 max-w-sm" />
+      </div>
     </main>
   );
 }
