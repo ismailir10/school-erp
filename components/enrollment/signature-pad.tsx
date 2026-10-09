@@ -93,11 +93,11 @@ export function SignaturePad({
   }
 
   return (
-    <div className="rounded-xl border border-emerald-900/15 bg-white p-3">
+    <div className="rounded-xl border border-border bg-card p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-emerald-950">{label}</span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
         {saved && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-primary-text">
             <DrawCheck size={16} strokeWidth={2.5} /> Tersimpan
           </span>
         )}
@@ -105,7 +105,7 @@ export function SignaturePad({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="h-40 w-full touch-none rounded-lg border border-dashed border-emerald-900/25 bg-[#fbfdfb]"
+          className="h-40 w-full touch-none rounded-lg border border-dashed border-border bg-muted"
           onPointerDown={start}
           onPointerMove={move}
           onPointerUp={end}
@@ -113,7 +113,7 @@ export function SignaturePad({
           aria-label={`Area tanda tangan ${label}`}
         />
         {saved && !hasInk && (
-          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-emerald-900/70">
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
             Tanda tangan sudah tersimpan. Gambar ulang jika ingin mengganti.
           </p>
         )}
@@ -125,7 +125,7 @@ export function SignaturePad({
         <Button
           type="button"
           size="sm"
-          className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
+          className="min-h-11 bg-primary-text text-white hover:bg-primary-text/90 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
           onClick={save}
           disabled={!hasInk}
           aria-disabled={saving}

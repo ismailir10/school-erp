@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Progress } from "@/components/ui/progress";
 import { Check, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PHONE_FORMAT_ERROR, WHATSAPP_FORMAT_ERROR, admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
@@ -51,8 +50,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Public-form controls: 44px tall, 16px text (also stops iOS zooming on focus).
 // Scoped here via className — the shared Input/NativeSelect stay at h-8 for the
 // dense admin screens.
-const INPUT_CLASS = "h-11 px-3 text-base md:text-base";
+// Placeholders are dimmed below entered text so an example never reads as an
+// already-typed value (cn/tailwind-merge lets this beat the shared default).
+const PLACEHOLDER_CLASS = "placeholder:text-muted-foreground/70";
+const INPUT_CLASS = cn("h-11 px-3 text-base md:text-base", PLACEHOLDER_CLASS);
 const SELECT_CLASS = "h-11 pl-3 text-base";
+// Primary CTA: --primary (#5DB4B8) is a fill colour that reads pale/disabled
+// with dark text; --primary-text (#2F7A7D) carries white text at >= 4.5:1.
+const CTA_CLASS = "h-11 bg-primary-text px-5 text-base text-white hover:bg-primary-text/90";
 
 type SubmitOk = { id: string };
 type SubmitErr =
@@ -324,7 +329,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               aria-invalid={!!errors.childGender}
               aria-required="true"
               required
-              className="grid grid-cols-2 gap-2"
+              className="grid grid-cols-2 gap-3"
             >
               {[
                 { value: "L", label: "Laki-laki" },
@@ -334,7 +339,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
                   key={opt.value}
                   htmlFor={`childGender-${opt.value}`}
                   className={cn(
-                    "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-base font-medium transition-colors",
+                    "flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-base font-medium transition-colors",
                     form.childGender === opt.value
                       ? "border-2 border-primary bg-primary/10 text-primary-text"
                       : "border-border bg-background text-foreground hover:bg-accent",
@@ -414,7 +419,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               onChange={(e) => update("parentWhatsapp", e.target.value)}
               aria-invalid={!!errors.parentWhatsapp}
               data-testid="field-parent-whatsapp"
-              placeholder="Sama dengan nomor telepon jika WhatsApp aktif di nomor yang sama"
+              placeholder="Sama dengan nomor telepon"
             />
             <FieldDescription>
               Tim kami biasanya menghubungi melalui WhatsApp.
@@ -462,7 +467,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
                 value={form.programId}
                 onChange={(e) => update("programId", e.target.value)}
                 className="w-full"
-                selectClassName={SELECT_CLASS}
+                selectClassName={cn(SELECT_CLASS, form.programId === "" && "text-muted-foreground/70")}
                 data-testid="field-program-id"
               >
                 <NativeSelectOption value="">— Pilih program —</NativeSelectOption>
@@ -488,7 +493,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
               value={form.notes}
               onChange={(e) => update("notes", e.target.value)}
               aria-invalid={!!errors.notes}
-              className="px-3 py-2.5 text-base md:text-base"
+              className={cn("px-3 py-2.5 text-base md:text-base", PLACEHOLDER_CLASS)}
               data-testid="field-notes"
               placeholder="Misal: ananda sudah pernah ikut kelas trial, atau saudara sudah bersekolah di sini."
             />
@@ -524,8 +529,13 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         </p>
       )}
 
-      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        {step > 1 ? (
+      <div
+        className={cn(
+          "mt-6 flex flex-col-reverse gap-2 sm:flex-row",
+          step > 1 && "sm:justify-between",
+        )}
+      >
+        {step > 1 && (
           <Button
             type="button"
             variant="outline"
@@ -536,19 +546,21 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           >
             Kembali
           </Button>
-        ) : (
-          <span />
         )}
 
         {step < 3 ? (
-          <Button type="submit" className="h-11 px-5 text-base" data-testid="daftar-next">
+          <Button
+            type="submit"
+            className={cn(CTA_CLASS, step > 1 ? "sm:min-w-40" : "sm:w-full")}
+            data-testid="daftar-next"
+          >
             Lanjut
           </Button>
         ) : (
           <Button
             type="submit"
             disabled={submitting}
-            className="h-11 px-5 text-base"
+            className={cn(CTA_CLASS, "sm:min-w-40")}
             data-testid="daftar-submit"
           >
             {submitting ? "Mengirim..." : "Kirim Pendaftaran"}
@@ -565,36 +577,48 @@ function Stepper({ step }: { step: Step }) {
     { step: 2, label: "Data Orang Tua" },
     { step: 3, label: "Preferensi" },
   ];
-  const pct = ((step - 1) / (items.length - 1)) * 100;
   return (
-    <div className="mb-6 space-y-2">
-      <Progress value={pct} aria-label={`Langkah ${step} dari ${items.length}`} />
-      <ol
-        aria-label="Langkah pendaftaran"
-        className="flex items-center justify-between text-xs"
-      >
-        {items.map((item) => {
+    <div
+      role="group"
+      aria-label={`Langkah ${step} dari ${items.length}`}
+      className="mb-8"
+    >
+      <ol aria-label="Langkah pendaftaran" className="grid grid-cols-3">
+        {items.map((item, i) => {
           const active = item.step === step;
           const done = item.step < step;
           return (
-            <li key={item.step} className="flex items-center gap-1.5">
+            <li
+              key={item.step}
+              className="relative flex min-w-0 flex-col items-center gap-2 text-center"
+            >
+              {/* Rail: runs from the previous circle's centre to this one's. */}
+              {i > 0 && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2 rounded-full transition-colors",
+                    item.step <= step ? "bg-primary-text" : "bg-border",
+                  )}
+                />
+              )}
               <span
                 aria-current={active ? "step" : undefined}
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-caption font-semibold",
+                  "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                   done
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary-text text-white"
                     : active
-                      ? "border border-primary text-primary"
-                      : "border border-border text-muted-foreground",
+                      ? "border-2 border-primary-text bg-card text-primary-text"
+                      : "border border-border bg-card text-muted-foreground",
                 )}
               >
-                {done ? <Check className="size-3" /> : item.step}
+                {done ? <Check className="size-3.5" strokeWidth={3} /> : item.step}
               </span>
               <span
                 className={cn(
-                  "truncate",
-                  active ? "font-medium text-foreground" : "text-muted-foreground",
+                  "px-1 text-xs leading-tight",
+                  active ? "font-semibold text-foreground" : "text-muted-foreground",
                 )}
               >
                 {item.label}
