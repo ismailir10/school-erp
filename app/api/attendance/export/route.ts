@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getMonthYearInTimezone } from "@/lib/attendance/timezone";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { CSV_BOM, escapeCsvCell } from "@/lib/students/export";
@@ -20,8 +21,11 @@ export async function GET(req: NextRequest) {
   // on `"foo"` returned `NaN` which silently produced an empty CSV — the
   // employee JOIN still emitted header + zero-count rows. Bad input must
   // surface as a 400 instead of a misleading-but-200 export.
-  const monthRaw = searchParams.get("month") ?? String(new Date().getMonth() + 1);
-  const yearRaw = searchParams.get("year") ?? String(new Date().getFullYear());
+  // Defaults to the school's current month (Jakarta), not the server's: Vercel
+  // runs in UTC, which is still last month for the first seven hours of the 1st.
+  const current = getMonthYearInTimezone(new Date(), "Asia/Jakarta");
+  const monthRaw = searchParams.get("month") ?? String(current.month);
+  const yearRaw = searchParams.get("year") ?? String(current.year);
   const month = parseInt(monthRaw, 10);
   const year = parseInt(yearRaw, 10);
   // String round-trip rejects decimals ("1.5" → 1) and trailing junk ("1abc" → 1)

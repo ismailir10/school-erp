@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { formatDateShort, formatRupiah } from "@/lib/format";
 import { formatTermLabel } from "@/lib/raport/build";
 import type { ParentActivityItem } from "@/lib/validations/parent-activity";
@@ -28,7 +29,11 @@ export async function getStudentRecentActivity(
 
   const sinceDate = new Date();
   sinceDate.setDate(sinceDate.getDate() - days);
-  const sinceYmd = sinceDate.toISOString().slice(0, 10);
+  // The day-based filters below compare calendar days, so the cutoff day is the
+  // Jakarta one. The UTC date of the same instant is a day early for the first
+  // seven hours of each WIB day, which made the window 31 days. The createdAt
+  // filters keep using the instant itself.
+  const sinceYmd = getYmdInTimezone(sinceDate, "Asia/Jakarta");
   const childQuery = `?child=${studentId}`;
 
   const [attendance, notes, journalEntries, invoices, assessments] =
