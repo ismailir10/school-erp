@@ -15,13 +15,13 @@ No UAT report covers these (they are time-of-day dependent and a browser walk wo
 
 ## Spec
 
-- [ ] `attendanceOverrideSchema` computes "today" with `getTodayInTimezone("Asia/Jakarta")`. At 03:00 WIB, a date exactly 30 Jakarta days ahead is accepted and 31 days ahead is rejected, for PRESENT; LEAVE/SICK/PERMISSION still bypass the cap.
-- [ ] `balancePeriodStart(now)` returns the Jakarta year's `-01-01`. At 2026-12-31T20:00Z (03:00 WIB on 1 Jan 2027) it returns `2027-01-01`; at 2026-06-15T10:00Z it returns `2026-01-01`; at 2027-01-01T05:00Z (12:00 WIB) it returns `2027-01-01`; at 2026-12-31T16:00Z (23:00 WIB on 31 Dec) it still returns `2026-01-01`. The `now: Date = new Date()` signature is kept so all callers are unchanged.
-- [ ] A small shared helper `getMonthYearInTimezone(d, timezone)` (returns `{ month, year }`) lives next to `getYmdInTimezone`, with boundary tests (00:30 WIB on the 1st, 1 Jan, 23:30 WIB on the last day).
-- [ ] The four attendance routes use that helper for their default month/year. With no params at 2026-09-30T20:00Z (03:00 WIB, 1 Oct) each queries October, not September; explicit `?month=&year=` behaves exactly as before; the export route keeps its 400 for invalid input.
-- [ ] `getStudentRecentActivity` derives `sinceYmd` with `getYmdInTimezone(sinceDate, "Asia/Jakarta")`, so the window is exactly `days` Jakarta days.
-- [ ] Every new test is **red on the current code and green on the fix** (verified by running it before the change). No test uses a wall-clock dependency: all use `vi.useFakeTimers()` + `setSystemTime`.
-- [ ] No markup, copy, schema, dependency, auth or response-shape change; `design-system` tokens are untouched (no `.tsx` edited).
+- [x] `attendanceOverrideSchema` computes "today" with `getTodayInTimezone("Asia/Jakarta")`. At 03:00 WIB, a date exactly 30 Jakarta days ahead is accepted and 31 days ahead is rejected, for PRESENT; LEAVE/SICK/PERMISSION still bypass the cap.
+- [x] `balancePeriodStart(now)` returns the Jakarta year's `-01-01`. At 2026-12-31T20:00Z (03:00 WIB on 1 Jan 2027) it returns `2027-01-01`; at 2026-06-15T10:00Z it returns `2026-01-01`; at 2027-01-01T05:00Z (12:00 WIB) it returns `2027-01-01`; at 2026-12-31T16:00Z (23:00 WIB on 31 Dec) it still returns `2026-01-01`. The `now: Date = new Date()` signature is kept so all callers are unchanged.
+- [x] A small shared helper `getMonthYearInTimezone(d, timezone)` (returns `{ month, year }`) lives next to `getYmdInTimezone`, with boundary tests (00:30 WIB on the 1st, 1 Jan, 23:30 WIB on the last day).
+- [x] The four attendance routes use that helper for their default month/year. With no params at 2026-09-30T20:00Z (03:00 WIB, 1 Oct) each queries October, not September; explicit `?month=&year=` behaves exactly as before; the export route keeps its 400 for invalid input.
+- [x] `getStudentRecentActivity` derives `sinceYmd` with `getYmdInTimezone(sinceDate, "Asia/Jakarta")`, so the window is exactly `days` Jakarta days.
+- [x] Every new test is **red on the current code and green on the fix** (verified by running it before the change). No test uses a wall-clock dependency: all use `vi.useFakeTimers()` + `setSystemTime`.
+- [x] No markup, copy, schema, dependency, auth or response-shape change; `design-system` tokens are untouched (no `.tsx` edited).
 
 **Non-goals**
 - `lib/student/age.ts`, `lib/admission/age.ts`, `lib/academic-period.ts` `getCurrentPeriod`: display-only or fallback-only, and the period one needs a trace of what it is stored into. Listed in Ship Notes as follow-ups.
@@ -41,7 +41,7 @@ No UAT report covers these (they are time-of-day dependent and a browser walk wo
 - [x] **T2 — Leave balance period uses the Jakarta year.** `lib/leave/balance.ts`; new `lib/leave/__tests__/balance.test.ts`. *Accept:* the 1 Jan 03:00 WIB case fails before and passes after; the mid-year and later-in-day cases pass both ways. *Depends on:* nothing.
 - [x] **T3 — Shared month/year helper + four routes.** Add `getMonthYearInTimezone` to `lib/attendance/timezone.ts` (+ cases in `lib/attendance/__tests__/timezone.test.ts`); use it in `app/api/attendance/my/route.ts`, `app/api/attendance/monthly/route.ts`, `app/api/employees/[id]/attendance/route.ts`, `app/api/attendance/export/route.ts`; add a no-params-on-the-1st case to the existing route tests (`attendance-my.test.ts`, `attendance-export-validation.test.ts`, a `monthly` and an `employees/[id]/attendance` case where a suite exists, otherwise one new small suite). *Accept:* each route queries October at 2026-09-30T20:00Z with no params, and explicit params are untouched. *Depends on:* nothing (order only).
 - [x] **T4 — Parent activity window.** `lib/parent-activity.ts`; test for the `studentAttendance` `date.gte` argument at 03:00 WIB. *Accept:* the cutoff is exactly 30 Jakarta days back. *Depends on:* nothing.
-- [ ] **T5 — Bookkeeping.** Implementation / Verification / Ship Notes, `bash scripts/audit-docs.sh --write`, `bash scripts/audit-docs.sh`. *Depends on:* T1-T4.
+- [x] **T5 — Bookkeeping.** Implementation / Verification / Ship Notes, `bash scripts/audit-docs.sh --write`, `bash scripts/audit-docs.sh`. *Depends on:* T1-T4.
 
 ## Implementation
 
@@ -53,4 +53,18 @@ No UAT report covers these (they are time-of-day dependent and a browser walk wo
 
 ## Verification
 
+- Red first, per site (each new test was run on the unfixed code before the fix): override cap — the 03:00 WIB "30 days ahead accepted" case failed; leave balance — the 00:00 and 03:00 WIB on 1 Jan cases failed (2 of 6); month/year defaults — the 8 in-window cases failed (4 routes x {03:00 WIB on 1 Oct, 03:00 WIB on 1 Jan}) with `{ gte: '2026-09-01', lt: '2026-10-01' }` returned instead of October, while the 23:30 WIB and explicit-param cases passed both ways; parent activity — `2026-09-14` (a 31-day window) instead of `2026-09-15`, 2 of 5 failed. Cases outside the 00:00-06:59 WIB window pass before and after on purpose, to pin that nothing else moved.
+- Host-timezone independence: the six touched/new suites (107 tests) pass identically under `TZ=UTC`, `TZ=Asia/Jakarta` and `TZ=America/Los_Angeles`.
+- `npm run lint` (now `eslint --max-warnings=0`) → exit 0, zero warnings; `npx tsc --noEmit -p .` clean (after `npx prisma generate` in the fresh worktree).
+- Gate on the final source tree: `npm run build` (CI env: `DEMO_MODE=true`, dummy `DATABASE_URL`, `NEXTAUTH_SECRET`) → exit 0; `npx vitest run` → Test Files 574 passed | 2 skipped (576); Tests 5774 passed | 42 todo (5816). Versus `staging` (571 / 5738) that is exactly +3 files and +36 tests (4 override + 6 balance + 5 timezone + 16 routes + 5 parent-activity); no existing test was changed or removed.
+- design-system: no `.tsx`/`.css` file is touched; the diff is `.ts` only, so portal shells, tokens and copy are unaffected.
+- Playwright: local run deferred to CI (env cannot execute it — the sandbox refuses the privilege switch needed to run a Postgres server as a non-root user, and there is no Docker daemon). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red. The changed behaviour is API/validation logic with no UI, covered by the route-level and unit suites above.
+- `bash scripts/audit-docs.sh` → 0 fail.
+
 ## Ship Notes
+
+- **Migrations / env vars:** none. No schema, dependency or config change; `package-lock.json` is untouched (a local `npm` side effect kept modifying it in the worktree; it was reverted before every commit).
+- **Behaviour to eyeball (all inside 00:00-06:59 WIB, i.e. 17:00-23:59Z):** (1) an admin can record PRESENT/LATE/HALF_DAY/ABSENT exactly 30 Jakarta days ahead; (2) on 1 January the leave balance counts only that year's leave (before this, last year's approved leave counted against the new allowance for the first seven hours, and the approve gate compared against last year's 1 Jan); (3) `GET /api/attendance/{my,monthly,export}` and `GET /api/employees/[id]/attendance` with no `?month=&year=` answer for the current Jakarta month on the 1st; (4) the parent activity feed's attendance and journal window is exactly 30 Jakarta days, not 31. Nothing changes outside that window.
+- **Staging check:** none required. No auth, session, cookie or guard code is touched, and no route changes its response shape or who may call it.
+- **Rollback:** revert the four fix commits (or the squash); nothing else to undo.
+- **Follow-ups found by the sweep, not done (all display-only, fallback-only or dead):** `lib/student/age.ts` `ageParts` and `lib/admission/age.ts` read the host clock for "today" (an age can be a month behind for 00:00-06:59 WIB on a birthday/month-versary; only the admin student page calls it on the server); `lib/academic-period.ts` `getCurrentPeriod` (fallback inside `getCurrentPeriodFromDb`; wrong only at the 1 Jan / 1 Jul boundaries; what it is stored into was not traced); the unused `mondayOfWeek` / `countAttendanceThisWeek` in `lib/parent-helpers.ts` (dead code with a test; delete or migrate); the dev-only `app/api/admin/seed` route. The nightly prod backup failure (issue #554) still needs the owner to set the repo secrets.
