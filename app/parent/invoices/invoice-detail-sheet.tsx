@@ -351,7 +351,7 @@ export function InvoiceDetailSheet({
                     {isPartiallyPaid
                       ? "Bukti pembayaran sebagian"
                       : invoice.paidAt
-                        ? `Diterbitkan ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
+                        ? `Diterbitkan ${formatDate(invoice.paidAt, { day: "numeric", month: "long", year: "numeric" })}`
                         : "Diterbitkan"}
                   </p>
                 </div>
@@ -382,7 +382,7 @@ export function InvoiceDetailSheet({
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {/* The admin's reference ("Cicilan-1", transfer no.) is
                               internal bookkeeping, not something a wali needs. */}
-                          {formatDate(p.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
+                          {formatDate(p.paidAt, { day: "numeric", month: "long", year: "numeric" })}
                         </p>
                       </div>
                       <Amount value={p.amount} size="row" tone="paid" className="shrink-0" />
