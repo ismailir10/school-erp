@@ -390,6 +390,7 @@ const columns: ColumnDef<Student>[] = [
               {s.photoUrl ? (
                 // Auth-proxied — never a public filesystem path. Lazy-load to
                 // keep large lists snappy on mid-range Android.
+                // eslint-disable-next-line @next/next/no-img-element -- same-origin, cookie-authenticated URL; next/image's server-side optimizer cannot send the session cookie
                 <img
                   src={`/api/students/${s.id}/photo`}
                   alt={`Foto ${s.name}`}
@@ -774,6 +775,10 @@ export default function StudentsPage() {
         },
       },
     ],
+    // Intentionally []: the columns must keep one identity or every row cell
+    // remounts and closes its open action menu. openEdit only calls state setters,
+    // `editForm.reset` and `toast`, all stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

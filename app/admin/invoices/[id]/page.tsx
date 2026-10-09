@@ -228,7 +228,6 @@ export default function InvoiceDetailPage() {
     finally { setLoading(false); }
   }, [id]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
 
   // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so

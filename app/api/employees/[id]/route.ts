@@ -34,7 +34,6 @@ export async function GET(
   ]);
 
   if (!hasPermission(session, "payroll.view")) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = employee;
     return NextResponse.json({ ...rest, leaveUsedAnnual, leaveUsedSick });
   }

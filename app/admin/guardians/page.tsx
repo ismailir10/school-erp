@@ -280,6 +280,10 @@ export default function GuardiansPage() {
         },
       },
     ],
+    // Intentionally []: the columns must keep one identity or every row cell
+    // remounts and closes its open action menu. openEditDialog only calls state setters,
+    // `editForm.reset` and `toast`, all stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
