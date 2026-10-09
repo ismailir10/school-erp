@@ -101,6 +101,8 @@ Dependencies noted; T1 blocks T3–T5, T2 is independent, T3–T5 are independen
 - **T6** — `components/deck/__tests__/deck.test.tsx`, `app/panduan/__tests__/page.test.tsx`, `e2e/deck.spec.ts`; screenshot loop in Verification.
 - **T7** — README Portals row; counts block regenerated.
 
+**Commits:** T0 `3cd98c4` (voice), T2 `6b9af11` (entry links), T1 + T3–T7 in the commit that follows (the deck itself, tests, README, counts). The deck was built and reviewed as one piece because the shell, the drawings and the copy only make sense on screen together.
+
 ### Claims register (slide → claim → where it is true)
 
 | Slide | Claim | Reference |
