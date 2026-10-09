@@ -4,6 +4,7 @@ import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
+import { SchoolHero } from "@/components/brand/school-photos";
 import PendaftaranClient from "./client";
 import { MessageCard } from "./message-card";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
@@ -146,6 +147,7 @@ export default async function PendaftaranTokenPage({
 
   return (
     <Shell>
+      <SchoolHero variant="slim" />
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl font-semibold text-emerald-950 sm:text-3xl">
           Formulir Pendaftaran Murid Baru
