@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getMonthYearInTimezone } from "@/lib/attendance/timezone";
 import { getSession } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 
@@ -18,8 +19,11 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
+  // The school's current month, not the server's: Vercel runs in UTC, which is
+  // still last month for the first seven hours of the 1st in WIB.
+  const current = getMonthYearInTimezone(new Date(), "Asia/Jakarta");
+  const month = parseInt(searchParams.get("month") ?? String(current.month));
+  const year = parseInt(searchParams.get("year") ?? String(current.year));
 
   // Build date range for the month
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;

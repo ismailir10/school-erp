@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getMonthYearInTimezone,
   getTodayInTimezone,
   getYmdInTimezone,
   localTimeExists,
@@ -59,6 +60,43 @@ describe("getTodayInTimezone / getYmdInTimezone — Asia/Jakarta boundaries", ()
   it("crosses year boundary correctly (31 Dec UTC 23:00 → 1 Jan WIB 06:00)", () => {
     vi.setSystemTime(new Date("2026-12-31T23:00:00.000Z"));
     expect(getTodayInTimezone("Asia/Jakarta")).toBe("2027-01-01");
+  });
+});
+
+describe("getMonthYearInTimezone — the school's current month, not the server's", () => {
+  it("is the new month at 03:00 WIB on the 1st (20:00Z on the last day of the month before)", () => {
+    expect(getMonthYearInTimezone(new Date("2026-09-30T20:00:00.000Z"), "Asia/Jakarta")).toEqual({
+      month: 10,
+      year: 2026,
+    });
+  });
+
+  it("is the new year at 03:00 WIB on 1 Jan", () => {
+    expect(getMonthYearInTimezone(new Date("2026-12-31T20:00:00.000Z"), "Asia/Jakarta")).toEqual({
+      month: 1,
+      year: 2027,
+    });
+  });
+
+  it("is still the old month at 23:30 WIB on the last day", () => {
+    expect(getMonthYearInTimezone(new Date("2026-09-30T16:30:00.000Z"), "Asia/Jakarta")).toEqual({
+      month: 9,
+      year: 2026,
+    });
+  });
+
+  it("returns numbers without a leading zero", () => {
+    expect(getMonthYearInTimezone(new Date("2026-03-15T05:00:00.000Z"), "Asia/Jakarta")).toEqual({
+      month: 3,
+      year: 2026,
+    });
+  });
+
+  it("defaults to now", () => {
+    const { month, year } = getMonthYearInTimezone(undefined, "Asia/Jakarta");
+    expect(month).toBeGreaterThanOrEqual(1);
+    expect(month).toBeLessThanOrEqual(12);
+    expect(year).toBeGreaterThanOrEqual(2026);
   });
 });
 
