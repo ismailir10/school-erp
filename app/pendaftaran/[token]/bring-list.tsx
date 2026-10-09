@@ -26,9 +26,9 @@ export function withoutWaivedParentDocs(keys: readonly DocumentKey[], onlyParent
 export function BringList({ keys }: { keys: readonly DocumentKey[] }) {
   if (keys.length === 0) return null;
   return (
-    <div className="mt-5 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-4 text-left">
-      <h3 className="text-sm font-semibold text-emerald-950">Berkas yang perlu dibawa ke sekolah</h3>
-      <Stagger as="ul" count={keys.length} className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-900/80">
+    <div className="mt-5 rounded-xl border border-border bg-muted p-4 text-left">
+      <h3 className="text-sm font-semibold text-foreground">Berkas yang perlu dibawa ke sekolah</h3>
+      <Stagger as="ul" count={keys.length} className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         {keys.map((k) => (
           <StaggerItem key={k} as="li">
             {DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k}

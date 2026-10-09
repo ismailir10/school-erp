@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { prepareUpload } from "@/lib/enrollment/compress-image";
@@ -229,8 +230,8 @@ export function DocumentsStep({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">Berkas pendukung</h2>
-      <p className="text-sm text-emerald-900/70">
+      <h2 className="text-lg font-semibold text-foreground">Berkas pendukung</h2>
+      <p className="text-sm text-muted-foreground">
         {required.length > 0
           ? "Berkas bertanda Wajib diunggah perlu diunggah sebelum formulir dikirim. Berkas lainnya boleh diunggah sekarang atau dibawa langsung ke sekolah."
           : "Mengunggah berkas bersifat opsional. Berkas yang belum sempat diunggah dapat dibawa langsung ke sekolah."}{" "}
@@ -249,25 +250,25 @@ export function DocumentsStep({
           const isOther = key === "lainnya";
           const isRequired = required.includes(key);
           return (
-            <li key={key} className="rounded-xl border border-emerald-900/15 bg-white p-3">
+            <li key={key} className="rounded-xl border border-border bg-card p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-1">
-                  <p id={titleId} className="text-sm font-medium text-emerald-950">
+                  <p id={titleId} className="text-sm font-medium text-foreground">
                     {item.label}
                     {isRequired ? (
-                      <span className="ml-2 inline-block rounded-full bg-emerald-900/10 px-2 py-0.5 text-xs font-medium text-emerald-900">
+                      <span className="ml-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
                         Wajib diunggah
                       </span>
                     ) : (
                       !item.required && (
-                        <span className="ml-2 text-xs font-normal text-emerald-900/60">Jika ada</span>
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">Jika ada</span>
                       )
                     )}
                   </p>
-                  {item.note && <p className="text-xs text-emerald-900/70">{item.note}</p>}
+                  {item.note && <p className="text-xs text-muted-foreground">{item.note}</p>}
                   {doc ? (
-                    <p className="flex items-start gap-1.5 text-sm text-emerald-800">
-                      <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden />
+                    <p className="flex items-start gap-1.5 text-sm text-foreground">
+                      <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-primary-text" aria-hidden />
                       <span className="min-w-0 break-words">
                         <span className="sr-only">Terunggah: </span>
                         {doc.label ? `${doc.label} · ` : ""}
@@ -276,7 +277,7 @@ export function DocumentsStep({
                       </span>
                     </p>
                   ) : (
-                    <p className="text-xs text-emerald-900/50">Belum diunggah</p>
+                    <p className="text-xs text-muted-foreground">Belum diunggah</p>
                   )}
                 </div>
 
@@ -306,7 +307,10 @@ export function DocumentsStep({
                     type="button"
                     size="sm"
                     variant={doc ? "outline" : "default"}
-                    className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
+                    className={cn(
+                      "min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8",
+                      !doc && "bg-primary-text text-white hover:bg-primary-text/90",
+                    )}
                     aria-disabled={!!state}
                     aria-busy={state === "upload"}
                     aria-describedby={errId}

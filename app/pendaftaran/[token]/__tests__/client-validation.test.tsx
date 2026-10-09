@@ -248,12 +248,24 @@ describe("PendaftaranClient: public-form polish (PAR-4, PUBX-6, PUBX-7)", () => 
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
   });
 
-  it("controls and primary buttons are 44px with 16px text", () => {
+  it("controls and primary buttons are 44px with 16px text", async () => {
+    const user = userEvent.setup();
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     expect(screen.getByLabelText(/^Nama lengkap/).className).toMatch(/\bh-11\b/);
     expect(screen.getByLabelText(/^Jenis kelamin/).className).toMatch(/\bh-11\b.*\btext-base\b/);
     expect(lanjut().className).toMatch(/\bh-11\b/);
+    // Placeholders sit lighter than typed text (form-scoped; the shared Input is untouched).
+    expect(screen.getByLabelText(/^Nama lengkap/).className).toMatch(/placeholder:text-muted-foreground\/60/);
+    await user.click(lanjut());
     expect(screen.getByRole("button", { name: "Kembali" }).className).toMatch(/\bh-11\b/);
+  });
+
+  it("step 1 has no Kembali and Lanjut fills the row, in the deeper teal", () => {
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
+    expect(screen.queryByRole("button", { name: "Kembali" })).not.toBeInTheDocument();
+    expect(lanjut().className).toMatch(/\bcol-span-2\b/);
+    expect(lanjut().className).toMatch(/\bbg-primary-text\b/);
+    expect(lanjut().className).toMatch(/\btext-white\b/);
   });
 
   it("links to Kebijakan Privasi and Ketentuan in a new tab", () => {

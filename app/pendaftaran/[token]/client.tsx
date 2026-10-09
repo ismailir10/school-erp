@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Check, Copy, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { DrawCheck } from "@/components/reactbits/draw-check";
@@ -194,14 +195,18 @@ const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
   a.length === b.length && a.every((x, i) => x.text === b[i].text && x.step === b[i].step);
 
 // Public-form controls: 44px / 16px, scoped here so the shared ui/* stay as-is.
-const INPUT_CLASS = "h-11 text-base md:text-base";
+const INPUT_CLASS = "h-11 text-base placeholder:text-muted-foreground/60 md:text-base";
 const SELECT_CLASS = "h-11 text-base";
-const AREA_CLASS = "text-base md:text-base";
+const AREA_CLASS = "text-base placeholder:text-muted-foreground/60 md:text-base";
 // Press feedback is pure CSS: a compositor-only transform, off under reduced motion. The Button base
 // already has transition-all, which covers `scale`; adding transition-transform here would drop its
 // colour and ring easing. aria-disabled buttons stay put, because they read as unavailable.
 const BTN_CLASS =
   "h-11 min-w-28 px-5 text-base motion-safe:active:scale-[0.97] aria-disabled:active:scale-100";
+// The shared Button fill (#5DB4B8 + dark text) reads as disabled on a white card; --primary-text carries
+// white text at >= 4.5:1. Same pairing as the /daftar CTA.
+const PRIMARY_CLASS =
+  "bg-primary-text text-white hover:bg-primary-text/90 aria-disabled:pointer-events-none aria-disabled:opacity-50";
 
 export default function PendaftaranClient({
   token,
@@ -583,10 +588,10 @@ export default function PendaftaranClient({
   if (done) {
     const missing = withoutWaivedParentDocs(missingRequiredDocuments(documents), consent.onlyParent);
     return (
-      <div className="rounded-2xl border border-emerald-900/10 bg-white p-8 text-center shadow-sm">
-        <DrawCheck size={56} className="mx-auto mb-3 text-emerald-600" />
-        <BlurText as="h2" text="Jazakumullah khairan, Bapak/Ibu" className="text-xl font-semibold text-emerald-950" />
-        <p className="mt-3 text-sm leading-relaxed text-emerald-900/70">
+      <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+        <DrawCheck size={56} className="mx-auto mb-3 text-primary-text" />
+        <BlurText as="h2" text="Jazakumullah khairan, Bapak/Ibu" className="text-xl font-semibold text-foreground" />
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Formulir pendaftaran ananda <strong>{student.childName}</strong> sudah kami terima. Tim
           penerimaan An Nisaa&apos; Sekolahku akan menghubungi Bapak/Ibu untuk proses selanjutnya.
         </p>
@@ -632,7 +637,7 @@ export default function PendaftaranClient({
 
       {/* overflow-x-clip: the 12px enter slide must not add transient horizontal scroll on phones. The
           card's own padding keeps input focus rings inside the clip. */}
-      <div className="overflow-x-clip rounded-2xl border border-emerald-900/10 bg-white p-5 shadow-sm sm:p-6">
+      <div className="overflow-x-clip rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <StepTransition stepKey={step} direction={direction}>
         {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
@@ -681,15 +686,18 @@ export default function PendaftaranClient({
         </StepTransition>
       </div>
 
-      <div className="flex items-center justify-between">
-        <Button type="button" variant="outline" className={BTN_CLASS} onClick={back} disabled={step === 0 || submitting}>
-          Kembali
-        </Button>
+      {/* Phones and desktop alike: step 1 has one full-width action, later steps split the row. */}
+      <div className="grid grid-cols-2 gap-3">
+        {step > 0 && (
+          <Button type="button" variant="outline" className={BTN_CLASS} onClick={back} disabled={submitting}>
+            Kembali
+          </Button>
+        )}
         {step < STEPS.length - 1 ? (
           <Button
             type="button"
             onClick={next}
-            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
+            className={cn(BTN_CLASS, PRIMARY_CLASS, step === 0 && "col-span-2")}
             aria-disabled={step === STEP_CONSENT && signatureSavingNow}
             aria-busy={step === STEP_CONSENT && signatureSavingNow}
           >
@@ -701,7 +709,7 @@ export default function PendaftaranClient({
             onClick={() => {
               if (!submitting && uploadsInFlight === 0 && !signatureSavingNow) void submit();
             }}
-            className={BTN_CLASS + " aria-disabled:pointer-events-none aria-disabled:opacity-50"}
+            className={cn(BTN_CLASS, PRIMARY_CLASS)}
             aria-disabled={submitting || uploadsInFlight > 0 || signatureSavingNow}
             aria-busy={submitting || uploadsInFlight > 0 || signatureSavingNow}
           >
@@ -715,13 +723,13 @@ export default function PendaftaranClient({
           </Button>
         )}
       </div>
-      <p className="text-center text-xs text-emerald-900/70">
+      <p className="text-center text-xs text-muted-foreground">
         Data ananda kami jaga sesuai{" "}
-        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-primary-text underline underline-offset-2">
           Kebijakan Privasi
         </a>{" "}
         dan{" "}
-        <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+        <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-primary-text underline underline-offset-2">
           Syarat &amp; Ketentuan
         </a>{" "}
         (terbuka di tab baru).
@@ -736,27 +744,54 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
   // completed during this visit pops.
   const [openedAt] = useState(step);
   const progress = (step + 1) / STEPS.length;
+  const listRef = useRef<HTMLOListElement>(null);
+  // Phones scroll one row of pills sideways; keep the current step centred in it.
+  useEffect(() => {
+    const list = listRef.current;
+    const current = list?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!list || !current || list.scrollWidth <= list.clientWidth) return;
+    list.scrollTo?.({
+      left: current.offsetLeft - (list.clientWidth - current.offsetWidth) / 2,
+      behavior: reduced ? "auto" : "smooth",
+    });
+  }, [step, reduced]);
   return (
     <div className="space-y-3">
-      {/* Decorative: the pills below carry the state for assistive tech. scaleX, never width. */}
-      <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-emerald-100">
+      {/* Phones: where you are in words. Decorative twin of the list below. */}
+      <p aria-hidden="true" className="flex items-baseline justify-between gap-3 text-sm sm:hidden">
+        <span className="font-semibold text-foreground">
+          Langkah {step + 1} dari {STEPS.length}
+        </span>
+        <span className="text-muted-foreground">{STEPS[step]}</span>
+      </p>
+      {/* Decorative: the list below carries the state for assistive tech. scaleX, never width. */}
+      <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-border">
         <motion.div
           data-testid="stepper-progress"
           data-step={step}
-          className="h-full origin-left rounded-full bg-[#0C5C3F]"
+          className="h-full origin-left rounded-full bg-primary-text"
           initial={false}
           animate={{ scaleX: progress }}
           transition={reduced ? { duration: 0 } : { duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
-      <ol aria-label="Langkah formulir" className="flex flex-wrap gap-2 text-sm">
+      {/* One row at every width: a sideways-scrolling strip on phones, seven equal columns from `sm`. */}
+      <ol
+        ref={listRef}
+        aria-label="Langkah formulir"
+        className="relative flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:grid sm:grid-cols-7 sm:gap-1.5 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden"
+      >
         {STEPS.map((label, i) => {
-          const base = "inline-flex items-center rounded-full px-3 py-1.5 ";
+          const pill = cn(
+            "inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap",
+            "sm:h-full sm:w-full sm:flex-col sm:gap-0.5 sm:rounded-lg sm:px-1.5 sm:py-1.5 sm:text-center sm:text-xs sm:leading-tight sm:whitespace-normal",
+          );
           const text = `${i + 1}. ${label}`;
+          const item = "shrink-0 sm:flex sm:min-w-0 sm:shrink";
           if (i === step) {
             return (
-              <li key={label} aria-current="step">
-                <span className={base + "bg-[#0C5C3F] font-medium text-white"}>{text}</span>
+              <li key={label} aria-current="step" className={item}>
+                <span className={cn(pill, "border-transparent bg-primary-text font-medium text-white")}>{text}</span>
               </li>
             );
           }
@@ -764,25 +799,24 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
             const completed = i < step;
             // Already-visited steps are real buttons: bordered, darker text, focus ring.
             return (
-              <li key={label}>
+              <li key={label} className={item}>
                 <button
                   type="button"
                   onClick={() => onGo(i)}
-                  className={
-                    base +
-                    (completed ? "gap-1.5 " : "") +
-                    "border border-[#0C5C3F]/40 bg-emerald-100 font-medium text-emerald-950 hover:bg-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C5C3F] focus-visible:ring-offset-2 [@media(pointer:coarse)]:min-h-11"
-                  }
+                  className={cn(
+                    pill,
+                    "border-primary-text/40 bg-primary/10 font-medium text-foreground hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-primary-text focus-visible:ring-offset-2 focus-visible:outline-none [@media(pointer:coarse)]:min-h-11",
+                  )}
                 >
                   {completed && (
                     <motion.span
                       aria-hidden="true"
-                      className="inline-flex"
+                      className="inline-flex shrink-0 text-primary-text"
                       initial={reduced || i < openedAt ? false : { scale: 0.4 }}
                       animate={{ scale: 1 }}
                       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                     >
-                      <Check size={14} aria-hidden="true" />
+                      <Check className="size-3.5 sm:size-3" aria-hidden="true" />
                     </motion.span>
                   )}
                   {text}
@@ -791,8 +825,8 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
             );
           }
           return (
-            <li key={label}>
-              <span className={base + "bg-emerald-50 text-emerald-900/70"}>{text}</span>
+            <li key={label} className={item}>
+              <span className={cn(pill, "border-transparent bg-muted text-muted-foreground")}>{text}</span>
             </li>
           );
         })}
@@ -802,7 +836,7 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
 }
 
 function TextField({
-  label, value, onChange, type = "text", placeholder, description, required, error, fieldKey,
+  label, value, onChange, type = "text", placeholder, description, required, error, fieldKey, className,
 }: {
   label: string; value: string; onChange: (v: string) => void; type?: string;
   placeholder?: string; description?: string; required?: boolean;
@@ -810,13 +844,15 @@ function TextField({
   error?: string | null;
   /** `data-field` hook so the form can focus this input. */
   fieldKey?: string;
+  /** Layout hook for the field wrapper (e.g. `sm:col-span-2` to fill an odd row). */
+  className?: string;
 }) {
   const id = useId();
   const descId = `${id}-desc`;
   const errId = `${id}-err`;
   const describedBy = [description ? descId : null, error ? errId : null].filter(Boolean).join(" ") || undefined;
   return (
-    <Field data-invalid={error ? true : undefined}>
+    <Field data-invalid={error ? true : undefined} className={className}>
       <FieldLabel htmlFor={id}>
         {label}
         {required && <span className="text-destructive" aria-hidden> *</span>}
@@ -850,13 +886,15 @@ function TextAreaField({ label, value, onChange }: { label: string; value: strin
 }
 
 function SelectField({
-  label, value, onChange, options, required, placeholder = "Pilih…",
+  label, value, onChange, options, required, placeholder = "Pilih…", className,
 }: {
   label: string; value: string; onChange: (v: string) => void; options: Option[]; required?: boolean; placeholder?: string;
+  /** Layout hook for the field wrapper (e.g. `sm:col-span-2` to fill an odd row). */
+  className?: string;
 }) {
   const id = useId();
   return (
-    <Field>
+    <Field className={className}>
       <FieldLabel htmlFor={id}>
         {label}
         {required && <span className="text-destructive" aria-hidden> *</span>}
@@ -884,7 +922,7 @@ function AddressFields({ value, onChange }: { value: AddressState; onChange: (v:
   const set = (k: keyof AddressState, v: string) => onChange({ ...value, [k]: v });
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <TextField label="Perumahan" value={value.perumahan} onChange={(v) => set("perumahan", v)} />
+      <TextField label="Perumahan" className="sm:col-span-2" value={value.perumahan} onChange={(v) => set("perumahan", v)} />
       <TextField label="Blok / Cluster" value={value.blokCluster} onChange={(v) => set("blokCluster", v)} />
       <TextField label="RT / RW" value={value.rtRw} onChange={(v) => set("rtRw", v)} />
       <TextField label="Kecamatan" value={value.kecamatan} onChange={(v) => set("kecamatan", v)} />
@@ -906,7 +944,7 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
   };
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">Data Anak</h2>
+      <h2 className="text-lg font-semibold text-foreground">Data Anak</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama lengkap" value={value.childName} onChange={(v) => set("childName", v)} required />
         <TextField label="Nama panggilan" value={value.nickname} onChange={(v) => set("nickname", v)} />
@@ -916,25 +954,28 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
         <SelectField label="Agama" value={value.agama} onChange={(v) => set("agama", v)} options={AGAMA_OPTIONS} required />
         <SelectField label="Kewarganegaraan" value={value.kewarganegaraan} onChange={(v) => set("kewarganegaraan", v)} options={KEWARGANEGARAAN_OPTIONS} required />
         <SelectField label="Tinggal bersama" value={value.livingWith} onChange={(v) => set("livingWith", v)} options={LIVING_WITH_OPTIONS} />
-        <TextField label="Bahasa sehari-hari di rumah" value={value.homeLanguage} onChange={(v) => set("homeLanguage", v)} />
+        <TextField label="Bahasa sehari-hari di rumah" className="sm:col-span-2" value={value.homeLanguage} onChange={(v) => set("homeLanguage", v)} />
       </div>
 
       <Separator />
-      <h3 className="text-sm font-semibold text-emerald-900">Jumlah saudara</h3>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <h3 className="text-sm font-semibold text-foreground">Jumlah saudara</h3>
+      {/* Short numeric fields: three across, then two across, so a phone does not scroll five full-width boxes. */}
+      <div className="grid grid-cols-3 items-end gap-3 sm:gap-4">
         <TextField label="Saudara kandung" type="number" value={value.siblingsKandung} onChange={(v) => set("siblingsKandung", v)} />
         <TextField label="Saudara tiri" type="number" value={value.siblingsTiri} onChange={(v) => set("siblingsTiri", v)} />
         <TextField label="Saudara angkat" type="number" value={value.siblingsAngkat} onChange={(v) => set("siblingsAngkat", v)} />
+      </div>
+      <div className="grid grid-cols-2 items-end gap-3 sm:gap-4">
         <TextField label="Anak ke-" type="number" value={value.childOrder} onChange={(v) => set("childOrder", v)} />
         <TextField label="Dari (jumlah bersaudara)" type="number" value={value.siblingsTotal} onChange={(v) => set("siblingsTotal", v)} />
       </div>
 
       <Separator />
-      <h3 className="text-sm font-semibold text-emerald-900">Alamat</h3>
+      <h3 className="text-sm font-semibold text-foreground">Alamat</h3>
       <AddressFields value={value.address} onChange={(v) => set("address", v)} />
 
       <Separator />
-      <h3 className="text-sm font-semibold text-emerald-900">Kelahiran &amp; kesehatan</h3>
+      <h3 className="text-sm font-semibold text-foreground">Kelahiran &amp; kesehatan</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <SelectField label="Jalan lahir" value={value.birthDelivery} onChange={(v) => set("birthDelivery", v)} options={BIRTH_DELIVERY_OPTIONS} />
         <SelectField label="Bulan lahir" value={value.birthTerm} onChange={(v) => set("birthTerm", v)} options={BIRTH_TERM_OPTIONS} />
@@ -948,7 +989,7 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
 
       <Separator />
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-emerald-900">Keluarga yang pernah bersekolah di An Nisaa&apos;</h3>
+        <h3 className="text-sm font-semibold text-foreground">Keluarga yang pernah bersekolah di An Nisaa&apos;</h3>
         <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base" onClick={addFamily} disabled={value.priorFamilyAttendees.length >= MAX_PRIOR_FAMILY_ATTENDEES}>
           Tambah
         </Button>
@@ -976,7 +1017,7 @@ function SingleParentToggle({
   const other: ParentSide = side === "ayah" ? "ibu" : "ayah";
   if (onlyParent === side) {
     return (
-      <div className="space-y-1 rounded-xl border border-emerald-900/15 bg-emerald-50/50 p-3 text-sm text-emerald-950">
+      <div className="space-y-1 rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm text-foreground">
         <p>
           Hanya satu orang tua / wali yang mengisi, jadi data {other} dilewati.
         </p>
@@ -987,15 +1028,15 @@ function SingleParentToggle({
     );
   }
   return (
-    <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+    <label className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-card p-3">
       <Checkbox
         className="mt-0.5 size-5"
         checked={onlyParent === other}
         onCheckedChange={(c) => onChange(c === true ? other : "")}
       />
-      <span className="text-sm text-emerald-950">
+      <span className="text-sm text-foreground">
         <span className="font-medium">Hanya satu orang tua / wali yang mengisi</span>
-        <span className="mt-0.5 block text-emerald-900/70">
+        <span className="mt-0.5 block text-muted-foreground">
           Centang bila tidak ada data {side}, misalnya orang tua tunggal. Bila wali yang mengisi, isi data wali
           di langkah Data {other === "ayah" ? "Ayah" : "Ibu"}.
         </span>
@@ -1020,7 +1061,7 @@ function ParentStep({
   };
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">{title}</h2>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <SingleParentToggle side={side} onlyParent={onlyParent} onChange={onOnlyParent} />
       {!isWaived(onlyParent, side) && (
         <>
@@ -1033,13 +1074,13 @@ function ParentStep({
         <TextField label="Email" type="email" value={value.email} onChange={(v) => set("email", v)} error={err("email")} fieldKey={`${side}.email`} />
         <SelectField label="Pendidikan terakhir" value={value.education} onChange={(v) => set("education", v)} options={EDUCATION_OPTIONS} />
         <SelectField label="Pekerjaan" value={value.occupation} onChange={(v) => set("occupation", v)} options={OCCUPATION_OPTIONS} />
-        <SelectField label="Penghasilan" value={value.income} onChange={(v) => set("income", v)} options={INCOME_OPTIONS} />
+        <SelectField label="Penghasilan" className="sm:col-span-2" value={value.income} onChange={(v) => set("income", v)} options={INCOME_OPTIONS} />
       </div>
       <Separator />
-      <h3 className="text-sm font-semibold text-emerald-900">Alamat</h3>
+      <h3 className="text-sm font-semibold text-foreground">Alamat</h3>
       <AddressFields value={value.address} onChange={(v) => set("address", v)} />
       <Separator />
-      <h3 className="text-sm font-semibold text-emerald-900">Pekerjaan</h3>
+      <h3 className="text-sm font-semibold text-foreground">Pekerjaan</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Nama kantor" value={value.employerName} onChange={(v) => set("employerName", v)} />
         <TextField label="Telepon kantor" type="tel" value={value.employerPhone} onChange={(v) => set("employerPhone", v)} error={err("employerPhone")} fieldKey={`${side}.employerPhone`} />
@@ -1059,7 +1100,7 @@ function ProgramStep({
   const programSelectId = useId();
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">Pilihan Program</h2>
+      <h2 className="text-lg font-semibold text-foreground">Pilihan Program</h2>
       <Field>
         <FieldLabel htmlFor={programSelectId}>
           Program <span className="text-destructive" aria-hidden>*</span>
@@ -1082,9 +1123,9 @@ function ProgramStep({
         </NativeSelect>
         {programs.length === 0 && <FieldError id={`${programSelectId}-err`}>Belum ada program tersedia. Mohon hubungi sekolah.</FieldError>}
       </Field>
-      <label className="flex min-h-11 items-center gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+      <label className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card p-3">
         <Checkbox className="size-5" checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
-        <span className="text-sm text-emerald-950">Tambahan Dcare (penitipan)</span>
+        <span className="text-sm text-foreground">Tambahan Dcare (penitipan)</span>
       </label>
     </div>
   );
@@ -1118,14 +1159,14 @@ function ConsentStep({
   const set =<K extends keyof ConsentState>(k: K, v: ConsentState[K]) => onChange({ ...value, [k]: v });
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">Surat Persetujuan Orang Tua</h2>
-      <p className="text-sm text-emerald-900/70">{CONSENT_INTRO}</p>
+      <h2 className="text-lg font-semibold text-foreground">Surat Persetujuan Orang Tua</h2>
+      <p className="text-sm text-muted-foreground">{CONSENT_INTRO}</p>
       <Stagger
         as="ol"
         count={CONSENT_CLAUSES.length}
         enabled={reveal}
         data-reveal={reveal ? "true" : "false"}
-        className="list-decimal space-y-2 rounded-xl border border-emerald-900/10 bg-emerald-50/40 p-4 pl-8 text-sm text-emerald-900/90"
+        className="list-decimal space-y-2 rounded-xl border border-border bg-muted p-4 pl-8 text-sm text-foreground"
       >
         {CONSENT_CLAUSES.map((c, i) => (
           <StaggerItem key={i} as="li">
@@ -1135,9 +1176,9 @@ function ConsentStep({
       </Stagger>
 
       {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}
-      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-emerald-900/15 bg-white p-3">
+      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-card p-3">
         <Checkbox checked={value.agreed} onCheckedChange={(c) => set("agreed", c === true)} className="mt-0.5 size-5" />
-        <span className="text-sm text-emerald-950">
+        <span className="text-sm text-foreground">
           Kami sudah membaca, memahami, dan menyetujui seluruh isi surat persetujuan ini.
         </span>
       </label>
@@ -1257,7 +1298,7 @@ function HandoverNote({
         tabIndex={-1}
         role="status"
         aria-live="polite"
-        className={status ? "text-sm text-emerald-900/80 outline-none" : "sr-only"}
+        className={status ? "text-sm text-muted-foreground outline-none" : "sr-only"}
       >
         {status}
       </p>
@@ -1274,8 +1315,8 @@ function Row({ label, value }: { label: string; value: string }) {
   if (!value) return null;
   return (
     <div className="flex justify-between gap-4 py-1 text-sm">
-      <span className="text-emerald-900/60">{label}</span>
-      <span className="text-right font-medium text-emerald-950">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -1293,54 +1334,54 @@ function ReviewStep({
   );
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-emerald-950">Tinjau &amp; Kirim</h2>
-      <p className="text-sm text-emerald-900/70">
+      <h2 className="text-lg font-semibold text-foreground">Tinjau &amp; Kirim</h2>
+      <p className="text-sm text-muted-foreground">
         Mohon periksa kembali data berikut sebelum mengirim. Setelah dikirim, data tidak dapat
         diubah sendiri — hubungi sekolah bila ada koreksi.
       </p>
       <section>
-        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Data Anak</h3>
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Data Anak</h3>
         <Row label="Nama lengkap" value={student.childName} />
         <Row label="Jenis kelamin" value={student.childGender === "L" ? "Laki-laki" : student.childGender === "P" ? "Perempuan" : ""} />
         <Row label="Tempat, tanggal lahir" value={[student.birthPlace, reviewDate(student.dateOfBirth)].filter(Boolean).join(", ")} />
       </section>
       <section>
-        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Orang Tua</h3>
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Orang Tua</h3>
         {!isWaived(consent.onlyParent, "ayah") && <Row label="Ayah" value={ayah.name} />}
         {!isWaived(consent.onlyParent, "ibu") && <Row label="Ibu" value={ibu.name} />}
         {consent.onlyParent && <Row label="Pengisi" value="Satu orang tua / wali" />}
       </section>
       <section>
-        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Program</h3>
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Program</h3>
         <Row label="Program" value={programName} />
         <Row label="Dcare" value={dcareAddon ? "Ya" : ""} />
       </section>
       <section>
-        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Berkas</h3>
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Berkas</h3>
         <Row label="Berkas terunggah" value={String(uploaded)} />
         {uploading > 0 && (
           <>
             <Row label="Sedang diunggah" value={String(uploading)} />
-            <p role="status" className="py-1 text-sm text-emerald-900/80">
+            <p role="status" className="py-1 text-sm text-muted-foreground">
               Masih ada berkas yang sedang diunggah. Mohon tunggu sebentar.
             </p>
           </>
         )}
         {missing.length > 0 ? (
-          <p className="py-1 text-sm text-emerald-900/80">
+          <p className="py-1 text-sm text-muted-foreground">
             Belum diunggah — mohon dibawa ke sekolah: {missing.join(", ")}
           </p>
         ) : (
-          <p className="py-1 text-sm text-emerald-900/80">Semua berkas wajib sudah diunggah.</p>
+          <p className="py-1 text-sm text-muted-foreground">Semua berkas wajib sudah diunggah.</p>
         )}
       </section>
       <section>
-        <h3 className="mb-1 text-sm font-semibold text-emerald-900">Persetujuan</h3>
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Persetujuan</h3>
         <Row label="Disetujui" value={consent.agreed ? "Ya" : "Belum"} />
         {!isWaived(consent.onlyParent, "ayah") && <Row label="Tanda tangan Ayah" value={consent.ayahSigned ? "Tersimpan" : "Belum"} />}
         {!isWaived(consent.onlyParent, "ibu") && <Row label="Tanda tangan Ibu" value={consent.ibuSigned ? "Tersimpan" : "Belum"} />}
         {signatureSaving && (
-          <p role="status" className="py-1 text-sm text-emerald-900/80">
+          <p role="status" className="py-1 text-sm text-muted-foreground">
             Tanda tangan sedang disimpan. Mohon tunggu sebentar.
           </p>
         )}

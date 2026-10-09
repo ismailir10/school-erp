@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { prisma } from "@/lib/db";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
+import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { SchoolHero } from "@/components/brand/school-photos";
 import PendaftaranClient from "./client";
 import { MessageCard } from "./message-card";
@@ -51,19 +53,18 @@ function toPublicConsent(raw: unknown) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#f4f6f3]">
-      <header className="border-b border-emerald-900/10 bg-white">
+    <main className="min-h-screen bg-background">
+      <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-5 py-4">
-          <div
-            aria-hidden
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0C5C3F] text-base font-semibold text-white"
-          >
-            T
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-base font-semibold text-[#0C5C3F]">Talib</span>
-            <span className="text-xs text-emerald-900/70">by An Nisaa&apos; Sekolahku</span>
-          </div>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={44}
+            height={44}
+            priority
+            className="rounded-[13px] outline -outline-offset-1 outline-black/10"
+          />
+          <TalibWordmark size="md" showSublabel />
         </div>
       </header>
       <div className="mx-auto max-w-2xl px-5 py-8 sm:py-12">{children}</div>
@@ -149,10 +150,10 @@ export default async function PendaftaranTokenPage({
     <Shell>
       <SchoolHero variant="slim" />
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-semibold text-emerald-950 sm:text-3xl">
+        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
           Formulir Pendaftaran Murid Baru
         </h1>
-        <p className="mt-2 text-sm text-emerald-900/70 sm:text-base">
+        <p className="mt-2 text-sm text-muted-foreground sm:text-base">
           Assalamu&apos;alaikum, Bapak/Ibu. Mohon lengkapi data ananda, data orang tua, dan surat
           persetujuan di bawah ini. Data tersimpan otomatis — Bapak/Ibu dapat melanjutkan nanti
           melalui tautan yang sama.
