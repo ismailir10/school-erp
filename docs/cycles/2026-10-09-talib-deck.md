@@ -72,6 +72,7 @@ Constraints from existing decisions, read before specifying:
 
 Dependencies noted; T1 blocks T3–T5, T2 is independent, T3–T5 are independent of one another once T1 lands (one subagent each), T6 follows them.
 
+- [x] **T0 — Honorific correction (added at approval).** `.claude/standards/voice.md`. The school says *Bu Guru* / *Pak Guru*, never *Ustadz/Ustadzah*. *Accept:* no *Ustadz* left in voice.md except the sentence that forbids it; glossary row flipped so *Bu Guru / Pak Guru* is canonical. Deck copy follows it. Out of scope, flagged: live parent-portal strings and `.claude/standards/design-system.html` still say *Ustadzah*.
 - [ ] **T1 — Deck shell.** `app/panduan/{page,layout,loading}.tsx`, `components/deck/{deck,slide,controls,progress}.tsx`, hash sync, keyboard/swipe/fullscreen, live region. *Accept:* with three placeholder slides, all navigation inputs work, hash restores, no console errors; page 404s nowhere and redirects per the access rules. Reuse `getSession`/`homePathForRole` from `lib/auth`, `usePrefersReducedMotion` from `components/reactbits`.
 - [ ] **T2 — Access + entry points.** Role guard in `app/panduan/page.tsx` (server), sidebar-footer link in `components/admin/sidebar.tsx`, teacher link in `components/teacher/more-sheet.tsx`; update the affected tests. *Accept:* guard tests for no session / `GUARDIAN` / admin / teacher pass; existing sidebar and more-sheet tests updated, not weakened. Independent of T1 at the file level.
 - [ ] **T3 — Illustration kit.** `components/deck/art/*`: shared stroke/radius/colour constants and the ten illustrations (cover and closing may be photo + Aurora composition). *Accept:* each renders at 320–900px wide without clipping, `aria-hidden`, brand tokens only (`grep` for raw `#hex` in `components/deck/art` is empty); a visual review at both viewports finds nothing to fix. After T1.
@@ -81,6 +82,8 @@ Dependencies noted; T1 blocks T3–T5, T2 is independent, T3–T5 are independen
 - [ ] **T7 — Docs.** README Portals/Modules note for `/panduan` (and the file-count block via `bash scripts/audit-docs.sh --write`), this doc's Verification and Ship Notes. *Accept:* `bash scripts/audit-docs.sh` exits 0.
 
 ## Implementation
+
+- **T0** — `.claude/standards/voice.md`: persona renamed *Bu Guru Sari*, courtesy-layer entry and "avoid" example updated, carve-out names *Bu Guru / Pak Guru*, glossary row flipped (canonical *Bu Guru / Pak Guru*; *Ustadz/Ustadzah* in the avoid column). Named greeting is "Bu Guru Sari".
 
 ## Verification
 
