@@ -9,7 +9,7 @@ import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Camera, Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { DrawCheck } from "@/components/reactbits/draw-check";
@@ -43,8 +43,6 @@ import {
   CONSENT_CLAUSES,
   CONSENT_INTRO,
   CONSENT_VERSION,
-  PHOTO_CLAUSE_INDEX,
-  PHOTO_CLAUSE_TITLE,
 } from "@/lib/enrollment/consent-clauses";
 import { formatDateShort } from "@/lib/format";
 import {
@@ -260,7 +258,7 @@ export default function PendaftaranClient({
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  // The consent letter's reveal (stagger + one highlight) plays the first time this visit reaches the step,
+  // The consent letter's reveal (stagger) plays the first time this visit reaches the step,
   // not again after Kembali or a jump. ConsentStep reports in once it has mounted.
   const [consentSeen, setConsentSeen] = useState(false);
   // A signature POST in flight per parent. Moving on or submitting meanwhile
@@ -1102,12 +1100,12 @@ function ConsentStep({
   onUpload: (which: "ayah" | "ibu", blob: Blob) => void;
   saving: { ayah: boolean; ibu: boolean };
   onRefresh: () => Promise<"changed" | "unchanged" | "error">;
-  /** First arrival at this step in this visit: play the clause reveal and the photo-clause highlight. */
+  /** First arrival at this step in this visit: play the clause reveal. */
   reveal?: boolean;
   /** Called once after mount so the parent can switch `reveal` off for later visits to the step. */
   onRevealed?: () => void;
 }) {
-  // Captured at mount so the parent flipping `reveal` off mid-animation cannot cut the highlight short.
+  // Captured at mount so the parent flipping `reveal` off mid-animation cannot cut the reveal short.
   // Off while hydrating (a hard load straight onto this step shows the letter at once, like Stagger) and
   // under reduced motion, so the page is the same static letter as before.
   const isHydrating = useSyncExternalStore(subscribeNoop, () => false, () => true);
@@ -1129,33 +1127,11 @@ function ConsentStep({
         data-reveal={reveal ? "true" : "false"}
         className="list-decimal space-y-2 rounded-xl border border-emerald-900/10 bg-emerald-50/40 p-4 pl-8 text-sm text-emerald-900/90"
       >
-        {CONSENT_CLAUSES.map((c, i) =>
-          i === PHOTO_CLAUSE_INDEX ? (
-            // Same <ol>, so numbering and the stored clause set stay in step;
-            // only the look differs, so the photo permission is not lost in the list.
-            // The pulse waits (900ms) for the stagger to settle; the class is only present on the first reveal.
-            <StaggerItem
-              key={i}
-              as="li"
-              data-testid="photo-consent-clause"
-              data-photo-clause
-              className={`rounded-lg bg-emerald-100/70 p-3 ring-1 ring-emerald-900/15 marker:font-medium${
-                reveal ? " motion-safe:animate-highlight-once motion-safe:[animation-delay:900ms]" : ""
-              }`}
-            >
-              <strong className="flex items-center gap-2 font-semibold text-emerald-950">
-                <Camera size={16} aria-hidden className="shrink-0 text-emerald-800" />
-                {PHOTO_CLAUSE_TITLE}
-                <span className="sr-only">.</span>
-              </strong>
-              <span className="mt-1 block">{c}</span>
-            </StaggerItem>
-          ) : (
-            <StaggerItem key={i} as="li">
-              {c}
-            </StaggerItem>
-          ),
-        )}
+        {CONSENT_CLAUSES.map((c, i) => (
+          <StaggerItem key={i} as="li">
+            {c}
+          </StaggerItem>
+        ))}
       </Stagger>
 
       {/* The checkbox sentence is the closing statement; saying it twice only added scroll. */}

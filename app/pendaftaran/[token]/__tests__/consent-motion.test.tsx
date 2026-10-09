@@ -1,6 +1,5 @@
 /**
- * Motion on the consent step and the success screen: the clause reveal plays once per visit, the photo clause
- * gets one highlight, and none of it changes what the page exposes.
+ * Motion on the consent step and the success screen: the clause reveal plays once per visit, and none of it changes what the page exposes.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -39,11 +38,8 @@ function ok(body: unknown) {
   return Promise.resolve({ ok: true, status: 200, json: async () => body } as Response);
 }
 
-const HIGHLIGHT = "animate-highlight-once";
-
 const letterList = () =>
   screen.getByRole("heading", { name: "Surat Persetujuan Orang Tua" }).parentElement!.querySelector("ol") as HTMLElement;
-const photo = () => screen.getByTestId("photo-consent-clause");
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(() => ok({})));
@@ -55,7 +51,7 @@ afterEach(() => {
 });
 
 describe("consent clause reveal", () => {
-  it("keeps 17 list items in one list, and the photo item keeps its attributes", () => {
+  it("keeps 17 list items in one list, the last one styled like the rest", () => {
     render(<PendaftaranClient initialStep={5} token="tok" programs={programs} prefill={filled} />);
     const ol = letterList();
     expect(ol.tagName).toBe("OL");
@@ -63,22 +59,17 @@ describe("consent clause reveal", () => {
     expect(items).toHaveLength(17);
     expect(items).toHaveLength(CONSENT_CLAUSES.length);
 
-    expect(items[16]).toBe(photo());
-    expect(photo()).toHaveAttribute("data-photo-clause");
-    expect(photo().tagName).toBe("LI");
-    expect(photo()).toHaveClass("ring-1", "bg-emerald-100/70");
-    expect(within(photo()).getByText("Foto & video kegiatan").tagName).toBe("STRONG");
-    expect(items.filter((li) => li.hasAttribute("data-photo-clause"))).toHaveLength(1);
+    expect(items[16].tagName).toBe("LI");
+    expect(items[16]).toHaveTextContent(CONSENT_CLAUSES[16]);
+    items.forEach((li) => expect(li.className).toBe(items[0].className));
   });
 
-  it("plays the reveal and the photo highlight on first arrival", () => {
+  it("plays the reveal on first arrival", () => {
     render(<PendaftaranClient initialStep={5} token="tok" programs={programs} prefill={filled} />);
     const ol = letterList();
     expect(ol).toHaveAttribute("data-reveal", "true");
     // Framer starts the clauses hidden (inline style) and reveals them.
     expect(ol.querySelector(":scope > li")?.getAttribute("style")).not.toBeNull();
-    expect(photo().className).toContain(HIGHLIGHT);
-    expect(photo().className).toContain("motion-safe:[animation-delay:900ms]");
   });
 
   it("does not replay after going back to an earlier step and returning", async () => {
@@ -95,7 +86,6 @@ describe("consent clause reveal", () => {
     expect(within(ol).getAllByRole("listitem")).toHaveLength(17);
     ol.querySelectorAll(":scope > li").forEach((li) => expect(li.getAttribute("style")).toBeNull());
     expect(ol.getAttribute("style")).toBeNull();
-    expect(photo().className).not.toContain(HIGHLIGHT);
   });
 
   it("does not replay after jumping via the stepper either", async () => {
@@ -104,10 +94,9 @@ describe("consent clause reveal", () => {
     await user.click(screen.getByRole("button", { name: /Data Anak/ }));
     await user.click(screen.getByRole("button", { name: /Persetujuan/ }));
     expect(letterList()).toHaveAttribute("data-reveal", "false");
-    expect(photo().className).not.toContain(HIGHLIGHT);
   });
 
-  it("a later change in the same visit (ticking the box) does not drop the highlight mid-play", async () => {
+  it("a later change in the same visit (ticking the box) does not cut the reveal short", async () => {
     const user = userEvent.setup();
     render(
       <PendaftaranClient
@@ -119,10 +108,9 @@ describe("consent clause reveal", () => {
     );
     await user.click(screen.getByRole("checkbox", { name: /Kami sudah membaca/ }));
     expect(letterList()).toHaveAttribute("data-reveal", "true");
-    expect(photo().className).toContain(HIGHLIGHT);
   });
 
-  it("is static under reduced motion: no inline styles, no highlight class", () => {
+  it("is static under reduced motion: no inline styles", () => {
     stubMatchMedia(true);
     render(<PendaftaranClient initialStep={5} token="tok" programs={programs} prefill={filled} />);
     const ol = letterList();
@@ -131,8 +119,6 @@ describe("consent clause reveal", () => {
     const items = within(ol).getAllByRole("listitem");
     expect(items).toHaveLength(17);
     items.forEach((li) => expect(li.getAttribute("style")).toBeNull());
-    expect(photo().className).not.toContain(HIGHLIGHT);
-    expect(photo()).toHaveAttribute("data-photo-clause");
   });
 });
 

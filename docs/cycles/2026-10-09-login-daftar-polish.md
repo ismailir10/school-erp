@@ -14,7 +14,7 @@ Follow-up to the photo-consent cycle (#632), from the owner's review of the scre
 - [ ] Dead code goes with it: `PHOTO_CLAUSE_INDEX`, `PHOTO_CLAUSE_TITLE`, the `[data-photo-clause]` markup and `data-testid`, the `highlight-once` keyframe and token in `app/globals.css`, and the highlight class on the clause. The clause stagger reveal stays (it covers all 17).
 - [ ] Tests updated: no photo-specific styling assertions; clause 17 is still the 17th list item with the agreed wording; the version/reset tests are untouched.
 
-**2. School photos (needs the network allowance or hand-added files)**
+**2. School photos (needs the network allowance or hand-added files). This PR ships only the logo + footer part (T4a); the photos (T4b) follow once the images can be fetched.**
 - [ ] A small `SchoolHero` component shows real school photos: a hero image under the header and a short strip of 3 photos ("Suasana di An Nisaa' Sekolahku" style, final caption to match the site's own wording), plus the school logo in the header. Photos are chosen by looking at the site; alt text is written in Indonesian and describes what is shown.
 - [ ] `/daftar` uses the full version. `/pendaftaran/[token]` (the emailed invite form) uses a slim hero only, no gallery. Neither pushes the form below the first screen on a 390×844 phone: the hero is capped in height, and the first field stays visible without scrolling.
 - [ ] Images are downloaded, resized and committed under `public/school/` (≤ ~150 KB each, served through `next/image` with explicit dimensions and `priority` on the hero), not hot-linked, so the page does not depend on the other site being up and there is no layout shift.
@@ -49,16 +49,21 @@ Follow-up to the photo-consent cycle (#632), from the owner's review of the scre
 
 ## Tasks
 
-- [ ] **T1 — Plain clause 17.** `app/pendaftaran/[token]/client.tsx`, `lib/enrollment/consent-clauses.ts` (+ test), `app/globals.css`, `app/pendaftaran/[token]/__tests__/{photo-consent,consent-motion}.test.tsx`. *Accept:* clause 17 has the same markup and classes as the others; no `PHOTO_CLAUSE_*`, `data-photo-clause` or `highlight-once` left anywhere (`grep` empty); stagger/show-once tests still pass; version still v2. Independent.
+- [x] **T1 — Plain clause 17.** `app/pendaftaran/[token]/client.tsx`, `lib/enrollment/consent-clauses.ts` (+ test), `app/globals.css`, `app/pendaftaran/[token]/__tests__/{photo-consent,consent-motion}.test.tsx`. *Accept:* clause 17 has the same markup and classes as the others; no `PHOTO_CLAUSE_*`, `data-photo-clause` or `highlight-once` left anywhere (`grep` empty); stagger/show-once tests still pass; version still v2. Independent.
 - [ ] **T2 — Vendor-neutral legal pages.** `app/legal/privacy/page.tsx` (+ `__tests__/page.test.tsx`). *Accept:* no `Supabase`, `Vercel`, `Resend`, `Cloudflare` or `R2` anywhere under `app/legal/` (`grep` empty), DOKU still present, date bumped. Independent.
 - [ ] **T3 — Sign-in footer.** `components/layout/legal-footer.tsx`, `app/page.tsx`. *Accept:* before/after screenshots at 390/768/1440 show a centered bottom-anchored footer on desktop, links flush with the content edge, end-of-page footer on mobile; existing sign-in and footer tests green. Independent.
-- [ ] **T4 — School photos (depends on the network allowance or hand-added images).** New `components/brand/school-hero.tsx`, `public/school/*`, `app/daftar/page.tsx`, `app/pendaftaran/[token]/page.tsx`, `next.config.ts` only if `next/image` needs it. *Accept:* `/daftar` shows hero + 3-photo strip + logo + footer; the invite form shows the slim hero; first field visible on a 390×844 viewport; images ≤ ~150 KB each with alt text; no remote image URL in the shipped HTML; Playwright `daftar-public` and enrollment specs still pass.
+- [ ] **T4a — /daftar logo + footer (no photos needed).** `app/daftar/page.tsx`. *Accept:* the school logo sits beside the wordmark in the header (same treatment as the sign-in screen), the page ends with the `LegalFooter` (links to terms and privacy, © line) sitting at the bottom on tall screens; `e2e/daftar-public.spec.ts` selectors still resolve. Independent of T3's footer restyle (uses its public API).
+- [ ] **T4b — School photos (BLOCKED, shipped separately).** New `components/brand/school-hero.tsx`, `public/school/*`, `app/daftar/page.tsx`, `app/pendaftaran/[token]/page.tsx`. Waits on `annisaasekolahku.com` being added to the environment's allowed domains (or images added by hand); still unreachable at build time (proxy 403). *Accept:* as the Spec item 2 criteria. Not part of this PR; follow-up PR once the images can be fetched.
 - [ ] **T5 — Docs.** README rows for the public pages and legal wording; this doc's Verification (design-system reference, Playwright status, screenshots). *Accept:* `bash scripts/audit-docs.sh` exits 0.
 
-Dependencies: T1, T2, T3 independent; T4 blocked on the image source; T5 last.
+Dependencies: T1, T2, T3, T4a independent; T4b blocked on the image source and ships in its own PR; T5 last.
 
 ## Implementation
 
+- Subagent plan: driver=claude-sonnet-5-5 (no tier above sonnet on this harness; implementers run on sonnet), dirty-work=sonnet; tasks [T1, T2, T3, T4a] parallel (disjoint files; implementers do not commit; the driver builds, screenshots, reviews and commits per task by path), T5 inline (docs). T4b is not built in this cycle: the image host is denied by the network policy.
+- **T1** — `app/pendaftaran/[token]/client.tsx`, `lib/enrollment/consent-clauses.ts` (+ test), `app/globals.css`, `photo-consent` / `consent-motion` / `stagger` tests. Clause 17 now renders through the same `StaggerItem as="li"` as clauses 1–16: no icon, tint, heading or pulse. Removed `PHOTO_CLAUSE_INDEX`, `PHOTO_CLAUSE_TITLE`, `data-photo-clause`, the test id, the `highlight-once` keyframe and token (nothing else used them; `grep` over `app components lib e2e` is empty). The stagger reveal and show-once logic stay (they cover all 17). Wording and `CONSENT_VERSION = "annisaa-2026-v2"` are unchanged, so nobody re-consents. New assertion: clause 17's `className` equals clause 16's and it contains no `strong` or `svg`. One test prop was renamed (`data-photo-clause` → `data-extra` in the stagger prop-forwarding test) only so the removal grep stays empty.
+
 ## Verification
+- Task T1 (design-system reference: the consent list is back to the single existing clause style, so there is no bespoke treatment to drift from the design system): `npx vitest run app/pendaftaran lib/enrollment components/reactbits` 28 files / 263 tests pass (implementer's run), eslint and `npx tsc --noEmit` clean. Independent review of the whole T1–T4a diff: no confirmed defects.
 
 ## Ship Notes
