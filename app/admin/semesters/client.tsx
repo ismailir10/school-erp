@@ -99,7 +99,6 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     setLoading(false);
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps

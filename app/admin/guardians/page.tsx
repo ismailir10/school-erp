@@ -142,7 +142,6 @@ export default function GuardiansPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<Guardian | null>(null);
   const editFormId = useId();
   const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
-  const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
 
   // Stats — re-fetched after any mutation (edit / status toggle) so the
   // cards don't go stale.
@@ -197,7 +196,6 @@ export default function GuardiansPage() {
       phone: g.phone || "",
       whatsapp: g.whatsapp || "",
     });
-    setEditGuardianId(null);
     try {
       const res = await fetch(`/api/parents/${g.id}`);
       if (res.ok) {
@@ -218,9 +216,6 @@ export default function GuardiansPage() {
           incomeRange: parent.incomeRange || "",
           childrenTotal: parent.childrenTotal != null ? String(parent.childrenTotal) : "",
         });
-        if (parent.guardians?.length > 0) {
-          setEditGuardianId(parent.guardians[0].id);
-        }
       }
     } catch { /* use basic fields from list */ }
   }
@@ -285,6 +280,10 @@ export default function GuardiansPage() {
         },
       },
     ],
+    // Intentionally []: the columns must keep one identity or every row cell
+    // remounts and closes its open action menu. openEditDialog only calls state setters,
+    // `editForm.reset` and `toast`, all stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

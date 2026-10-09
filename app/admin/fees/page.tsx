@@ -176,7 +176,6 @@ export default function FeesPage() {
     }
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, []);
 
   // Default the Tarif per Program pickers to the active program/year — the
@@ -260,7 +259,7 @@ export default function FeesPage() {
     }
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStructure(); }, [selectedProgram, selectedYear]);
 
   async function saveStructure() {

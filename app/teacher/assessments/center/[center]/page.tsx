@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import { CalendarOff, ClipboardList } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   formatLearningCenter,

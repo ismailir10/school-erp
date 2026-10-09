@@ -177,9 +177,7 @@ export function LeaveSheet({
   useEffect(() => {
     // Only run the local fetch when there is no prefetch wiring from the parent.
     if (!open || hasPrefetch) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hasPrefetch]);
 
   /** Refresh data after a mutation — uses parent refetch when wired, otherwise local fetch. */

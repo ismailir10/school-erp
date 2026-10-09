@@ -189,7 +189,6 @@ export default function TeacherAttendancePage() {
   }, []); // intentionally runs once at mount
 
   // Fire leave prefetch once on mount, independent of attendance fetch.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchLeaveData(); }, [fetchLeaveData]);
 
   // Abort any in-flight prefetch on unmount.

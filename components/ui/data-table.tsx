@@ -40,6 +40,9 @@ import { Inbox, SearchX } from "lucide-react";
 // the module TypeScript's declaration merging actually needs named here, not
 // the re-exporting package.
 declare module "@tanstack/table-core" {
+  // Declaration merging: these generics must match upstream's ColumnMeta exactly,
+  // even though our two added fields do not use them.
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   interface ColumnMeta<
     in out TFeatures extends TableFeatures,
     in out TData extends RowData,
@@ -48,6 +51,7 @@ declare module "@tanstack/table-core" {
     priority?: "low";
     sticky?: "right";
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
 function isStickyRight<TData extends RowData>(column: LegacyColumn<TData>) {

@@ -55,7 +55,6 @@ function useList<T extends { id: string }>(
       setLoading(false);
     }
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     refresh();
   }, [refresh]);

@@ -186,7 +186,6 @@ export function ObjectivesClient({
     }
   }, [semester.id, ageGroup, element, statusFilter]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     refresh();
   }, [refresh]);

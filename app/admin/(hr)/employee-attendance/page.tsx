@@ -89,7 +89,6 @@ export default function AttendancePage() {
     }
   }, [date, campusId]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
 
   // F-20: holidays fetched once on mount; non-blocking for the table.

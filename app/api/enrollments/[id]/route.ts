@@ -91,7 +91,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!app || app.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { tenantId, ...rest } = app;
   return NextResponse.json({
     ...rest,

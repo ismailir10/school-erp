@@ -199,7 +199,7 @@ export function CenterSessionClient({
     switchGrid(() => setAgeGroup(next));
   }
 
-  const indicators = payload?.ok ? payload.indicators : [];
+  const indicators = useMemo(() => (payload?.ok ? payload.indicators : []), [payload]);
   const students = useMemo(() => (payload?.ok ? payload.students : []), [payload]);
   const isWritable = payload?.ok && payload.writable;
   const myClassIds = useMemo(
