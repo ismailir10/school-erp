@@ -39,6 +39,7 @@ No UAT report covers the parent invoice or raport screens within 60 days; this c
 - Subagent plan: driver=claude-sonnet-5-5, dirty-work=none; tasks [T1,T2,T3] inline. Reason: three one-line edits plus two small test files, in interlocking order (guard test must fail before the fix and pass after); a subagent would need the whole plan as context. An independent read-only reviewer agent runs on the final diff.
 - Task 1: Pass raw timestamps to `formatDate` in the parent portal — `app/parent/report-cards-list.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx` (receipt header + payment rows), tests in `app/parent/invoices/__tests__/invoice-detail-sheet.test.tsx` and new `app/parent/__tests__/report-cards-list.test.tsx` — dropped `.slice(0, 10)` so `formatDate` sees the instant. Note: "Diterbitkan" on the raport only renders on history rows (the newest rapor gets the celebration card), so the raport tests use two terms.
 - Task 2: Guard — new `app/parent/__tests__/no-prewrapped-date-format.test.ts` scanning `app/parent` + `components/parent` for `formatDate(Short)?(<expr>.slice(0, 10) | .substring(0, 10) | .split("T")[0])`, plus a self-test of the pattern on shapes it must and must not catch. Written first and run against the unfixed tree: it reported exactly the three sites.
+- Review: a read-only reviewer agent was dispatched on the final diff (source + tests + guard); its findings are recorded under Verification.
 
 ## Verification
 
