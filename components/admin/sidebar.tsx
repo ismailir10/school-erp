@@ -4,7 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, LogOut } from "lucide-react";
+import { ChevronRight, LogOut, Presentation } from "lucide-react";
 
 import {
   Sidebar,
@@ -225,9 +225,18 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         )}
       </SidebarContent>
 
-      {/* Footer — Logout only */}
+      {/* Footer — product guide, then logout */}
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<GuardedLink href="/panduan" />}
+              tooltip="Panduan Talib"
+            >
+              <Presentation />
+              <span>Panduan Talib</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
               <LogOut />
