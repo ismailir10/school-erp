@@ -119,7 +119,12 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
     pathname.startsWith("/legal/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.startsWith("/logo")
+    pathname.startsWith("/logo") ||
+    // Public school photos shown on /daftar and the invite form. next/image fetches
+    // them server-side without a session, so without this the optimizer is bounced
+    // to the sign-in page (307) and every photo renders broken. Trailing slash on
+    // purpose: `/schoolfoo` must not inherit the bypass.
+    pathname.startsWith("/school/")
   ) {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       return await updateSession(request);

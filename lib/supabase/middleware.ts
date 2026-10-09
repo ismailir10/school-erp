@@ -41,6 +41,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo") ||
+    // Public school photos (see proxy.ts): next/image fetches them with no session.
+    pathname.startsWith("/school/") ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/legal/")
   ) {
