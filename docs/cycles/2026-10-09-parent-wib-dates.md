@@ -32,7 +32,7 @@ No UAT report covers the parent invoice or raport screens within 60 days; this c
 
 - [x] **T1 — Pass raw timestamps to `formatDate` in the parent portal.** Edit `report-cards-list.tsx` and `invoice-detail-sheet.tsx` (three sites). Add cases to `app/parent/invoices/__tests__/invoice-detail-sheet.test.tsx` (receipt + payment row at `22:30Z` → next WIB day; UTC-midnight stays) and a render test for the raport row (new `app/parent/__tests__/report-cards-list.test.tsx`). *Accept:* new cases fail on the old code, pass on the new; `npx vitest run app/parent` green. *Depends on:* nothing.
 - [x] **T2 — Guard against the pattern returning.** New `app/parent/__tests__/no-prewrapped-date-format.test.ts` scanning `app/parent/**` and `components/parent/**` (excluding `__tests__`) for `formatDate(Short)?(<expr>.slice(0, 10)` / `.split("T")[0]`. *Accept:* run against the pre-fix tree it reports the three sites; green after T1. *Depends on:* T1 (order only; write the test first, watch it fail, then fix).
-- [ ] **T3 — Cycle bookkeeping.** Fill Implementation / Verification (include `design-system` no-change note and Playwright status) / Ship Notes; run `bash scripts/audit-docs.sh`. *Accept:* audit exits 0. *Depends on:* T1, T2.
+- [x] **T3 — Cycle bookkeeping.** Fill Implementation / Verification (include `design-system` no-change note and Playwright status) / Ship Notes; run `bash scripts/audit-docs.sh`. *Accept:* audit exits 0. *Depends on:* T1, T2.
 
 ## Implementation
 
@@ -47,5 +47,15 @@ No UAT report covers the parent invoice or raport screens within 60 days; this c
 - `npm run build` (CI env: `DEMO_MODE=true`, dummy `DATABASE_URL`, `NEXTAUTH_SECRET`) → exit 0.
 - `npx vitest run` → Test Files 571 passed | 2 skipped (573); Tests 5738 passed | 42 todo (5780).
 - design-system: no markup, class or copy change; only the argument passed to `formatDate`, so the portal shell tokens in `design-system.html` are untouched.
+- Review (independent read-only agent on the final diff): no blocking findings. Confirmed all three arguments are always full ISO strings (`lib/parent-helpers.ts` serialisers and `app/api/guardian/invoices/[id]/route.ts` all use `toISOString()`), so `formatDate` always takes the Asia/Jakarta path; `npx vitest run app/parent` also passes under `TZ=UTC`, `TZ=Asia/Jakarta` and `TZ=America/Los_Angeles` (11 files, 109 tests). Two low-severity notes, both accepted: the guard regex also flags `formatDate(dateOnlyString.slice(0, 10))` (harmless, `formatDate` accepts raw date-only input), and it does not see a nested call such as `formatDate(new Date(x).toISOString().slice(0, 10))` (nothing in the scanned roots does this).
+- Playwright: local run deferred to CI (env cannot execute it — Postgres 16 binaries are present but the sandbox refuses the privilege switch needed to run a server as a non-root user, and no Docker daemon). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red. The local demo-auth browser route that `/ship` selects for app changes could therefore not be run here; the changed strings are covered by jsdom component tests (`invoice-detail-sheet.test.tsx`, `report-cards-list.test.tsx`).
+- `bash scripts/audit-docs.sh` → 0 fail.
 
 ## Ship Notes
+
+- **Migrations:** none. No schema or data change; stored values were always right, only display moved.
+- **Env vars:** none.
+- **Behaviour change to eyeball:** on `/parent/invoices` (invoice sheet) and `/parent/reports`, "Diterbitkan …" and each payment-row date now read on the Asia/Jakarta day. A backdated payment recorded as 6 Okt now reads "6 Oktober 2026" (it showed 5 Oktober before). Date-only and UTC-midnight values are unchanged.
+- **Staging check:** none required. No auth, session, cookie or guard code is touched.
+- **Rollback:** revert the two commits (`031bbfa`, `cb1c6ff`); nothing else to undo.
+- **Not done / follow-ups:** the guard test scans only `app/parent` and `components/parent`. Teacher/admin `lib/` helpers that slice dates for logic (week keys, calendar math) are out of scope. The nightly prod backup failure (issue #554) needs repo secrets and is unrelated to this cycle.
