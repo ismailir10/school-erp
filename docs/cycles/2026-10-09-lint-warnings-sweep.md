@@ -40,7 +40,7 @@ The outcome is zero warnings and a lint script that fails on any new one, so the
 - [x] **T1 — Teach the linter the `_` convention.** Edit `eslint.config.mjs`. *Accept:* `npm run lint` warning count drops from 56 to ~34; no source file changed in this task. *Depends on:* nothing.
 - [x] **T2 — Remove dead code.** Edit the files listed in Spec bullet 2. *Accept:* the corresponding `no-unused-vars` warnings are gone; `npx tsc --noEmit -p .` clean; touched suites pass. *Depends on:* T1 (so the count is attributable).
 - [x] **T3 — Hooks, suppressions with reasons, stale directives.** Memoise the three fallbacks; add reasoned suppressions; run `npx eslint . --fix` to drop the unused directives. *Accept:* `npm run lint` → 0 problems; `npx vitest run` green. *Depends on:* T2.
-- [ ] **T4 — Ratchet.** `package.json` `"lint": "eslint --max-warnings=0"`; cycle bookkeeping (Verification, Ship Notes), `bash scripts/audit-docs.sh`. *Accept:* `npm run lint` exits 0 with zero warnings, and exits non-zero when one warning is injected (checked then reverted). *Depends on:* T3.
+- [x] **T4 — Ratchet.** `package.json` `"lint": "eslint --max-warnings=0"`; cycle bookkeeping (Verification, Ship Notes), `bash scripts/audit-docs.sh`. *Accept:* `npm run lint` exits 0 with zero warnings, and exits non-zero when one warning is injected (checked then reverted). *Depends on:* T3.
 
 ## Implementation
 
@@ -49,6 +49,20 @@ The outcome is zero warnings and a lint script that fails on any new one, so the
 - Task 2: Remove dead code — `app/admin/invoices/[id]/page.tsx` (Link, Skeleton, ArrowLeft), `app/teacher/assessments/center/[center]/page.tsx` (CalendarOff), `app/api/admin/curriculum/import-promes/route.ts` (AgeGroupInput), `app/api/admin/classes/route.ts` (WEEKDAY_CODES const → literal union type), `app/admin/guardians/page.tsx` (`editGuardianId` state + 2 setter calls; written, never read), `app/teacher/error.tsx` (unused `error` binding) — 36 → 28 warnings.
 - Task 3: Hooks, reasoned suppressions, stale directives — memoised `payrollItems` (`admin/(hr)/payroll/[id]/page.tsx`), student-journal class `students`, teacher-center `indicators` so the `useMemo`s that read them actually memoise; one-line reasoned `eslint-disable-next-line` on the two intentional `[]` column memos (`admin/guardians`, `admin/students`; handlers only use state setters, `editForm.reset`, `toast`), on the two auth-proxied photo `<img>` tags, and a scoped disable/enable around the `ColumnMeta` declaration-merge generics in `components/ui/data-table.tsx`; `eslint --fix` removed 17 stale directives (3 only became stale after T1: `no-unused-vars` in `api/employees*` and `api/enrollments/[id]`); `eslint --fix` left blank lines where directives were, which were deleted by hand (diff checked: removed comment lines only; `fees/page.tsx` keeps the still-needed `exhaustive-deps` half of a combined directive) — 28 → 0 warnings.
 
+- Task 4: Ratchet — `package.json` — `"lint": "eslint --max-warnings=0"`. Proven both ways: clean tree → exit 0; with a throwaway `lib/zz-lint-ratchet-probe.ts` containing an unused `const` → exit 1; the probe was deleted. CI's existing `Lint` step runs `npm run lint`, so it now fails on any new warning.
+
 ## Verification
 
+- Warning count per task: 56 (start) → 36 (T1) → 28 (T2) → 0 (T3). `npm run lint` prints nothing and exits 0; `npx tsc --noEmit -p .` clean (after `npx prisma generate` in the fresh worktree).
+- Gate on the T3 tree (the last source change; T4 only touches the lint script): `npm run build` (CI env: `DEMO_MODE=true`, dummy `DATABASE_URL`, `NEXTAUTH_SECRET`) → exit 0; `npx vitest run` → Test Files 571 passed | 2 skipped (573); Tests 5738 passed | 42 todo (5780) — identical to `staging`, so no test was added, removed or changed.
+- Ratchet check (T4): see Task 4 above.
+- design-system: no markup, class or copy change. The only rendered-tree edits are comment lines, a removed unused import, and memoised fallbacks, so portal shells and tokens are untouched.
+- Playwright: local run deferred to CI (env cannot execute it — the sandbox refuses the privilege switch needed to run a Postgres server as a non-root user, and there is no Docker daemon). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red. No behaviour changes in this cycle apart from the three memo identities, so the jsdom suites that render those pages are the relevant local coverage.
+
 ## Ship Notes
+
+- **Migrations / env vars:** none. No dependency change; `package-lock.json` is untouched (a local `npm` side effect kept modifying it in the worktree; it was reverted each time and is not in the diff).
+- **Behaviour to know about:** `npm run lint` now fails on **any** warning (`--max-warnings=0`). A future dependency bump or a new unused import will turn the CI `Lint` step red instead of adding a 57th warning. That is the intent. To add a deliberate unused name, prefix it with `_`; to suppress a rule, say why in the same comment.
+- **Staging check:** none required. No auth, session, cookie or guard code is touched.
+- **Rollback:** revert the four commits; nothing else to undo. If the ratchet itself is the problem, revert only the `package.json` line.
+- **Not done:** `openEdit` / `openEditDialog` are still plain functions captured by `[]`-dependency column memos (documented in place); turning them into `useCallback` would cascade through the memos for no user-visible gain. The nightly prod backup failure (issue #554) still needs the owner to set the repo secrets.
