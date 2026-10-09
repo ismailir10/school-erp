@@ -19,7 +19,7 @@ describe("updateSession: public static assets with no session", () => {
   });
 
   it("serves the school photos (next/image fetches them with no cookies)", async () => {
-    const res = await updateSession(get("/school/fun-cooking.webp"));
+    const res = await updateSession(get("/school/guru.webp"));
     expect(res.headers.get("location")).toBeNull();
   });
 

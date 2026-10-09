@@ -19,7 +19,7 @@ describe("proxy: public static assets", () => {
   });
 
   it("lets next/image fetch the public school photos without a session", async () => {
-    const res = await proxy(get("/school/suasana-kelas.webp"));
+    const res = await proxy(get("/school/guru.webp"));
     expect(res.headers.get("location")).toBeNull();
     expect(res.status).toBe(200);
   });

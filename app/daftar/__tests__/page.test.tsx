@@ -43,7 +43,7 @@ describe("/daftar page chrome", () => {
     mocks.findMany.mockResolvedValue([{ id: "program_1", name: "PAUD" }]);
     render(await DaftarPage());
 
-    const hero = screen.getByRole("img", { name: /kaos hasil lukisan/ });
+    const hero = screen.getByRole("img", { name: /para guru/i });
     const title = screen.getByRole("heading", { name: "Pendaftaran Siswa Baru" });
     const form = screen.getByTestId("daftar-client");
     const gallery = screen.getByRole("heading", { name: /Sekilas kegiatan/ });
