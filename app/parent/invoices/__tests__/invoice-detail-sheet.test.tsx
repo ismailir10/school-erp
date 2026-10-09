@@ -223,3 +223,53 @@ describe("InvoiceDetailSheet — payment method labels", () => {
     expect(screen.getByText("Virtual Account")).toBeInTheDocument();
   });
 });
+
+/**
+ * Dates are instants. The sheet used to cut `paidAt` to its first ten characters
+ * before formatting, which handed `formatDate` the UTC day: a payment recorded at
+ * 05:00 WIB on 7 Okt (22:00Z on the 6th), or any backdated payment stored as
+ * midnight +07:00, read one day early on the wali's receipt.
+ */
+describe("InvoiceDetailSheet — payment dates on the Asia/Jakarta day", () => {
+  it("shows a payment recorded after 17:00Z on the next WIB day", async () => {
+    renderSheet({
+      status: "PAID",
+      totalPaid: 850000,
+      paidAt: "2026-10-06T22:30:00.000Z",
+      payments: [
+        { id: "p1", amount: 850000, method: "CASH", reference: "x", paidAt: "2026-10-06T22:30:00.000Z" },
+      ],
+    });
+    await screen.findByTestId("invoice-totals");
+    expect(screen.getByText("7 Oktober 2026")).toBeInTheDocument();
+    expect(screen.getByText("Diterbitkan 7 Oktober 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/6 Oktober 2026/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a backdated payment (midnight +07:00) on its own day", async () => {
+    renderSheet({
+      status: "PAID",
+      totalPaid: 850000,
+      paidAt: "2026-10-05T17:00:00.000Z",
+      payments: [
+        { id: "p1", amount: 850000, method: "CASH", reference: "x", paidAt: "2026-10-05T17:00:00.000Z" },
+      ],
+    });
+    await screen.findByTestId("invoice-totals");
+    expect(screen.getByText("Diterbitkan 6 Oktober 2026")).toBeInTheDocument();
+    expect(screen.queryByText(/5 Oktober 2026/)).not.toBeInTheDocument();
+  });
+
+  it("does not shift a UTC-midnight value", async () => {
+    renderSheet({
+      status: "PAID",
+      totalPaid: 850000,
+      paidAt: "2026-02-05T00:00:00.000Z",
+      payments: [
+        { id: "p1", amount: 850000, method: "CASH", reference: "x", paidAt: "2026-02-05T00:00:00.000Z" },
+      ],
+    });
+    await screen.findByTestId("invoice-totals");
+    expect(screen.getByText("Diterbitkan 5 Februari 2026")).toBeInTheDocument();
+  });
+});

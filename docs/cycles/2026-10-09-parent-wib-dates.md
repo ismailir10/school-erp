@@ -2,7 +2,7 @@
 
 ## Context
 
-The 2026-10-07 `admin-dates-wib` cycle (#607) taught `formatDate` / `formatDateShort` to render a full ISO timestamp on the Asia/Jakarta calendar day. It left a documented gap (its Ship Notes, "Known gap"): the parent portal still **pre-truncates** the timestamp with `.slice(0, 10)` before calling `formatDate`, which turns it into a date-only string and brings back the UTC day. A wali who pays at 05:00 WIB on 7 Okt sees the receipt "Diterbitkan 6 Oktober 2026", and a payment row under "Pembayaran" reads one day early, so the receipt date disagrees with the admin kuitansi. Same for the raport "Diterbitkan" line. Four call sites remain: `app/parent/report-cards-list.tsx:97` and `app/parent/invoices/invoice-detail-sheet.tsx:354,385` (plus a fourth read of the same pattern at `:193`, which compares a due *date* and is correct; it stays).
+The 2026-10-07 `admin-dates-wib` cycle (#607) taught `formatDate` / `formatDateShort` to render a full ISO timestamp on the Asia/Jakarta calendar day. It left a documented gap (its Ship Notes, "Known gap"): the parent portal still **pre-truncates** the timestamp with `.slice(0, 10)` before calling `formatDate`, which turns it into a date-only string and brings back the UTC day. A wali who pays at 05:00 WIB on 7 Okt sees the receipt "Diterbitkan 6 Oktober 2026", and a payment row under "Pembayaran" reads one day early, so the receipt date disagrees with the admin kuitansi. It is wider than the first hour of the day: `POST /api/invoices/[id]/payments` stores a backdated payment as midnight +07:00 (`${paidAt}T00:00:00+07:00`), which is 17:00Z the day before, so **every backdated payment** showed a day early on the parent receipt. Same for the raport "Diterbitkan" line. Four call sites remain: `app/parent/report-cards-list.tsx:97` and `app/parent/invoices/invoice-detail-sheet.tsx:354,385` (plus a fourth read of the same pattern at `:193`, which compares a due *date* and is correct; it stays).
 
 The other follow-up named in the handover docs ("copy KK/KTP into the guardian record on convert", "documents on the student detail rail") already shipped in #606 (`lib/enrollment/guardian-copy.ts`, `student-enrollment-application-block.tsx`), so it is **not** in this cycle. This cycle is the small, certain fix plus a guard so the pattern cannot return.
 
@@ -30,12 +30,21 @@ No UAT report covers the parent invoice or raport screens within 60 days; this c
 
 ## Tasks
 
-- [ ] **T1 — Pass raw timestamps to `formatDate` in the parent portal.** Edit `report-cards-list.tsx` and `invoice-detail-sheet.tsx` (three sites). Add cases to `app/parent/invoices/__tests__/invoice-detail-sheet.test.tsx` (receipt + payment row at `22:30Z` → next WIB day; UTC-midnight stays) and a render test for the raport row (new `app/parent/__tests__/report-cards-list.test.tsx`). *Accept:* new cases fail on the old code, pass on the new; `npx vitest run app/parent` green. *Depends on:* nothing.
-- [ ] **T2 — Guard against the pattern returning.** New `app/parent/__tests__/no-prewrapped-date-format.test.ts` scanning `app/parent/**` and `components/parent/**` (excluding `__tests__`) for `formatDate(Short)?(<expr>.slice(0, 10)` / `.split("T")[0]`. *Accept:* run against the pre-fix tree it reports the three sites; green after T1. *Depends on:* T1 (order only; write the test first, watch it fail, then fix).
+- [x] **T1 — Pass raw timestamps to `formatDate` in the parent portal.** Edit `report-cards-list.tsx` and `invoice-detail-sheet.tsx` (three sites). Add cases to `app/parent/invoices/__tests__/invoice-detail-sheet.test.tsx` (receipt + payment row at `22:30Z` → next WIB day; UTC-midnight stays) and a render test for the raport row (new `app/parent/__tests__/report-cards-list.test.tsx`). *Accept:* new cases fail on the old code, pass on the new; `npx vitest run app/parent` green. *Depends on:* nothing.
+- [x] **T2 — Guard against the pattern returning.** New `app/parent/__tests__/no-prewrapped-date-format.test.ts` scanning `app/parent/**` and `components/parent/**` (excluding `__tests__`) for `formatDate(Short)?(<expr>.slice(0, 10)` / `.split("T")[0]`. *Accept:* run against the pre-fix tree it reports the three sites; green after T1. *Depends on:* T1 (order only; write the test first, watch it fail, then fix).
 - [ ] **T3 — Cycle bookkeeping.** Fill Implementation / Verification (include `design-system` no-change note and Playwright status) / Ship Notes; run `bash scripts/audit-docs.sh`. *Accept:* audit exits 0. *Depends on:* T1, T2.
 
 ## Implementation
 
+- Subagent plan: driver=claude-sonnet-5-5, dirty-work=none; tasks [T1,T2,T3] inline. Reason: three one-line edits plus two small test files, in interlocking order (guard test must fail before the fix and pass after); a subagent would need the whole plan as context. An independent read-only reviewer agent runs on the final diff.
+- Task 1: Pass raw timestamps to `formatDate` in the parent portal — `app/parent/report-cards-list.tsx`, `app/parent/invoices/invoice-detail-sheet.tsx` (receipt header + payment rows), tests in `app/parent/invoices/__tests__/invoice-detail-sheet.test.tsx` and new `app/parent/__tests__/report-cards-list.test.tsx` — dropped `.slice(0, 10)` so `formatDate` sees the instant. Note: "Diterbitkan" on the raport only renders on history rows (the newest rapor gets the celebration card), so the raport tests use two terms.
+- Task 2: Guard — new `app/parent/__tests__/no-prewrapped-date-format.test.ts` scanning `app/parent` + `components/parent` for `formatDate(Short)?(<expr>.slice(0, 10) | .substring(0, 10) | .split("T")[0])`, plus a self-test of the pattern on shapes it must and must not catch. Written first and run against the unfixed tree: it reported exactly the three sites.
+
 ## Verification
+
+- Red-first: the guard test failed on the unfixed tree with `invoice-detail-sheet.tsx:354`, `:385`, `report-cards-list.tsx:97`. With the two source files reverted, the three shifted-day cases (22:30Z receipt, 22:30Z payment row / raport, 17:00Z backdated payment) failed and the UTC-midnight cases passed; with the fix applied all pass.
+- `npm run build` (CI env: `DEMO_MODE=true`, dummy `DATABASE_URL`, `NEXTAUTH_SECRET`) → exit 0.
+- `npx vitest run` → Test Files 571 passed | 2 skipped (573); Tests 5738 passed | 42 todo (5780).
+- design-system: no markup, class or copy change; only the argument passed to `formatDate`, so the portal shell tokens in `design-system.html` are untouched.
 
 ## Ship Notes
