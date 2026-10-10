@@ -81,6 +81,10 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   // still shares the link manually — so "Terkirim" overclaimed delivery.
   SENT: { label: "Link Dibuat", className: "bg-status-leave-subtle text-status-leave-text" },
   PAID: { label: "Lunas", className: "bg-status-present-subtle text-status-present-text" },
+  // Pendaftaran fee (EnrollmentFee.status): "Belum bayar" is the one staff chase;
+  // "Dibebaskan" is a deliberate no-fee decision, so it stays neutral.
+  UNPAID: { label: "Belum bayar", className: "bg-status-late-subtle text-status-late-text" },
+  WAIVED: { label: "Dibebaskan", className: "bg-muted text-muted-foreground" },
   // "Lewat Tempo" not "Jatuh Tempo": "jatuh tempo" is the due *date*, and that exact
   // phrase captions the due-date field on the same invoice row. Reusing it as the
   // overdue status made the badge and the date indistinguishable. voice.md glossary.
@@ -183,6 +187,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   DRAFT: Minus,
   CANCELLED: Minus,
   WITHDRAWN: Minus,
+  WAIVED: Minus,
   OTHER: Minus,
 
   // Positive confirm
@@ -207,6 +212,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
 
   // In-progress / pending
   PENDING: CircleDot,
+  UNPAID: CircleDot,
   PARTIALLY_PAID: CircleDot,
   UNDER_REVIEW: CircleDot,
 
@@ -266,6 +272,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   LATE: "border-l-status-late",
   PARTIALLY_PAID: "border-l-status-late",
   PENDING: "border-l-status-late",
+  UNPAID: "border-l-status-late",
   HALF_DAY: "border-l-status-late",
   PRESENT_NO_CHECKOUT: "border-l-status-late",
   VISIT_SCHEDULED: "border-l-status-late",
@@ -293,6 +300,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   DRAFT: "border-l-border",
   CANCELLED: "border-l-border",
   WITHDRAWN: "border-l-border",
+  WAIVED: "border-l-border",
   OTHER: "border-l-border",
   INVITED: "border-l-border",
   // Salary component types

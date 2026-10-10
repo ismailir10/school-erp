@@ -13,7 +13,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
 import { EnrollmentApplicationView } from "@/components/admin/enrollment-application-view";
 import { EnrollmentDocumentsCard } from "@/components/admin/enrollment-documents-card";
+import { EnrollmentFeeCard } from "@/components/admin/enrollment-fee-card";
 import type { AdminDocuments } from "@/lib/enrollment/documents";
+import type { AdminFeeView, FeeAttention } from "@/lib/enrollment/fee-admin-view";
+import { formatRupiah } from "@/lib/format";
 
 type Detail = {
   id: string;
@@ -36,6 +39,12 @@ type Detail = {
   documents?: AdminDocuments;
   program: { id: string; name: string } | null;
   admission: { id: string; parentName: string; parentPhone: string | null } | null;
+  /** Pendaftaran fee; null when the program has none. */
+  fee?: AdminFeeView | null;
+  followUp?: { formUrl: string; canRemind: boolean } | null;
+  /** Payments the processor refused to credit ("perlu dicek"). */
+  feeProblems?: FeeAttention[];
+  feePermissions?: { recordPayment: boolean; adjust: boolean };
 };
 
 type CopyStatus = "copied" | "skipped_existing" | "missing" | "failed";
@@ -67,8 +76,10 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   // Terima / Tolak are decisions the family feels — confirm before they fire.
   const [decision, setDecision] = useState<"ACCEPTED" | "REJECTED" | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // `showSkeleton` is off for refreshes after an action, so the page does not
+  // flash to a skeleton and lose the staff member's place.
+  const load = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setLoading(true);
     try {
       const res = await fetch(`/api/enrollments/${id}`);
       if (res.ok) setD(await res.json());
@@ -214,6 +225,20 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       />
 
       <div className="space-y-section">
+        {/* Money first: an unpaid fee is the thing staff chase. */}
+        {d.fee && (
+          <EnrollmentFeeCard
+            applicationId={id}
+            childName={d.childName}
+            fee={d.fee}
+            followUp={d.followUp ?? null}
+            problems={d.feeProblems ?? []}
+            canEdit={d.canEdit}
+            permissions={d.feePermissions ?? { recordPayment: false, adjust: false }}
+            onChange={() => void load(false)}
+          />
+        )}
+
         {/* Actionable for staff, so it sits right under the header. */}
         <EnrollmentDocumentsCard
           applicationId={id}
@@ -269,7 +294,11 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         open={convertOpen}
         onOpenChange={setConvertOpen}
         title="Konversi menjadi siswa?"
-        description="Tindakan ini membuat data siswa dan data orang tua dari formulir pendaftaran ini."
+        description={
+          d.fee?.status === "UNPAID"
+            ? `Biaya pendaftaran ${formatRupiah(d.fee.amount)} belum dibayar. Siswa tetap bisa dibuat, tetapi pembayarannya masih perlu ditindaklanjuti. Tindakan ini membuat data siswa dan data orang tua dari formulir pendaftaran ini.`
+            : "Tindakan ini membuat data siswa dan data orang tua dari formulir pendaftaran ini."
+        }
         confirmLabel="Konversi ke Siswa"
         loading={busy}
         onConfirm={convert}

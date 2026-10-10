@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
   // "none" on applications with no fee at all (a free program).
   if (payment === "unpaid" || payment === "paid" || payment === "waived") {
     where.fee = { is: { status: payment.toUpperCase() } };
+    // "Belum bayar" is the chase list: a rejected application's link is closed, so
+    // it is not one — unless the caller filtered by status on purpose.
+    if (payment === "unpaid" && (!status || status === "all")) where.status = { not: "REJECTED" };
   } else if (payment === "none") {
     where.fee = { is: null };
   }
@@ -85,9 +88,12 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { ayahData, ibuData, admission, fee, ...lean } = row as any;
     const amount = fee ? Math.round(Number(fee.amount)) : 0;
-    // Whether the WhatsApp reminder can be sent, only where there is something to chase.
+    // Whether the WhatsApp reminder can be sent, only where there is something to chase
+    // (a REJECTED application's pay link is closed, so there is nothing to chase).
     const followUp =
-      canEdit && fee?.status === "UNPAID" ? { canRemind: canRemind({ admission, ayahData, ibuData }) } : null;
+      canEdit && fee?.status === "UNPAID" && lean.status !== "REJECTED"
+        ? { canRemind: canRemind({ admission, ayahData, ibuData }) }
+        : null;
     return { ...lean, fee: fee ? { status: fee.status, amount } : null, followUp };
   });
 

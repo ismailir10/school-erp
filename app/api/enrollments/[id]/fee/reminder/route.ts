@@ -19,7 +19,7 @@ import { feeReminderWaUrl, parentFormUrl } from "@/lib/enrollment/follow-up";
  * would be blocked.
  *
  *   302  → https://wa.me/<number>?text=…
- *   409  nothing to chase (the fee is paid or waived)
+ *   409  nothing to chase (the fee is paid or waived, or the application was rejected)
  *   422  no number WhatsApp can open (the UI disables the button before this)
  *
  * Needs `admissions.edit`; tenant always from the session. Read-only, no state change.
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const app = await prisma.enrollmentApplication.findFirst({
     where: { id, tenantId: session.tenantId },
     select: {
+      status: true,
       accessToken: true,
       childName: true,
       ayahData: true,
@@ -48,6 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!app || !app.fee) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (app.fee.status !== "UNPAID") {
     return NextResponse.json({ error: "Biaya pendaftaran ini sudah selesai, tidak ada yang perlu diingatkan." }, { status: 409 });
+  }
+
+  if (app.status === "REJECTED") {
+    return NextResponse.json({ error: "Pendaftaran ini sudah ditolak, tautan pembayarannya tidak berlaku lagi." }, { status: 409 });
   }
 
   const tenant = await prisma.tenant.findUnique({ where: { id: session.tenantId }, select: { name: true } });

@@ -378,6 +378,14 @@ describe("GET /api/enrollments/[id] — pendaftaran fee", () => {
     expect((await (await get()).json()).followUp).toBeNull();
   });
 
+  it("a REJECTED application gets no follow-up (its pay link is closed), but still shows the fee", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ status: "REJECTED" }));
+    const body = await (await get()).json();
+    expect(body.followUp).toBeNull();
+    expect(body.fee.status).toBe("UNPAID");
+  });
+
   it("a read-only viewer sees the fee but never the form link or the token", async () => {
     getSession.mockResolvedValue(viewer);
     findUnique.mockResolvedValue(app());

@@ -64,7 +64,6 @@ describe("GET /api/enrollments — pendaftaran fee", () => {
   });
 
   it.each([
-    ["unpaid", { is: { status: "UNPAID" } }],
     ["paid", { is: { status: "PAID" } }],
     ["waived", { is: { status: "WAIVED" } }],
     ["none", { is: null }],
@@ -73,6 +72,29 @@ describe("GET /api/enrollments — pendaftaran fee", () => {
     await GET(reqWith(`payment=${value}`));
     expect(findMany.mock.calls[0][0].where).toEqual({ tenantId: "t-1", fee });
     expect(count.mock.calls[0][0].where).toEqual({ tenantId: "t-1", fee });
+  });
+
+  it("?payment=unpaid is the chase list: unpaid fees of applications that are not REJECTED, in the tenant", async () => {
+    getSession.mockResolvedValue(editor);
+    await GET(reqWith("payment=unpaid"));
+    const expected = { tenantId: "t-1", fee: { is: { status: "UNPAID" } }, status: { not: "REJECTED" } };
+    expect(findMany.mock.calls[0][0].where).toEqual(expected);
+    // The stat card counts with the same where.
+    expect(count.mock.calls[0][0].where).toEqual(expected);
+  });
+
+  it("?payment=unpaid&status=REJECTED honours the explicit status filter", async () => {
+    getSession.mockResolvedValue(editor);
+    await GET(reqWith("payment=unpaid&status=REJECTED"));
+    expect(findMany.mock.calls[0][0].where).toEqual({ tenantId: "t-1", fee: { is: { status: "UNPAID" } }, status: "REJECTED" });
+  });
+
+  it("a REJECTED application with an unpaid fee has no follow-up: its pay link is closed", async () => {
+    getSession.mockResolvedValue(editor);
+    findMany.mockResolvedValue([unpaidRow({ status: "REJECTED" })]);
+    const row = (await (await GET(reqWith("page=1"))).json()).data[0];
+    expect(row.fee).toEqual({ status: "UNPAID", amount: 300_000 });
+    expect(row.followUp).toBeNull();
   });
 
   it("ignores an unknown payment value (no filter, no injection)", async () => {

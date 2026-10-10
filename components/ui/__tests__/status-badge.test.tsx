@@ -129,6 +129,22 @@ describe("STATUS_MAP enum coverage", () => {
     expect(screen.queryByText("ARCHIVED")).not.toBeInTheDocument();
   });
 
+  it("renders the pendaftaran fee statuses: UNPAID is amber 'Belum bayar', WAIVED is neutral 'Dibebaskan'", () => {
+    const { unmount } = render(<StatusBadge status="UNPAID" />);
+    expect(screen.getByText("Belum bayar").className).toContain("bg-status-late-subtle");
+    unmount();
+    render(<StatusBadge status="WAIVED" />);
+    const waived = screen.getByText("Dibebaskan");
+    expect(waived.className).toContain("bg-muted");
+    expect(screen.queryByText("WAIVED")).not.toBeInTheDocument();
+  });
+
+  it("gives UNPAID the pending icon and amber border in the intent variant", () => {
+    const { container } = render(<StatusBadge status="UNPAID" variant="intent" />);
+    expect(container.querySelector("svg")?.getAttribute("class") ?? "").toMatch(/lucide-circle-dot/i);
+    expect(container.firstElementChild?.className).toContain("border-l-status-late");
+  });
+
   it("gives ARCHIVED the neutral icon and left border in the intent variant", () => {
     const { container } = render(<StatusBadge status="ARCHIVED" variant="intent" />);
     expect(container.querySelector("svg")?.getAttribute("class") ?? "").toMatch(/lucide-minus/i);

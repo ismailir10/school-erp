@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/components/admin/enrollment-application-view", () => ({
@@ -346,5 +346,105 @@ describe("EnrollmentDetailPage — Terima / Tolak confirm", () => {
     await user.click(within(dialog).getByRole("button", { name: "Tolak" }));
     await waitFor(() => expect(patches(fetchMock)).toHaveLength(1));
     expect(JSON.parse(patches(fetchMock)[0][1]!.body as string)).toEqual({ status: "REJECTED" });
+  });
+});
+
+describe("EnrollmentDetailPage — pendaftaran fee", () => {
+  const unpaidFee = {
+    status: "UNPAID",
+    method: null,
+    baseAmount: 300000,
+    discountPercent: 0,
+    discountReason: null,
+    amount: 300000,
+    paidAt: null,
+    note: null,
+    linkError: null,
+    lastCheckedAt: null,
+    linkActive: false,
+  };
+  const base = {
+    id: "ea-1",
+    canEdit: true,
+    status: "ACCEPTED",
+    studentId: null as string | null,
+    childName: "Aisyah",
+    dcareAddon: false,
+    studentData: {},
+    ayahData: {},
+    ibuData: {},
+    consentData: {},
+    documents: {},
+    program: { id: "p-1", name: "TK A" },
+    fee: unpaidFee,
+    followUp: { formUrl: "https://talib.example/pendaftaran/tok", canRemind: true },
+    feeProblems: [],
+    feePermissions: { recordPayment: true, adjust: true },
+  };
+
+  function serve(detail: Record<string, unknown>) {
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
+      Promise.resolve({ ok: true, json: async () => detail } as Response),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("shows the payment card above the documents, with the reminder link", async () => {
+    serve(base);
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    const card = await screen.findByRole("heading", { name: "Pembayaran pendaftaran" });
+    expect(screen.getByRole("link", { name: "Chat WhatsApp: ingatkan orang tua Aisyah" })).toHaveAttribute(
+      "href",
+      "/api/enrollments/ea-1/fee/reminder",
+    );
+    expect(card.compareDocumentPosition(screen.getByText("Isi formulir")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("has no payment card for an application whose program has no fee", async () => {
+    serve({ ...base, fee: null, followUp: null });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("heading", { name: "Pembayaran pendaftaran" })).not.toBeInTheDocument();
+  });
+
+  it("converting with an unpaid fee warns, with the amount, but does not block", async () => {
+    serve(base);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Konversi ke Siswa" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/belum dibayar/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/300\.000/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Konversi ke Siswa" })).toBeEnabled();
+  });
+
+  it("converting a paid or waived application shows the plain confirm", async () => {
+    serve({ ...base, fee: { ...unpaidFee, status: "PAID" }, followUp: null });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Konversi ke Siswa" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).queryByText(/belum dibayar/)).not.toBeInTheDocument();
+  });
+
+  it("a refresh after a fee action re-reads the application without flashing the page skeleton", async () => {
+    const fetchMock = serve(base);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByRole("heading", { name: "Pembayaran pendaftaran" });
+    fetchMock.mockClear();
+    // Refresh POST resolves with the same body (a code the card treats as "no change").
+    fetchMock.mockImplementation(() =>
+      Promise.resolve({ ok: true, json: async () => ({ ...base, code: "NO_CHANGE", message: "Belum ada pembayaran masuk." }) } as Response),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Perbarui pembayaran" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]) === "/api/enrollments/ea-1")).toBe(true));
+    // The card never unmounted.
+    expect(screen.getByRole("heading", { name: "Pembayaran pendaftaran" })).toBeInTheDocument();
   });
 });

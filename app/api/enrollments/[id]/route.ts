@@ -109,7 +109,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // opened through the reminder endpoint, so this is the ONLY place a token is
   // returned — for one application, to staff who can act on it.
   let followUp: { formUrl: string; canRemind: boolean } | null = null;
-  if (canEdit && feeView?.status === "UNPAID") {
+  // Not for a REJECTED application: the parent's pay link is closed (409
+  // APPLICATION_CLOSED), so a reminder would send them to a dead end.
+  if (canEdit && feeView?.status === "UNPAID" && rest.status !== "REJECTED") {
     followUp = {
       formUrl: parentFormUrl(resolveAppOrigin(new URL(req.url).origin), accessToken),
       canRemind: canRemind({ admission: rest.admission, ayahData: rest.ayahData, ibuData: rest.ibuData }),

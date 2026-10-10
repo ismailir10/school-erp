@@ -20,6 +20,7 @@ const ctx = (id = "app-1") => ({ params: Promise.resolve({ id }) });
 const get = () => GET(new NextRequest("https://talib.example/api/enrollments/app-1/fee/reminder"), ctx());
 
 const app = (over: Record<string, unknown> = {}) => ({
+  status: "SUBMITTED",
   accessToken: "SECRET-TOKEN",
   childName: "Aisyah",
   ayahData: {},
@@ -80,6 +81,14 @@ describe("GET /api/enrollments/[id]/fee/reminder", () => {
     const res = await get();
     expect(res.status).toBe(409);
     expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("409 for a REJECTED application: its pay link is closed, so a reminder would send the parent to a dead end", async () => {
+    appFindFirst.mockResolvedValue(app({ status: "REJECTED" }));
+    const res = await get();
+    expect(res.status).toBe(409);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.text()).not.toContain("SECRET-TOKEN");
   });
 
   it("422 when there is no number WhatsApp can open, and no redirect", async () => {
