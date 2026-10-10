@@ -50,6 +50,8 @@ type CommitPhase = "idle" | "running" | "sweeping" | "done" | "aborted" | "error
 
 type Summary = {
   createdAt: string;
+  canRebuild: boolean;
+  finalizeRowId: string | null;
   periodLabel: string;
   billableCount: number;
   billableTotal: number;
@@ -83,6 +85,8 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
 
   return {
     createdAt: run.createdAt,
+    canRebuild: run.status === "DRAFT" && alreadyCommitted.length === 0,
+    finalizeRowId: run.status === "COMMITTING" && pending.length === 0 ? (rows[0]?.id ?? null) : null,
     periodLabel: run.periodLabel,
     billableCount: billable.length,
     billableTotal: billable.reduce((sum, r) => sum + Number(r.totalDue), 0),
@@ -168,6 +172,7 @@ export function CommitStep({
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -312,6 +317,43 @@ export function CommitStep({
     }
   }
 
+  async function handleFinish() {
+    if (committingRef.current) return;
+    if (!summary?.finalizeRowId) { onCommitted(); return; }
+    committingRef.current = true;
+    setPhase("running");
+    setErrorMessage(null);
+    try {
+      // Replay a resolved row through the existing idempotent endpoint. No
+      // invoice or gateway work is performed; its final pending-row check
+      // repairs COMMITTING after an interrupted final status write.
+      const res = await fetch(`/api/billing-runs/${runId}/commit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowIds: [summary.finalizeRowId] }),
+      });
+      if (!res.ok) throw new ApiError("Status pembuatan tagihan belum tersimpan. Coba Selesai lagi.");
+      onCommitted();
+    } catch (err) {
+      // The write may have succeeded before its response was lost, or the
+      // last in-flight chunk may have finished since our summary was read.
+      // Confirm persisted state before asking for another retry. A failed
+      // read is still uncertain, so keep the dialog and retry action open.
+      try {
+        const check = await fetch(`/api/billing-runs/${runId}?pageSize=1`, { cache: "no-store" });
+        if (check.ok && (await check.json()).status === "COMMITTED") {
+          onCommitted();
+          return;
+        }
+      } catch { /* connection is still unavailable; retain the retry state */ }
+      setPhase("error");
+      setErrorMessage(userMessage(err, "Status pembuatan tagihan belum tersimpan. Coba Selesai lagi."));
+    } finally {
+      committingRef.current = false;
+      setPhase((current) => current === "running" ? "idle" : current);
+    }
+  }
+
   function handleCancel() {
     abortRef.current?.abort();
   }
@@ -441,7 +483,7 @@ export function CommitStep({
       <p className="text-small text-muted-foreground">
         Draf dibuat {formatRelativeTime(summary.createdAt)}.
       </p>
-      {isStale ? (
+      {isStale && summary.canRebuild ? (
         <Alert>
           <AlertTriangle className="size-4" />
           <AlertTitle>Draf ini sudah agak lama</AlertTitle>
@@ -455,7 +497,7 @@ export function CommitStep({
               size="sm"
               variant="outline"
               onClick={() => setRebuildConfirmOpen(true)}
-              disabled={isRunning || rebuilding}
+              disabled={isRunning || rebuilding || !summary.canRebuild}
             >
               Hitung Ulang
             </Button>
@@ -508,7 +550,7 @@ export function CommitStep({
           type="button"
           variant="outline"
           onClick={() => setRebuildConfirmOpen(true)}
-          disabled={isRunning || rebuilding}
+          disabled={isRunning || rebuilding || !summary.canRebuild}
           className="sm:mr-auto"
         >
           <RotateCcw size={14} aria-hidden />
@@ -519,8 +561,8 @@ export function CommitStep({
         </Button>
         {nothingLeftToCommit ? (
           phase !== "done" ? (
-            <Button type="button" onClick={onCommitted}>
-              Selesai
+            <Button type="button" onClick={handleFinish} disabled={isRunning}>
+              {isRunning ? "Menyelesaikan..." : "Selesai"}
             </Button>
           ) : null
         ) : (

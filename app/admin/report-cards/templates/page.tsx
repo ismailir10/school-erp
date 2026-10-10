@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GuardedLink } from "@/components/admin/guarded-link";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +51,15 @@ export default function RaportTemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [savedDraft, setSavedDraft] = useState("");
+  const [pendingContext, setPendingContext] = useState<{ termId: string; ageGroup: AgeGroup } | null>(null);
+  const contextKey = `${termId}:${ageGroup}`;
+  const ready = loadedKey === contextKey && !loading && !error;
+  const dirty = ready && JSON.stringify({ bucketed, closing }) !== savedDraft;
+  useUnsavedChangesGuard(dirty, "Perubahan narasi belum disimpan dan akan hilang jika Anda keluar.");
+
   const [cloneSourceTermId, setCloneSourceTermId] = useState("");
   const [cloneSourceAgeGroup, setCloneSourceAgeGroup] = useState<AgeGroup>("A");
   const [cloning, setCloning] = useState(false);
@@ -75,7 +86,9 @@ export default function RaportTemplatesPage() {
 
   const loadGrid = useCallback(async () => {
     if (!termId) return;
+    const version = ++requestVersion.current;
     setLoading(true);
+    setLoadedKey(null);
     setError(null);
     try {
       const res = await fetch(
@@ -86,19 +99,24 @@ export default function RaportTemplatesPage() {
         error?: string;
       };
       if (!res.ok) throw new ApiError(body.error ?? "Gagal memuat bank narasi.");
-      setBucketed(body.data?.bucketed ?? {});
-      setClosing(body.data?.closing ?? {});
+      if (version !== requestVersion.current) return;
+      const grid = { bucketed: body.data?.bucketed ?? {}, closing: body.data?.closing ?? {} };
+      setBucketed(grid.bucketed);
+      setClosing(grid.closing);
+      setSavedDraft(JSON.stringify(grid));
+      setLoadedKey(`${termId}:${ageGroup}`);
     } catch (err) {
-      setError(userMessage(err, "Gagal memuat bank narasi."));
-      setBucketed({});
-      setClosing({});
+      if (version !== requestVersion.current) return;
+      setError(userMessage(err, "Gagal memuat bank narasi. Coba lagi."));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [termId, ageGroup]);
 
   useEffect(() => {
     void loadGrid();
+    const requests = requestVersion;
+    return () => { requests.current++; };
   }, [loadGrid]);
 
   const filledCount = useMemo(
@@ -108,8 +126,21 @@ export default function RaportTemplatesPage() {
     [bucketed, closing],
   );
 
+  function switchContext(next: { termId: string; ageGroup: AgeGroup }) {
+    requestVersion.current++;
+    setLoadedKey(null);
+    setTermId(next.termId);
+    setAgeGroup(next.ageGroup);
+  }
+
+  function requestContext(next: { termId: string; ageGroup: AgeGroup }) {
+    if (saving || cloning) return;
+    if (dirty) setPendingContext(next);
+    else switchContext(next);
+  }
+
   async function handleSave() {
-    if (!termId) return;
+    if (!ready || saving || cloning) return;
     setSaving(true);
     try {
       const narratives = BUCKETED_SECTIONS.flatMap((section) =>
@@ -149,7 +180,7 @@ export default function RaportTemplatesPage() {
   }
 
   async function handleClone() {
-    if (!termId || !cloneSourceTermId) return;
+    if (!ready || dirty || saving || cloning || !cloneSourceTermId) return;
     setCloning(true);
     try {
       const res = await fetch("/api/admin/report-cards/templates/clone", {
@@ -188,6 +219,16 @@ export default function RaportTemplatesPage() {
 
   return (
     <>
+      <ConfirmDialog
+        open={pendingContext !== null}
+        onOpenChange={(open) => { if (!open) setPendingContext(null); }}
+        title="Buang perubahan narasi?"
+        description="Perubahan belum disimpan. Tetap di sini untuk menyimpan, atau buang perubahan untuk berpindah."
+        confirmLabel="Buang perubahan"
+        cancelLabel="Tetap di sini"
+        destructive
+        onConfirm={() => { if (pendingContext) switchContext(pendingContext); }}
+      />
       <PageHeader
         title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
@@ -196,9 +237,9 @@ export default function RaportTemplatesPage() {
           // EmptyState below already offers the same "Susun Rapor" CTA, and
           // showing both reads as a duplicate action.
           terms === null || terms.length > 0 ? (
-            <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
+            <GuardedLink href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
               Susun Rapor
-            </Link>
+            </GuardedLink>
           ) : undefined
         }
       />
@@ -211,7 +252,8 @@ export default function RaportTemplatesPage() {
             <NativeSelect
               id="tmpl-term"
               value={termId}
-              onChange={(e) => setTermId(e.target.value)}
+              disabled={saving || cloning}
+              onChange={(e) => requestContext({ termId: e.target.value, ageGroup })}
             >
               {(terms ?? []).map((t) => (
                 <NativeSelectOption key={t.id} value={t.id}>
@@ -225,7 +267,8 @@ export default function RaportTemplatesPage() {
             <NativeSelect
               id="tmpl-age"
               value={ageGroup}
-              onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
+              disabled={saving || cloning}
+              onChange={(e) => requestContext({ termId, ageGroup: e.target.value as AgeGroup })}
             >
               <NativeSelectOption value="A">A (4–5 tahun)</NativeSelectOption>
               <NativeSelectOption value="B">B (5–6 tahun)</NativeSelectOption>
@@ -238,7 +281,7 @@ export default function RaportTemplatesPage() {
               </span>{" "}
               terisi
             </Badge>
-            <Button onClick={handleSave} disabled={saving || loading || !termId}>
+            <Button onClick={handleSave} disabled={!ready || saving || cloning}>
               {saving ? "Menyimpan…" : "Simpan semua"}
             </Button>
           </div>
@@ -272,7 +315,7 @@ export default function RaportTemplatesPage() {
         </div>
       )}
 
-      {!loading && !error && terms !== null && terms.length > 0 && (
+      {ready && terms !== null && terms.length > 0 && (
         <>
           {BUCKETED_SECTIONS.map((section) => (
             <Card key={section}>
@@ -289,6 +332,7 @@ export default function RaportTemplatesPage() {
                       <Textarea
                         id={id}
                         rows={3}
+                        disabled={saving || cloning}
                         value={bucketed[key] ?? ""}
                         placeholder={`Narasi untuk anak dengan capaian "${LEVEL_LABELS[level]}" pada ${SECTION_LABELS[section]}…`}
                         onChange={(e) =>
@@ -315,6 +359,7 @@ export default function RaportTemplatesPage() {
                     <Textarea
                       id={id}
                       rows={3}
+                        disabled={saving || cloning}
                       value={closing[section] ?? ""}
                       placeholder={`${SECTION_LABELS[section]} — berlaku untuk semua anak di kelompok ini…`}
                       onChange={(e) =>
@@ -333,7 +378,7 @@ export default function RaportTemplatesPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Menyalin narasi dari triwulan lain ke triwulan ini. Bagian yang
+                Simpan perubahan sebelum menyalin narasi dari triwulan lain ke triwulan ini. Bagian yang
                 sudah terisi di sini <strong>tidak</strong> akan tertimpa.
               </p>
               <div className="flex flex-wrap items-end gap-4">
@@ -366,7 +411,7 @@ export default function RaportTemplatesPage() {
                 <Button
                   variant="outline"
                   onClick={handleClone}
-                  disabled={cloning || !cloneSourceTermId}
+                  disabled={!ready || dirty || saving || cloning || !cloneSourceTermId}
                 >
                   <Copy className="size-4" />
                   {cloning ? "Menyalin…" : "Salin ke sini"}

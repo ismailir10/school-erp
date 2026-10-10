@@ -55,7 +55,7 @@ function stubFetch() {
     if (url.includes("/api/students?")) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ data: [rowStudent], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }),
+        json: async () => ({ capabilities: { canCreate: true, canEdit: true }, data: [rowStudent], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }),
       } as Response);
     }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response);

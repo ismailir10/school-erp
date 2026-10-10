@@ -32,6 +32,7 @@ export function KesehatanSection({
   persistMetadata,
   getExtraRows,
   onSaved,
+  canEdit,
 }: {
   known: Record<string, string>;
   system: StudentSystemMetadata;
@@ -41,6 +42,7 @@ export function KesehatanSection({
   persistMetadata: (next: { known: Record<string, string>; extra: MetadataExtraRow[] }) => Promise<boolean>;
   getExtraRows: () => MetadataExtraRow[];
   onSaved: () => void;
+  canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(known);
@@ -75,7 +77,7 @@ export function KesehatanSection({
       badge={hasAllergy ? <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">Ada alergi</Badge> : undefined}
       open={open}
       onOpenChange={onOpenChange}
-      actions={
+      actions={canEdit && (
         editing ? (
           <>
             <Button size="sm" variant="outline" onClick={cancelEditing} disabled={saving}>
@@ -89,10 +91,11 @@ export function KesehatanSection({
           <Button size="sm" variant="ghost" onClick={startEditing}>
             <Pencil size={12} className="mr-1" aria-hidden="true" /> Ubah
           </Button>
-        )
+        ))
       }
     >
       <StudentHealthBlock
+        canEdit={canEdit}
         known={editing ? draft : known}
         system={system}
         editing={editing}

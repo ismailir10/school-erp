@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, LogOut, Presentation } from "lucide-react";
 
 import {
@@ -18,6 +18,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -104,6 +105,15 @@ function CollapsibleNavGroup({
 
 export function AppSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
+  const previousPathname = useRef(pathname);
+
+  // Close after navigation commits, so a cancelled dirty-form prompt does
+  // not hide the menu or change the current page. Query-only updates keep it.
+  useEffect(() => {
+    if (pathname !== previousPathname.current) setOpenMobile(false);
+    previousPathname.current = pathname;
+  }, [pathname, setOpenMobile]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
   );

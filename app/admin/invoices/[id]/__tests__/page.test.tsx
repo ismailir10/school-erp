@@ -93,6 +93,7 @@ async function openDialog() {
 
 describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
   afterEach(() => {
+    sessionStorage.clear();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -135,6 +136,7 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
     const [, postInit] = posts(fetchMock)[0];
     expect(JSON.parse((postInit as RequestInit).body as string)).toEqual({
+      idempotencyKey: expect.any(String),
       amount: 600000, // totalDue (1,000,000) - totalPaid (400,000)
       method: "CASH",
       reference: "TRX-001",
@@ -142,6 +144,37 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
       paidAt: TODAY, // FINX-9: defaults to today (Asia/Jakarta)
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pembayaran dicatat"));
+  });
+
+  it("keeps the attempt key after a lost response and starts a fresh key after success", async () => {
+    const fetchMock = fixture();
+    const original = fetchMock.getMockImplementation()!;
+    let loseResponse = true;
+    fetchMock.mockImplementation((input: string, init?: RequestInit) => {
+      if (input.endsWith("/payments") && init?.method === "POST" && loseResponse) {
+        loseResponse = false;
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return original(input, init);
+    });
+    render(<InvoiceDetailPage />);
+    const dialog = await openDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Catat Rp 600.000" }));
+    await within(dialog).findByText(/Hasil pencatatan belum dapat dipastikan/);
+    const body = (index: number) => JSON.parse(posts(fetchMock)[index][1]!.body as string);
+    const firstKey = body(0).idempotencyKey;
+    expect(sessionStorage.getItem("manual-payment-attempt:inv-1")).toBe(firstKey);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Catat Rp 600.000" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(body(1).idempotencyKey).toBe(firstKey);
+    expect(sessionStorage.getItem("manual-payment-attempt:inv-1")).toBeNull();
+    const next = await openDialog();
+    fireEvent.click(within(next).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(next).findByRole("button", { name: "Catat Rp 600.000" }));
+    await waitFor(() => expect(posts(fetchMock)).toHaveLength(3));
+    expect(body(2).idempotencyKey).not.toBe(firstKey);
   });
 
   it("FINX-9: 'Tanggal bayar' defaults to today, caps at today, and a back-dated choice reaches the review and the POST", async () => {

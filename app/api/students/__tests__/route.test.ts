@@ -66,7 +66,7 @@ function adminSession(): Session {
     name: "A",
     employeeId: null,
     parentId: null,
-    permissions: [],
+    permissions: ["students.create", "students.edit"],
     customRoleCode: null,
   };
 }
@@ -268,5 +268,19 @@ describe("POST /api/students — duplicate guards (ADM-2)", () => {
     const res = await POST(postReq({ name: "Aisyah" }) as never);
     expect(res.status).toBe(201);
     expect(state.findFirstCalls).toHaveLength(0);
+  });
+});
+
+
+describe("student list permission capabilities", () => {
+  it.each([
+    [["students.view"], { canCreate: false, canEdit: false }],
+    [["students.view", "students.create"], { canCreate: true, canEdit: false }],
+    [["students.view", "students.edit"], { canCreate: false, canEdit: true }],
+  ])("returns only the granted actions for custom SCHOOL_ADMIN permissions %j", async (permissions, capabilities) => {
+    state.session = { ...adminSession(), permissions, customRoleCode: "synthetic-custom" };
+    const res = await GET(new Request("http://localhost/api/students") as never);
+    expect(res.status).toBe(200);
+    expect((await res.json()).capabilities).toEqual(capabilities);
   });
 });

@@ -9,7 +9,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 const tx = vi.hoisted(() => ({
   $executeRaw: vi.fn(),
   invoice: { findUnique: vi.fn(), update: vi.fn() },
-  payment: { create: vi.fn(), findMany: vi.fn() },
+  payment: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
   auditLog: { create: vi.fn() },
 }));
 const db = vi.hoisted(() => ({ invoice: { findFirst: vi.fn() }, $transaction: vi.fn() }));
@@ -62,6 +62,7 @@ beforeEach(() => {
   db.invoice.findFirst.mockResolvedValue({ id: "inv-1" });
   db.$transaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx));
   tx.invoice.findUnique.mockResolvedValue(invoice());
+  tx.payment.findFirst.mockResolvedValue(null);
   tx.payment.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "pay-9", ...data }));
 });
 
@@ -155,5 +156,38 @@ describe("POST /api/invoices/[id]/payments — transaction", () => {
     const body = await res.json();
     expect(body.errors[0].field).toBe("method");
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("manual payment retry identity", () => {
+  const key = "af9699cd-4451-4a74-9893-a04d74a91c01";
+  it("replays a committed payment even when it settled the invoice, without another write", async () => {
+    tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(1_000_000) }]);
+    const body = { amount: 600_000, method: "CASH", idempotencyKey: key };
+    const first = await POST(req(body), ctx);
+    const saved = await first.json();
+    tx.payment.findFirst.mockResolvedValue(saved);
+    tx.invoice.findUnique.mockResolvedValue(invoice({ status: "PAID" }));
+    const retry = await POST(req(body), ctx);
+    expect(retry.status).toBe(200);
+    expect((await retry.json()).id).toBe(saved.id);
+    expect(tx.payment.create).toHaveBeenCalledTimes(1);
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+  it("rejects a reused identity with changed amount", async () => {
+    tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+    const first = await POST(req({ amount: 100_000, method: "CASH", idempotencyKey: key }), ctx);
+    tx.payment.findFirst.mockResolvedValue(await first.json());
+    const retry = await POST(req({ amount: 200_000, method: "CASH", idempotencyKey: key }), ctx);
+    expect(retry.status).toBe(409);
+    expect(tx.payment.create).toHaveBeenCalledTimes(1);
+  });
+  it("allows a genuinely separate payment with a different identity", async () => {
+    tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+    await POST(req({ amount: 100_000, method: "CASH", idempotencyKey: key }), ctx);
+    const second = await POST(req({ amount: 100_000, method: "CASH", idempotencyKey: "af9699cd-4451-4a74-9893-a04d74a91c02" }), ctx);
+    expect(second.status).toBe(201);
+    expect(tx.payment.create).toHaveBeenCalledTimes(2);
   });
 });

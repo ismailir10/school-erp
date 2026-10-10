@@ -27,6 +27,7 @@ export type Enrollment = {
 };
 
 export type Student = {
+  canEdit: boolean;
   id: string;
   name: string;
   nickname: string | null;

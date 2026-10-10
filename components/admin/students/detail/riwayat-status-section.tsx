@@ -82,7 +82,7 @@ export function RiwayatStatusSection({
             <div className="sm:col-span-2">
               <div className="mb-1 flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">Alasan Keluar</p>
-                {!editing && (
+                {student.canEdit === true && !editing && (
                   <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={startEditing}>
                     <Pencil size={11} className="mr-1" aria-hidden="true" /> Ubah
                   </Button>

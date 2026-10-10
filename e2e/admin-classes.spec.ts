@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { test, expect, type APIResponse } from "@playwright/test";
 
 // E2E coverage for the consolidated /admin/classes surface (cycle:
 // 2026-05-19-kelas-page). Demo-mode session cookie auth matches the
@@ -142,53 +143,78 @@ test.describe("Admin /admin/classes", () => {
     );
   });
 
-  test("enrollment add then remove round-trip", async ({ page }) => {
-    const classes = await page.request
-      .get("/api/admin/classes?pageSize=5")
-      .then((r) => (r.ok() ? r.json() : null));
-    const klass = classes?.data?.[0];
-    if (!klass) {
-      test.skip(true, "Demo seed has no class to roster");
-      return;
+  test("enrollment add then remove round-trip", async ({ page }, testInfo) => {
+    // Never sample existing students/classes: the first class can be archived
+    // or full, and an arbitrary student can already have this year's placement.
+    // Every response is attached so a rejected request cannot turn into a skip.
+    async function checked(label: string, response: APIResponse, status = 200) {
+      const body = await response.text();
+      await testInfo.attach(label, {
+        body: JSON.stringify({ status: response.status(), body }, null, 2),
+        contentType: "application/json",
+      });
+      expect(response.status(), `${label}: HTTP ${response.status()} ${body}`).toBe(status);
+      return JSON.parse(body);
     }
+    const campuses = await checked("campus references", await page.request.get("/api/config/campuses?status=ACTIVE"));
+    const programs = await checked("program references", await page.request.get("/api/programs"));
+    const years = await checked("academic year references", await page.request.get("/api/academic-years"));
+    const campusList = Array.isArray(campuses) ? campuses : campuses.data ?? [];
+    const programList = Array.isArray(programs) ? programs : programs.data ?? [];
+    const yearList = Array.isArray(years) ? years : years.data ?? [];
+    const campus = campusList.find((c: { status: string }) => c.status === "ACTIVE");
+    const program = programList.find((p: { status: string }) => p.status === "ACTIVE");
+    const year = yearList.find((y: { status: string }) => y.status === "ACTIVE");
+    expect(campus, "Enrollment fixture requires an active campus; see campus references attachment").toBeTruthy();
+    expect(program, "Enrollment fixture requires an active program; see program references attachment").toBeTruthy();
+    expect(year, "Enrollment fixture requires an active academic year; see academic year references attachment").toBeTruthy();
 
-    // Find a student not currently enrolled in this class's year.
-    const students = await page.request
-      .get("/api/students?status=ACTIVE&pageSize=100")
-      .then((r) => (r.ok() ? r.json() : null));
-    const studentList = students?.data ?? students ?? [];
-    if (studentList.length === 0) {
-      test.skip(true, "Demo seed has no students");
-      return;
-    }
+    // Put the new child inside the selected program's age band at year start.
+    const ageMonths = program.ageMin != null && program.ageMax != null
+      ? Math.floor((program.ageMin + program.ageMax) / 2)
+      : program.ageMin ?? program.ageMax ?? 48;
+    const birthDate = new Date(`${year.startDate}T00:00:00Z`);
+    birthDate.setUTCDate(1);
+    birthDate.setUTCMonth(birthDate.getUTCMonth() - ageMonths);
+    const suffix = randomUUID().slice(0, 8);
+    let classId: string | undefined;
+    let studentId: string | undefined;
+    let enrolled = false;
+    try {
+      const klass = await checked("create isolated class", await page.request.post("/api/admin/classes", {
+        data: { campusId: campus.id, programId: program.id, academicYearId: year.id,
+          name: `E2E Enrollment ${suffix}`, ageGroup: "A", capacity: 2, slotTemplate: "FULL_DAY" },
+      }), 201);
+      classId = klass.id;
+      const student = await checked("create eligible student", await page.request.post("/api/students", {
+        data: { name: `E2E Enrollment Student ${suffix}`, dateOfBirth: birthDate.toISOString().slice(0, 10), status: "ACTIVE" },
+      }), 201);
+      studentId = student.id;
+      const emptyClass = await checked("isolated class starts empty", await page.request.get(`/api/admin/classes/${classId}`));
+      expect(emptyClass.enrolledCount).toBe(0);
+      expect(emptyClass.capacity).toBe(2);
 
-    // Try each student until one accepts the enroll (most have an existing
-    // ACTIVE enrollment in the seeded year). Stop on first 201.
-    let enrolledStudentId: string | null = null;
-    let enrollmentId: string | null = null;
-    for (const s of studentList.slice(0, 20)) {
-      const r = await page.request.post(
-        `/api/admin/classes/${klass.id}/enrollments`,
-        { data: { studentId: s.id } },
-      );
-      if (r.status() === 201) {
-        const j = await r.json();
-        enrolledStudentId = s.id;
-        enrollmentId = j.id;
-        break;
+      const enrollment = await checked("enroll eligible student", await page.request.post(`/api/admin/classes/${classId}/enrollments`, {
+        data: { studentId },
+      }), 201);
+      enrolled = true;
+      expect(enrollment.id).toBeTruthy();
+      const populated = await checked("read populated roster", await page.request.get(`/api/admin/classes/${classId}`));
+      expect(populated.enrolledCount).toBe(1);
+      expect(populated.enrollments).toEqual(expect.arrayContaining([expect.objectContaining({ student: expect.objectContaining({ id: studentId }) })]));
+
+      await checked("remove enrollment", await page.request.delete(`/api/admin/classes/${classId}/enrollments?studentId=${studentId}`));
+      enrolled = false;
+      const emptyAgain = await checked("read roster after removal", await page.request.get(`/api/admin/classes/${classId}`));
+      expect(emptyAgain.enrolledCount).toBe(0);
+      expect(emptyAgain.enrollments).toEqual([]);
+    } finally {
+      if (enrolled && classId && studentId) {
+        await checked("cleanup remaining enrollment", await page.request.delete(`/api/admin/classes/${classId}/enrollments?studentId=${studentId}`));
       }
+      if (studentId) await checked("deactivate fixture student", await page.request.put(`/api/students/${studentId}`, { data: { status: "INACTIVE" } }));
+      if (classId) await checked("deactivate fixture class", await page.request.delete(`/api/admin/classes/${classId}`));
     }
-    if (!enrolledStudentId) {
-      test.skip(true, "All sample students already enrolled this year");
-      return;
-    }
-    expect(enrollmentId).toBeTruthy();
-
-    // Cleanup — remove
-    const del = await page.request.delete(
-      `/api/admin/classes/${klass.id}/enrollments?studentId=${enrolledStudentId}`,
-    );
-    expect(del.ok()).toBeTruthy();
   });
 
   test("detail page renders with roster, teachers, calendar", async ({

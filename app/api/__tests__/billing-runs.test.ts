@@ -615,3 +615,16 @@ describe("PATCH /api/billing-runs/[id] — cancel", () => {
     expect(prisma.billingRun.update).not.toHaveBeenCalled();
   });
 });
+
+
+it("GET unfinished includes interrupted runs and remains tenant-scoped", async () => {
+  await primeAdminSession();
+  const { prisma } = await import("@/lib/db");
+  vi.mocked(prisma.billingRun.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.billingRun.count).mockResolvedValue(0);
+  const res = await listRuns(makeReq("http://localhost/api/billing-runs?unfinished=true") as never);
+  expect(res.status).toBe(200);
+  expect(prisma.billingRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: { tenantId: "tnt-1", status: { in: ["DRAFT", "COMMITTING"] } },
+  }));
+});

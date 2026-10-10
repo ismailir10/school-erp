@@ -197,3 +197,46 @@ describe("step 1 — due date follows the typed period", () => {
     expect(defaultDueDateForPeriod("Semester 1")).toBeNull();
   });
 });
+
+it("finishes an interrupted run whose invoices all committed before its status was saved", async () => {
+  const onCommitted = vi.fn();
+  const rows = [row("r-done", "Siswa contoh", 500000, { status: "COMMITTED", invoiceId: "inv-done" })];
+  const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") return { ok: true, json: async () => ({ created: 0, skipped: 1, results: [] }) } as Response;
+    return { ok: true, json: async () => ({ ...runPayload(rows), status: "COMMITTING" }) } as Response;
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<CommitStep runId="run-1" onClose={vi.fn()} onCommitted={onCommitted} onRebuilt={vi.fn()} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Selesai" }));
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith("/api/billing-runs/run-1/commit", expect.objectContaining({
+    method: "POST", body: JSON.stringify({ rowIds: ["r-done"] }),
+  })));
+  expect(onCommitted).toHaveBeenCalledTimes(1);
+});
+
+it.each(["lost-response", "finished-in-another-request"])("confirms persisted completion after %s", async (scenario) => {
+  const onCommitted = vi.fn();
+  const rows = [row("r-done", "Siswa contoh", 500000, { status: "COMMITTED", invoiceId: "inv-done" })];
+  let posts = 0;
+  let reads = 0;
+  vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      posts++;
+      if (scenario === "lost-response" && posts === 1) throw new TypeError("response lost after commit");
+      return { ok: false, status: 409, json: async () => ({ error: "Run tagihan tidak lagi bisa dikomit" }) } as Response;
+    }
+    reads++;
+    // First load sees unfinished status. Simulate connection still down when
+    // checking the first lost response, then recovered on explicit retry.
+    if (scenario === "lost-response" && reads === 2) throw new TypeError("offline");
+    return { ok: true, json: async () => ({ ...runPayload(rows), status: reads === 1 ? "COMMITTING" : "COMMITTED" }) } as Response;
+  }));
+  render(<CommitStep runId="run-1" onClose={vi.fn()} onCommitted={onCommitted} onRebuilt={vi.fn()} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Selesai" }));
+  if (scenario === "lost-response") {
+    expect(await screen.findByText("Status pembuatan tagihan belum tersimpan. Coba Selesai lagi.")).toBeInTheDocument();
+    expect(onCommitted).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Selesai" }));
+  }
+  await waitFor(() => expect(onCommitted).toHaveBeenCalledTimes(1));
+});

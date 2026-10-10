@@ -279,7 +279,7 @@ function adminSession() {
     name: "Admin",
     employeeId: null,
     parentId: null,
-    permissions: ["invoices.create"] as string[],
+    permissions: ["invoices.create", "students.edit"] as string[],
     customRoleCode: null,
   };
 }

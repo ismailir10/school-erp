@@ -69,12 +69,13 @@ test.describe("Admin curriculum", () => {
       timeout: 15_000,
     });
     const semRes = await page.request.get(
-      "/api/admin/curriculum/semesters?pageSize=1",
+      "/api/admin/curriculum/semesters?status=ACTIVE&pageSize=1",
     );
     expect(semRes.ok()).toBeTruthy();
     const semJson = (await semRes.json()) as {
-      data?: Array<{ academicYear?: { name?: string } }>;
+      data?: Array<{ status: string; academicYear?: { name?: string } }>;
     };
+    expect(semJson.data?.[0]?.status).toBe("ACTIVE");
     const academicYearName = semJson.data?.[0]?.academicYear?.name;
     expect(academicYearName).toBeTruthy();
     if (!academicYearName) throw new Error("No semester academic year found");

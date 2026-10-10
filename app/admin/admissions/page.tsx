@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { StatCard } from "@/components/admin/stat-card";
@@ -43,6 +44,23 @@ type Pagination = {
   totalPages: number;
 };
 
+function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { keepRef.current?.focus(); }, []);
+  return (
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div role="alert" className="text-sm">
+        <p className="font-medium">Buang perubahan?</p>
+        <p className="text-muted-foreground">Data yang belum disimpan akan hilang.</p>
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Button type="button" ref={keepRef} variant="ghost" onClick={onKeep}>Lanjut mengisi</Button>
+        <Button type="button" variant="destructive" onClick={onDiscard}>Buang perubahan</Button>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------
 // Page (owns list state, fetching, stats, dialogs' open state + handlers;
 // columns + form body + convert dialog live in components/admin/admissions/*)
@@ -59,6 +77,8 @@ export default function AdmissionsPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequestId = useRef(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
@@ -102,6 +122,35 @@ export default function AdmissionsPage() {
   const [duplicatePending, setDuplicatePending] = useState(false);
   const admissionFormId = useId();
   const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
+  const dirty = form.formState.isDirty;
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const draftFocus = useRef<HTMLElement | null>(null);
+
+  function keepDraft() {
+    setDiscardOpen(false);
+    // Restore after the popup's focus manager handles the removed footer.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (draftFocus.current?.isConnected) draftFocus.current.focus();
+      else document.getElementById(admissionFormId)?.querySelector<HTMLElement>("input, textarea, button")?.focus();
+    }));
+  }
+
+  function closeForm() {
+    setDiscardOpen(false);
+    setDialogOpen(false);
+    setEditingAdmission(null);
+    form.reset(EMPTY_ADMISSION_FORM);
+  }
+
+  function requestFormClose() {
+    if (form.formState.isSubmitting) return;
+    if (discardOpen) { keepDraft(); return; }
+    if (dirty) {
+      const active = document.activeElement;
+      draftFocus.current = active instanceof HTMLElement && document.getElementById(admissionFormId)?.contains(active) ? active : null;
+      setDiscardOpen(true);
+    } else closeForm();
+  }
 
   // Fetch programs + campuses once. Campuses cached for 1 h server-side
   // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
@@ -117,7 +166,9 @@ export default function AdmissionsPage() {
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
+    const requestId = ++listRequestId.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -129,19 +180,22 @@ export default function AdmissionsPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const res = await fetch(`/api/admissions?${params}`);
+      if (!res.ok) throw new Error("Admissions read failed");
       const json = await res.json();
+      if (requestId !== listRequestId.current) return;
       setData(json.data ?? []);
       setCanEdit(json.canEdit === true);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data pendaftaran");
+      if (requestId === listRequestId.current) setLoadError(true);
     } finally {
-      setLoading(false);
+      if (requestId === listRequestId.current) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchAdmissions();
+    return () => { listRequestId.current += 1; };
   }, [fetchAdmissions]);
 
   // ------------------------------------------------------------------
@@ -275,13 +329,13 @@ export default function AdmissionsPage() {
   }, [runConvert]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    if (discardOpen) return;
     const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
     const method = editingAdmission ? "PUT" : "POST";
     try {
       await sendJson(url, { method, body: values }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
-      setDialogOpen(false);
-      setEditingAdmission(null);
+      closeForm();
       fetchAdmissions(); fetchStats();
     } catch (err) {
       applyServerErrors(form, err, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
@@ -322,6 +376,7 @@ export default function AdmissionsPage() {
   }
 
   function openDialog() {
+    setDiscardOpen(false);
     setEditingAdmission(null);
     form.reset(EMPTY_ADMISSION_FORM);
     setDialogOpen(true);
@@ -331,6 +386,7 @@ export default function AdmissionsPage() {
   // `form.reset` is stable across renders (react-hook-form), as are the
   // `setState` setters, so this only changes identity if `form` itself does.
   const handleEditRow = useCallback((a: Admission) => {
+    setDiscardOpen(false);
     setEditingAdmission(a);
     form.reset({
       childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
@@ -413,7 +469,16 @@ export default function AdmissionsPage() {
         ]}
       />
 
-      <DataTable
+      {loadError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>
+          <p>Gagal memuat data pendaftaran. Coba lagi.</p>
+          {data.length > 0 && <p className="mt-1 text-muted-foreground">Daftar terakhir masih ditampilkan dan belum diperbarui.</p>}
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void fetchAdmissions()}>Coba lagi</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {(!loadError || data.length > 0) && <DataTable
         columns={columns}
         data={data}
         pagination={pagination}
@@ -422,21 +487,22 @@ export default function AdmissionsPage() {
         onSortChange={handleSortChange}
         defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
+        isFiltered={!!search.trim() || statusFilter !== "all"}
         emptyTitle="Tidak ada pendaftaran"
         emptyDescription="Catat pertanyaan baru ketika orang tua menghubungi sekolah"
-      />
+      />}
 
       {/* Add/Edit Admission — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
       <ResponsiveFormDialog
         open={dialogOpen}
-        onOpenChange={(open) => { if (!form.formState.isSubmitting) setDialogOpen(open); }}
+        onOpenChange={(open) => { if (!open) requestFormClose(); }}
         title={editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}
         size="xl"
         footer={
-          <FormDialogFooter
+          discardOpen ? <DiscardAdmissionFooter onKeep={keepDraft} onDiscard={closeForm} /> : <FormDialogFooter
             formId={admissionFormId}
             pending={form.formState.isSubmitting}
-            onCancel={() => setDialogOpen(false)}
+            onCancel={requestFormClose}
             submitLabel={editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
           />
         }

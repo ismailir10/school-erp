@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
@@ -91,7 +92,10 @@ export async function GET(req: NextRequest) {
     prisma.student.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(students, total, page, pageSize));
+  return NextResponse.json({
+    ...paginatedResponse(students, total, page, pageSize),
+    capabilities: { canCreate: hasPermission(session, "students.create"), canEdit: hasPermission(session, "students.edit") },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -101,6 +105,9 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.create")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.create" }, { status: 403 });
   }
 
   const rawBody = await req.json();
@@ -192,7 +199,9 @@ export async function POST(req: NextRequest) {
           return prisma.parent.upsert({
             where: { tenantId_email: { tenantId, email } },
             create: { tenantId, name: g.name, email, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
-            update: { name: g.name, phone: g.phone ?? null, whatsapp: g.whatsapp ?? null },
+            // Adding a child links the existing household. Contact edits belong
+            // in the guardian editor, where students.edit is enforced.
+            update: {},
           });
         }
         return prisma.parent.create({

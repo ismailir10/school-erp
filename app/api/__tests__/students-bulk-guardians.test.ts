@@ -175,3 +175,32 @@ describe("POST /api/students — bulk guardian invariants", () => {
     expect(prisma.student.create).not.toHaveBeenCalled();
   });
 });
+
+
+describe("new student links an existing household without overwriting it", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it.each(["SCHOOL_ADMIN", "SUPER_ADMIN"] as const)("preserves existing guardian details for %s", async role => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue({ ...makeSession(), role, permissions: ["students.create"] });
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.student.create).mockResolvedValue({ id: "synthetic-new-child" } as never);
+    const household = { id: "synthetic-household", name: "Saved guardian", phone: "0811111111", whatsapp: "0822222222" };
+    const saved = { ...household };
+    vi.mocked(prisma.parent.upsert).mockImplementation(args => {
+      Object.assign(saved, args.update);
+      // The route only awaits this result; the mock does not expose Prisma fluent methods.
+      return Promise.resolve(saved) as never;
+    });
+    vi.mocked(prisma.studentGuardian.createMany).mockResolvedValue({ count: 1 } as never);
+    const { POST } = await import("../students/route");
+    const res = await POST(makeReq({ name: "Synthetic New Child", guardians: [
+      { name: "Mistyped name", email: "saved@example.test", relationship: "IBU" },
+    ] }) as never);
+    expect(res.status).toBe(201);
+    expect(saved).toEqual(household);
+    expect(prisma.studentGuardian.createMany).toHaveBeenCalledWith({ data: [
+      { studentId: "synthetic-new-child", parentId: "synthetic-household", relationship: "IBU", isPrimary: true },
+    ] });
+  });
+});
