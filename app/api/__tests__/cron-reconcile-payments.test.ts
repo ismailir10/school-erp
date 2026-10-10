@@ -2,17 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 process.env.CRON_SECRET = "test-cron-secret";
 
-const { findManyMock, reconcileMock } = vi.hoisted(() => ({
+const { findManyMock, reconcileMock, feeFindManyMock, reconcileFeeMock } = vi.hoisted(() => ({
   findManyMock: vi.fn(),
   reconcileMock: vi.fn(),
+  feeFindManyMock: vi.fn(),
+  reconcileFeeMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { invoice: { findMany: findManyMock } },
+  prisma: { invoice: { findMany: findManyMock }, enrollmentFee: { findMany: feeFindManyMock } },
 }));
 
 vi.mock("@/lib/payments/reconcile", () => ({
   reconcileInvoicePayment: reconcileMock,
+  reconcileEnrollmentFee: reconcileFeeMock,
 }));
 
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
@@ -35,6 +38,8 @@ beforeEach(() => {
   process.env.CRON_SECRET = "test-cron-secret";
   findManyMock.mockResolvedValue([]);
   reconcileMock.mockResolvedValue({ code: "NO_CHANGE" });
+  feeFindManyMock.mockResolvedValue([]);
+  reconcileFeeMock.mockResolvedValue({ code: "NO_CHANGE" });
 });
 
 describe("POST /api/cron/reconcile-payments — auth", () => {
@@ -153,5 +158,47 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
     expect(res.status).toBe(200);
     expect(reconcileMock).not.toHaveBeenCalled();
     expect(body).toMatchObject({ scanned: 0, updated: 0, cappedAtLimit: false });
+  });
+});
+
+describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
+  it("only polls UNPAID fees that already hold a payment link, least recently checked first, capped", async () => {
+    await POST(makeReq(authed));
+
+    const arg = feeFindManyMock.mock.calls[0][0];
+    expect(arg.where).toEqual({ status: "UNPAID", paymentUrl: { not: null } });
+    // Never-checked fees lead, so a fee that stays unresolved cannot crowd newer
+    // ones out of the cap run after run.
+    expect(arg.orderBy).toEqual({ lastCheckedAt: { sort: "asc", nulls: "first" } });
+    expect(arg.take).toBe(100);
+  });
+
+  it("reconciles each fee and reports the ones credited, apart from the invoice tally", async () => {
+    feeFindManyMock.mockResolvedValue([{ id: "fee-1" }, { id: "fee-2" }]);
+    reconcileFeeMock.mockResolvedValueOnce({ code: "UPDATED" }).mockResolvedValueOnce({ code: "NO_CHANGE" });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const body = await (await POST(makeReq(authed))).json();
+
+    expect(reconcileFeeMock.mock.calls.map((c) => c[0])).toEqual(["fee-1", "fee-2"]);
+    expect(body.enrollmentFees).toMatchObject({ scanned: 2, updated: 1, tally: { UPDATED: 1, NO_CHANGE: 1 } });
+    // Invoices were untouched.
+    expect(body).toMatchObject({ scanned: 0, updated: 0 });
+    warnSpy.mockRestore();
+  });
+
+  it("one failing fee never aborts the sweep", async () => {
+    feeFindManyMock.mockResolvedValue([{ id: "fee-1" }, { id: "fee-2" }]);
+    reconcileFeeMock.mockRejectedValueOnce(new Error("gateway exploded")).mockResolvedValueOnce({ code: "UPDATED" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await POST(makeReq(authed));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.enrollmentFees.tally).toEqual({ GATEWAY_ERROR: 1, UPDATED: 1 });
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });

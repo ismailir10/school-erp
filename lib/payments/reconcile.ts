@@ -357,3 +357,145 @@ export async function reconcileInvoicePayment(
       : "Tidak ada perubahan status. Cek panel Aktivitas untuk detail.",
   };
 }
+
+/**
+ * Poll the gateway for a pendaftaran fee and reconcile it — the pull path for
+ * a parent who has no login and cannot press "Perbarui pembayaran", and for the
+ * daily sweep. Same rule as `reconcileInvoicePayment`: no state change of its
+ * own, everything goes through `processPaymentEvent`, so the lock, the dedup,
+ * the amount-must-equal-fee check and idempotency apply verbatim.
+ *
+ * `minIntervalMs` throttles callers a stranger can trigger (the public return
+ * page): a fee checked more recently than that answers NO_CHANGE without
+ * touching the gateway, so one open tab cannot be turned into a request flood.
+ * Pass 0 (staff, cron) to always poll.
+ *
+ * The caller authorises the fee (token row or staff session + tenant).
+ */
+export async function reconcileEnrollmentFee(
+  feeId: string,
+  opts: { minIntervalMs?: number; now?: Date } = {},
+): Promise<ReconcileResult> {
+  const gateway = getGateway();
+  const provider = gateway.id;
+  const now = opts.now ?? new Date();
+  const minIntervalMs = opts.minIntervalMs ?? 0;
+
+  const before = await prisma.enrollmentFee.findUnique({
+    where: { id: feeId },
+    select: { id: true, status: true, gatewaySessionId: true, paymentUrl: true, lastCheckedAt: true },
+  });
+  const none = (code: ReconcileCode, message: string, status: string | null): ReconcileResult => ({
+    code,
+    message,
+    provider,
+    gatewayStatus: null,
+    statusBefore: status,
+    statusAfter: status,
+  });
+  if (!before) return none("NOT_FOUND", "Biaya pendaftaran tidak ditemukan.", null);
+  if (before.status === "PAID" || before.status === "WAIVED") {
+    return none("ALREADY_PAID", "Biaya pendaftaran sudah selesai — tidak ada perubahan.", before.status);
+  }
+  // No link was ever issued, so the gateway has nothing to report.
+  if (!before.paymentUrl) {
+    return none("NO_CHANGE", "Pembayaran belum dimulai.", before.status);
+  }
+  if (
+    minIntervalMs > 0 &&
+    before.lastCheckedAt &&
+    now.getTime() - before.lastCheckedAt.getTime() < minIntervalMs
+  ) {
+    return none("NO_CHANGE", "Baru saja diperiksa.", before.status);
+  }
+
+  // Stamp BEFORE the network call so concurrent loads of the same page do not
+  // each poll; a failed poll is simply retried after the interval.
+  await prisma.enrollmentFee.update({ where: { id: feeId }, data: { lastCheckedAt: now } });
+
+  let status: GatewayPaymentStatus;
+  try {
+    status = await gateway.fetchPaymentStatus({ invoiceId: before.id, sessionId: before.gatewaySessionId });
+  } catch (err) {
+    console.error(
+      `[ENROLLMENT FEE REFRESH] provider=${provider} fee=${before.id} lookup failed:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return none(
+      "GATEWAY_ERROR",
+      err instanceof GatewayApiError ? gatewayErrorMessage(err) : "Gagal memeriksa status ke gateway. Coba lagi sebentar.",
+      before.status,
+    );
+  }
+
+  if (status.state === "UNAVAILABLE") {
+    return none("UNAVAILABLE", unavailableMessage(status.unavailableReason), before.status);
+  }
+
+  const dispatch = kindForState(status);
+  if (!dispatch) {
+    return {
+      ...none("NO_CHANGE", status.state === "FAILED" ? "Percobaan pembayaran terakhir gagal." : "Belum ada pembayaran masuk.", before.status),
+      gatewayStatus: status.rawStatus,
+    };
+  }
+
+  // A fee is re-issued a fresh session after each expiry, all under the same
+  // reference. An expiry has no payment id, so key it on the session instead;
+  // otherwise the SECOND session's expiry would hit the first one's dedup row
+  // and never clear its link.
+  const eventId = buildManualEventId(provider, before.id, status.state, status.paymentId ?? before.gatewaySessionId);
+  const { body } = await processPaymentEvent({
+    provider,
+    eventId,
+    eventType: `manual.refresh.${status.state.toLowerCase()}`,
+    kind: dispatch.kind,
+    referenceId: before.id,
+    sessionId: before.gatewaySessionId,
+    paymentId: status.paymentId,
+    amount: status.amount,
+    currency: status.currency,
+    channelCode: status.channelCode,
+    rawPayload: {
+      source: "manual-refresh",
+      provider,
+      enrollmentFeeId: before.id,
+      gatewayStatus: status.rawStatus,
+      gatewayResponse: status.raw,
+    },
+    ignoreReason: dispatch.ignoreReason,
+  });
+  const outcome = (body ?? {}) as { status?: string; duplicate?: boolean };
+
+  const after = await prisma.enrollmentFee.findUnique({ where: { id: feeId }, select: { status: true } });
+  const statusAfter = after?.status ?? before.status;
+  const base = {
+    provider,
+    gatewayStatus: status.rawStatus,
+    statusBefore: before.status,
+    statusAfter,
+    processorStatus: outcome.status,
+    duplicate: outcome.duplicate,
+  };
+  console.info("[ENROLLMENT FEE REFRESH]", { provider, feeId: before.id, statusBefore: before.status, statusAfter, eventId, processorStatus: outcome.status });
+
+  if (statusAfter !== before.status) {
+    return {
+      ...base,
+      code: "UPDATED",
+      message:
+        statusAfter === "PAID"
+          ? "Pembayaran ditemukan di gateway — biaya pendaftaran ditandai LUNAS."
+          : "Status biaya pendaftaran diperbarui.",
+    };
+  }
+  if (status.state === "REFUNDED" || outcome.status === "REFUND_UNHANDLED") {
+    return { ...base, code: "NO_CHANGE", message: "Gateway melaporkan pengembalian dana (refund). Perlu ditangani manual." };
+  }
+  // SESSION_EXPIRED reverts the stored link without changing the status.
+  if (status.state === "EXPIRED") {
+    return { ...base, code: "NO_CHANGE", message: "Sesi pembayaran sudah kedaluwarsa. Buat tautan baru." };
+  }
+  // A guard rejected it (amount mismatch, missing payment id, non-IDR): staff see the ERROR row.
+  return { ...base, code: "NO_CHANGE", message: "Tidak ada perubahan status. Cek panel Aktivitas untuk detail." };
+}

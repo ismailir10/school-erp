@@ -747,10 +747,11 @@ model EnrollmentFee {
   discountReason   String?
   amount           Decimal   @db.Decimal(15, 2) // final amount due after discount
   status           String    @default("UNPAID") // UNPAID | PAID | WAIVED
-  method           String? // DOKU | CASH | BANK_TRANSFER | WAIVED
+  method           String? // DOKU | XENDIT (gateway) | CASH | BANK_TRANSFER | WAIVED (staff)
   paymentId        String?   @unique // gateway idempotency key
   gatewaySessionId String?
   paymentUrl       String?
+  sessionExpiresAt DateTime? // when the stored paymentUrl stops working; reuse it until then
   linkError        String?
   lastCheckedAt    DateTime? // throttles public gateway polling
   paidAt           DateTime?

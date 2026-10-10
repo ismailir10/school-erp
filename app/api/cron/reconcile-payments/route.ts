@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { limit } from "@/lib/finance/concurrency-limit";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
-import { reconcileInvoicePayment } from "@/lib/payments/reconcile";
+import { reconcileEnrollmentFee, reconcileInvoicePayment } from "@/lib/payments/reconcile";
 
 /**
  * Daily payment reconciliation sweep — the safety net for a gateway
@@ -73,6 +73,12 @@ const MAX_PER_RUN = 200;
 /** Concurrent gateway polls. Matches the bulk link-generation limiter. */
 const CONCURRENCY = 5;
 
+/**
+ * Cap for pendaftaran fees per run. Far fewer than invoices (one per applicant,
+ * only while UNPAID and holding a link), least recently checked first.
+ */
+const MAX_FEES_PER_RUN = 100;
+
 export async function POST(req: NextRequest) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
@@ -122,7 +128,39 @@ export async function POST(req: NextRequest) {
     ),
   );
 
+  // Pendaftaran fees (cycle 2026-10-10-pendaftaran-fee-payment): a parent pays
+  // with no login, so nobody presses "Perbarui pembayaran" for them. Same
+  // read-only poll through the shared processor, own cap, own tally.
+  const feeCandidates = await prisma.enrollmentFee.findMany({
+    where: { status: "UNPAID", paymentUrl: { not: null } },
+    select: { id: true },
+    // Least recently checked first (never-checked leading), so a fee that stays
+    // unresolved cannot crowd newer ones out of the cap run after run.
+    orderBy: { lastCheckedAt: { sort: "asc", nulls: "first" } },
+    take: MAX_FEES_PER_RUN,
+  });
+  const feeResults = await Promise.all(
+    feeCandidates.map((fee) =>
+      run(async () => {
+        try {
+          const result = await reconcileEnrollmentFee(fee.id);
+          return result.code;
+        } catch (err) {
+          console.error("[CRON RECONCILE] Enrollment fee failed", {
+            feeId: fee.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return "GATEWAY_ERROR" as const;
+        }
+      }),
+    ),
+  );
+
   const tally = results.reduce<Record<string, number>>((acc, code) => {
+    acc[code] = (acc[code] ?? 0) + 1;
+    return acc;
+  }, {});
+  const feeTally = feeResults.reduce<Record<string, number>>((acc, code) => {
     acc[code] = (acc[code] ?? 0) + 1;
     return acc;
   }, {});
@@ -130,10 +168,13 @@ export async function POST(req: NextRequest) {
   // `updated` is the number that matters: each one is a payment the gateway
   // had taken and Talib did not know about.
   const updated = tally.UPDATED ?? 0;
-  if (updated > 0) {
+  const feesUpdated = feeTally.UPDATED ?? 0;
+  if (updated > 0 || feesUpdated > 0) {
     console.warn("[CRON RECONCILE] Credited payments the webhook never delivered", {
       updated,
+      feesUpdated,
       scanned: candidates.length,
+      feesScanned: feeCandidates.length,
     });
   }
 
@@ -145,6 +186,12 @@ export async function POST(req: NextRequest) {
     cappedAtLimit: candidates.length === MAX_PER_RUN,
     updated,
     tally,
+    enrollmentFees: {
+      scanned: feeCandidates.length,
+      cappedAtLimit: feeCandidates.length === MAX_FEES_PER_RUN,
+      updated: feesUpdated,
+      tally: feeTally,
+    },
     ranAt: new Date().toISOString(),
   });
 }
