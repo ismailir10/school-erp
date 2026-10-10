@@ -367,3 +367,24 @@ describe("PUT /api/students/[id] — NIS uniqueness (ADM-2)", () => {
     expect(studentFindFirst).not.toHaveBeenCalled();
   });
 });
+
+
+describe("PUT student custom-role write permission", () => {
+  it("rejects a read-only SCHOOL_ADMIN before querying or updating the student", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue({
+      ...makeSession("SCHOOL_ADMIN"),
+      permissions: ["students.view"],
+      customRoleCode: "student-reader",
+    });
+    studentFindUnique.mockResolvedValue(makeExisting());
+    studentUpdate.mockResolvedValue({ ...makeExisting(), name: "Changed by reader" });
+    const { PUT } = await import("../students/[id]/route");
+    const res = await PUT(makeReq({ name: "Changed by reader" }) as never, {
+      params: Promise.resolve({ id: "s1" }),
+    });
+    expect(res.status).toBe(403);
+    expect(studentFindUnique).not.toHaveBeenCalled();
+    expect(studentUpdate).not.toHaveBeenCalled();
+  });
+});

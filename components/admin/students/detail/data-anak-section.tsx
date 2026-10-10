@@ -150,7 +150,7 @@ export function DataAnakSection({
             <span className="text-xl font-bold text-primary">{student.name[0]}</span>
           )}
         </div>
-        <div className="flex gap-2">
+        {student.canEdit === true && <div className="flex gap-2">
           <input
             ref={photoInputRef}
             type="file"
@@ -166,7 +166,7 @@ export function DataAnakSection({
               Hapus
             </Button>
           )}
-        </div>
+        </div>}
       </div>
 
       {editing ? (

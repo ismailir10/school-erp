@@ -493,23 +493,23 @@ export function KeluargaSection({
         }
         open={open}
         onOpenChange={onOpenChange}
-        actions={
+        actions={student.canEdit === true &&
           <Button size="sm" variant="ghost" onClick={openAddGuardian}>
             <Plus size={12} className="mr-1" aria-hidden="true" /> Tambah
           </Button>
         }
       >
         {activeGuardians.length === 0 ? (
-          <EmptyState title="Belum ada data wali" description="Tambahkan orang tua atau wali siswa." />
+          <EmptyState title="Belum ada data wali" description={student.canEdit ? "Tambahkan orang tua atau wali siswa." : undefined} />
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {activeGuardians.map((g) => (
               <GuardianDetailCard
                 key={g.id}
                 guardian={g}
-                onEdit={openEditGuardian}
-                onToggleStatus={openToggleGuardian}
-                onSetPrimary={setSetPrimaryTarget}
+                onEdit={student.canEdit === true ? openEditGuardian : undefined}
+                onToggleStatus={student.canEdit === true ? openToggleGuardian : undefined}
+                onSetPrimary={student.canEdit === true ? setSetPrimaryTarget : undefined}
               />
             ))}
           </div>

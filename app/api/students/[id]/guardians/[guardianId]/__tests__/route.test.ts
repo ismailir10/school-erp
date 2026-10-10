@@ -202,7 +202,7 @@ function adminSession(): Session {
     name: "A",
     employeeId: null,
     parentId: null,
-    permissions: [],
+    permissions: ["students.create", "students.edit"],
     customRoleCode: null,
   };
 }

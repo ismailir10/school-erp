@@ -202,7 +202,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // draft instead of step 1.
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardResumeId, setWizardResumeId] = useState<string | null>(null);
-  const [draftRun, setDraftRun] = useState<{ id: string; periodLabel: string } | null>(null);
+  const [draftRun, setDraftRun] = useState<{ id: string; periodLabel: string; status: string } | null>(null);
 
   // Resume-banner discard (Cycle B2, Task T6) — closes B1's half-shipped
   // acceptance criterion: the banner offered "Lanjutkan draf" only, so a
@@ -212,11 +212,11 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
 
   const fetchDraftRun = useCallback(() => {
-    fetch("/api/billing-runs?status=DRAFT&pageSize=1")
+    fetch("/api/billing-runs?unfinished=true&pageSize=1&sortOrder=asc")
       .then((r) => r.json())
       .then((json) => {
         const run = json?.data?.[0];
-        setDraftRun(run ? { id: run.id, periodLabel: run.periodLabel } : null);
+        setDraftRun(run ? { id: run.id, periodLabel: run.periodLabel, status: run.status } : null);
       })
       .catch((err) => console.error("[invoices] draft billing run fetch failed", err));
   }, []);
@@ -615,14 +615,16 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           <AlertTriangle className="size-4" />
           <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
           <AlertDescription>
-            Periode {draftRun.periodLabel} punya draf yang belum dikomit.
+            {draftRun.status === "COMMITTING"
+              ? `Pembuatan tagihan periode ${draftRun.periodLabel} belum selesai. Lanjutkan sisanya; tagihan yang sudah dibuat tidak akan dibuat ulang.`
+              : `Periode ${draftRun.periodLabel} punya draf yang belum dikomit.`}
           </AlertDescription>
           <AlertAction className="static col-span-full flex flex-wrap justify-end gap-2 pt-2">
-            <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
+            {draftRun.status !== "COMMITTING" && <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
               Buang draf
-            </Button>
+            </Button>}
             <Button size="sm" variant="outline" onClick={resumeWizard}>
-              Lanjutkan draf
+              {draftRun.status === "COMMITTING" ? "Lanjutkan pembuatan tagihan" : "Lanjutkan draf"}
             </Button>
           </AlertAction>
         </Alert>
@@ -800,8 +802,12 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           Bulanan" dialog/sheet and its plan/batch routes. */}
       <BillingRunWizard
         open={wizardOpen}
-        onOpenChange={setWizardOpen}
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) handleWizardCommitted();
+        }}
         resumeRunId={wizardResumeId}
+        resumeCommitting={draftRun?.id === wizardResumeId && draftRun?.status === "COMMITTING"}
         years={years}
         onDraftChanged={fetchDraftRun}
         onCommitted={handleWizardCommitted}

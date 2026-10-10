@@ -34,7 +34,7 @@ function req(body: unknown = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getSession.mockResolvedValue({ id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1" });
+  getSession.mockResolvedValue({ id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.edit"] });
 });
 
 describe("POST /api/students/[id]/graduate", () => {

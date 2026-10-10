@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { updateStudentSchema } from "@/lib/validations/student";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -121,6 +122,7 @@ export async function GET(
 
   const response = {
     ...student,
+    canEdit: hasPermission(session, "students.edit"),
     guardians: student.guardians.map((g) => {
       const { ktpUrl, kkUrl, ...parentRest } = g.parent;
       return { ...g, parent: { ...parentRest, hasKtp: !!ktpUrl, hasKk: !!kkUrl } };
@@ -139,6 +141,9 @@ export async function PUT(
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.edit")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
 
   const { id } = await params;

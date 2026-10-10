@@ -51,6 +51,7 @@ const EMPTY_PARENT_FORM: ParentFormValues = {
 };
 
 type ParentDetail = {
+  canEdit: boolean;
   id: string;
   name: string;
   email: string | null;
@@ -99,6 +100,7 @@ function DocumentUploadCell({
   label,
   hasFile,
   onMutated,
+  canEdit,
 }: {
   parentId: string;
   parentName: string;
@@ -106,6 +108,7 @@ function DocumentUploadCell({
   label: string;
   hasFile: boolean;
   onMutated: () => void;
+  canEdit: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -191,7 +194,7 @@ function DocumentUploadCell({
           <p className="text-xs text-muted-foreground">{label} belum diunggah</p>
         </div>
       )}
-      <div className="flex gap-2">
+      {canEdit && <div className="flex gap-2">
         <input
           ref={inputRef}
           type="file"
@@ -207,7 +210,7 @@ function DocumentUploadCell({
             Hapus
           </Button>
         )}
-      </div>
+      </div>}
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -434,7 +437,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
         description={`${studentCount} siswa terdaftar`}
         badge={<StatusBadge status={parent.status} />}
         actions={
-          !isEditing ? (
+          parent.canEdit === true && !isEditing ? (
             <Button size="sm" variant="outline" onClick={startEditing}>
               <Pencil size={14} className="mr-1" /> Ubah
             </Button>
@@ -589,6 +592,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 parentName={parent.name}
                 field="ktp"
                 label="KTP"
+                canEdit={parent.canEdit === true}
                 hasFile={parent.hasKtp}
                 onMutated={fetchParent}
               />
@@ -597,6 +601,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 parentName={parent.name}
                 field="kk"
                 label="KK"
+                canEdit={parent.canEdit === true}
                 hasFile={parent.hasKk}
                 onMutated={fetchParent}
               />

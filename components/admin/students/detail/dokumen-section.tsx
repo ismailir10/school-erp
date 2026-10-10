@@ -12,11 +12,13 @@ import type { Guardian } from "./types";
  */
 export function DokumenSection({
   kkGuardian,
+  canEdit,
   hasKk,
   open,
   onOpenChange,
 }: {
   kkGuardian: Guardian | null;
+  canEdit: boolean;
   hasKk: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,7 +27,7 @@ export function DokumenSection({
     <DossierSection id="dokumen" label="Dokumen Keluarga" open={open} onOpenChange={onOpenChange}>
       {!kkGuardian ? (
         <p className="text-sm text-muted-foreground">
-          Belum ada wali aktif — tambahkan wali untuk mengunggah KK.
+          {canEdit ? "Belum ada wali aktif — tambahkan wali untuk mengunggah KK." : "Belum ada wali aktif."}
         </p>
       ) : hasKk ? (
         <div className="space-y-2">
@@ -58,7 +60,7 @@ export function DokumenSection({
             href={`/admin/guardians/${kkGuardian.parent.id}`}
             className="text-sm text-primary-text hover:underline"
           >
-            Unggah KK di halaman wali →
+            {canEdit ? "Unggah KK di halaman wali →" : "Lihat data wali →"}
           </Link>
         </div>
       )}

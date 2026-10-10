@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 
@@ -61,5 +62,8 @@ export async function GET(req: NextRequest) {
     prisma.parent.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(guardians, total, page, pageSize));
+  return NextResponse.json({
+    ...paginatedResponse(guardians, total, page, pageSize),
+    capabilities: { canEdit: hasPermission(session, "students.edit") },
+  });
 }

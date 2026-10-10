@@ -74,6 +74,7 @@ class ResizeObserverStub {
 function makeStudent(overrides: Record<string, unknown> = {}) {
   return {
     id: "s1",
+    canEdit: true,
     name: "Aisyah Putri",
     nickname: null,
     dateOfBirth: "2021-01-15",

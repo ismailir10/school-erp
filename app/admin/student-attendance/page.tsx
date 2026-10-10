@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -15,6 +15,7 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -200,6 +201,9 @@ function GroupedClassSelect({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentAttendancePage() {
+  const listRequest = useRef(0);
+  const [listError, setListError] = useState(false);
+  const [hasLoadedList, setHasLoadedList] = useState(false);
   const [data, setData] = useState<AttendanceRecord[]>([]);
   const [classSections, setClassSections] = useState<ClassSection[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -250,6 +254,7 @@ export default function StudentAttendancePage() {
 
   // ── Fetch list ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -264,22 +269,30 @@ export default function StudentAttendancePage() {
       if (dateTo) params.set("dateTo", dateTo);
 
       const res = await fetch(`/api/student-attendance?${params}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal memuat data");
-        return;
-      }
+      if (request !== listRequest.current) return;
+      if (!res.ok) throw new Error("Gagal memuat kehadiran");
       const json = await res.json();
+      if (request !== listRequest.current) return;
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
+      setHasLoadedList(true);
+      setListError(false);
     } catch {
-      toast.error("Gagal memuat data kehadiran");
+      if (request === listRequest.current) setListError(true);
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, search, statusFilter, classSectionFilter, dateFrom, dateTo]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    const requests = listRequest;
+    fetchData();
+    return () => { ++requests.current; };
+  }, [fetchData]);
+
+  const today = getTodayInTimezone("Asia/Jakarta");
+  const hasListFilter = Boolean(search || statusFilter !== "all" || classSectionFilter !== "all"
+    || (dateFrom && dateFrom !== today) || (dateTo && dateTo !== today));
 
   // ── Handlers ────────────────────────────────────────────────────
 
@@ -429,7 +442,7 @@ export default function StudentAttendancePage() {
     <>
       <PageHeader
         title="Kehadiran Siswa"
-        description={`${pagination.total} catatan`}
+        description={hasLoadedList ? `${pagination.total} catatan${listError ? " pada hasil terakhir" : ""}` : "Pantau catatan kehadiran siswa."}
       />
 
       <StatsCardsRow cols={4}>
@@ -524,16 +537,31 @@ export default function StudentAttendancePage() {
         }}
       />
 
-      <DataTable
+      {listError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Data kehadiran belum bisa dimuat</AlertTitle>
+          <AlertDescription>
+            <p>{hasLoadedList && data.length > 0
+              ? "Hasil terakhir masih ditampilkan dan belum diperbarui sesuai filter. Coba lagi untuk memuat data terbaru."
+              : "Periksa koneksi Anda, lalu coba lagi."}</p>
+            <Button type="button" variant="outline" className="mt-2" onClick={fetchData} disabled={loading}>
+              {loading ? "Memuat..." : "Coba Lagi"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {(!listError || data.length > 0) && <DataTable
         columns={columns}
         data={data}
         pagination={pagination}
         onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
         onPageSizeChange={(pageSize) => setPagination((p) => ({ ...p, page: 1, pageSize }))}
-        loading={loading}
-        emptyTitle="Tidak ada catatan kehadiran"
-        emptyDescription="Catatan kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."
-      />
+        loading={loading && !hasLoadedList}
+        emptyTitle={hasListFilter ? "Tidak ada hasil untuk filter ini" : "Tidak ada catatan kehadiran"}
+        emptyDescription={hasListFilter
+          ? "Ubah pencarian, kelas, status, atau rentang tanggal untuk melihat catatan lainnya."
+          : "Catatan kehadiran siswa akan tampil di sini setelah guru mencatat kehadiran."}
+      />}
 
         </AdminTabsContent>
 

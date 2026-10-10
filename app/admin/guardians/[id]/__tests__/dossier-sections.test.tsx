@@ -40,6 +40,7 @@ function fulfilledParams(value: { id: string }): Promise<{ id: string }> {
 
 const PARENT = {
   id: "p1",
+  canEdit: true,
   name: "Ibu Siti Aminah",
   email: "siti@example.test",
   phone: "081234567890",

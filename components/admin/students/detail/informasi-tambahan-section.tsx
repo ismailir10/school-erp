@@ -32,6 +32,7 @@ export function InformasiTambahanSection({
   onOpenChange,
   persistMetadata,
   onSaved,
+  canEdit,
   onStateChange,
 }: {
   extra: MetadataExtraRow[];
@@ -40,6 +41,7 @@ export function InformasiTambahanSection({
   onOpenChange: (open: boolean) => void;
   persistMetadata: (next: { known: Record<string, string>; extra: MetadataExtraRow[] }) => Promise<boolean>;
   onSaved: () => void;
+  canEdit: boolean;
   onStateChange: (state: { dirty: boolean; rows: MetadataExtraRow[] }) => void;
 }) {
   const formId = useId();
@@ -92,7 +94,7 @@ export function InformasiTambahanSection({
       label="Informasi Tambahan"
       open={open}
       onOpenChange={onOpenChange}
-      actions={
+      actions={canEdit &&
         <>
           <Button size="sm" variant="ghost" onClick={addRow}>
             <Plus size={12} className="mr-1" aria-hidden="true" /> Tambah Field
@@ -108,7 +110,7 @@ export function InformasiTambahanSection({
       <form id={formId} onSubmit={handleSave} noValidate>
         <FormRootError formState={form.formState} />
         {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada field tambahan. Klik &ldquo;Tambah Field&rdquo; untuk menambahkan.</p>
+          <p className="text-sm text-muted-foreground">Belum ada field tambahan.{canEdit && <> Klik &ldquo;Tambah Field&rdquo; untuk menambahkan.</>}</p>
         ) : (
           <div className="space-y-2">
             {fields.map((rowField, index) => {
@@ -119,6 +121,7 @@ export function InformasiTambahanSection({
                     <Input
                       {...form.register(`rows.${index}.key`)}
                       placeholder="Nama field"
+                      disabled={!canEdit}
                       aria-label="Nama field"
                       aria-invalid={!!keyError || undefined}
                     />
@@ -127,12 +130,14 @@ export function InformasiTambahanSection({
                   <Input
                     {...form.register(`rows.${index}.value`)}
                     placeholder="Nilai"
+                    disabled={!canEdit}
                     aria-label="Nilai field"
                   />
                   <Button
                     type="button"
                     size="icon-sm"
                     variant="ghost"
+                    disabled={!canEdit}
                     onClick={() => remove(index)}
                     aria-label={`Hapus field ${rows[index]?.key || "tanpa nama"}`}
                     className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"

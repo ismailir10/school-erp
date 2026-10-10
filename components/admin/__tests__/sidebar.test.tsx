@@ -1,20 +1,24 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AppSidebar } from "@/components/admin/sidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { useUnsavedChangesGuard, UnsavedChangesProvider } from "@/components/admin/unsaved-changes-provider";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
-const navigation = vi.hoisted(() => ({ pathname: "/admin" }));
+const navigation = vi.hoisted(() => ({ pathname: "/admin", mobile: false, push: vi.fn() }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => navigation.mobile }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: navigation.push }),
 }));
 
 describe("AppSidebar — collapsible group chevron", () => {
   beforeEach(() => {
     navigation.pathname = "/admin";
+    navigation.mobile = false;
+    navigation.push.mockClear();
   });
 
   // Regression test for finding #6: the chevron's rotation class used to key
@@ -94,5 +98,55 @@ describe("AppSidebar — collapsible group chevron", () => {
     expect(tour).toHaveAttribute("href", "/panduan");
     const logout = screen.getByRole("button", { name: "Keluar" });
     expect(tour.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+
+function MenuProbe({ dirty = false }: { dirty?: boolean }) {
+  const { openMobile, setOpenMobile } = useSidebar();
+  useUnsavedChangesGuard(dirty);
+  return <><button onClick={() => setOpenMobile(true)}>Open menu</button><output data-testid="menu-open">{String(openMobile)}</output></>;
+}
+
+function MobileShell({ dirty = false }: { dirty?: boolean }) {
+  return <UnsavedChangesProvider><SidebarProvider><MenuProbe dirty={dirty} /><AppSidebar permissions={["students.view"]} /></SidebarProvider></UnsavedChangesProvider>;
+}
+
+describe("mobile sidebar navigation", () => {
+  beforeEach(() => {
+    navigation.pathname = "/admin";
+    navigation.mobile = true;
+    navigation.push.mockClear();
+  });
+
+  it("closes after a successful pathname change, but not on query-only changes or rerenders", async () => {
+    const user = userEvent.setup();
+    const view = render(<MobileShell />);
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.getByTestId("menu-open")).toHaveTextContent("true");
+    view.rerender(<MobileShell />);
+    expect(screen.getByTestId("menu-open")).toHaveTextContent("true");
+    navigation.pathname = "/admin/students";
+    view.rerender(<MobileShell />);
+    await waitFor(() => expect(screen.getByTestId("menu-open")).toHaveTextContent("false"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the mobile menu open when leaving dirty work is cancelled; closes when confirmed navigation commits", async () => {
+    const user = userEvent.setup();
+    const view = render(<MobileShell dirty />);
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(screen.getByRole("link", { name: "Siswa" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(within(confirm).getByRole("button", { name: "Batal" }));
+    expect(screen.getByTestId("menu-open")).toHaveTextContent("true");
+    expect(navigation.push).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("link", { name: "Siswa" }));
+    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
+    expect(navigation.push).toHaveBeenCalledWith("/admin/students");
+    expect(screen.getByTestId("menu-open")).toHaveTextContent("true");
+    navigation.pathname = "/admin/students";
+    view.rerender(<MobileShell dirty />);
+    await waitFor(() => expect(screen.getByTestId("menu-open")).toHaveTextContent("false"));
   });
 });

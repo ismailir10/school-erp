@@ -106,11 +106,13 @@ export function StudentHealthBlock({
   known,
   system,
   editing,
+  canEdit,
   onChange,
 }: {
   known: Record<string, string>;
   system: StudentSystemMetadata;
   editing: boolean;
+  canEdit: boolean;
   onChange: (key: string, value: string) => void;
 }) {
   const filled = KNOWN_FIELDS.filter((f) => (known[f.key] ?? "").trim() !== "");
@@ -118,8 +120,9 @@ export function StudentHealthBlock({
   if (!editing && filled.length === 0 && system.priorFamilyAttendees.length === 0) {
     return (
       <p className="text-small text-muted-foreground">
-        Belum ada data kesehatan dan kelahiran. Klik &ldquo;Ubah&rdquo; untuk mengisi, atau data akan
-        terisi otomatis saat formulir pendaftaran dikonversi.
+        {canEdit
+          ? <>Belum ada data kesehatan dan kelahiran. Klik &ldquo;Ubah&rdquo; untuk mengisi, atau data akan terisi otomatis saat formulir pendaftaran dikonversi.</>
+          : "Belum ada data kesehatan dan kelahiran."}
       </p>
     );
   }

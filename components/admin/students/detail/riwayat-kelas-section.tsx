@@ -12,10 +12,12 @@ import type { Enrollment } from "./types";
  * "current placement" pick, nothing here is filtered out. */
 export function RiwayatKelasSection({
   enrollments,
+  canEdit,
   open,
   onOpenChange,
 }: {
   enrollments: Enrollment[];
+  canEdit: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -32,7 +34,7 @@ export function RiwayatKelasSection({
       onOpenChange={onOpenChange}
     >
       {enrollments.length === 0 ? (
-        <EmptyState title="Belum terdaftar di kelas" description="Daftarkan siswa ke kelas melalui tombol di atas." />
+        <EmptyState title="Belum terdaftar di kelas" description={canEdit ? "Daftarkan siswa ke kelas melalui tombol di atas." : undefined} />
       ) : (
         <div className="space-y-2">
           {enrollments.map((e) => (
