@@ -11,9 +11,10 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { AdminLinkTabs } from "@/components/admin/admin-tabs";
-import { FileText, Send, CheckCircle2 } from "lucide-react";
+import { FileText, Send, CheckCircle2, Wallet, MessageCircle } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { StatusChip } from "./status-chip";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, formatRupiah } from "@/lib/format";
 
 type Row = {
   id: string;
@@ -25,6 +26,10 @@ type Row = {
   createdAt: string;
   studentId: string | null;
   program: { name: string } | null;
+  /** Pendaftaran fee; null when the program has none. */
+  fee: { status: "UNPAID" | "PAID" | "WAIVED"; amount: number } | null;
+  /** Only for editors, only while UNPAID: whether a WhatsApp number exists. */
+  followUp: { canRemind: boolean } | null;
 };
 
 type Pagination = {
@@ -34,9 +39,45 @@ type Pagination = {
   totalPages: number;
 };
 
+/**
+ * Pembayaran column: the fee's status and amount, and for an unpaid row one tap
+ * to WhatsApp the parent. The link is the reminder ENDPOINT, not a wa.me URL:
+ * it builds the message (which carries the parent's form link) when pressed,
+ * so no list response ever holds an access token.
+ */
+function PaymentCell({ row }: { row: Row }) {
+  if (!row.fee) return <span className="text-sm text-muted-foreground">Tanpa biaya</span>;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <StatusBadge status={row.fee.status} />
+        {row.fee.status !== "WAIVED" && (
+          <span className="text-xs tabular-nums text-muted-foreground">{formatRupiah(row.fee.amount)}</span>
+        )}
+      </div>
+      {row.followUp &&
+        (row.followUp.canRemind ? (
+          <a
+            href={`/api/enrollments/${row.id}/fee/reminder`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Ingatkan lewat WhatsApp: ${row.childName || "anak ini"}`}
+            className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-primary-text underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(pointer:coarse)]:min-h-11"
+          >
+            <MessageCircle className="size-3.5" aria-hidden="true" />
+            Ingatkan lewat WhatsApp
+          </a>
+        ) : (
+          <span className="text-xs text-muted-foreground">Belum ada nomor WhatsApp</span>
+        ))}
+    </div>
+  );
+}
+
 export default function EnrollmentsPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [status, setStatus] = useState<string>("all");
+  const [payment, setPayment] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -45,7 +86,7 @@ export default function EnrollmentsPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, submitted: 0, accepted: 0 });
+  const [stats, setStats] = useState({ total: 0, submitted: 0, accepted: 0, unpaid: 0 });
 
   // Counts by status for the stat cards. Reuses the existing paginated
   // /api/enrollments endpoint (pageSize=1, status filter) rather than adding
@@ -55,12 +96,14 @@ export default function EnrollmentsPage() {
       fetch("/api/enrollments?pageSize=1").then((r) => r.json()),
       fetch("/api/enrollments?pageSize=1&status=SUBMITTED").then((r) => r.json()),
       fetch("/api/enrollments?pageSize=1&status=ACCEPTED").then((r) => r.json()),
+      fetch("/api/enrollments?pageSize=1&payment=unpaid").then((r) => r.json()),
     ])
-      .then(([all, submitted, accepted]) => {
+      .then(([all, submitted, accepted, unpaid]) => {
         setStats({
           total: all.pagination?.total ?? 0,
           submitted: submitted.pagination?.total ?? 0,
           accepted: accepted.pagination?.total ?? 0,
+          unpaid: unpaid.pagination?.total ?? 0,
         });
       })
       .catch((err) => console.error("[enrollments] stats fetch failed", err));
@@ -81,6 +124,7 @@ export default function EnrollmentsPage() {
         sortOrder: "desc",
       });
       if (status !== "all") params.set("status", status);
+      if (payment !== "all") params.set("payment", payment);
       if (search) params.set("search", search);
       try {
         const res = await fetch(`/api/enrollments?${params}`, {
@@ -103,7 +147,7 @@ export default function EnrollmentsPage() {
 
     void load();
     return () => controller.abort();
-  }, [pagination.page, pagination.pageSize, search, status]);
+  }, [pagination.page, pagination.pageSize, search, status, payment]);
 
   const columns: ColumnDef<Row>[] = useMemo(
     () => [
@@ -141,6 +185,11 @@ export default function EnrollmentsPage() {
         cell: ({ row }) => <StatusChip status={row.original.status} studentId={row.original.studentId} />,
       },
       {
+        id: "payment",
+        header: "Pembayaran",
+        cell: ({ row }) => <PaymentCell row={row.original} />,
+      },
+      {
         id: "submitted",
         header: "Dikirim",
         meta: { priority: "low" },
@@ -169,10 +218,11 @@ export default function EnrollmentsPage() {
       />
 
       <div className="space-y-section">
-        <StatsCardsRow cols={3}>
+        <StatsCardsRow cols={4}>
           <StatCard label="Total Formulir" value={stats.total} icon={FileText} color="primary" index={0} />
           <StatCard label="Terkirim" value={stats.submitted} icon={Send} color="warning" index={1} />
           <StatCard label="Diterima" value={stats.accepted} icon={CheckCircle2} color="success" index={2} />
+          <StatCard label="Belum bayar" value={stats.unpaid} icon={Wallet} color="warning" index={3} />
         </StatsCardsRow>
 
         <DataTableToolbar
@@ -198,6 +248,22 @@ export default function EnrollmentsPage() {
                 { value: "ACCEPTED", label: "Diterima" },
                 { value: "REJECTED", label: "Ditolak" },
                 { value: "INVITED", label: "Diundang" },
+              ],
+            },
+            {
+              key: "payment",
+              label: "Pembayaran",
+              value: payment,
+              onChange: (value) => {
+                setPayment(value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              },
+              options: [
+                { value: "all", label: "Semua Pembayaran" },
+                { value: "unpaid", label: "Belum bayar" },
+                { value: "paid", label: "Lunas" },
+                { value: "waived", label: "Dibebaskan" },
+                { value: "none", label: "Tanpa biaya" },
               ],
             },
           ]}

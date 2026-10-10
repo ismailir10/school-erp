@@ -20,7 +20,8 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
+import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -462,6 +463,20 @@ export default function InvoiceDetailPage() {
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
+  // Chasing an unpaid invoice: one tap opens WhatsApp on the wali's number with the
+  // reminder written. The DOKU link goes in when there is one; otherwise the portal,
+  // where the wali can pay. Only for a billed invoice with money left.
+  const canRemind = canRemindInvoice({ status: invoice.status, remaining });
+  const reminderUrl = canRemind
+    ? invoiceReminderWaUrl({
+        guardian,
+        studentName: invoice.student.name,
+        invoiceNumber: invoice.invoiceNumber,
+        periodLabel: invoice.periodLabel,
+        remaining,
+        payUrl: invoice.xenditPaymentUrl ?? `${window.location.origin}/parent/invoices`,
+      })
+    : null;
   // Money already on the invoice blocks a cancel (the API enforces it too): the
   // menu item stays visible so the admin gets the reason instead of a missing
   // action, but it opens an explanation rather than the confirm (FIN-9).
@@ -695,6 +710,31 @@ export default function InvoiceDetailPage() {
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
               {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}
+              {canRemind &&
+                (reminderUrl ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    nativeButton={false}
+                    // Base UI would otherwise mark the anchor role="button"; it navigates.
+                    role="link"
+                    data-testid="invoice-whatsapp-reminder"
+                    render={
+                      <a
+                        href={reminderUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Chat WhatsApp: ingatkan ${guardian.name} soal tagihan ini`}
+                      />
+                    }
+                  >
+                    <MessageCircle aria-hidden="true" />
+                    Chat WhatsApp
+                  </Button>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Belum ada nomor WhatsApp wali untuk mengingatkan tagihan ini.</p>
+                ))}
             </Card>
           )}
 

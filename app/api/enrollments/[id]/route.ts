@@ -8,6 +8,9 @@ import { programIdSchema } from "@/lib/validations/program-id";
 import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
 import { isDocumentKey, toAdminDocuments } from "@/lib/enrollment/documents";
 import { mergeJsonKey } from "@/lib/enrollment/json-merge";
+import { ADMIN_FEE_SELECT, feeAttentionFrom, toAdminFeeView } from "@/lib/enrollment/fee-admin-view";
+import { canRemind, parentFormUrl } from "@/lib/enrollment/follow-up";
+import { resolveAppOrigin } from "@/lib/payments/session";
 
 // Admin status workflow. INVITED is owned by the parent (pre-submit) and is
 // never an admin target. A converted application (studentId set) is frozen.
@@ -62,7 +65,7 @@ function mergeConsentKeepingSignatures(incoming: Record<string, unknown>, stored
   return out;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -73,6 +76,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     select: {
       id: true,
       tenantId: true,
+      accessToken: true,
       status: true,
       studentId: true,
       childName: true,
@@ -85,16 +89,62 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       consentData: true,
       documents: true,
       program: { select: { id: true, name: true } },
-      admission: { select: { id: true, parentName: true, parentPhone: true, parentRelationship: true } },
+      admission: {
+        select: { id: true, parentName: true, parentPhone: true, parentWhatsapp: true, parentRelationship: true },
+      },
+      fee: { select: { ...ADMIN_FEE_SELECT, id: true } },
     },
   });
   if (!app || app.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const { tenantId, ...rest } = app;
+  // `accessToken` is a credential: it is only ever used here to build the one
+  // link staff may copy, and is never sent on its own.
+  const { tenantId, accessToken, fee, ...rest } = app;
+  const canEdit = hasPermission(session, "admissions.edit");
+  const feeView = fee ? toAdminFeeView(fee) : null;
+
+  // Chasing an unpaid fee. `formUrl` is the parent's form link (it leads to the
+  // fee once submitted) for "Salin tautan"; the WhatsApp reminder itself is
+  // opened through the reminder endpoint, so this is the ONLY place a token is
+  // returned — for one application, to staff who can act on it.
+  let followUp: { formUrl: string; canRemind: boolean } | null = null;
+  // Not for a REJECTED application: the parent's pay link is closed (409
+  // APPLICATION_CLOSED), so a reminder would send them to a dead end.
+  if (canEdit && feeView?.status === "UNPAID" && rest.status !== "REJECTED") {
+    followUp = {
+      formUrl: parentFormUrl(resolveAppOrigin(new URL(req.url).origin), accessToken),
+      canRemind: canRemind({ admission: rest.admission, ayahData: rest.ayahData, ibuData: rest.ibuData }),
+    };
+  }
+
+  // Payments the processor refused to credit (wrong amount, a second payment,
+  // money on a waived fee): written against this fee's id, shown as "perlu dicek".
+  const problems =
+    fee && feeView
+      ? feeAttentionFrom(
+          await prisma.webhookEvent.findMany({
+            where: { invoiceId: fee.id, status: "ERROR" },
+            select: { errorMessage: true },
+            orderBy: { createdAt: "desc" },
+            take: 20,
+          }),
+          feeView.status,
+        )
+      : [];
+
   return NextResponse.json({
     ...rest,
-    canEdit: hasPermission(session, "admissions.edit"),
+    canEdit,
+    fee: feeView,
+    followUp,
+    feeProblems: problems,
+    // What the signed-in staff member may do to the fee: the UI hides what it
+    // would only be refused (the API enforces the same keys).
+    feePermissions: {
+      recordPayment: canEdit && hasPermission(session, "payments.record"),
+      adjust: canEdit && hasPermission(session, "fees.edit"),
+    },
     consentData: redactConsentSignatures(rest.consentData),
     // Per-item state only — storage tokens never leave the server.
     documents: toAdminDocuments(rest.documents),

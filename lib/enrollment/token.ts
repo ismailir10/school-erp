@@ -18,6 +18,17 @@ export function generateAccessToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
+/**
+ * Cheap shape check for a token taken from a URL, BEFORE it is used as a
+ * rate-limit key or a lookup value. A real token is 43 base64url characters;
+ * this accepts anything URL-safe up to 128, so it only rejects garbage (a
+ * multi-KB path segment, odd characters) that must not occupy a limiter entry
+ * per unique string. It says nothing about whether the token exists.
+ */
+export function isTokenShape(token: string): boolean {
+  return /^[A-Za-z0-9_-]{1,128}$/.test(token);
+}
+
 /** Expiry instant for a freshly minted token, `TOKEN_TTL_DAYS` from `now`. */
 export function tokenExpiryFrom(now: Date): Date {
   return new Date(now.getTime() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);

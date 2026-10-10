@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, update, getSession, isAdminRole, programFindFirst, mergeJsonKey } = vi.hoisted(() => ({
+const { findUnique, update, getSession, isAdminRole, programFindFirst, mergeJsonKey, eventFindMany } = vi.hoisted(() => ({
   mergeJsonKey: vi.fn(),
+  eventFindMany: vi.fn(),
   findUnique: vi.fn(),
   update: vi.fn(),
   getSession: vi.fn(),
@@ -11,7 +12,11 @@ const { findUnique, update, getSession, isAdminRole, programFindFirst, mergeJson
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { enrollmentApplication: { findUnique, update }, program: { findFirst: programFindFirst } },
+  prisma: {
+    enrollmentApplication: { findUnique, update },
+    program: { findFirst: programFindFirst },
+    webhookEvent: { findMany: eventFindMany },
+  },
 }));
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
 vi.mock("@/lib/enrollment/json-merge", () => ({ mergeJsonKey }));
@@ -33,6 +38,7 @@ beforeEach(() => {
   isAdminRole.mockReturnValue(true);
   update.mockResolvedValue({ id: "ea-1", status: "UNDER_REVIEW" });
   mergeJsonKey.mockResolvedValue(true);
+  eventFindMany.mockResolvedValue([]);
 });
 
 describe("GET /api/enrollments/[id]", () => {
@@ -282,6 +288,210 @@ describe("PATCH /api/enrollments/[id] — consentData never touches signatures",
     const none = update.mock.calls[0][0].data.consentData;
     expect(none.ayah).toEqual({ name: "A" });
     expect(none.ibu).toEqual({});
+  });
+});
+
+describe("GET /api/enrollments/[id] — pendaftaran fee", () => {
+  const editor = { id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view", "admissions.edit"] };
+  const viewer = { id: "u-2", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] };
+  const get = () => GET(new NextRequest("https://talib.example/api/enrollments/ea-1"), ctx());
+
+  const feeRow = (over: Record<string, unknown> = {}) => ({
+    status: "UNPAID",
+    method: null,
+    baseAmount: "300000",
+    discountPercent: 0,
+    discountReason: null,
+    amount: "300000",
+    paidAt: null,
+    note: null,
+    linkError: null,
+    lastCheckedAt: null,
+    paymentUrl: "https://doku.example/pay/SECRET-LINK",
+    sessionExpiresAt: new Date(Date.now() + 86_400_000),
+    ...over,
+  });
+  const app = (over: Record<string, unknown> = {}) => ({
+    id: "ea-1",
+    tenantId: "t-1",
+    accessToken: "SECRET-TOKEN",
+    status: "SUBMITTED",
+    childName: "Aisyah",
+    ayahData: {},
+    ibuData: {},
+    admission: { id: "a-1", parentName: "Siti", parentPhone: null, parentWhatsapp: "0812-3456-7890", parentRelationship: "IBU" },
+    fee: feeRow(),
+    ...over,
+  });
+
+  it("returns the fee for staff as numbers, without any gateway link or id", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app());
+    const body = await (await get()).json();
+
+    expect(body.fee).toMatchObject({ status: "UNPAID", baseAmount: 300_000, amount: 300_000, discountPercent: 0, linkActive: true });
+    const text = JSON.stringify(body);
+    expect(text).not.toContain("SECRET-LINK");
+    expect(text).not.toMatch(/paymentUrl|gatewaySessionId|sessionExpiresAt|paymentId/);
+    // The credential is never sent on its own.
+    expect(body.accessToken).toBeUndefined();
+  });
+
+  it("reports that the parent holds a live link only while it still works", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ fee: feeRow({ sessionExpiresAt: new Date(Date.now() - 1000) }) }));
+    expect((await (await get()).json()).fee.linkActive).toBe(false);
+    findUnique.mockResolvedValue(app({ fee: feeRow({ paymentUrl: null, sessionExpiresAt: null }) }));
+    expect((await (await get()).json()).fee.linkActive).toBe(false);
+  });
+
+  it("an editor gets the parent's form link; the WhatsApp link is never built here (it carries the token)", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app());
+    const body = await (await get()).json();
+
+    expect(body.followUp).toEqual({ formUrl: "https://talib.example/pendaftaran/SECRET-TOKEN", canRemind: true });
+    const text = JSON.stringify(body);
+    expect(text).not.toContain("wa.me");
+    expect(text).not.toContain("waUrl");
+  });
+
+  it("canRemind is false (button disabled) when there is no number to message, but the link is still offered", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ admission: { id: "a-1", parentName: "Siti", parentPhone: "123", parentWhatsapp: null } }));
+    const { followUp } = await (await get()).json();
+    expect(followUp.canRemind).toBe(false);
+    expect(followUp.formUrl).toContain("/pendaftaran/");
+  });
+
+  it("falls back to the Ibu's phone from the form when the inquiry had none", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(
+      app({ admission: { id: "a-1", parentName: "Siti", parentPhone: null, parentWhatsapp: null }, ibuData: { phone: "0813-9999-0000" } }),
+    );
+    expect((await (await get()).json()).followUp.canRemind).toBe(true);
+  });
+
+  it.each(["PAID", "WAIVED"])("no follow-up for a %s fee", async (status) => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ fee: feeRow({ status }) }));
+    expect((await (await get()).json()).followUp).toBeNull();
+  });
+
+  it("a REJECTED application gets no follow-up (its pay link is closed), but still shows the fee", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ status: "REJECTED" }));
+    const body = await (await get()).json();
+    expect(body.followUp).toBeNull();
+    expect(body.fee.status).toBe("UNPAID");
+  });
+
+  it("a read-only viewer sees the fee but never the form link or the token", async () => {
+    getSession.mockResolvedValue(viewer);
+    findUnique.mockResolvedValue(app());
+    const body = await (await get()).json();
+    expect(body.fee.status).toBe("UNPAID");
+    expect(body.followUp).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("SECRET-TOKEN");
+  });
+
+  it("an application with no fee has fee: null, no follow-up, no problems and no event lookup", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ fee: null }));
+    const body = await (await get()).json();
+    expect(body.fee).toBeNull();
+    expect(body.followUp).toBeNull();
+    expect(body.feeProblems).toEqual([]);
+    expect(eventFindMany).not.toHaveBeenCalled();
+  });
+
+  it("reads the fee with the staff select (id for the lookup; no gateway ids)", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app());
+    await get();
+    const select = findUnique.mock.calls[0][0].select;
+    expect(select.fee.select).toMatchObject({ id: true, status: true, amount: true, baseAmount: true });
+    expect(select.fee.select.paymentId).toBeUndefined();
+    expect(select.fee.select.gatewaySessionId).toBeUndefined();
+  });
+
+  it("never returns the fee row id or the token on their own", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ fee: feeRow({ id: "fee-1" }) }));
+    const body = await (await get()).json();
+    expect(body.fee.id).toBeUndefined();
+    expect(body.accessToken).toBeUndefined();
+  });
+
+  describe("feePermissions", () => {
+    const FINANCE = ["admissions.view", "admissions.edit", "payments.record", "fees.edit"];
+    const perms = async (permissions: string[]) => {
+      getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions });
+      findUnique.mockResolvedValue(app());
+      return (await (await get()).json()).feePermissions;
+    };
+
+    it("finance staff may record a payment and adjust the fee", async () => {
+      expect(await perms(FINANCE)).toEqual({ recordPayment: true, adjust: true });
+    });
+    it("an admissions editor without finance keys may do neither", async () => {
+      expect(await perms(["admissions.view", "admissions.edit"])).toEqual({ recordPayment: false, adjust: false });
+    });
+    it("payments.record alone allows recording but not adjusting", async () => {
+      expect(await perms(["admissions.view", "admissions.edit", "payments.record"])).toEqual({ recordPayment: true, adjust: false });
+    });
+    it("fees.edit alone allows adjusting but not recording", async () => {
+      expect(await perms(["admissions.view", "admissions.edit", "fees.edit"])).toEqual({ recordPayment: false, adjust: true });
+    });
+    it("finance keys without admissions.edit give nothing (the route requires both)", async () => {
+      expect(await perms(["admissions.view", "payments.record", "fees.edit"])).toEqual({ recordPayment: false, adjust: false });
+    });
+  });
+
+  describe("feeProblems (payments the processor refused to credit)", () => {
+    const withEvents = async (events: { errorMessage: string }[], feeOver: Record<string, unknown> = {}, session = editor) => {
+      getSession.mockResolvedValue(session);
+      findUnique.mockResolvedValue(app({ fee: feeRow({ id: "fee-1", ...feeOver }) }));
+      eventFindMany.mockResolvedValue(events);
+      return (await (await get()).json()).feeProblems as { code: string; message: string }[];
+    };
+
+    it("looks events up by the FEE id, errors only", async () => {
+      await withEvents([]);
+      expect(eventFindMany.mock.calls[0][0].where).toEqual({ invoiceId: "fee-1", status: "ERROR" });
+    });
+
+    it("explains a wrong-amount payment with both amounts while the fee is still owed", async () => {
+      const problems = await withEvents([{ errorMessage: "AMOUNT_MISMATCH;expected=240000;got=300000" }], { amount: "240000" });
+      expect(problems).toHaveLength(1);
+      expect(problems[0].code).toBe("AMOUNT_MISMATCH");
+      expect(problems[0].message).toContain("Rp 300.000");
+      expect(problems[0].message).toContain("Rp 240.000");
+    });
+
+    it("hides a wrong-amount payment once staff settled the fee", async () => {
+      expect(await withEvents([{ errorMessage: "AMOUNT_MISMATCH;expected=240000;got=300000" }], { status: "PAID" })).toEqual([]);
+    });
+
+    it("keeps a second payment and money on a waived fee: a refund is owed whatever happened since", async () => {
+      const dup = await withEvents([{ errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" }], { status: "PAID" });
+      expect(dup.map((p) => p.code)).toEqual(["DUPLICATE_PAYMENT_AFTER_PAID"]);
+      const waived = await withEvents([{ errorMessage: "PAID_ON_WAIVED_FEE" }], { status: "WAIVED" });
+      expect(waived.map((p) => p.code)).toEqual(["PAID_ON_WAIVED_FEE"]);
+    });
+
+    it("lists each kind once however many events there are", async () => {
+      const problems = await withEvents([
+        { errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" },
+        { errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" },
+      ], { status: "PAID" });
+      expect(problems).toHaveLength(1);
+    });
+
+    it("read-only viewers see the problems too", async () => {
+      const problems = await withEvents([{ errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" }], { status: "PAID" }, viewer);
+      expect(problems).toHaveLength(1);
+    });
   });
 });
 

@@ -149,31 +149,55 @@ const consentSchema = z.object({
  * trusts client-supplied `status`, `accessToken`, `tenantId`, or `studentId`
  * — those are server-owned; Zod strip mode drops any such extra keys.
  */
-export const submitEnrollmentSchema = z
-  .object({
-    programId: programIdSchema,
-    dcareAddon: z.boolean().optional().default(false),
-    studentData: studentSchema,
-    ayahData: parentSchema.optional(),
-    ibuData: parentSchema.optional(),
-    consentData: consentSchema,
-  })
-  .superRefine((v, ctx) => {
-    const only = v.consentData.onlyParent;
-    for (const side of ONLY_PARENT_VALUES) {
-      if (isSideWaived(only, side)) continue;
-      // Re-run the real schemas on `{}` so a missing block reports the same
-      // field-level messages ("ayahData.name": "Nama wajib diisi") a blank one does.
-      if (v[`${side}Data`] === undefined) {
-        const r = parentSchema.safeParse({});
-        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: [`${side}Data`, ...i.path] });
+/**
+ * A waived parent's data block is dropped BEFORE validation. The parent form
+ * always sends both blocks (`ayahData: { name: "", … }`), so a waived side
+ * arrives as a blank — or half-typed, possibly invalid — object, not as a missing
+ * key; validating it rejected every single-parent submit ("Nama wajib diisi" for
+ * a parent who was skipped on purpose). Only the shape of the flag is read here;
+ * an invalid flag is left for `consentSchema` to report.
+ */
+function dropWaivedParentData(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const body = input as Record<string, unknown>;
+  const consent = body.consentData;
+  const only = consent && typeof consent === "object" ? (consent as Record<string, unknown>).onlyParent : undefined;
+  if (only !== "ayah" && only !== "ibu") return input;
+  const out = { ...body };
+  for (const side of ONLY_PARENT_VALUES) {
+    if (isSideWaived(only, side)) delete out[`${side}Data`];
+  }
+  return out;
+}
+
+export const submitEnrollmentSchema = z.preprocess(
+  dropWaivedParentData,
+  z
+    .object({
+      programId: programIdSchema,
+      dcareAddon: z.boolean().optional().default(false),
+      studentData: studentSchema,
+      ayahData: parentSchema.optional(),
+      ibuData: parentSchema.optional(),
+      consentData: consentSchema,
+    })
+    .superRefine((v, ctx) => {
+      const only = v.consentData.onlyParent;
+      for (const side of ONLY_PARENT_VALUES) {
+        if (isSideWaived(only, side)) continue;
+        // Re-run the real schemas on `{}` so a missing block reports the same
+        // field-level messages ("ayahData.name": "Nama wajib diisi") a blank one does.
+        if (v[`${side}Data`] === undefined) {
+          const r = parentSchema.safeParse({});
+          if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: [`${side}Data`, ...i.path] });
+        }
+        if (v.consentData[side] === undefined) {
+          const r = consentSignerSchema.safeParse({});
+          if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: ["consentData", side, ...i.path] });
+        }
       }
-      if (v.consentData[side] === undefined) {
-        const r = consentSignerSchema.safeParse({});
-        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: ["consentData", side, ...i.path] });
-      }
-    }
-  });
+    }),
+);
 
 export type SubmitEnrollmentInput = z.infer<typeof submitEnrollmentSchema>;
 

@@ -34,6 +34,21 @@ Hourly would be better, but **Vercel's Hobby plan allows one cron per day, max t
 
 ---
 
+## The pendaftaran (registration) fee rides the same gateway
+
+A parent pays the pendaftaran fee after submitting the form (`/pendaftaran/[token]`). It is **not** an `Invoice`: it is one `EnrollmentFee` row per application, priced and snapshotted at submit from `Program.enrollmentFee` (Pengaturan → Pengaturan Pendaftaran; 0 = no payment step; a school child with the Day Care add-on pays both fees). The gateway `referenceId` is the **fee's id**; the shared processor (`processPaymentEvent`) looks for an Invoice with that id first and falls back to the fee, so the same webhook URL, the same signature check and the same dedup serve both.
+
+What differs from an invoice:
+
+- **The link is created lazily** by `POST /api/enrollments/token/[token]/pay` (public, rate-limited per IP and per token), not at submit. A stored link is reused while it has more than 10 minutes left; failures are stored on the row as `linkError` and shown to staff.
+- **Pull-polling is the real crediting path** (see above: no DOKU notification has ever verified). The return page `/pendaftaran/[token]/pembayaran` asks the gateway (throttled to one poll per fee per 15 s through an atomic `lastCheckedAt` claim) before it says Lunas; staff press "Perbarui pembayaran" on the application; and the daily `reconcile-payments` cron also polls every UNPAID fee that ever got a gateway session (cap 100, never-checked first). None of them writes a status itself; each goes through the processor.
+- **The amount must match the snapshot** (±1 IDR). A payment that does not, a second payment on a fee that is already Lunas, and any payment on a waived fee are **not credited**. They are written as `ERROR` `WebhookEvent` rows whose `invoiceId` holds the **fee id**, shown to staff as "Perlu dicek" on the application, returned by "Perbarui pembayaran" as `NEEDS_REVIEW`, and logged by the cron as `[CRON RECONCILE] Enrollment fee payments need manual review`. **Money is at the gateway and nobody has been refunded:** check the DOKU dashboard and refund or adjust by hand.
+- **Changing the amount** (Atur diskon) drops the stored link but **keeps the gateway session id**, so reconcile and the cron still find a payment the parent makes on the old order. That payment is then refused as an amount mismatch and shows as "Perlu dicek"; the dialog warns staff when a live link exists.
+- **Staff settle outside the gateway** with Tandai sudah bayar (Tunai / Transfer bank) or Bebaskan biaya; both need finance permissions (`payments.record` / `fees.edit`) on top of `admissions.edit` and are refused once the fee is no longer UNPAID (409). A payment that arrives afterwards is flagged only if its webhook is delivered, because the daily sweep polls UNPAID fees only.
+- **Reminders**: `GET /api/enrollments/[id]/fee/reminder` redirects to `wa.me` and is built on click, because the message carries the parent's form link and its access token is the only credential of the public pages. No list or detail response may contain a `wa.me` URL.
+
+---
+
 ## Testing a payment end to end (sandbox)
 
 A sandbox Virtual Account has no bank behind it, so nothing settles on its own — fire the payment yourself from DOKU's sandbox simulator. Paste the VA number from the checkout page and submit; DOKU then sends a real `SUCCESS` notification to `/api/doku/webhook`, which is what moves the invoice to `PAID`. Without the simulator a sandbox invoice sits at `SENT` forever and looks like a bug.

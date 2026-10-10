@@ -1,0 +1,88 @@
+/**
+ * Chasing an unpaid pendaftaran fee by WhatsApp (cycle 2026-10-10-pendaftaran-fee-payment).
+ *
+ * Staff tap one button and WhatsApp opens on the parent's number with the
+ * reminder already written, link included. Pure helpers: who to message, what
+ * to say. The final `wa.me` URL is built by the reminder endpoint at click time
+ * (`app/api/enrollments/[id]/fee/reminder`), because the message carries the
+ * parent's form link and its access token is a credential: lists only ever
+ * learn WHETHER a reminder can be sent (`canRemind`), never the token.
+ */
+
+import { formatRupiah } from "@/lib/format";
+import { whatsappHref, whatsappHrefWithText } from "@/lib/contact";
+
+type PhoneSource = {
+  admission?: { parentWhatsapp?: string | null; parentPhone?: string | null } | null;
+  ayahData?: unknown;
+  ibuData?: unknown;
+};
+
+function phoneOf(block: unknown): string | null {
+  if (!block || typeof block !== "object") return null;
+  const v = (block as Record<string, unknown>).phone;
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * The number to message, most reliable first: the WhatsApp number given at
+ * inquiry, the inquiry phone, then the Ibu's and the Ayah's phone from the
+ * form. Only a number WhatsApp can actually open counts (`whatsappHref` rejects
+ * anything too short to be one), so a junk value does not hide a good one.
+ */
+export function resolveFollowUpPhone(src: PhoneSource): string | null {
+  const candidates = [
+    src.admission?.parentWhatsapp ?? null,
+    src.admission?.parentPhone ?? null,
+    phoneOf(src.ibuData),
+    phoneOf(src.ayahData),
+  ];
+  for (const c of candidates) {
+    if (c && whatsappHref(c)) return c;
+  }
+  return null;
+}
+
+/** Whether a reminder can be sent at all (a number WhatsApp can open exists) — all a list needs to know. */
+export function canRemind(src: PhoneSource): boolean {
+  return resolveFollowUpPhone(src) !== null;
+}
+
+/** The reminder staff send. Parent voice: courteous, no pressure, easy to ignore if already paid. */
+export function feeReminderText(input: {
+  parentName: string | null | undefined;
+  childName: string;
+  amount: number;
+  formUrl: string;
+  /** The tenant's own name; omitted → the line introduces nobody rather than the wrong school. */
+  schoolName?: string | null;
+}): string {
+  const who = input.parentName?.trim() ? `Bapak/Ibu ${input.parentName.trim()}` : "Bapak/Ibu";
+  const school = input.schoolName?.trim();
+  return [
+    school ? `Assalamu'alaikum ${who}. Kami dari ${school}.` : `Assalamu'alaikum ${who}.`,
+    `Biaya pendaftaran ananda ${input.childName} sebesar ${formatRupiah(input.amount)} belum kami terima.`,
+    `Bapak/Ibu bisa membayarnya lewat tautan berikut: ${input.formUrl}`,
+    "Jika sudah membayar, mohon abaikan pesan ini. Jazakumullah khairan.",
+  ].join("\n\n");
+}
+
+/** `wa.me` URL with the reminder prefilled, or null when there is no number WhatsApp can open. */
+export function feeReminderWaUrl(
+  src: PhoneSource & {
+    parentName: string | null | undefined;
+    childName: string;
+    amount: number;
+    formUrl: string;
+    schoolName?: string | null;
+  },
+): string | null {
+  const phone = resolveFollowUpPhone(src);
+  if (!phone) return null;
+  return whatsappHrefWithText(phone, feeReminderText(src));
+}
+
+/** The public link a parent uses to reach (and pay) the fee: the form link, which leads to the fee once submitted. */
+export function parentFormUrl(origin: string, accessToken: string): string {
+  return `${origin.replace(/\/+$/, "")}/pendaftaran/${encodeURIComponent(accessToken)}`;
+}

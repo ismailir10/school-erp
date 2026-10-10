@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Last audited: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
@@ -311,6 +311,28 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Error scenarios to verify:**
   - File over 4 MB that cannot be compressed (e.g. a large PDF) → "Ukuran berkas terlalu besar (maks. 4 MB)…"
   - A `.txt`/`.docx` renamed to `.jpg` → "Format tidak didukung…" in Indonesian
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-PARENT-ENROL-03 — Pay the pendaftaran fee right after sending the form, or come back to it later
+- **Persona:** Ibu Nur
+- **Role:** public token holder (no login; the link is the credential)
+- **Preconditions:** An `INVITED` application for a program with a pendaftaran fee (e.g. Rp300.000; Rp675.000 with the Day Care add-on); a phone; DOKU reachable.
+- **Steps:**
+  1. At Tinjau, read the "Biaya pendaftaran" block and see what will be charged and when.
+  2. Send the form and read the thank-you card; find "Langkah terakhir: Bayar biaya pendaftaran".
+  3. Tap "Bayar sekarang", land on the DOKU page, pay by Virtual Account (or stop and come back).
+  4. Return to the school's page and see the payment status without doing anything technical.
+  5. Later, open the same form link again and find the fee (still to pay, or paid).
+- **Done when:** The amount at Tinjau, on the thank-you card, on DOKU and on the receipt are the same number, and a discount (if staff set one) is shown as normal fee, discount % and total. The pay button is one clear full-width action. Back from DOKU, the page says "Menunggu pembayaran" (with "Periksa lagi") until the payment is actually confirmed, then "Pembayaran diterima · Alhamdulillah" with amount and time in WIB. Reopening the form link shows the fee state instead of a dead end. Nothing needs sideways scrolling at phone width.
+- **Why this job matters:** The fee is the first money a family hands the school. A payment step that is vague about the amount, or that says "paid" before it is, costs trust at the very first contact.
+- **Expected perf:** form submit click-to-thank-you <2s; "Bayar sekarang" click-to-DOKU <3s; return page <2s.
+- **Error scenarios to verify:**
+  - DOKU cannot issue a link → "Tautan pembayaran belum bisa dibuat. Coba lagi sebentar." and the button stays usable.
+  - Connection drops on tap → "Koneksi terputus. Coba lagi sebentar ya."
+  - Back from DOKU after cancelling → "Pembayaran belum selesai", nothing charged, the button still works.
+  - Paid by Virtual Account hours later → the return page or the form link shows paid once DOKU confirms.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
