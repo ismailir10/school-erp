@@ -56,7 +56,13 @@ export type ReconcileCode =
   | "NO_CHANGE"
   | "UNAVAILABLE"
   | "GATEWAY_ERROR"
-  | "NOT_FOUND";
+  | "NOT_FOUND"
+  /**
+   * Pendaftaran fee only: the gateway holds a payment the processor refused to
+   * credit (wrong amount, a second payment, money on a waived fee). The fee is
+   * unchanged and the money needs a human — never reported as a quiet NO_CHANGE.
+   */
+  | "NEEDS_REVIEW";
 
 export type ReconcileResult = {
   code: ReconcileCode;
@@ -383,7 +389,7 @@ export async function reconcileEnrollmentFee(
 
   const before = await prisma.enrollmentFee.findUnique({
     where: { id: feeId },
-    select: { id: true, status: true, gatewaySessionId: true, paymentUrl: true, lastCheckedAt: true },
+    select: { id: true, status: true, gatewaySessionId: true },
   });
   const none = (code: ReconcileCode, message: string, status: string | null): ReconcileResult => ({
     code,
@@ -397,8 +403,11 @@ export async function reconcileEnrollmentFee(
   if (before.status === "PAID" || before.status === "WAIVED") {
     return none("ALREADY_PAID", "Biaya pendaftaran sudah selesai — tidak ada perubahan.", before.status);
   }
-  // No link was ever issued, so the gateway has nothing to report.
-  if (!before.paymentUrl) {
+  // No order was ever opened at the gateway, so it has nothing to report. The
+  // test is the SESSION that was issued, not the stored link: staff changing the
+  // amount drops the link (so it is not handed out again) but a parent may still
+  // hold the old order and pay it, and that payment must stay findable.
+  if (!before.gatewaySessionId) {
     return none("NO_CHANGE", "Pembayaran belum dimulai.", before.status);
   }
   // Claim the poll ATOMICALLY: one statement both checks the interval and stamps
@@ -503,6 +512,27 @@ export async function reconcileEnrollmentFee(
   if (status.state === "EXPIRED") {
     return { ...base, code: "NO_CHANGE", message: "Sesi pembayaran sudah kedaluwarsa. Buat tautan baru." };
   }
-  // A guard rejected it (amount mismatch, missing payment id, non-IDR): staff see the ERROR row.
-  return { ...base, code: "NO_CHANGE", message: "Tidak ada perubahan status. Cek panel Aktivitas untuk detail." };
+  // A payment the processor refused to credit. Said plainly and given its own
+  // code: a quiet "no change" here would leave money at the gateway that nobody
+  // knows about (the parent sees "menunggu", staff see "belum bayar").
+  const review = feeReviewMessage(outcome.status);
+  if (review) return { ...base, code: "NEEDS_REVIEW", message: review };
+  // Some other guard rejected it (missing payment id, non-IDR): the ERROR row says which.
+  return { ...base, code: "NO_CHANGE", message: "Tidak ada perubahan status. Pembayaran di gateway belum bisa dicatat." };
+}
+
+/** Staff-facing sentence for a processor outcome that leaves money needing a human. */
+function feeReviewMessage(processorStatus: string | undefined): string | null {
+  switch (processorStatus) {
+    case "ERROR:amount_mismatch":
+      return "Ada pembayaran yang jumlahnya berbeda dari biaya pendaftaran, jadi biaya tetap Belum bayar. Periksa di dashboard DOKU lalu tangani manual (mis. kembalikan dana atau sesuaikan biaya).";
+    case "ERROR:duplicate_payment_after_paid":
+      return "Ada pembayaran kedua untuk biaya yang sudah lunas. Periksa di dashboard DOKU dan kembalikan dana bila perlu.";
+    case "ERROR:paid_on_waived_fee":
+      return "Ada pembayaran untuk biaya yang sudah dibebaskan. Periksa di dashboard DOKU dan kembalikan dana.";
+    case "ERROR:duplicate_payment_id":
+      return "Pembayaran ini sudah tercatat pada biaya lain. Periksa di dashboard DOKU.";
+    default:
+      return null;
+  }
 }

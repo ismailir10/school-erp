@@ -436,8 +436,11 @@ async function handleSessionExpired(
 }
 
 // ─── Pendaftaran fee (EnrollmentFee) ─────────────────────────────────
-// cycle 2026-10-10-pendaftaran-fee-payment. WebhookEvent.invoiceId stays null
-// for these events: the column names an Invoice and a fee is not one.
+// cycle 2026-10-10-pendaftaran-fee-payment. These events carry the FEE id in
+// WebhookEvent.invoiceId. The column is a plain string (no FK) and cuids do not
+// collide with invoice ids, so it works as "the payable this event is about":
+// the staff fee card reads its ERROR rows (a payment that did not match the
+// fee, a second payment, money on a waived fee) to show "perlu dicek".
 
 async function resolveEnrollmentFeeId(event: NormalizedPaymentEvent): Promise<string | null> {
   if (event.referenceId) {
@@ -508,32 +511,32 @@ async function creditEnrollmentFee(
 
   switch (outcome.type) {
     case "PAID":
-      await markProcessed(eventId);
+      await markProcessed(eventId, feeId);
       console.info(`${logPrefix} PROCESSED enrollment fee`, { feeId, eventId });
       return { ok: true, status: "PAID", eventId };
     case "ALREADY_PAID":
       if (!outcome.redelivery) {
-        await markError(eventId, "DUPLICATE_PAYMENT_AFTER_PAID");
+        await markError(eventId, "DUPLICATE_PAYMENT_AFTER_PAID", feeId);
         console.warn(`${logPrefix} Second payment on an already-settled enrollment fee`, { feeId, eventId });
         return { ok: true, status: "ERROR:duplicate_payment_after_paid", eventId };
       }
-      await markProcessed(eventId);
+      await markProcessed(eventId, feeId);
       return { ok: true, status: "PAID:already", eventId };
     case "WAIVED":
       // Money arrived for a fee staff waived: nothing to credit, but it needs a refund.
-      await markError(eventId, "PAID_ON_WAIVED_FEE");
+      await markError(eventId, "PAID_ON_WAIVED_FEE", feeId);
       console.warn(`${logPrefix} Payment on a WAIVED enrollment fee`, { feeId, eventId });
       return { ok: true, status: "ERROR:paid_on_waived_fee", eventId };
     case "MISMATCH":
-      await markError(eventId, `AMOUNT_MISMATCH:expected=${outcome.expected};got=${paymentAmount}`);
+      await markError(eventId, `AMOUNT_MISMATCH:expected=${outcome.expected};got=${paymentAmount}`, feeId);
       console.warn(`${logPrefix} Enrollment fee amount mismatch`, { feeId, eventId });
       return { ok: true, status: "ERROR:amount_mismatch", eventId };
     case "DUPLICATE_PAYMENT":
-      await markError(eventId, "DUPLICATE_PAYMENT_ID");
+      await markError(eventId, "DUPLICATE_PAYMENT_ID", feeId);
       return { ok: true, status: "ERROR:duplicate_payment_id", eventId };
     case "MISSING":
     default:
-      await markError(eventId, "ENROLLMENT_FEE_NOT_FOUND");
+      await markError(eventId, "ENROLLMENT_FEE_NOT_FOUND", feeId);
       return { ok: true, status: "ERROR:enrollment_fee_not_found", eventId };
   }
 }
@@ -567,14 +570,14 @@ async function expireEnrollmentFee(
     return "REVERTED" as const;
   });
   if (result === "NOT_UNPAID") {
-    await markIgnored(eventId, "enrollment fee not unpaid");
+    await markIgnored(eventId, "enrollment fee not unpaid", feeId);
     return { ok: true, status: "IGNORED:fee_not_unpaid", eventId };
   }
   if (result === "STALE_SESSION") {
-    await markIgnored(eventId, "expiry of a replaced session");
+    await markIgnored(eventId, "expiry of a replaced session", feeId);
     return { ok: true, status: "IGNORED:stale_session", eventId };
   }
-  await markProcessed(eventId);
+  await markProcessed(eventId, feeId);
   return { ok: true, status: "REVERTED", eventId };
 }
 

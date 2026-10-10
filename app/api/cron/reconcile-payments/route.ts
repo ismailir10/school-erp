@@ -132,7 +132,9 @@ export async function POST(req: NextRequest) {
   // with no login, so nobody presses "Perbarui pembayaran" for them. Same
   // read-only poll through the shared processor, own cap, own tally.
   const feeCandidates = await prisma.enrollmentFee.findMany({
-    where: { status: "UNPAID", paymentUrl: { not: null } },
+    // Keyed on the SESSION ever issued, not the stored link: staff changing the
+    // amount drops the link but the parent may still hold (and pay) the old order.
+    where: { status: "UNPAID", gatewaySessionId: { not: null } },
     select: { id: true },
     // Least recently checked first (never-checked leading), so a fee that stays
     // unresolved cannot crowd newer ones out of the cap run after run.
@@ -169,6 +171,12 @@ export async function POST(req: NextRequest) {
   // had taken and Talib did not know about.
   const updated = tally.UPDATED ?? 0;
   const feesUpdated = feeTally.UPDATED ?? 0;
+  // Money at the gateway that was NOT credited (wrong amount, second payment):
+  // loud, because nothing else tells anyone.
+  const feesNeedingReview = feeTally.NEEDS_REVIEW ?? 0;
+  if (feesNeedingReview > 0) {
+    console.error("[CRON RECONCILE] Enrollment fee payments need manual review", { feesNeedingReview });
+  }
   if (updated > 0 || feesUpdated > 0) {
     console.warn("[CRON RECONCILE] Credited payments the webhook never delivered", {
       updated,
@@ -190,6 +198,7 @@ export async function POST(req: NextRequest) {
       scanned: feeCandidates.length,
       cappedAtLimit: feeCandidates.length === MAX_FEES_PER_RUN,
       updated: feesUpdated,
+      needsReview: feesNeedingReview,
       tally: feeTally,
     },
     ranAt: new Date().toISOString(),

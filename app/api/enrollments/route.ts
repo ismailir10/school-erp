@@ -4,10 +4,11 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
+import { canRemind } from "@/lib/enrollment/follow-up";
 
 /**
  * GET /api/enrollments — admin list of enrollment applications. Tenant-scoped,
- * admin-gated, paginated. Supports ?status= and ?search= (child name / parent
+ * admin-gated, paginated. Supports ?status=, ?payment= and ?search= (child name / parent
  * email). Returns lean rows for the list table; full record is GET [id].
  */
 export async function GET(req: NextRequest) {
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
   if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const canEdit = hasPermission(session, "admissions.edit");
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
@@ -27,11 +29,19 @@ export async function GET(req: NextRequest) {
   const { orderBy } = sort;
 
   const status = searchParams.get("status");
+  const payment = searchParams.get("payment");
   const search = escapeLike(cleanSearch(searchParams.get("search")));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
   if (status && status !== "all") where.status = status;
+  // Pendaftaran fee: "unpaid" | "paid" | "waived" filter on the fee's status,
+  // "none" on applications with no fee at all (a free program).
+  if (payment === "unpaid" || payment === "paid" || payment === "waived") {
+    where.fee = { is: { status: payment.toUpperCase() } };
+  } else if (payment === "none") {
+    where.fee = { is: null };
+  }
   if (search) {
     where.OR = [
       { childName: { contains: search, mode: "insensitive" } },
@@ -55,10 +65,31 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         studentId: true,
         program: { select: { name: true } },
+        fee: { select: { status: true, amount: true } },
+        // Only to tell whether a WhatsApp reminder CAN be sent for an unpaid row;
+        // none of these fields is returned, and the access token is not read at
+        // all (the reminder endpoint builds the link, for one row, on click).
+        ...(canEdit
+          ? {
+              ayahData: true,
+              ibuData: true,
+              admission: { select: { parentPhone: true, parentWhatsapp: true } },
+            }
+          : {}),
       },
     }),
     prisma.enrollmentApplication.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(rows, total, page, pageSize));
+  const data = rows.map((row) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { ayahData, ibuData, admission, fee, ...lean } = row as any;
+    const amount = fee ? Math.round(Number(fee.amount)) : 0;
+    // Whether the WhatsApp reminder can be sent, only where there is something to chase.
+    const followUp =
+      canEdit && fee?.status === "UNPAID" ? { canRemind: canRemind({ admission, ayahData, ibuData }) } : null;
+    return { ...lean, fee: fee ? { status: fee.status, amount } : null, followUp };
+  });
+
+  return NextResponse.json(paginatedResponse(data, total, page, pageSize));
 }

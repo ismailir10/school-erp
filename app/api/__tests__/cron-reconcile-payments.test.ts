@@ -162,11 +162,13 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
 });
 
 describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
-  it("only polls UNPAID fees that already hold a payment link, least recently checked first, capped", async () => {
+  it("only polls UNPAID fees that ever got a gateway session, least recently checked first, capped", async () => {
     await POST(makeReq(authed));
 
     const arg = feeFindManyMock.mock.calls[0][0];
-    expect(arg.where).toEqual({ status: "UNPAID", paymentUrl: { not: null } });
+    // Keyed on the session, not the stored link: staff changing the amount drops
+    // the link, but the parent may still hold (and pay) the old order.
+    expect(arg.where).toEqual({ status: "UNPAID", gatewaySessionId: { not: null } });
     // Never-checked fees lead, so a fee that stays unresolved cannot crowd newer
     // ones out of the cap run after run.
     expect(arg.orderBy).toEqual({ lastCheckedAt: { sort: "asc", nulls: "first" } });
@@ -185,6 +187,27 @@ describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
     // Invoices were untouched.
     expect(body).toMatchObject({ scanned: 0, updated: 0 });
     warnSpy.mockRestore();
+  });
+
+  it("counts payments left for manual review and logs them loudly (nothing else tells anyone)", async () => {
+    feeFindManyMock.mockResolvedValue([{ id: "fee-1" }, { id: "fee-2" }]);
+    reconcileFeeMock.mockResolvedValueOnce({ code: "NEEDS_REVIEW" }).mockResolvedValueOnce({ code: "NO_CHANGE" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const body = await (await POST(makeReq(authed))).json();
+
+    expect(body.enrollmentFees).toMatchObject({ needsReview: 1, updated: 0, tally: { NEEDS_REVIEW: 1, NO_CHANGE: 1 } });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("need manual review"), { feesNeedingReview: 1 });
+    errorSpy.mockRestore();
+  });
+
+  it("stays quiet when nothing needs review", async () => {
+    feeFindManyMock.mockResolvedValue([{ id: "fee-1" }]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const body = await (await POST(makeReq(authed))).json();
+    expect(body.enrollmentFees.needsReview).toBe(0);
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("one failing fee never aborts the sweep", async () => {

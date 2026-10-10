@@ -76,8 +76,9 @@ describe("processPaymentEvent → enrollment fee", () => {
     expect(update.data.paidAt).toBeInstanceOf(Date);
     // Serialised per fee, like invoices.
     expect(db.$executeRaw).toHaveBeenCalled();
-    // WebhookEvent.invoiceId stays null: it names an Invoice and a fee is not one.
-    expect(outcome()).toMatchObject({ status: "PROCESSED", invoiceId: null });
+    // WebhookEvent.invoiceId is an unconstrained string: fee events carry the FEE
+    // id so staff can later find the payments refused for it ("perlu dicek").
+    expect(outcome()).toMatchObject({ status: "PROCESSED", invoiceId: FEE_ID });
   });
 
   it("an Invoice with that reference wins; the fee path is never touched", async () => {

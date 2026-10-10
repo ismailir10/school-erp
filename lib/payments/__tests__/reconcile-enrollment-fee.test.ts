@@ -27,8 +27,6 @@ const row = (over: Record<string, unknown> = {}) => ({
   id: "fee-1",
   status: "UNPAID",
   gatewaySessionId: "sess-1",
-  paymentUrl: "https://doku.example/pay/1",
-  lastCheckedAt: null,
   ...over,
 });
 const completed = {
@@ -64,11 +62,19 @@ describe("reconcileEnrollmentFee", () => {
     expect(fetchPaymentStatus).not.toHaveBeenCalled();
   });
 
-  it("does not poll when no link was ever issued", async () => {
-    feeFindUnique.mockResolvedValue(row({ paymentUrl: null }));
+  it("does not poll when no gateway session was ever issued", async () => {
+    feeFindUnique.mockResolvedValue(row({ gatewaySessionId: null }));
     const r = await reconcileEnrollmentFee("fee-1");
     expect(r).toMatchObject({ code: "NO_CHANGE", message: "Pembayaran belum dimulai." });
     expect(fetchPaymentStatus).not.toHaveBeenCalled();
+  });
+
+  it("keys on the session, not the stored link: staff dropping the link must not hide a payment on the old order", async () => {
+    // The fee row no longer has a paymentUrl (it is not even selected), yet the
+    // parent may still pay the order DOKU holds.
+    await reconcileEnrollmentFee("fee-1");
+    expect(feeFindUnique.mock.calls[0][0].select).toEqual({ id: true, status: true, gatewaySessionId: true });
+    expect(fetchPaymentStatus).toHaveBeenCalledTimes(1);
   });
 
   it("throttles: when the atomic claim finds the fee checked inside minIntervalMs, the gateway is not touched", async () => {
@@ -153,11 +159,31 @@ describe("reconcileEnrollmentFee", () => {
     expect(r.message).toMatch(/LUNAS/);
   });
 
-  it("an amount the processor refused leaves the fee UNPAID and says to check the activity", async () => {
+  it("an amount the processor refused leaves the fee UNPAID and is NEEDS_REVIEW, not a quiet no-change", async () => {
     processPaymentEvent.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "ERROR:amount_mismatch" } });
     feeFindUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce({ status: "UNPAID" });
     const r = await reconcileEnrollmentFee("fee-1");
-    expect(r).toMatchObject({ code: "NO_CHANGE", statusAfter: "UNPAID", processorStatus: "ERROR:amount_mismatch" });
+    expect(r).toMatchObject({ code: "NEEDS_REVIEW", statusAfter: "UNPAID", processorStatus: "ERROR:amount_mismatch" });
+    expect(r.message).toMatch(/jumlahnya berbeda/);
+    expect(r.message).toMatch(/DOKU/);
+  });
+
+  it.each([
+    ["ERROR:duplicate_payment_after_paid", /pembayaran kedua/],
+    ["ERROR:paid_on_waived_fee", /sudah dibebaskan/],
+    ["ERROR:duplicate_payment_id", /sudah tercatat pada biaya lain/],
+  ])("%s is NEEDS_REVIEW with its own words", async (processorStatus, words) => {
+    processPaymentEvent.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: processorStatus } });
+    feeFindUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce({ status: "UNPAID" });
+    const r = await reconcileEnrollmentFee("fee-1");
+    expect(r.code).toBe("NEEDS_REVIEW");
+    expect(r.message).toMatch(words);
+  });
+
+  it("another guard's rejection (missing payment id, non-IDR) stays a plain NO_CHANGE", async () => {
+    processPaymentEvent.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "ERROR:no_payment_id" } });
+    feeFindUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce({ status: "UNPAID" });
+    expect((await reconcileEnrollmentFee("fee-1")).code).toBe("NO_CHANGE");
   });
 
   it("PENDING and FAILED change nothing and never reach the processor", async () => {

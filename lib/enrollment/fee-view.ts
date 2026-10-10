@@ -17,7 +17,7 @@ export type PublicFeeView = {
   status: PublicFeeStatus;
   /** ISO instant, set once PAID. */
   paidAt: string | null;
-  /** True once a payment link was issued, i.e. the parent has started to pay. */
+  /** True once an order was opened at the gateway, i.e. the parent has started to pay. */
   started: boolean;
 };
 
@@ -32,7 +32,7 @@ export async function getPublicFeeView(
 ): Promise<PublicFeeView | null> {
   const fee = await db.enrollmentFee.findUnique({
     where: { applicationId },
-    select: { amount: true, baseAmount: true, discountPercent: true, status: true, paidAt: true, paymentUrl: true },
+    select: { amount: true, baseAmount: true, discountPercent: true, status: true, paidAt: true, gatewaySessionId: true },
   });
   if (!fee) return null;
   return {
@@ -42,6 +42,8 @@ export async function getPublicFeeView(
     discountPercent: fee.discountPercent,
     status: toStatus(fee.status),
     paidAt: fee.paidAt ? fee.paidAt.toISOString() : null,
-    started: Boolean(fee.paymentUrl),
+    // An order was opened at the gateway (kept even when staff drop the stored
+    // link after changing the amount, so the parent is still polled for it).
+    started: Boolean(fee.gatewaySessionId),
   };
 }
