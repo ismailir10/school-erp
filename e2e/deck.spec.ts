@@ -38,6 +38,9 @@ test.describe("Panduan Talib (product tour)", () => {
     await signInAs(page, "SUPER_ADMIN");
     await page.goto("/panduan");
     await expect(heading(page, 1, SLIDES[0].title)).toBeVisible();
+    // The cover is server-rendered. This Chromium-only control appears after hydration,
+    // so the keyboard listener is ready before we send the first shortcut.
+    await expect(page.getByRole("button", { name: "Layar penuh", exact: true })).toBeVisible();
 
     for (let i = 1; i < SLIDES.length; i++) {
       await page.keyboard.press("ArrowRight");
