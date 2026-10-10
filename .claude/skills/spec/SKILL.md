@@ -1,116 +1,92 @@
 ---
 name: spec
-description: Start a new development cycle. Creates a single cycle doc (docs/cycles/YYYY-MM-DD-<slug>.md) with Context, Spec, and Tasks sections before any code is written, then stops for the user to approve the spec. Use when beginning any non-trivial feature, bug fix, or change.
+description: First stage of spec → build → verify-local → ship. Turns a feature, bug or behavior request into one approved work record (GitHub issue or cycle doc, per the repo profile) by looking up facts yourself and asking the user only for decisions, then stops for approval. Use before any change to product code, schema or CI.
 ---
 
-# /spec — define + plan in one step
+<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
-You are starting a new development cycle. This command produces **one** artifact: `docs/cycles/YYYY-MM-DD-<slug>.md`. No scratch files, no sibling planning docs.
+# Spec
 
-## Step 0: Canonical entry
+Output: one approved **work record**, in the form the repo profile names (a GitHub issue, or
+`docs/cycles/YYYY-MM-DD-<slug>.md`). This stage decides; it writes no product code.
 
-There is no entry phrase. The user states what they want; you decide a cycle is warranted and start one — see CLAUDE.md **§ Orchestration**. Before Preflight:
+Read `working-principles` first if you have not this session. Then read `docs/workflow/spec.md` if it exists: its
+sections extend the matching steps below.
 
-1. Rewrite `.claude/session-role` with `role=cto` and your own model ID.
-2. If you are in the main checkout, derive a kebab-case slug from the request, run `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into `.worktrees/<slug>`, and rewrite `.claude/session-role` inside the worktree.
-3. Then proceed with Preflight and Step 1 on the user's original request — no confirmation needed for the setup itself.
+## 1. Preflight
 
-The user should never have to run `setup-worktree.sh` or `install-hooks.sh` by hand, or name a command.
+1. Working tree clean (or ask: commit, stash or abort).
+2. An unfinished record already exists (open issue in progress, or a cycle doc with unchecked tasks and empty Ship
+   Notes)? Ask whether to continue it or start new.
+3. Set up isolation as the repo profile says (worktree + branch from a freshly fetched base). The user should never
+   have to run setup commands themselves.
 
-## Preflight
+## 2. Gather facts yourself
 
-Run these checks first. If any fails, stop and surface the error.
+Read the repo's domain glossary, ADRs, UI rules and the smallest relevant slice of code (profile → **Read first**).
+Find related or duplicate records, prior work on the same area, and helpers to reuse. Delegate broad sweeps to
+workers. Anything answerable from code, docs, git history or the tracker gets looked up, never asked.
 
-1. **Session role set?** Read `.claude/session-role`. If it is missing, or its `model=` is not your own model ID, write it now with `role=cto` and your model. `prepare-commit-msg` copies it into every commit, so a stale value mis-attributes the work. Do not proceed until it is right.
-2. **Worktree isolation?** Every session MUST work in a git worktree, not the main checkout. Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, do NOT ask the user to run commands — set the worktree up yourself:
-   1. Derive a kebab-case slug from the user's request (2–4 words).
-   2. Run `bash scripts/setup-worktree.sh <slug>` via the Bash tool. The script branches from `origin/staging`, symlinks `.env` and `node_modules`, and installs hooks.
-   3. Use the `EnterWorktree` tool with `path=.worktrees/<slug>` to move into it.
-   4. Rewrite `.claude/session-role` inside the worktree with your actual model ID.
-   5. Then proceed with the user's original request. The user should never have to touch worktree setup.
-3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh` first.
-4. **Branch hygiene?** Run `git branch --show-current` and `git status --porcelain`.
-   - **On `staging` or `main` with a dirty tree:** stop and print a clear error: *"You're on <branch> with uncommitted changes. Stash or resolve them first: `git stash -m 'description'`."* Do not proceed.
-   - **On `staging` or `main` with a clean tree:** auto-create a feature branch from latest remote:
-     ```bash
-     git fetch origin staging
-     git checkout -b feat/<slug> origin/staging
-     ```
-     Print: *"Created feat/<slug> from origin/staging."* Then proceed.
-   - **Already on `feat/*`:** run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and print: *"feat/<slug> is behind origin/staging by <N> commits. Rebase before continuing: `git fetch origin staging && git rebase origin/staging`."* The user must resolve before `/spec` proceeds. Otherwise proceed silently.
-   - **On any other branch:** warn the user and ask whether to continue or switch.
-5. **Current cycle already open?** Look at the most recent `docs/cycles/*.md`. If its **Ship Notes** section is empty and its **Tasks** section has unchecked boxes, that cycle is still in progress — ask the user whether to continue it or start a new one.
+## 3. Ask for decisions in rounds
 
-## Step 1: Understand the request (optionally refine)
+If the request is vague, refine it into a concrete goal first. Then each round:
 
-If the user's request is vague ("make it faster", "clean up parent portal", "fix attendance"), invoke **`superpowers:brainstorming`** to turn it into a concrete goal before writing the cycle doc. Capture the refined problem statement in the cycle doc's `## Context` section.
+- asks every decision whose prerequisites are settled (not one at a time, not ones that depend on open answers);
+- numbers the questions and gives your **recommended answer** with one line of why;
+- uses the harness's question tool where it has one, recommendation first.
 
-If the request is already concrete, skip brainstorming.
+Repeat until no open decisions remain. When a domain term settles, add it to the glossary. Write an ADR only when a
+decision is hard to reverse, surprising without context, and a real trade-off.
 
-## Step 2: Explore before specifying
+## 4. Write the record
 
-Use the `Explore` subagent (or direct `Glob`/`Grep` for small targeted work) to understand the relevant parts of the codebase. Actively look for:
-- Existing utilities and patterns you can reuse
-- Files that will need to change
-- Prior cycles that touched the same area (check `docs/cycles/`)
-
-Also check `docs/uat/reports/` for UAT reports whose area overlaps the spec target. If any exist, read the most recent matching report and apply the **staleness rule**: if the report is older than 60 days OR older than the most recent `docs/cycles/` entry touching the same files, mark its findings as *"possibly stale — verify before acting"* in the Context section rather than treating them as fact. For fresh reports, surface any **blocker** or **major** findings into the cycle doc's `## Context` as explicit inputs. Ignore minors. When staging the cycle doc for commit, also `git add -f` the consumed report so it enters git history alongside the cycle that used it.
-
-Do **not** start writing code. This is the define phase.
-
-## Step 3: Write the cycle doc
-
-1. Pick a kebab-case slug (2–4 words). Create `docs/cycles/$(date +%Y-%m-%d)-<slug>.md` with the six-section template below.
-2. Fill `## Context` — one paragraph: the problem + intended outcome. Include why it matters.
-3. Fill `## Spec`:
-   - Acceptance criteria as a checklist
-   - Non-goals (what this cycle will *not* touch)
-   - Assumptions you are making — surface them for the user to correct
-4. Apply **`superpowers:writing-plans`** to fill `## Tasks`:
-   - Ordered list of atomic tasks, each committable independently
-   - Each task has a one-line acceptance criterion
-   - Mark dependencies explicitly so `/build` can classify independent vs. sequential tasks for subagent dispatch
-5. Leave `## Implementation`, `## Verification`, `## Ship Notes` empty — they are owned by `/build` and `/ship`.
-
-### Cycle doc template
+Behavioral and durable: no file paths or code in the user-facing sections, so the record stays true while the code
+moves. Use this shape (an issue body, or the top of the cycle doc):
 
 ```markdown
-# <Cycle Title>
-
 ## Context
-<one paragraph: problem + intended outcome>
+Current behavior, desired outcome, who feels it, why it matters.
 
-## Spec
-<acceptance criteria as a checklist>
+## Decisions
+Choices made while asking, with the reason for each.
+
+## Acceptance criteria
+- [ ] Each independently checkable, observable behavior (not implementation activity).
+
+## Verify flows
+2–4 user flows to walk on the local app in verify-local: role, start page, steps, expected result, data needed.
+Include one edge case and one error case.
+
+## UX notes
+Primary action per screen, labels, empty/error states, what the user sees first. Skip for non-UI work.
+
+## Test seams
+Where behavior is tested (as few seams as possible), e.g. "API integration test for POST /x", "e2e: admin creates x".
+
+## Non-goals
+Nearby work deliberately excluded.
+
+## Assumptions
+Everything you would otherwise resolve silently.
+
+## Gate re-openers
+Schema migration, new dependency, auth/PII change, production write, paid API use — or "none".
 
 ## Tasks
-<ordered, atomic, each is a checkbox with acceptance line>
-
-## Implementation
-<filled by /build — per-task bullet of files touched + one-line summary>
-
-## Verification
-<filled by /build — gate output, test names, manual smoke notes>
-
-## Ship Notes
-<filled by /ship — migrations, env vars, manual steps, rollback plan>
+- [ ] T1 <title> — accept: <one-line check> (deps: …, reuse: …)
 ```
 
-## Step 4: Present for approval — then STOP
+Tasks are ordered, atomic and independently committable. Mark which can run in parallel. A cycle doc also carries
+empty `## Implementation`, `## Verification` and `## Ship Notes` sections for later stages. An issue keeps tasks
+in its body and verification evidence in the PR.
 
-Show the user the cycle doc's Context + Spec + Tasks sections. Surface assumptions explicitly:
+Call out security, PII, migration (additive?), i18n and design implications when relevant.
 
-> **Assumptions I'm making:**
-> 1. [assumption]
-> 2. [assumption]
-> → Correct me now. On your go-ahead I build and ship this without asking again.
+## 5. Present and stop
 
-**This is a hard stop. End your turn here.** Do not invoke `build`. Do not begin a task "while waiting". The user's next message is the gate.
+Show the full record and end with:
 
-Weight it accordingly: this is the **only** human checkpoint in the cycle. Everything downstream — every commit, the PR, the merge to `staging` — proceeds on the strength of this one approval. So put the real decisions in the Spec where they can be corrected cheaply, and state every assumption you would otherwise resolve silently. An assumption you leave unwritten is one the user never gets to veto.
+> **Assumptions:** 1… 2… → Correct me now. On your go-ahead I build, verify and ship without asking again.
 
-## Rules
-
-- **One file only.** Never create `SPEC.md`, `PLAN.md`, or any other sibling markdown. The pre-commit hook will reject anything outside the allowlist.
-- **No implementation.** `/spec` writes the doc and stops. `/build` does the work.
-- **Reuse first.** If exploration finds existing utilities that solve part of the problem, note them in the task list (`reuse X from lib/...`) rather than re-implementing.
+Stop. On explicit approval, publish (`gh issue create` / commit the cycle doc) and continue straight into `build`.
+If the user only asked for a spec, stop there.

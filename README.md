@@ -93,4 +93,4 @@ Constraints from the last 60 days live in [`docs/adrs/active.md`](docs/adrs/acti
 
 ## Contributing
 
-How this repo is worked — the `/spec` → `/build` → `/ship` loop, testing gates, branch protection, standards — is documented in [CLAUDE.md](./CLAUDE.md). Operational procedure lives in [`docs/runbooks/`](docs/runbooks/).
+How this repo is worked — the `spec` → `build` → `verify-local` → `ship` loop, testing gates, branch protection, standards — is documented in [CLAUDE.md](./CLAUDE.md). Operational procedure lives in [`docs/runbooks/`](docs/runbooks/).

@@ -12,7 +12,7 @@ Moved out of README.md 2026-08-20. README is the repo's public front page; this 
 
 Vercel builds via [`scripts/vercel-build.sh`](../../scripts/vercel-build.sh). `prisma migrate deploy` runs on `staging` and `main`. Those are the only two branches Vercel builds: `vercel.json` `ignoreCommand` ([`scripts/vercel-ignore.sh`](../../scripts/vercel-ignore.sh)) skips every other branch, so PRs get no preview deployment. The staging deployment still uses Vercel's *Preview* environment for its env vars.
 
-CI runs four required checks per PR: `Docs sync` (includes `scripts/audit-docs.sh`), `Lint, Typecheck & Test` (includes the RLS and API-auth coverage guards), `Build`, `Playwright E2E`.
+CI on every ready (non-draft) PR: `Docs sync` (includes `scripts/audit-docs.sh`), `Lint, Typecheck & Test` (includes the RLS and API-auth coverage guards), `Build`, `Keepalive & Alert Self-Test`. `Playwright E2E` and `Backup Pipeline Self-Test` ([`e2e.yml`](../../.github/workflows/e2e.yml)) run on pushes to `staging`/`main`, manual dispatch, or a PR labelled `e2e`; e2e is run locally before every PR that touches a user flow ([`docs/workflow/verify.md`](../workflow/verify.md)).
 
 ## Environment variables
 

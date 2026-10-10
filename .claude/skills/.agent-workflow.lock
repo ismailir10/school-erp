@@ -1,0 +1,18 @@
+# Written by scripts/sync-agent-workflow.sh. Do not edit.
+repo=ismailir10/agent-workflow
+ref=ab828e64447c0dace55a240b3246840bd918bb45
+synced=2026-10-10
+skill=build
+skill=ship
+skill=spec
+skill=verify-local
+skill=working-principles
+script=scripts/pr-screenshots.sh
+script=scripts/sync-agent-workflow.sh
+8acb019cff02805784287d2b7817f6509a0fe20530836566957c93a02b77c03b  .claude/skills/build/SKILL.md
+7bb4602658e24ebe91b52d8acdfb7afe08de7586e3950e729d6b601576fa8a57  .claude/skills/ship/SKILL.md
+899f8b5041343d63417b0067972e104fa00925048d42f86d3397ba4f9b251c41  .claude/skills/spec/SKILL.md
+2369e05a75dbbf110bb0973575e0609eb0248dc196131dc029bd7ec19a8b8417  .claude/skills/verify-local/SKILL.md
+132355fa65d540a9a72565b84d573eb4604a20ab2302b084e5a9b3f40ebf11bf  .claude/skills/working-principles/SKILL.md
+e5d012f1eace82e3005dd3cf0b71ecd1165b134f3276021da94d27c5db80fd9b  scripts/pr-screenshots.sh
+2700a196ae84a6bc6de054263e9749ac2bab47c7160491663a32be776c54598f  scripts/sync-agent-workflow.sh
