@@ -24,13 +24,36 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # On a push to a base branch, skip the jobs below when the merged PR already passed them on exactly this code
+  # (same git tree). Any doubt runs them. See scripts/ci-already-verified.sh (vendored from agent-workflow).
+  verified:
+    name: Already verified on PR
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/ci-already-verified.sh e2e.yml "Playwright E2E" "Backup Pipeline Self-Test"
+
   e2e:
+    needs: verified
     name: Playwright E2E
     if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.pull_request.draft != true &&
-       contains(github.event.pull_request.labels.*.name, 'e2e') &&
-       (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
+      !cancelled() && needs.verified.outputs.skip != 'true' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft != true &&
+        contains(github.event.pull_request.labels.*.name, 'e2e') &&
+        (github.event.action != 'labeled' || github.event.label.name == 'e2e')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -111,12 +134,14 @@ jobs:
           retention-days: 7
 
   backup-selftest:
+    needs: verified
     name: Backup Pipeline Self-Test
     if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.pull_request.draft != true &&
-       contains(github.event.pull_request.labels.*.name, 'e2e') &&
-       (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
+      !cancelled() && needs.verified.outputs.skip != 'true' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.draft != true &&
+        contains(github.event.pull_request.labels.*.name, 'e2e') &&
+        (github.event.action != 'labeled' || github.event.label.name == 'e2e')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Rehearses the whole nightly-backup pipeline against throwaway

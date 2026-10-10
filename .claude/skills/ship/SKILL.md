@@ -3,7 +3,7 @@ name: ship
 description: Final stage of spec → build → verify-local → ship. Checks the local evidence, pushes, opens the PR with summary, evidence, decisions and merge danger, watches CI, runs the fix loop, merges per the repo profile and confirms post-merge health. Production promotion only when the user asks.
 ---
 
-<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
 # Ship
 

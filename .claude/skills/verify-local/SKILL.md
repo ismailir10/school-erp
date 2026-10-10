@@ -3,7 +3,7 @@ name: verify-local
 description: The local "proud" loop. Run the real app on this machine, pass the full gate, walk every acceptance criterion and verify flow as the user would, look at the result critically, fix and repeat until you would demo it with no caveats — then record the evidence. Called at the end of build and re-run by ship after any fix. Use whenever you are about to call work done.
 ---
 
-<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
 # Verify local
 

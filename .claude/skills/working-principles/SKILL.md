@@ -3,7 +3,7 @@ name: working-principles
 description: The shared operating principles for every coding agent in a repo that uses agent-workflow. Read at the start of any session that will change code, and whenever spec, build, verify-local or ship tells you to. Covers who drives the loop, the one human gate, when to stop and ask, driver/worker split, evidence rules and the local "proud" bar.
 ---
 
-<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
 # Working principles
 

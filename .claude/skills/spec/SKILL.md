@@ -3,7 +3,7 @@ name: spec
 description: First stage of spec → build → verify-local → ship. Turns a feature, bug or behavior request into one approved work record (GitHub issue or cycle doc, per the repo profile) by looking up facts yourself and asking the user only for decisions, then stops for approval. Use before any change to product code, schema or CI.
 ---
 
-<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
 # Spec
 

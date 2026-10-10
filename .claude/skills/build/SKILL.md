@@ -3,7 +3,7 @@ name: build
 description: Second stage of spec → build → verify-local → ship. Executes the approved work record one task at a time — plan the fan-out, implement a slice, test it, gate, two-axis review, simplify, update the record, commit — then runs verify-local until the work meets the proud bar. Use after the spec is approved.
 ---
 
-<!-- Vendored from agent-workflow@ab828e6 by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
 # Build
 
