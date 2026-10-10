@@ -17,9 +17,31 @@ concurrency:
 # run lint, typecheck, unit tests and build. The heavy jobs (Playwright e2e, backup self-test)
 # live in e2e.yml.
 jobs:
+  # On a push to a base branch, skip the jobs below when the merged PR already passed them on exactly this code
+  # (same git tree). Any doubt runs them. See scripts/ci-already-verified.sh (vendored from agent-workflow).
+  verified:
+    name: Already verified on PR
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/ci-already-verified.sh ci.yml "Lint, Typecheck & Test" "Build" "Keepalive & Alert Self-Test"
+
   lint-typecheck-test:
+    needs: verified
     name: Lint, Typecheck & Test
-    if: github.event.pull_request.draft != true
+    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -49,8 +71,9 @@ jobs:
         run: bash scripts/verify-api-auth.sh
 
   build:
+    needs: verified
     name: Build
-    if: github.event.pull_request.draft != true
+    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -72,8 +95,9 @@ jobs:
           NEXTAUTH_SECRET: "ci-build-dummy-secret"
 
   keepalive-selftest:
+    needs: verified
     name: Keepalive & Alert Self-Test
-    if: github.event.pull_request.draft != true
+    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Regression guard for the two scripts that stand between a production

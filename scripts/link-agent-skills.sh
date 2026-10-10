@@ -18,7 +18,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/.claude/skills"
 DST="$ROOT/.agents/skills"
 
-WORKFLOW_SKILLS="spec build ship audit-docs uat"
+# working-principles, spec, build, verify-local and ship are vendored from agent-workflow
+# (scripts/sync-agent-workflow.sh); audit-docs and uat are this repo's own.
+WORKFLOW_SKILLS="working-principles spec build verify-local ship audit-docs uat"
 # Vendored `interfaces` collection — better-interface is user-invoked, the other
 # six auto-trigger on frontend diffs. Codex needs all seven or /build's
 # frontend dispatch table silently no-ops there.
