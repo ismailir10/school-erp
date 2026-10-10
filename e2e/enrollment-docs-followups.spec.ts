@@ -188,7 +188,7 @@ test.describe("Enrollment documents follow-ups", () => {
     const page = await admin.newPage();
     try {
       await page.goto("/admin/settings/pendaftaran");
-      await expect(page.getByRole("heading", { name: "Berkas wajib pendaftaran" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Pengaturan pendaftaran" })).toBeVisible();
 
       const kkBox = page.getByRole("checkbox", { name: KK_LABEL });
       const aktaBox = page.getByRole("checkbox", { name: AKTA_LABEL });

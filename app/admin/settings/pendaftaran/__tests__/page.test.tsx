@@ -40,7 +40,7 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     fixture();
     render(<EnrollmentSettingsPage />);
 
-    expect(await screen.findByRole("heading", { name: "Berkas wajib pendaftaran" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Pengaturan pendaftaran" })).toBeInTheDocument();
     expect(screen.getAllByRole("checkbox")).toHaveLength(DOCUMENT_ITEMS.length);
     expect(screen.getByRole("checkbox", { name: "Kartu Keluarga (KK)" })).toHaveAttribute(
       "aria-checked",
@@ -96,6 +96,7 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     const [, init] = putCall(fetchMock)!;
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
       requiredDocuments: ["kk", "ktp_ayah"],
+      programFees: [],
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pengaturan disimpan."));
     // Saved state is the new baseline.
@@ -156,6 +157,134 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     const group = screen.getByRole("group", { name: "Wajib diunggah sebelum formulir dikirim" });
     expect(group).toHaveAttribute("aria-invalid", "true");
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  describe("biaya pendaftaran per program", () => {
+    const programs = [
+      { id: "p-kb", code: "KB", name: "Kelompok Bermain", enrollmentFee: 300000 },
+      { id: "p-dc", code: "DCARE", name: "Day Care", enrollmentFee: 375000 },
+    ];
+    const withPrograms = (extra: Record<string, unknown> = {}) => ({
+      ok: true,
+      body: { requiredDocuments: [], programs, ...extra },
+    });
+
+    it("shows one rupiah input per active program with the saved fee", async () => {
+      fixture({ get: withPrograms() });
+      render(<EnrollmentSettingsPage />);
+
+      expect(await screen.findByRole("group", { name: "Biaya pendaftaran per program" })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Biaya pendaftaran Kelompok Bermain" })).toHaveValue("300.000");
+      expect(screen.getByRole("textbox", { name: "Biaya pendaftaran Day Care" })).toHaveValue("375.000");
+    });
+
+    it("PUTs the edited fee as whole rupiah next to the documents", async () => {
+      const fetchMock = fixture({ get: withPrograms() });
+      const user = userEvent.setup();
+      render(<EnrollmentSettingsPage />);
+
+      const input = await screen.findByRole("textbox", { name: "Biaya pendaftaran Kelompok Bermain" });
+      await user.clear(input);
+      await user.type(input, "350000");
+      await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+      await waitFor(() => expect(putCall(fetchMock)).toBeTruthy());
+      const body = JSON.parse(String((putCall(fetchMock)![1] as RequestInit).body));
+      expect(body).toEqual({
+        requiredDocuments: [],
+        programFees: [
+          { programId: "p-kb", fee: 350000 },
+          { programId: "p-dc", fee: 375000 },
+        ],
+      });
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pengaturan disimpan."));
+    });
+
+    it("an emptied input is saved as 0, meaning no payment step", async () => {
+      const fetchMock = fixture({ get: withPrograms() });
+      const user = userEvent.setup();
+      render(<EnrollmentSettingsPage />);
+
+      await user.clear(await screen.findByRole("textbox", { name: "Biaya pendaftaran Day Care" }));
+      await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+      await waitFor(() => expect(putCall(fetchMock)).toBeTruthy());
+      const body = JSON.parse(String((putCall(fetchMock)![1] as RequestInit).body));
+      expect(body.programFees).toContainEqual({ programId: "p-dc", fee: 0 });
+    });
+
+    it("locks the fee inputs for a read-only viewer", async () => {
+      fixture({ get: withPrograms({ canEdit: false }) });
+      render(<EnrollmentSettingsPage />);
+
+      expect(await screen.findByRole("textbox", { name: "Biaya pendaftaran Kelompok Bermain" })).toBeDisabled();
+      expect(screen.getByRole("textbox", { name: "Biaya pendaftaran Day Care" })).toBeDisabled();
+    });
+
+    it("says so when the school has no active program yet", async () => {
+      fixture({ get: withPrograms({ programs: [] }) });
+      render(<EnrollmentSettingsPage />);
+
+      expect(await screen.findByText(/Belum ada program aktif/)).toBeInTheDocument();
+    });
+
+    it("shows the server's per-row fee error under that row's input (the path the server really emits)", async () => {
+      fixture({
+        get: withPrograms(),
+        put: {
+          ok: false,
+          status: 400,
+          body: {
+            error: "Validasi gagal",
+            errors: [{ field: "programFees.1.fee", message: "Biaya pendaftaran terlalu besar" }],
+          },
+        },
+      });
+      const user = userEvent.setup();
+      render(<EnrollmentSettingsPage />);
+
+      const input = await screen.findByRole("textbox", { name: "Biaya pendaftaran Day Care" });
+      await user.clear(input);
+      await user.type(input, "1");
+      await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+      const message = await screen.findByText("Biaya pendaftaran terlalu besar");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input.getAttribute("aria-describedby")).toBe(message.id);
+      // The other row is untouched.
+      expect(screen.getByRole("textbox", { name: "Biaya pendaftaran Kelompok Bermain" })).not.toHaveAttribute("aria-invalid");
+    });
+
+    it("blocks an over-limit fee on the client with visible text and no request", async () => {
+      const fetchMock = fixture({ get: withPrograms() });
+      const user = userEvent.setup();
+      render(<EnrollmentSettingsPage />);
+
+      const input = await screen.findByRole("textbox", { name: "Biaya pendaftaran Kelompok Bermain" });
+      await user.clear(input);
+      await user.type(input, "150000000");
+      await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+      expect(await screen.findByText("Biaya pendaftaran terlalu besar")).toBeInTheDocument();
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(putCall(fetchMock)).toBeUndefined();
+    });
+
+    it("tells the admin to reload when the program list changed under them (422)", async () => {
+      fixture({
+        get: withPrograms(),
+        put: { ok: false, status: 422, body: { error: "Daftar program berubah. Muat ulang halaman lalu coba lagi." } },
+      });
+      const user = userEvent.setup();
+      render(<EnrollmentSettingsPage />);
+
+      const input = await screen.findByRole("textbox", { name: "Biaya pendaftaran Day Care" });
+      await user.clear(input);
+      await user.type(input, "1");
+      await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Daftar program berubah. Muat ulang halaman lalu coba lagi.");
+    });
   });
 
   it("offers a retry when the settings cannot be loaded", async () => {

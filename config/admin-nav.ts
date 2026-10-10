@@ -186,11 +186,11 @@ export const adminNav: NavConfig = {
           description: "Atur jam masuk dan pulang karyawan.",
         },
         {
-          label: "Berkas Wajib Pendaftaran",
+          label: "Pengaturan Pendaftaran",
           href: "/admin/settings/pendaftaran",
           icon: FileText,
           permission: "admissions.view",
-          description: "Pilih berkas yang wajib diunggah orang tua saat mendaftar.",
+          description: "Atur biaya pendaftaran dan berkas yang wajib diunggah orang tua.",
         },
       ],
     },
