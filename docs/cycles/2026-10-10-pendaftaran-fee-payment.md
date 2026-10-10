@@ -65,7 +65,7 @@ Discount rules (early-bird tiers, sibling %) are not yet defined by the school. 
 
 Dependencies: T1 first. T2 after T1. T3, T4 after T2 (independent of each other). T5 after T1+T2. T6 after T4+T5. T7 after T5. T8 after T7. T9 independent after T1. T10 last.
 
-- [ ] **T1 Schema + migration.** `Program.enrollmentFee`, `EnrollmentFee` model + relation, RLS statements, `prisma generate`. *Done when:* `npx prisma validate`, `bash scripts/verify-rls-coverage.sh` and `npm run build` pass.
+- [x] **T1 Schema + migration.** `Program.enrollmentFee`, `EnrollmentFee` model + relation, RLS statements, `prisma generate`. *Done when:* `npx prisma validate`, `bash scripts/verify-rls-coverage.sh` and `npm run build` pass.
 - [ ] **T2 Fee lib.** `lib/enrollment/fee.ts` (`computeEnrollmentFee`, rupiah formatting reuse) + Vitest incl. rounding, add-on, 0 and 100 percent. *Done when:* tests cover every branch in Spec 1.
 - [ ] **T3 Fee settings.** Extend `/api/config/enrollment` + `enrollment-config` validation + settings page card. *Done when:* admin can read and save per-program fees; viewer without edit sees read-only; route + page tests pass.
 - [ ] **T4 Submit + Tinjau.** Submit route creates `EnrollmentFee` in the locked tx and returns `fee`; `page.tsx` passes program fees; Tinjau shows the breakdown. *Done when:* route tests cover fee/no-fee/waived and a mismatching client amount is ignored.
@@ -78,6 +78,11 @@ Dependencies: T1 first. T2 after T1. T3, T4 after T2 (independent of each other)
 
 ## Implementation
 
+- Subagent plan: driver=claude-sonnet-5-5 (already the dirty-work tier, so there is no cheaper tier to hand slices to), dirty-work=none; tasks [1-10] sequential and run inline because T2-T9 share the `EnrollmentFee` shape, the gateway reference convention and the Indonesian copy, so a subagent would need the whole plan as context. Every task diff goes to a general-purpose reviewer subagent (the named `feature-dev:code-reviewer` agent type is not installed in this harness) before its commit.
+- Task 1: Schema + migration — `prisma/schema.prisma`, `prisma/migrations/20261010000000_add_enrollment_fee/migration.sql` — `Program.enrollmentFee` (default 0) and the 1:1 `EnrollmentFee` model with tenant Restrict / application Cascade FKs, unique `applicationId` and `paymentId`, service-role RLS policy.
+
 ## Verification
+
+- Task 1: gates passed. `npx prisma validate` ok, `verify-rls-coverage.sh` 43/43, `npx tsc --noEmit` clean, `npm run build` (CI env: `DEMO_MODE`, dummy `DATABASE_URL`) ok, `npx vitest run` 574 files / 5774 tests passed.
 
 ## Ship Notes
