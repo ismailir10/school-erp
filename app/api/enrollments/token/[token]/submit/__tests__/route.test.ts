@@ -2,21 +2,25 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany, programFindFirst, queryRaw, transaction, tenantFindUnique } = vi.hoisted(() => ({
-  findUnique: vi.fn(),
-  tenantFindUnique: vi.fn(),
-  updateMany: vi.fn(),
-  programFindFirst: vi.fn(),
-  queryRaw: vi.fn(),
-  transaction: vi.fn(),
-}));
+const { findUnique, updateMany, programFindFirst, programFindMany, feeCreate, queryRaw, transaction, tenantFindUnique } =
+  vi.hoisted(() => ({
+    findUnique: vi.fn(),
+    tenantFindUnique: vi.fn(),
+    updateMany: vi.fn(),
+    programFindFirst: vi.fn(),
+    programFindMany: vi.fn(),
+    feeCreate: vi.fn(),
+    queryRaw: vi.fn(),
+    transaction: vi.fn(),
+  }));
 
 // The submit route runs read → validate → flip inside ONE interactive
 // transaction (row lock first). The mock hands the callback the same client.
 vi.mock("@/lib/db", () => {
   const client = {
     enrollmentApplication: { findUnique, updateMany },
-    program: { findFirst: programFindFirst },
+    program: { findFirst: programFindFirst, findMany: programFindMany },
+    enrollmentFee: { create: feeCreate },
     tenant: { findUnique: tenantFindUnique },
     $queryRaw: queryRaw,
     $transaction: transaction,
@@ -85,6 +89,9 @@ beforeEach(() => {
   tenantFindUnique.mockResolvedValue({ enrollmentRequiredDocuments: [] }); // nothing required by default
   updateMany.mockResolvedValue({ count: 1 });
   programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) }); // program owned by tenant
+  // The chosen program is ACTIVE with no fee by default → no payment step.
+  programFindMany.mockResolvedValue([{ id: "c" + "a".repeat(24), code: "KB", name: "KB", enrollmentFee: 0 }]);
+  feeCreate.mockResolvedValue({ id: "fee-1" });
 });
 
 describe("POST /api/enrollments/token/[token]/submit", () => {
@@ -102,7 +109,8 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
   it("flips INVITED→SUBMITTED, stamps signedAt, and persists blobs", async () => {
     const res = await POST(req(validBody()), ctx);
     expect(res.status).toBe(201);
-    expect((await res.json())).toEqual({ ok: true, id: "a" });
+    expect((await res.json())).toEqual({ ok: true, id: "a", fee: null });
+    expect(feeCreate).not.toHaveBeenCalled();
     const arg = updateMany.mock.calls[0][0];
     expect(arg.where).toEqual({ id: "a", status: "INVITED" });
     expect(arg.data.status).toBe("SUBMITTED");
@@ -133,6 +141,7 @@ describe("POST /api/enrollments/token/[token]/submit", () => {
 
   it("submits successfully with a prefixed (non-cuid) programId that belongs to the tenant", async () => {
     programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
+    programFindMany.mockResolvedValue([{ id: "program_ab57fd0432e25d5b3013", code: "KB", name: "KB", enrollmentFee: 0 }]);
     const b = { ...validBody(), programId: "program_ab57fd0432e25d5b3013" };
     const res = await POST(req(b), ctx);
     expect(res.status).toBe(201);
@@ -381,5 +390,78 @@ describe("POST /submit — required documents", () => {
     expect(json.fields["studentData.childName"]).toBeTruthy();
     expect(json.fields.documents).toBeUndefined();
     expect(json.missingDocuments).toBeUndefined();
+  });
+});
+
+describe("pendaftaran fee (cycle 2026-10-10-pendaftaran-fee-payment)", () => {
+  const PID = "c" + "a".repeat(24);
+  const DC = "c" + "d".repeat(24);
+  const fees = (kb: number, dc: number) => [
+    { id: PID, code: "KB", name: "Kelompok Bermain", enrollmentFee: kb },
+    { id: DC, code: "DCARE", name: "Day Care", enrollmentFee: dc },
+  ];
+
+  it("creates an UNPAID fee row for the chosen program's fee, in the same transaction", async () => {
+    programFindMany.mockResolvedValue(fees(300000, 375000));
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ ok: true, id: "a", fee: { baseAmount: 300000, amount: 300000, status: "UNPAID" } });
+    expect(feeCreate).toHaveBeenCalledTimes(1);
+    expect(feeCreate.mock.calls[0][0].data).toEqual({
+      tenantId: "t-1",
+      applicationId: "a",
+      baseAmount: 300000,
+      discountPercent: 0,
+      amount: 300000,
+      status: "UNPAID",
+    });
+    // Priced from the session tenant's ACTIVE programs only.
+    expect(programFindMany.mock.calls[0][0].where).toEqual({ tenantId: "t-1", status: "ACTIVE" });
+  });
+
+  it("adds the Day Care fee when the add-on is ticked (pay both)", async () => {
+    programFindMany.mockResolvedValue(fees(300000, 375000));
+    const res = await POST(req({ ...validBody(), dcareAddon: true }), ctx);
+    expect((await res.json()).fee).toEqual({ baseAmount: 675000, amount: 675000, status: "UNPAID" });
+    expect(feeCreate.mock.calls[0][0].data.amount).toBe(675000);
+  });
+
+  it("ignores any amount the client sends — the server prices the application", async () => {
+    programFindMany.mockResolvedValue(fees(300000, 375000));
+    const res = await POST(req({ ...validBody(), fee: { amount: 1 }, amount: 1, enrollmentFee: 1 }), ctx);
+    expect(res.status).toBe(201);
+    expect(feeCreate.mock.calls[0][0].data.amount).toBe(300000);
+  });
+
+  it("no fee row and fee: null when the program's fee is 0", async () => {
+    programFindMany.mockResolvedValue(fees(0, 375000));
+    const res = await POST(req(validBody()), ctx);
+    expect((await res.json()).fee).toBeNull();
+    expect(feeCreate).not.toHaveBeenCalled();
+  });
+
+  it("no fee row when the lost-race guard returns 409 (flip happens first)", async () => {
+    programFindMany.mockResolvedValue(fees(300000, 375000));
+    updateMany.mockResolvedValue({ count: 0 });
+    expect((await POST(req(validBody()), ctx)).status).toBe(409);
+    expect(feeCreate).not.toHaveBeenCalled();
+  });
+
+  it("422 and no flip when the chosen program is no longer ACTIVE (it would price at 0 and skip the fee)", async () => {
+    // Owned by the tenant (programFindFirst) but absent from the ACTIVE list.
+    programFindMany.mockResolvedValue([{ id: DC, code: "DCARE", name: "Day Care", enrollmentFee: 375000 }]);
+    const res = await POST(req(validBody()), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields.programId).toBe("Program tidak valid");
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(feeCreate).not.toHaveBeenCalled();
+  });
+
+  it("no fee row when validation fails", async () => {
+    programFindMany.mockResolvedValue(fees(300000, 375000));
+    const b = validBody();
+    b.studentData.childName = "";
+    expect((await POST(req(b), ctx)).status).toBe(422);
+    expect(feeCreate).not.toHaveBeenCalled();
   });
 });

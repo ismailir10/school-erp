@@ -7,6 +7,8 @@ import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollmen
 import { submitEnrollmentSchema, flattenSubmitErrors, isSideWaived } from "@/lib/enrollment/submit-validation";
 import { DOCUMENT_ITEMS, missingUploads } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
+import { getProgramFees } from "@/lib/enrollment/fee-config";
+import { computeEnrollmentFee } from "@/lib/enrollment/fee";
 
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
@@ -119,6 +121,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       );
     }
 
+    // The fee is priced from the tenant's ACTIVE programs. `programBelongsToTenant`
+    // does not look at status, so a program retired after the invite would price at
+    // 0 and quietly skip the fee — refuse it here, BEFORE the flip below (a response
+    // returned after the flip would not roll it back).
+    const programs = await getProgramFees(tenantId, tx);
+    if (!programs.some((p) => p.id === data.programId)) {
+      return NextResponse.json(
+        { error: "validation_failed", fields: { programId: "Program tidak valid" } },
+        { status: 422 },
+      );
+    }
+
     const nowIso = now.toISOString();
 
     // Server-stamp the signing time — client-supplied signedAt is not trusted.
@@ -156,6 +170,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
     }
 
-    return NextResponse.json({ ok: true, id }, { status: 201 });
+    // Pendaftaran fee, priced HERE from the stored program fees — the client
+    // never sends an amount. Snapshotted on the row (later fee edits do not
+    // rewrite it). Created only after the INVITED→SUBMITTED flip won, so a lost
+    // race cannot leave a fee behind; no gateway call under this row lock — the
+    // payment session is created lazily by the /pay route.
+    const breakdown = computeEnrollmentFee({ programs, programId: data.programId, dcareAddon: data.dcareAddon });
+    let fee: { baseAmount: number; amount: number; status: "UNPAID" } | null = null;
+    if (breakdown.amount > 0) {
+      await tx.enrollmentFee.create({
+        data: {
+          tenantId,
+          applicationId: id,
+          baseAmount: breakdown.baseAmount,
+          discountPercent: 0,
+          amount: breakdown.amount,
+          status: "UNPAID",
+        },
+      });
+      fee = { baseAmount: breakdown.baseAmount, amount: breakdown.amount, status: "UNPAID" };
+    }
+
+    return NextResponse.json({ ok: true, id, fee }, { status: 201 });
   });
 }

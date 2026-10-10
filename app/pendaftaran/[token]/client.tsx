@@ -45,7 +45,8 @@ import {
   CONSENT_INTRO,
   CONSENT_VERSION,
 } from "@/lib/enrollment/consent-clauses";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, formatRupiah } from "@/lib/format";
+import { computeEnrollmentFee } from "@/lib/enrollment/fee";
 import {
   STEPS,
   STEP_CONSENT,
@@ -61,7 +62,9 @@ import {
 } from "./form-logic";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
 
-type Program = { id: string; name: string };
+// `code` + `enrollmentFee` price the pendaftaran fee shown on Tinjau; the
+// server recomputes it on submit and never trusts what this form displays.
+type Program = { id: string; name: string; code?: string; enrollmentFee?: number };
 type Prefill = {
   programId: string | null;
   dcareAddon: boolean;
@@ -1328,6 +1331,11 @@ function ReviewStep({
   programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number; signatureSaving: boolean;
 }) {
   const programName = programs.find((p) => p.id === programId)?.name ?? "—";
+  const fee = computeEnrollmentFee({
+    programs: programs.map((p) => ({ id: p.id, code: p.code ?? "", enrollmentFee: p.enrollmentFee ?? 0 })),
+    programId,
+    dcareAddon,
+  });
   const uploaded = Object.keys(documents).length;
   const missing = missingRequiredDocuments(documents).map(
     (k) => DOCUMENT_ITEMS.find((i) => i.key === k)?.label ?? k,
@@ -1356,6 +1364,21 @@ function ReviewStep({
         <Row label="Program" value={programName} />
         <Row label="Dcare" value={dcareAddon ? "Ya" : ""} />
       </section>
+      {fee.amount > 0 && (
+        <section aria-label="Biaya pendaftaran">
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Biaya Pendaftaran</h3>
+          <Row label={programName} value={formatRupiah(fee.programFee)} />
+          <Row label="Tambahan Day Care" value={fee.dcareAddonFee > 0 ? formatRupiah(fee.dcareAddonFee) : ""} />
+          <div className="mt-1 flex justify-between gap-4 border-t border-border pt-2 text-sm">
+            <span className="font-medium text-foreground">Total</span>
+            <span className="text-right text-base font-semibold text-foreground tabular-nums">{formatRupiah(fee.amount)}</span>
+          </div>
+          <p className="py-1 text-sm text-muted-foreground">
+            Biaya dibayar setelah formulir dikirim, lewat halaman pembayaran DOKU. Bapak/Ibu bisa
+            membayarnya nanti dengan tautan yang sama.
+          </p>
+        </section>
+      )}
       <section>
         <h3 className="mb-1 text-sm font-semibold text-foreground">Berkas</h3>
         <Row label="Berkas terunggah" value={String(uploaded)} />

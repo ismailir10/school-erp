@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { prisma } from "@/lib/db";
+import { getProgramFees } from "@/lib/enrollment/fee-config";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
@@ -17,13 +17,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }, // tokenized — keep out of search
 };
 
-async function getActivePrograms() {
+/**
+ * ACTIVE programs of THIS application's tenant, with their pendaftaran fee for
+ * the Tinjau breakdown. Tenant-scoped (the lookup used to list every tenant's
+ * programs); the server re-prices on submit, so a stale number here is only a
+ * display matter.
+ */
+async function getActivePrograms(tenantId: string | undefined) {
+  if (!tenantId) return [];
   try {
-    return await prisma.program.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    });
+    return await getProgramFees(tenantId);
   } catch (err) {
     console.error("[pendaftaran/page] program lookup failed", err);
     return [];
@@ -142,7 +145,7 @@ export default async function PendaftaranTokenPage({
   }
 
   const [programs, requiredDocuments] = await Promise.all([
-    getActivePrograms(),
+    getActivePrograms(tenantId),
     getRequired(tenantId),
   ]);
 
