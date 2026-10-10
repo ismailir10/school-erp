@@ -60,6 +60,16 @@ None.
 
 ## Verification
 
+### Verified locally — 4dd6f72 + T2, 2026-10-10
+- Scope: workflow docs, vendored skills, audit/link scripts and one CI step. No `app/`, `components/`, `lib/`, `prisma/`, `e2e/` or package change, so no app build, browser walk or Playwright run (per the user's instruction). The scripts and CI step this cycle changes were run directly instead.
+- `bash scripts/sync-agent-workflow.sh --check` → `agent-workflow: vendored files match ref=ab828e64447c0dace55a240b3246840bd918bb45`; after appending a line to `.claude/skills/ship/SKILL.md` it exits 1 with `.claude/skills/ship/SKILL.md: FAILED` (reverted).
+- `bash scripts/audit-docs.sh` → `13 ok, 1 warn, 0 fail` (the warn is the pre-existing ADR 60-day window); `Standards-table paths exist … docs/workflow/build.md … (16)`, `Relative links … README, CLAUDE and docs/workflow resolves`.
+- `bash scripts/test-audit-docs.sh` → `Summary: 7 audit regression checks passed` (new probe: a missing load-on-demand table is rejected).
+- `bash scripts/test-hooks.sh` → `Summary: 32 passed, 0 failed`.
+- `python3 scripts/check-workflow-gh-repo.py .github/workflows/*.yml` → `OK` for all five workflows; `--self-test` → `OK — self-test passed`.
+- Links and `#anchors` in CLAUDE.md, README.md, `docs/runbooks/environments.md` and `docs/workflow/*.md` checked with a slug script: all resolve.
+- Highlight: n/a (no UI change).
+
 ## Ship Notes
 
 - No migrations, env vars or app changes. Rollback: revert the PR.
