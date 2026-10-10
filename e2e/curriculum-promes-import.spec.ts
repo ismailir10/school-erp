@@ -1,15 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIResponse } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// E2E for the C2 PROMES import surface. Demo session as SUPER_ADMIN —
-// only role with `curriculum.write`. Seeded semester comes from the C1
-// seed (`prisma/seed.ts` ageGroup-agnostic Semester `2025/2026 · 1`).
-//
-// Spec covers two cases — both required by the C2 acceptance criteria:
-//   1. Happy path TK A upload → preview → commit → success toast.
-//   2. Re-import of the same file → 409 conflict UI surfaces + no
-//      additional rows written.
+// Each run owns a PLANNING year and an ACTIVE semester. No seeded-year
+// selection or ACTIVE-year switch is needed; cleanup closes both fixtures.
 
 const SUPER_ADMIN_ID = "u_super_admin";
 const FIXTURE_PATH = resolve(
@@ -25,102 +19,62 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("Admin curriculum — PROMES import", () => {
   let semesterId: string | null = null;
-  // The seeded current AcademicYear (2025/2026) is ACTIVE. Creating this
-  // spec's own ACTIVE year now demotes it (single-active invariant —
-  // docs/cycles/archive/2026-06-05-staging-hygiene-active-year.md), which would break
-  // later serial specs that depend on the seeded year being current (e.g.
-  // teacher-assessments-weekly). Capture the prior ACTIVE year here and
-  // re-activate it in afterAll so the shared CI DB is left as we found it.
+  let academicYearId: string | null = null;
   let priorActiveYearId: string | null = null;
 
+  async function checked<T>(response: APIResponse, action: string): Promise<T> {
+    const body = await response.text();
+    expect(response.ok(), `${action}: HTTP ${response.status()} ${body.slice(0, 500)}`).toBe(true);
+    return JSON.parse(body) as T;
+  }
+
   test.beforeAll(async ({ browser }) => {
-    // Create a brand-new Semester per spec run so happy-path is
-    // idempotent across local re-runs (CI gets a fresh DB anyway).
-    // Number 1 or 2 must be unique per (tenantId, academicYearId), so
-    // we attempt 1 first then 2 — if both are taken, fall back to a
-    // newly-created AcademicYear.
     const ctx = await browser.newContext();
-    await ctx.addCookies([
-      {
-        name: "school-erp-session",
-        value: SUPER_ADMIN_ID,
-        domain: "localhost",
-        path: "/",
-        httpOnly: true,
-        sameSite: "Lax",
-      },
-    ]);
-    // Create a fresh AcademicYear per spec run so the spec is fully
-    // re-runnable locally without a DB reseed. The Semester unique
-    // key is (tenantId, academicYearId, number) — sharing the seeded
-    // AY would collide on the 2nd run.
-    const api = ctx.request;
-
-    // Remember which year is ACTIVE before we steal ACTIVE for our own year.
-    const priorYearsRes = await api.get("/api/academic-years");
-    if (priorYearsRes.ok()) {
-      const priorYears = await priorYearsRes.json();
-      const list = Array.isArray(priorYears) ? priorYears : priorYears.data ?? [];
-      priorActiveYearId = list.find((y: { status: string }) => y.status === "ACTIVE")?.id ?? null;
-    }
-
-    const stamp = Date.now();
-    const ayName = `E2E PROMES Import ${stamp}`;
-    const ayCreate = await api.post("/api/academic-years", {
-      data: {
-        name: ayName,
-        startDate: "2030-07-01",
-        endDate: "2031-06-30",
-        status: "ACTIVE",
-      },
-    });
-    if (!ayCreate.ok()) {
+    await ctx.addCookies([{ name: "school-erp-session", value: SUPER_ADMIN_ID, domain: "localhost", path: "/" }]);
+    try {
+      const api = ctx.request;
+      const years = await checked<Array<{ id: string; endDate: string; status: string }>>(
+        await api.get("/api/academic-years"), "Read years before PROMES setup",
+      );
+      priorActiveYearId = years.find((year) => year.status === "ACTIVE")?.id ?? null;
+      // Avoid every non-archived range, including leftovers from earlier runs.
+      const startYear = Math.max(new Date().getUTCFullYear() + 2,
+        ...years.filter((year) => year.status !== "ARCHIVED").map((year) => Number(year.endDate.slice(0, 4)) + 1));
+      const year = await checked<{ id: string }>(await api.post("/api/academic-years", {
+        data: { name: `E2E PROMES Import ${Date.now()}`, startDate: `${startYear}-07-01`, endDate: `${startYear + 1}-06-30`, status: "PLANNING" },
+      }), "Create isolated PROMES year");
+      academicYearId = year.id;
+      expect(academicYearId, "Year creation must return an id").toBeTruthy();
+      const semester = await checked<{ id: string; status: string }>(await api.post("/api/admin/curriculum/semesters", {
+        data: { academicYearId, number: 1, startDate: `${startYear}-07-15`, endDate: `${startYear}-12-19` },
+      }), "Create isolated PROMES semester");
+      semesterId = semester.id;
+      expect(semesterId, "Semester creation must return an id").toBeTruthy();
+      expect(semester.status).toBe("ACTIVE");
+    } finally {
       await ctx.close();
-      return;
     }
-    const ay = await ayCreate.json();
-    const academicYearId = ay.id ?? ay.data?.id ?? null;
-    if (!academicYearId) {
-      await ctx.close();
-      return;
-    }
-    const semCreate = await api.post(
-      "/api/admin/curriculum/semesters",
-      {
-        data: {
-          academicYearId,
-          number: 1,
-          startDate: "2030-07-15",
-          endDate: "2030-12-19",
-        },
-      },
-    );
-    if (semCreate.ok()) {
-      const body = await semCreate.json();
-      semesterId = body.id ?? null;
-    }
-    await ctx.close();
   });
 
   test.afterAll(async ({ browser }) => {
-    // Restore the seeded ACTIVE year that creating our own ACTIVE year demoted,
-    // so later serial specs on the shared CI DB see the current year as ACTIVE.
-    if (!priorActiveYearId) return;
     const ctx = await browser.newContext();
-    await ctx.addCookies([
-      {
-        name: "school-erp-session",
-        value: SUPER_ADMIN_ID,
-        domain: "localhost",
-        path: "/",
-        httpOnly: true,
-        sameSite: "Lax",
-      },
-    ]);
-    await ctx.request.put(`/api/academic-years/${priorActiveYearId}`, {
-      data: { status: "ACTIVE" },
-    });
-    await ctx.close();
+    await ctx.addCookies([{ name: "school-erp-session", value: SUPER_ADMIN_ID, domain: "localhost", path: "/" }]);
+    try {
+      // Inactive semester removes imported rows from future ACTIVE-semester
+      // discovery; archived year frees its dates for subsequent test runs.
+      if (semesterId) await checked(await ctx.request.put(`/api/admin/curriculum/semesters/${semesterId}`, {
+        data: { status: "INACTIVE" },
+      }), "Deactivate PROMES semester");
+      if (academicYearId) await checked(await ctx.request.put(`/api/academic-years/${academicYearId}`, {
+        data: { status: "ARCHIVED" },
+      }), "Archive PROMES year");
+      const years = await checked<Array<{ id: string; status: string }>>(
+        await ctx.request.get("/api/academic-years"), "Verify ACTIVE year after PROMES cleanup",
+      );
+      expect(years.find((year) => year.status === "ACTIVE")?.id ?? null).toBe(priorActiveYearId);
+    } finally {
+      await ctx.close();
+    }
   });
 
   test.beforeEach(async ({ page }) => {
@@ -139,7 +93,7 @@ test.describe("Admin curriculum — PROMES import", () => {
   test("happy path: upload PROMES TK A → preview → commit → 30 IKTPs written", async ({
     page,
   }) => {
-    test.skip(!semesterId, "could not create test semester — skipping");
+    expect(semesterId, "PROMES setup must create an isolated semester").toBeTruthy();
 
     const fixtureBuffer = readFileSync(FIXTURE_PATH);
     const filename = "PROMES TK A SMT 1.xlsx";
@@ -196,7 +150,7 @@ test.describe("Admin curriculum — PROMES import", () => {
   test("re-import surfaces 409 conflict alert + commit blocked (button hidden)", async ({
     page,
   }) => {
-    test.skip(!semesterId, "could not create test semester — skipping");
+    expect(semesterId, "PROMES setup must create an isolated semester").toBeTruthy();
 
     const fixtureBuffer = readFileSync(FIXTURE_PATH);
     const filename = "PROMES TK A SMT 1.xlsx";

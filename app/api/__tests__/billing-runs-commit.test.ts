@@ -780,3 +780,18 @@ describe("POST /api/billing-runs/[id]/commit — audit (R2-ADMIN-9)", () => {
     expect(txMock.auditLog.create).not.toHaveBeenCalled();
   });
 });
+
+it("finalizes interrupted COMMITTING status by replaying a resolved row without gateway or money writes", async () => {
+  await primeAdminSession();
+  const { prisma } = await import("@/lib/db");
+  const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+  vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(draftRun({ status: "COMMITTING" }) as never);
+  vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue([pendingRow({ status: "COMMITTED", invoiceId: "inv-existing" })] as never);
+  vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
+  const res = await commitRun(makeReq({ rowIds: ["row-1"] }) as never, makeParams("run-1"));
+  expect(res.status).toBe(200);
+  expect(prisma.billingRun.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "COMMITTED" }) }));
+  expect(txMock.invoice.createMany).not.toHaveBeenCalled();
+  expect(txMock.auditLog.create).not.toHaveBeenCalled();
+  expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
+});

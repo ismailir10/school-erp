@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateParentSchema, toggleParentStatusSchema } from "@/lib/validations/parent";
 
@@ -90,7 +91,7 @@ export async function GET(
   // needs "is a file on record", never the token itself (that's resolved
   // server-side by /api/parents/[id]/ktp|kk from the parent id).
   const { ktpUrl, kkUrl, ...rest } = parent;
-  return NextResponse.json({ ...rest, hasKtp: !!ktpUrl, hasKk: !!kkUrl });
+  return NextResponse.json({ ...rest, canEdit: hasPermission(session, "students.edit"), hasKtp: !!ktpUrl, hasKk: !!kkUrl });
 }
 
 export async function PUT(
@@ -103,6 +104,9 @@ export async function PUT(
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.edit")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -163,6 +167,9 @@ export async function PATCH(
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.edit")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
 
   const { id } = await params;

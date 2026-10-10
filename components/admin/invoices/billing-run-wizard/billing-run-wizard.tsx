@@ -37,6 +37,7 @@ export function BillingRunWizard({
   open,
   onOpenChange,
   resumeRunId,
+  resumeCommitting = false,
   years,
   onDraftChanged,
   onCommitted,
@@ -45,6 +46,7 @@ export function BillingRunWizard({
   onOpenChange: (open: boolean) => void;
   /** Set when opened from the resumable-draft banner — jumps straight past step 1. */
   resumeRunId: string | null;
+  resumeCommitting?: boolean;
   years: AcademicYear[];
   onDraftChanged?: () => void;
   /** Fired once step 3 has nothing left to commit — the caller refreshes the
@@ -66,12 +68,12 @@ export function BillingRunWizard({
     if (!open) return;
     if (resumeRunId) {
       setBillingRunId(resumeRunId);
-      setStep(2);
+      setStep(resumeCommitting ? 3 : 2);
     } else {
       setBillingRunId(null);
       setStep(1);
     }
-  }, [open, resumeRunId]);
+  }, [open, resumeRunId, resumeCommitting]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Focus movement between steps (better-accessibility): each step

@@ -97,11 +97,43 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
       .data?.[0]?.startDate?.slice(0, 10);
     expect(liveDate, "seed must provide at least one ACTIVE curriculum week").toBeTruthy();
 
+    // The SSR date input is editable before hydration. Wait for the initial
+    // client request and its rendered state so fill cannot be lost on hydrate.
+    const initialResponsePromise = page.waitForResponse((response) =>
+      new URL(response.url()).pathname ===
+      "/api/teacher/assessment-entries/center/WORSHIP",
+    );
     await page.goto("/teacher/assessments/center/worship");
     await page.waitForURL("**/teacher/assessments/center/worship", {
       timeout: 15_000,
     });
-    await page.locator('[data-testid="center-date"]').fill(liveDate!);
+    const initialResponse = await initialResponsePromise;
+    const initialBody = await initialResponse.json();
+    expect([200, 422]).toContain(initialResponse.status());
+    if (initialResponse.status() === 422) {
+      expect(initialBody.reason).toBe("no_active_week");
+    }
+    await expect(
+      page.getByTestId("center-indicator-picker")
+        .or(page.getByText("Belum ada IKTP untuk tema pekan ini", { exact: true }))
+        .or(page.getByText("Belum ada pekan aktif untuk tanggal ini", { exact: true })),
+    ).toBeVisible();
+
+    const dateInput = page.getByTestId("center-date");
+    // When today is the seeded Monday, the initial response already covers
+    // this date; filling the same value intentionally sends no second request.
+    const selectedResponsePromise = initialBody.date === liveDate
+      ? Promise.resolve(initialResponse)
+      : page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return url.pathname === "/api/teacher/assessment-entries/center/WORSHIP"
+          && url.searchParams.get("date") === liveDate;
+      });
+    await dateInput.fill(liveDate!);
+    const selectedResponse = await selectedResponsePromise;
+    expect(selectedResponse.status()).toBe(200);
+    expect((await selectedResponse.json()).date).toBe(liveDate);
+    await expect(dateInput).toHaveValue(liveDate!);
     // Wait for the GET to settle: the indicator picker OR the no-IKTP
     // banner (either branch proves the active-week path reached). The
     // date-change fetch races a setLoading(true) DOM clear, so the poll has

@@ -39,6 +39,7 @@ type PaymentFormControl = ReturnType<typeof useZodForm<typeof invoicePaymentForm
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = {
   id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string;
+  idempotencyKey?: string | null;
   status: string; xenditPaymentId?: string | null; createdBy: string | null; createdByName: string | null;
 };
 type InvoiceDetail = {
@@ -198,6 +199,8 @@ export default function InvoiceDetailPage() {
   // POSTed until the admin has read the review and pressed the confirm button.
   const [payStep, setPayStep] = useState<"form" | "review">("form");
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const paymentSubmittingRef = useRef(false);
+  const paymentAttemptRef = useRef<string | null>(null);
   const [reverseTarget, setReverseTarget] = useState<Payment | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseError, setReverseError] = useState<string | null>(null);
@@ -223,7 +226,18 @@ export default function InvoiceDetailPage() {
       const res = await fetch(`/api/invoices/${id}`);
       if (res.status === 404 || res.status === 403) { setInvoice(null); return; }
       if (!res.ok) throw new Error("invoice unavailable");
-      setInvoice(await res.json());
+      const loaded: InvoiceDetail = await res.json();
+      setInvoice(loaded);
+      // A reload can resolve an earlier unknown response from recorded history.
+      // Only release its key when the server confirms that exact attempt exists.
+      try {
+        const storageKey = `manual-payment-attempt:${id}`;
+        const key = sessionStorage.getItem(storageKey);
+        if (key && loaded.payments.some((p) => p.idempotencyKey === key)) {
+          sessionStorage.removeItem(storageKey);
+          paymentAttemptRef.current = null;
+        }
+      } catch { /* storage can be unavailable */ }
     } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, [id]);
@@ -272,10 +286,23 @@ export default function InvoiceDetailPage() {
 
   // Step 2: the only place the POST happens.
   async function handleConfirmPayment() {
-    if (submittingPayment) return;
+    if (paymentSubmittingRef.current) return;
+    paymentSubmittingRef.current = true;
     setSubmittingPayment(true);
     try {
-      await sendJson(`/api/invoices/${id}/payments`, { method: "POST", body: payForm.getValues() }, "Gagal mencatat pembayaran");
+      // Keep the same attempt through a lost response, closing the dialog,
+      // and a reload in this tab. Store only an opaque key, never pupil data.
+      const storageKey = `manual-payment-attempt:${id}`;
+      if (!paymentAttemptRef.current) {
+        try { paymentAttemptRef.current = sessionStorage.getItem(storageKey); } catch { /* storage can be unavailable */ }
+        paymentAttemptRef.current ??= crypto.randomUUID();
+      }
+      try { sessionStorage.setItem(storageKey, paymentAttemptRef.current); } catch { /* in-memory retries still work */ }
+      await sendJson(`/api/invoices/${id}/payments`, {
+        method: "POST", body: { ...payForm.getValues(), idempotencyKey: paymentAttemptRef.current },
+      }, "Hasil pencatatan belum dapat dipastikan. Coba lagi dengan rincian yang sama agar pembayaran tidak tercatat dua kali.");
+      paymentAttemptRef.current = null;
+      try { sessionStorage.removeItem(storageKey); } catch { /* storage can be unavailable */ }
       toast.success("Pembayaran dicatat");
       closePaymentDialog();
       fetchInvoice();
@@ -283,8 +310,9 @@ export default function InvoiceDetailPage() {
       // Back to the form so the server's field error (e.g. overpayment) is
       // shown next to the field it belongs to.
       setPayStep("form");
-      applyServerErrors(payForm, err, "Gagal mencatat pembayaran");
+      applyServerErrors(payForm, err, "Hasil pencatatan belum dapat dipastikan. Coba lagi dengan rincian yang sama agar pembayaran tidak tercatat dua kali.");
     } finally {
+      paymentSubmittingRef.current = false;
       setSubmittingPayment(false);
     }
   }

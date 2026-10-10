@@ -2,14 +2,26 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [staging, main]
   push:
     branches: [staging, main]
+  workflow_dispatch:
 
+# A new push to a PR cancels the run it supersedes. Pushes to staging/main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Cost control (private repo, metered Actions minutes). Draft PRs skip CI entirely. Ready PRs
+# run lint, typecheck, unit tests and build. The heavy jobs (Playwright e2e, backup self-test)
+# live in e2e.yml.
 jobs:
   lint-typecheck-test:
     name: Lint, Typecheck & Test
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -38,7 +50,9 @@ jobs:
 
   build:
     name: Build
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -57,197 +71,11 @@ jobs:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
           NEXTAUTH_SECRET: "ci-build-dummy-secret"
 
-  e2e:
-    name: Playwright E2E
-    runs-on: ubuntu-latest
-    needs: build
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: schoolerp
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
-
-      # db push --force-reset is safe here: the Postgres above is a
-      # disposable CI service container (dropped at job end). NEVER
-      # use --force-reset against staging or prod — it DROPs and
-      # recreates every table. Production migrations run through
-      # `prisma migrate deploy` via scripts/vercel-build.sh.
-      - name: Push schema to CI database
-        run: npx prisma db push --force-reset
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
-
-      - name: Seed database
-        run: npx prisma db seed
-        env:
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
-
-      - name: Build Next.js
-        run: npm run build
-        env:
-          DEMO_MODE: "true"
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
-          NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Playwright tests
-        run: npx playwright test
-        env:
-          DEMO_MODE: "true"
-          DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
-          NEXTAUTH_SECRET: "ci-e2e-dummy-secret"
-          # Xendit sandbox key — `xnd_development_*` prefix. Without this
-          # the admin tagihan tests (admin.spec.ts:429-706) fail with
-          # INVALID_API_KEY because lib/xendit/client.ts hits the live
-          # Xendit API even on test data. Repo secret, not env-scoped.
-          XENDIT_SECRET_KEY: ${{ secrets.XENDIT_SECRET_KEY }}
-
-      - name: Upload Playwright report on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
-
-  backup-selftest:
-    name: Backup Pipeline Self-Test
-    runs-on: ubuntu-latest
-    # Rehearses the whole nightly-backup pipeline against throwaway
-    # infrastructure — a fixture Postgres, a generated GPG keypair and a local
-    # MinIO standing in for R2. No production credential is involved, and the
-    # negative cases (empty dump, truncated dump, plaintext, tampered
-    # fingerprint, size mismatch) are asserted to FAIL. This is the regression
-    # guard for the backup that ran red 104 nights without anyone noticing.
-    services:
-      source:
-        image: postgres:17
-        env:
-          POSTGRES_USER: selftest
-          POSTGRES_PASSWORD: selftest
-          POSTGRES_DB: source
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 10s
-          --health-timeout 5s --health-retries 5
-      scratch:
-        image: postgres:17
-        env:
-          POSTGRES_USER: selftest
-          POSTGRES_PASSWORD: selftest
-          POSTGRES_DB: scratch
-        ports: ['5433:5432']
-        options: >-
-          --health-cmd pg_isready --health-interval 10s
-          --health-timeout 5s --health-retries 5
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Shellcheck the backup script
-        run: shellcheck --severity=warning scripts/backup-prod.sh
-
-      - name: Install Postgres 17 client
-        run: |
-          set -euo pipefail
-          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
-          # The runner ships client 16, and Debian's pg_wrapper keeps
-          # /usr/bin/pg_dump pointing at it. pg_dump 16 against a 17 server
-          # aborts with "server version mismatch" — which is what the prod
-          # Supabase (17.x) dump would have done. Put the 17 binaries first.
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
-
-      - name: Assert pg_dump is version 17
-        run: |
-          set -euo pipefail
-          pg_dump --version
-          pg_dump --version | grep -qE ' 17\.' \
-            || { echo "::error::pg_dump is not v17 — it would abort against the 17.x server"; exit 1; }
-
-      # Throwaway credentials for an ephemeral container, same convention as the
-      # ci:ci Postgres above. Nothing here is a secret.
-      - name: Start MinIO as an R2 stand-in
-        run: |
-          set -euo pipefail
-          # Quay denies anonymous pulls; this mirror serves the byte-identical pinned official manifest.
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER=selftest -e MINIO_ROOT_PASSWORD=selftest123 \
-            docker.io/bbquerre/minio@sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2 server /data
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
-            sleep 2
-          done
-          aws s3 mb s3://talib-selftest --endpoint-url http://localhost:9000
-          aws s3 mb s3://talib-selftest-empty --endpoint-url http://localhost:9000
-        env:
-          AWS_ACCESS_KEY_ID: selftest
-          AWS_SECRET_ACCESS_KEY: selftest123
-          AWS_DEFAULT_REGION: auto
-
-      - name: Assert check-secrets reports every missing secret at once
-        run: |
-          set -euo pipefail
-          OUT=$(bash scripts/backup-prod.sh check-secrets FAKE_A FAKE_B FAKE_C 2>&1 || true)
-          echo "$OUT"
-          echo "$OUT" | grep -q 'FAKE_A' || { echo "FAKE_A not reported"; exit 1; }
-          echo "$OUT" | grep -q 'FAKE_B' || { echo "FAKE_B not reported"; exit 1; }
-          echo "$OUT" | grep -q 'FAKE_C' || { echo "FAKE_C not reported"; exit 1; }
-          echo "OK — all three missing secrets reported in a single run"
-
-      - name: Assert the committed public key is not a placeholder
-        run: |
-          set -euo pipefail
-          if bash scripts/backup-prod.sh check-pubkey ops/backup-public.asc "" >/dev/null 2>&1; then
-            echo "OK — ops/backup-public.asc is a real key"
-          else
-            echo "::warning::ops/backup-public.asc is still a placeholder — the nightly backup cannot encrypt until the owner generates the keypair (docs/runbooks/prod-setup.md §1)."
-          fi
-
-      - name: Run the backup pipeline self-test
-        env:
-          PGURL_SOURCE: postgresql://selftest:selftest@localhost:5432/source
-          PGURL_SCRATCH: postgresql://selftest:selftest@localhost:5433/scratch
-          BACKUP_SELFTEST_BUCKET: talib-selftest
-          AWS_ACCESS_KEY_ID: selftest
-          AWS_SECRET_ACCESS_KEY: selftest123
-          AWS_ENDPOINT_URL: http://localhost:9000
-          AWS_DEFAULT_REGION: auto
-        run: bash scripts/backup-prod.sh self-test
-
   keepalive-selftest:
     name: Keepalive & Alert Self-Test
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Regression guard for the two scripts that stand between a production
     # outage and somebody finding out about it. Both are exercised against
     # local fixtures — a loopback HTTP server and a stub `gh` — so this job is

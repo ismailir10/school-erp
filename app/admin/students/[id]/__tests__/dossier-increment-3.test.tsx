@@ -38,6 +38,7 @@ class ResizeObserverStub {
 
 const student = {
   id: "s1",
+    canEdit: true,
   name: "Aisyah Putri",
   nickname: null,
   dateOfBirth: "2021-01-15",
@@ -153,7 +154,8 @@ const APPLICATION = {
       },
     },
     canEditDocuments: true,
-    program: { id: "p1", name: "TKIT" },
+    program: { id: "p1",
+    canEdit: true, name: "TKIT" },
     admission: { id: "adm1", parentName: "Umar Ramadhan", parentPhone: "0812", parentRelationship: "AYAH" },
   },
 };

@@ -43,6 +43,25 @@ import { studentFormSchema } from "@/lib/validations/student";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyStudentErrors, sendStudentJson, StudentRequestError } from "@/components/admin/students/student-request";
 import { STUDENT_LIST_QUERY_KEY } from "@/components/admin/students/list-query";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function DiscardStudentFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { keepRef.current?.focus(); }, []);
+  return (
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div role="alert" className="text-sm">
+        <p className="font-medium">Buang perubahan?</p>
+        <p className="text-muted-foreground">Data yang belum disimpan akan hilang.</p>
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Button type="button" ref={keepRef} variant="ghost" onClick={onKeep}>Lanjut mengisi</Button>
+        <Button type="button" variant="destructive" onClick={onDiscard}>Buang perubahan</Button>
+      </div>
+    </div>
+  );
+}
 
 // ------------------------------------------------------------------
 // Types
@@ -517,6 +536,7 @@ export default function StudentsPage() {
   const initialPage = Number.parseInt(searchParams.get("page") ?? "", 10);
   const [initialSearch] = useState(() => searchParams.get("q") ?? "");
   const [data, setData] = useState<Student[]>([]);
+  const [capabilities, setCapabilities] = useState({ canCreate: false, canEdit: false });
   const [pagination, setPagination] = useState<Pagination>({
     page: Number.isFinite(initialPage) && initialPage > 1 ? initialPage : 1,
     pageSize: 20,
@@ -546,6 +566,51 @@ export default function StudentsPage() {
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const editFormId = useId();
   const editForm = useZodForm(studentFormSchema, { defaultValues: EMPTY_CREATE_FORM });
+  const createDirty = createForm.formState.isDirty;
+  const editDirty = editForm.formState.isDirty;
+  const [editLoading, setEditLoading] = useState(false);
+  const [editLoadError, setEditLoadError] = useState(false);
+  const editLoadId = useRef(0);
+  const [discardTarget, setDiscardTarget] = useState<"create" | "edit" | null>(null);
+  const draftFocus = useRef<HTMLElement | null>(null);
+
+  function keepDraft() {
+    const formId = discardTarget === "create" ? createFormId : editFormId;
+    setDiscardTarget(null);
+    // Restore focus after the dialog handles removal of its focused footer button.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const target = draftFocus.current;
+      if (target?.isConnected) target.focus();
+      else document.getElementById(formId)?.querySelector<HTMLElement>("input, textarea, button")?.focus();
+    }));
+  }
+
+  function closeStudentForm(target: "create" | "edit") {
+    setDiscardTarget(null);
+    if (target === "create") {
+      setCreateOpen(false);
+      createForm.reset(EMPTY_CREATE_FORM);
+    } else {
+      // Ignore a delayed response if the editor was cancelled or reopened.
+      editLoadId.current += 1;
+      setEditTarget(null);
+      editForm.reset(EMPTY_CREATE_FORM);
+    }
+  }
+
+  function requestFormClose(target: "create" | "edit") {
+    const form = target === "create" ? createForm : editForm;
+    if (form.formState.isSubmitting) return;
+    if (discardTarget === target) { keepDraft(); return; }
+    if (target === "create" ? createDirty : editDirty) {
+      const formId = target === "create" ? createFormId : editFormId;
+      const active = document.activeElement;
+      draftFocus.current = active instanceof HTMLElement && document.getElementById(formId)?.contains(active) ? active : null;
+      setDiscardTarget(target);
+      return;
+    }
+    closeStudentForm(target);
+  }
 
   // Single groupBy endpoint, not three pageSize=1 list calls. Re-run after
   // any mutation (create/edit/status toggle) so the cards don't go stale.
@@ -581,6 +646,7 @@ export default function StudentsPage() {
       const res = await fetch(`/api/students?${params}`);
       const json = await res.json();
       setData(json.data ?? []);
+      setCapabilities({ canCreate: json.capabilities?.canCreate === true, canEdit: json.capabilities?.canEdit === true });
       if (json.pagination) setPagination(json.pagination);
     } catch {
       toast.error("Gagal memuat data siswa");
@@ -666,10 +732,14 @@ export default function StudentsPage() {
     // now exposes (address, birthPlace, nik, kkNumber, livingWith). Seeding
     // those from the row would set them to empty strings; saving would then
     // clobber the real DB values to null. Fetch the full record first.
+    const requestId = ++editLoadId.current;
     setEditTarget(student);
+    editForm.reset(EMPTY_CREATE_FORM);
+    setEditLoading(true);
+    setEditLoadError(false);
     try {
       const res = await fetch(`/api/students/${student.id}`);
-      if (!res.ok) { toast.error("Gagal memuat data siswa"); return; }
+      if (!res.ok) throw new Error("Student load failed");
       const full = (await res.json()) as {
         name: string; nickname: string | null; gender: string | null;
         dateOfBirth: string | null; address: string | null; notes: string | null;
@@ -677,6 +747,7 @@ export default function StudentsPage() {
         nik: string | null; kkNumber: string | null; livingWith: string | null;
         status: string;
       };
+      if (requestId !== editLoadId.current) return;
       editForm.reset({
         name: full.name,
         nickname: full.nickname ?? "",
@@ -693,12 +764,14 @@ export default function StudentsPage() {
         status: full.status as StudentFormValues["status"],
       });
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      if (requestId === editLoadId.current) setEditLoadError(true);
+    } finally {
+      if (requestId === editLoadId.current) setEditLoading(false);
     }
   }
 
   const handleEditSave = editForm.handleSubmit(async (values) => {
-    if (!editTarget) return;
+    if (!editTarget || editLoading || editLoadError || discardTarget) return;
     try {
       await sendStudentJson(
         `/api/students/${editTarget.id}`,
@@ -706,7 +779,7 @@ export default function StudentsPage() {
         "Gagal memperbarui data siswa",
       );
       toast.success("Data siswa diperbarui");
-      setEditTarget(null);
+      closeStudentForm("edit");
       fetchStudents();
       fetchStats();
     } catch (err) {
@@ -746,7 +819,10 @@ export default function StudentsPage() {
     }
   }
 
-  const handleCreateSave = createForm.handleSubmit((values) => submitCreate(values, false).then(() => undefined));
+  const handleCreateSave = createForm.handleSubmit((values) => {
+    if (discardTarget) return;
+    return submitCreate(values, false).then(() => undefined);
+  });
 
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
@@ -766,20 +842,21 @@ export default function StudentsPage() {
           return (
             <DataTableRowActions
               rowLabel={s.name}
-              onEdit={() => openEdit(s)}
-              onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
-              onActivate={isInactive ? () => setDeactivateTarget(s) : undefined}
+              onEdit={capabilities.canEdit ? () => openEdit(s) : undefined}
+              onDeactivate={capabilities.canEdit && isActive ? () => setDeactivateTarget(s) : undefined}
+              onActivate={capabilities.canEdit && isInactive ? () => setDeactivateTarget(s) : undefined}
               isActive={isActive}
             />
           );
         },
       },
     ],
-    // Intentionally []: the columns must keep one identity or every row cell
+    // Only permission changes should replace columns: editor state changes must
+    // keep one identity or every row cell
     // remounts and closes its open action menu. openEdit only calls state setters,
     // `editForm.reset` and `toast`, all stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [capabilities.canEdit],
   );
 
   return (
@@ -792,9 +869,9 @@ export default function StudentsPage() {
             <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
               <Download size={14} className="mr-1.5" /> Unduh Data
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            {capabilities.canCreate && <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus size={14} className="mr-1.5" /> Tambah Siswa
-            </Button>
+            </Button>}
           </div>
         }
       />
@@ -850,22 +927,30 @@ export default function StudentsPage() {
       {/* Edit Student */}
       <ResponsiveFormDialog
         open={!!editTarget}
-        onOpenChange={(open) => { if (!editForm.formState.isSubmitting && !open) setEditTarget(null); }}
+        onOpenChange={(open) => { if (!open) requestFormClose("edit"); }}
         title="Edit Siswa"
         size="lg"
         footer={
-          <FormDialogFooter
+          discardTarget === "edit" ? <DiscardStudentFooter onKeep={keepDraft} onDiscard={() => closeStudentForm("edit")} /> : <FormDialogFooter
             formId={editFormId}
             pending={editForm.formState.isSubmitting}
-            onCancel={() => setEditTarget(null)}
+            disabled={editLoading || editLoadError}
+            onCancel={() => requestFormClose("edit")}
             submitLabel="Simpan Perubahan"
           />
         }
       >
-        <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
+        {editLoading ? <div role="status" className="space-y-field"><p className="text-sm text-muted-foreground">Memuat data siswa...</p><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : editLoadError ? (
+          <Alert role="alert" variant="destructive">
+            <AlertDescription>
+              <p>Gagal memuat data siswa. Data belum bisa diubah. Coba lagi.</p>
+              <Button type="button" variant="outline" onClick={() => editTarget && openEdit(editTarget)}>Coba lagi</Button>
+            </AlertDescription>
+          </Alert>
+        ) : <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
           <FormRootError formState={editForm.formState} />
           <StudentFormBody control={editForm.control} mode="edit" />
-        </form>
+        </form>}
       </ResponsiveFormDialog>
 
       {/* Same name + date of birth already exists — confirm before saving a second one */}
@@ -894,18 +979,15 @@ export default function StudentsPage() {
       <ResponsiveFormDialog
         open={createOpen}
         onOpenChange={(open) => {
-          if (!createForm.formState.isSubmitting) {
-            setCreateOpen(open);
-            if (!open) createForm.reset(EMPTY_CREATE_FORM);
-          }
+          if (!open) requestFormClose("create");
         }}
         title="Tambah Siswa"
         size="lg"
         footer={
-          <FormDialogFooter
+          discardTarget === "create" ? <DiscardStudentFooter onKeep={keepDraft} onDiscard={() => closeStudentForm("create")} /> : <FormDialogFooter
             formId={createFormId}
             pending={createForm.formState.isSubmitting}
-            onCancel={() => { setCreateOpen(false); createForm.reset(EMPTY_CREATE_FORM); }}
+            onCancel={() => requestFormClose("create")}
             submitLabel="Tambah Siswa"
           />
         }

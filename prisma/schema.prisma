@@ -1000,11 +1000,14 @@ model Payment {
   status          String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
   createdBy       String? // User ID who recorded
   xenditPaymentId String?  @unique // Idempotency key for Xendit webhooks
+  idempotencyKey  String? // Manual payment attempt, scoped to its invoice
+  requestHash     String? // Immutable original payload; reversal may change notes
   paidAt          DateTime @default(now())
   createdAt       DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
+  @@unique([invoiceId, idempotencyKey])
   @@index([invoiceId, status])
   @@index([createdAt])
 }

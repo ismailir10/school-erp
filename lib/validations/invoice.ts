@@ -42,6 +42,7 @@ const paidAtSchema = () =>
   );
 
 export const recordPaymentSchema = z.object({
+  idempotencyKey: z.string().uuid().optional(),
   // coerce: the record-payment dialog posts its form state verbatim, so
   // `amount` arrives as the <Input>'s string value.
   amount: rupiahAmountCoerced(),

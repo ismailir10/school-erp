@@ -90,6 +90,7 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
   statusGroups,
   loading,
   error,
+  forbidden,
   onRetry,
 }: {
   invoices: StudentInvoiceRow[];
@@ -98,6 +99,7 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
   statusGroups: InvoiceStatusGroup[] | null;
   loading: boolean;
   error: boolean;
+  forbidden: boolean;
   onRetry: () => void;
 }) {
   if (loading) {
@@ -113,6 +115,10 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
         ))}
       </div>
     );
+  }
+
+  if (forbidden) {
+    return <p className="text-sm text-muted-foreground">Anda tidak memiliki akses ke data tagihan.</p>;
   }
 
   // Fetch error contract: say what failed and offer the retry, never render an

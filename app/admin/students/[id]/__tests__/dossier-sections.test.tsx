@@ -39,6 +39,7 @@ vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 
 const student = {
   id: "s1",
+    canEdit: true,
   name: "Aisyah Putri",
   nickname: null,
   dateOfBirth: "2021-01-15",

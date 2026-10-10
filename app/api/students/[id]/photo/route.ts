@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { saveFile, streamFile, deleteFile } from "@/lib/storage";
 import { detectMime } from "@/lib/storage/mime";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -43,6 +44,9 @@ export async function POST(
   }
   if (!isAdminRole(session.role) || !session.tenantId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.edit")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -218,6 +222,9 @@ export async function DELETE(
   }
   if (!isAdminRole(session.role) || !session.tenantId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "students.edit")) {
+    return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
 
   const { id } = await params;

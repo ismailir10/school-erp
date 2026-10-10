@@ -43,7 +43,9 @@ export async function GET(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
-  if (status && status !== "all") {
+  if (searchParams.get("unfinished") === "true") {
+    where.status = { in: ["DRAFT", "COMMITTING"] };
+  } else if (status && status !== "all") {
     if (!validStatuses.has(status)) {
       return NextResponse.json({ error: "Status tidak dikenal" }, { status: 400 });
     }
