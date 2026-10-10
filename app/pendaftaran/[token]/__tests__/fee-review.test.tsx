@@ -77,7 +77,7 @@ describe("Tinjau: biaya pendaftaran", () => {
   it("shows no fee section for a free program", () => {
     renderReview("p-free");
     expect(screen.queryByRole("region", { name: "Biaya pendaftaran" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Biaya Pendaftaran/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Biaya pendaftaran/)).not.toBeInTheDocument();
   });
 
   it("shows no fee section when the school has not priced anything (programs without fee fields)", () => {

@@ -61,6 +61,8 @@ import {
   type ParentSide,
 } from "./form-logic";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
+import { PaymentPanel } from "./payment-panel";
+import type { PublicFeeView } from "@/lib/enrollment/fee-view";
 
 // `code` + `enrollmentFee` price the pendaftaran fee shown on Tinjau; the
 // server recomputes it on submit and never trusts what this form displays.
@@ -266,6 +268,8 @@ export default function PendaftaranClient({
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // The pendaftaran fee the server priced at submit; null when the program is free.
+  const [fee, setFee] = useState<PublicFeeView | null>(null);
   // The consent letter's reveal (stagger) plays the first time this visit reaches the step,
   // not again after Kembali or a jump. ConsentStep reports in once it has mounted.
   const [consentSeen, setConsentSeen] = useState(false);
@@ -547,6 +551,21 @@ export default function PendaftaranClient({
         body: JSON.stringify(buildPayload()),
       });
       if (res.status === 201) {
+        // The submit succeeded whatever the body says; a missing or odd `fee`
+        // just means no payment step is shown (the thank-you card still is).
+        const created = (await res.json().catch(() => null)) as { fee?: { baseAmount?: unknown; amount?: unknown } | null } | null;
+        const amount = Number(created?.fee?.amount);
+        if (created?.fee && Number.isFinite(amount) && amount > 0) {
+          const base = Number(created.fee.baseAmount);
+          setFee({
+            amount,
+            baseAmount: Number.isFinite(base) && base >= amount ? base : amount,
+            discountPercent: 0,
+            status: "UNPAID",
+            paidAt: null,
+            started: false,
+          });
+        }
         setDone(true);
         return;
       }
@@ -598,6 +617,12 @@ export default function PendaftaranClient({
           Formulir pendaftaran ananda <strong>{student.childName}</strong> sudah kami terima. Tim
           penerimaan An Nisaa&apos; Sekolahku akan menghubungi Bapak/Ibu untuk proses selanjutnya.
         </p>
+        {fee && (
+          <div className="mt-5">
+            {/* The card's own heading is an h2, so the panel sits one level below it. */}
+            <PaymentPanel token={token} childName={student.childName} fee={fee} headingLevel={3} />
+          </div>
+        )}
         <BringList keys={missing} />
       </div>
     );
@@ -1366,7 +1391,7 @@ function ReviewStep({
       </section>
       {fee.amount > 0 && (
         <section aria-label="Biaya pendaftaran">
-          <h3 className="mb-1 text-sm font-semibold text-foreground">Biaya Pendaftaran</h3>
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Biaya pendaftaran</h3>
           <Row label={programName} value={formatRupiah(fee.programFee)} />
           <Row label="Tambahan Day Care" value={fee.dcareAddonFee > 0 ? formatRupiah(fee.dcareAddonFee) : ""} />
           <div className="mt-1 flex justify-between gap-4 border-t border-border pt-2 text-sm">

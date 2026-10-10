@@ -13,7 +13,8 @@ const { feeFindUnique, feeUpdate, fetchPaymentStatus, processPaymentEvent } = vi
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { enrollmentFee: { findUnique: feeFindUnique, update: feeUpdate }, invoice: { findUnique: vi.fn() } },
+  // `feeUpdate` stands for updateMany: the poll claim is one atomic statement.
+  prisma: { enrollmentFee: { findUnique: feeFindUnique, updateMany: feeUpdate }, invoice: { findUnique: vi.fn() } },
 }));
 vi.mock("../registry", () => ({ getGateway: () => ({ id: "doku", fetchPaymentStatus }) }));
 vi.mock("../webhook-processor", () => ({ processPaymentEvent }));
@@ -43,7 +44,7 @@ const completed = {
 beforeEach(() => {
   vi.clearAllMocks();
   feeFindUnique.mockResolvedValue(row());
-  feeUpdate.mockResolvedValue({});
+  feeUpdate.mockResolvedValue({ count: 1 });
   fetchPaymentStatus.mockResolvedValue({ ...completed });
   processPaymentEvent.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "PAID" } });
   vi.spyOn(console, "info").mockImplementation(() => undefined);
@@ -70,34 +71,61 @@ describe("reconcileEnrollmentFee", () => {
     expect(fetchPaymentStatus).not.toHaveBeenCalled();
   });
 
-  it("throttles: a fee checked inside minIntervalMs answers without touching the gateway", async () => {
-    feeFindUnique.mockResolvedValue(row({ lastCheckedAt: new Date(NOW.getTime() - 5_000) }));
+  it("throttles: when the atomic claim finds the fee checked inside minIntervalMs, the gateway is not touched", async () => {
+    // The claim is one UPDATE that checks the interval and stamps in the same statement.
+    feeUpdate.mockResolvedValue({ count: 0 });
     const r = await reconcileEnrollmentFee("fee-1", { minIntervalMs: 15_000, now: NOW });
     expect(r).toMatchObject({ code: "NO_CHANGE", message: "Baru saja diperiksa." });
     expect(fetchPaymentStatus).not.toHaveBeenCalled();
-    expect(feeUpdate).not.toHaveBeenCalled();
+    expect(processPaymentEvent).not.toHaveBeenCalled();
   });
 
-  it("polls once the interval has passed, and never throttles when minIntervalMs is 0 (staff, cron)", async () => {
-    feeFindUnique.mockResolvedValue(row({ lastCheckedAt: new Date(NOW.getTime() - 20_000) }));
+  it("the claim only matches a fee never checked, or checked more than the interval ago, and still UNPAID", async () => {
     await reconcileEnrollmentFee("fee-1", { minIntervalMs: 15_000, now: NOW });
+    expect(feeUpdate.mock.calls[0][0]).toEqual({
+      where: {
+        id: "fee-1",
+        status: "UNPAID",
+        OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: new Date(NOW.getTime() - 15_000) } }],
+      },
+      data: { lastCheckedAt: NOW },
+    });
     expect(fetchPaymentStatus).toHaveBeenCalledTimes(1);
-
-    feeFindUnique.mockResolvedValue(row({ lastCheckedAt: new Date(NOW.getTime() - 1_000) }));
-    await reconcileEnrollmentFee("fee-1", { minIntervalMs: 0, now: NOW });
-    expect(fetchPaymentStatus).toHaveBeenCalledTimes(2);
   });
 
-  it("stamps lastCheckedAt BEFORE the network call, so concurrent page loads do not each poll", async () => {
+  it("never throttles when minIntervalMs is 0 (staff, cron): the claim has no interval condition", async () => {
+    await reconcileEnrollmentFee("fee-1", { minIntervalMs: 0, now: NOW });
+    expect(feeUpdate.mock.calls[0][0].where).toEqual({ id: "fee-1", status: "UNPAID" });
+    expect(fetchPaymentStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("N concurrent loads: only the one whose claim lands polls the gateway", async () => {
+    // The database lets exactly one UPDATE win the interval; the rest see count 0.
+    let claimed = false;
+    feeUpdate.mockImplementation(async () => {
+      if (claimed) return { count: 0 };
+      claimed = true;
+      return { count: 1 };
+    });
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => reconcileEnrollmentFee("fee-1", { minIntervalMs: 15_000, now: NOW })),
+    );
+    expect(fetchPaymentStatus).toHaveBeenCalledTimes(1);
+    expect(results.filter((r) => r.message === "Baru saja diperiksa.")).toHaveLength(7);
+  });
+
+  it("stamps lastCheckedAt BEFORE the network call, so a slow poll does not let the next load through", async () => {
     const order: string[] = [];
-    feeUpdate.mockImplementation(async () => void order.push("stamp"));
+    feeUpdate.mockImplementation(async () => {
+      order.push("stamp");
+      return { count: 1 };
+    });
     fetchPaymentStatus.mockImplementation(async () => {
       order.push("poll");
       return { ...completed };
     });
     await reconcileEnrollmentFee("fee-1", { now: NOW });
     expect(order.slice(0, 2)).toEqual(["stamp", "poll"]);
-    expect(feeUpdate.mock.calls[0][0]).toEqual({ where: { id: "fee-1" }, data: { lastCheckedAt: NOW } });
   });
 
   it("asks the gateway by the fee id (the reference) and the stored session id", async () => {

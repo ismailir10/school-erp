@@ -49,6 +49,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 
 | Portal | Route | Role | Layout | Access |
 |---|---|---|---|---|
+| Public | `/pendaftaran/[token]/pembayaran` | — | Mobile-first | Where DOKU returns the parent after the pendaftaran fee: asks the gateway (throttled) before showing Lunas, Menunggu pembayaran or Belum selesai, so a missed notification never hides a payment; the form link leads here too once submitted |
 | Public | `/daftar` | — | Mobile-first | Admission inquiry, three steps; school logo, hero photo, a three-photo strip (the school's own photos, chosen so no child's face is the subject, served from `public/school/`) and the legal footer |
 | Public | `/pendaftaran/[token]` | — | Mobile-first | Full enrollment form via emailed token, school photo banner — seven steps incl. document upload (Berkas; optional unless required under Pengaturan → Pengaturan Pendaftaran, which also sets each program's pendaftaran fee, shown on Tinjau), autosave + resume, animated progress bar, consent reveal and a draw-in success check (reduced-motion safe); each parent can sign from their own device on the same link; the signed Surat Persetujuan (v2) includes a photo/video clause for school documentation and social media, agreed by registering |
 | Admin (owner) | `/admin` | `SUPER_ADMIN` | Desktop sidebar | Everything, including payroll and salary |

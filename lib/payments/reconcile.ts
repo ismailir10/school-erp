@@ -401,17 +401,24 @@ export async function reconcileEnrollmentFee(
   if (!before.paymentUrl) {
     return none("NO_CHANGE", "Pembayaran belum dimulai.", before.status);
   }
-  if (
-    minIntervalMs > 0 &&
-    before.lastCheckedAt &&
-    now.getTime() - before.lastCheckedAt.getTime() < minIntervalMs
-  ) {
+  // Claim the poll ATOMICALLY: one statement both checks the interval and stamps
+  // `lastCheckedAt`, so N concurrent loads of the same page cannot each pass a
+  // read-then-write check and each call the gateway. The stamp lands BEFORE the
+  // network call; a failed poll is simply retried after the interval. The lock
+  // lives in the database, so it holds across serverless instances too.
+  const claim = await prisma.enrollmentFee.updateMany({
+    where: {
+      id: feeId,
+      status: "UNPAID",
+      ...(minIntervalMs > 0
+        ? { OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lt: new Date(now.getTime() - minIntervalMs) } }] }
+        : {}),
+    },
+    data: { lastCheckedAt: now },
+  });
+  if (claim.count === 0) {
     return none("NO_CHANGE", "Baru saja diperiksa.", before.status);
   }
-
-  // Stamp BEFORE the network call so concurrent loads of the same page do not
-  // each poll; a failed poll is simply retried after the interval.
-  await prisma.enrollmentFee.update({ where: { id: feeId }, data: { lastCheckedAt: now } });
 
   let status: GatewayPaymentStatus;
   try {

@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { getProgramFees } from "@/lib/enrollment/fee-config";
+import { getPublicFeeView } from "@/lib/enrollment/fee-view";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
-import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { SchoolHero } from "@/components/brand/school-photos";
 import PendaftaranClient from "./client";
 import { MessageCard } from "./message-card";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
+import { PaymentPanel } from "./payment-panel";
+import { Shell } from "./shell";
 
 export const metadata: Metadata = {
   title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
@@ -54,25 +55,14 @@ function toPublicConsent(raw: unknown) {
   return { agreed: c.agreed === true, version, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-5 py-4">
-          <Image
-            src="/logo.png"
-            alt=""
-            width={44}
-            height={44}
-            priority
-            className="rounded-[13px] outline -outline-offset-1 outline-black/10"
-          />
-          <TalibWordmark size="md" showSublabel />
-        </div>
-      </header>
-      <div className="mx-auto max-w-2xl px-5 py-8 sm:py-12">{children}</div>
-    </main>
-  );
+/** The application's fee for the thank-you card. A failed read must never hide the card itself. */
+async function loadFee(applicationId: string) {
+  try {
+    return await getPublicFeeView(applicationId);
+  } catch (err) {
+    console.error("[pendaftaran/page] fee lookup failed", err);
+    return null;
+  }
 }
 
 async function getRequired(tenantId: string | undefined): Promise<DocumentKey[]> {
@@ -122,12 +112,24 @@ export default async function PendaftaranTokenPage({
   }
 
   if (access === "SUBMITTED" || !application) {
+    const fee = application ? await loadFee(application.id) : null;
     return (
       <Shell>
         <MessageCard
           title="Formulir sudah diterima"
           body="Jazakumullah khairan. Formulir pendaftaran ananda sudah kami terima. Tim penerimaan akan menghubungi Bapak/Ibu untuk proses selanjutnya."
         >
+          {/* The pendaftaran fee, wherever it stands: unpaid parents land back on the way to pay. */}
+          {application && fee && (
+            <div className="mt-5">
+              <PaymentPanel
+                token={token}
+                childName={application.childName}
+                fee={fee}
+                closed={application.status === "REJECTED"}
+              />
+            </div>
+          )}
           {/* Same checklist as the just-submitted card; it shrinks as staff mark documents received. */}
           <BringList
             keys={
