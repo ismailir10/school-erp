@@ -1,6 +1,6 @@
 # Vendored skills
 
-Skills in this directory that come from an upstream repo, checked in rather than
+Skills (and helper scripts) in this repo that come from an upstream repo, checked in rather than
 installed per-harness. Reason: `CLAUDE.md` § Parallel harmony requires **one
 canonical skill set** — a `/plugin install` or `npx skills add` is harness-local
 and would give Claude, Codex, and opencode three different copies (or none).
@@ -41,3 +41,25 @@ bash scripts/link-agent-skills.sh
 
 Diff the result before committing — an upstream rename or a new `better-*` skill
 needs the CLAUDE.md dispatch table and `link-agent-skills.sh` updated too.
+
+## `agent-workflow` — the loop (5 skills, 2 scripts)
+
+| | |
+|---|---|
+| Upstream | https://github.com/ismailir10/agent-workflow (private) |
+| License | Same owner as this repo |
+| Pinned ref | `ref=` in `.claude/skills/.agent-workflow.lock` (written by the sync script, never by hand) |
+| Paths | `working-principles/`, `spec/`, `build/`, `verify-local/`, `ship/`, plus `scripts/sync-agent-workflow.sh` and `scripts/pr-screenshots.sh` |
+
+The shared `spec → build → verify-local → ship` procedure. Talib's own steps live in `docs/workflow/*.md` and its
+facts in CLAUDE.md § Repo profile; neither is touched by a sync. The `Docs sync` check runs
+`bash scripts/sync-agent-workflow.sh --check`, which fails on any hand edit to a file listed in the lock.
+
+### Re-vendor
+
+```bash
+bash scripts/sync-agent-workflow.sh            # latest upstream main; --ref <sha|tag> to pin
+bash scripts/link-agent-skills.sh
+```
+
+Review the diff before committing. A skill upstream adds or drops needs `link-agent-skills.sh` updated too.
