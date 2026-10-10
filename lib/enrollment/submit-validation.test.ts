@@ -194,6 +194,46 @@ describe("submitEnrollmentSchema", () => {
       if (result.success) expect(result.data.consentData.onlyParent).toBe("ibu");
     });
 
+    // The parent form always sends BOTH blocks (`ayahData: { name: "", … }`), so a
+    // waived side arrives as a blank object, not as a missing key. It must be
+    // ignored, not validated: this is what the real client submits.
+    it("ignores a waived parent's blank block, as the form sends it", () => {
+      const p = onlyIbuPayload();
+      p.ayahData = { name: "", phone: "", email: "", address: { perumahan: "" } };
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(true);
+    });
+
+    it("ignores a waived parent's half-typed, invalid block and does not keep it", () => {
+      const p = onlyIbuPayload();
+      p.ayahData = { name: "Bapak", phone: "abc", email: "bukan-email" };
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.ayahData).toBeUndefined();
+    });
+
+    it("does the same for a waived ibu", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+      const p = validPayload() as Record<string, any>;
+      delete p.consentData.ibu;
+      p.consentData.onlyParent = "ayah";
+      p.ibuData = { name: "", phone: "" };
+      expect(submitEnrollmentSchema.safeParse(p).success).toBe(true);
+    });
+
+    it("still validates the filling parent's block when the other is waived", () => {
+      const p = onlyIbuPayload();
+      p.ayahData = { name: "" };
+      p.ibuData = { name: "Ibu", phone: "abc" };
+      const result = submitEnrollmentSchema.safeParse(p);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errs = flattenSubmitErrors(result.error);
+        expect(errs["ibuData.phone"]).toBe("Nomor telepon tidak valid");
+        expect(errs["ayahData.name"]).toBeUndefined();
+      }
+    });
+
     it("accepts only the ayah's block when ibu is waived", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
       const p = validPayload() as Record<string, any>;

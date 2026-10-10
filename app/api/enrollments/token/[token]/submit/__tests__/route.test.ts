@@ -243,6 +243,25 @@ describe("POST /submit — single parent / wali (R2-P-10)", () => {
     expect(data.consentData.ayah).toBeUndefined();
   });
 
+  // What the real form sends: both blocks always present, the skipped parent's one
+  // blank (or half-typed and invalid). This used to be rejected with 422
+  // "Nama wajib diisi" for a parent who was skipped on purpose.
+  it.each([
+    ["ibu", "ayahData", { name: "", phone: "", email: "", address: { perumahan: "" } }],
+    ["ibu", "ayahData", { name: "Bapak", phone: "abc", email: "bukan-email" }],
+    ["ayah", "ibuData", { name: "", phone: "", email: "", address: { perumahan: "" } }],
+  ] as const)("201 when %s fills alone and the skipped %s arrives blank or invalid", async (only, waivedKey, block) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test payload is mutated freely
+    const b = validBody() as Record<string, any>;
+    b.consentData.onlyParent = only;
+    b[waivedKey] = block;
+    const res = await POST(req(b), ctx);
+    expect(res.status).toBe(201);
+    const data = updateMany.mock.calls[0][0].data;
+    expect(data[waivedKey]).toEqual({});
+    expect(data[only === "ibu" ? "ibuData" : "ayahData"].name).toBeTruthy();
+  });
+
   it("a stored signature of the waived parent does not resurface", async () => {
     // default mockRow holds BOTH tokens, e.g. ayah signed before being waived
     const res = await POST(req(onlyIbuBody()), ctx);

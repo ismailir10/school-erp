@@ -109,6 +109,44 @@ test.describe("Pendaftaran fee", () => {
     expect(typeof (await pay.json()).paymentUrl).toBe("string");
   });
 
+  test("a single parent (the other skipped) submits with the body the real form sends, and is still priced", async () => {
+    const ip = nextIp();
+    // Not a superstring of CHILD: the list test below matches rows by that name.
+    const child = `E2E Satu Orangtua ${STAMP}`;
+    const invite = await createInvite(admin.request, { ip, child, email: `e2e-biaya-satu-${STAMP}@example.com` });
+    await prefillDraft(admin.request, { token: invite.token, ip, child, programId });
+    // Only the ibu signs; the ayah is skipped.
+    expect((await postSignature(admin.request, { token: invite.token, ip, which: "ibu" })).status()).toBe(200);
+
+    const submit = await admin.request.post(`/api/enrollments/token/${invite.token}/submit`, {
+      headers: { "X-Forwarded-For": ip },
+      data: {
+        programId,
+        dcareAddon: false,
+        studentData: {
+          childName: child,
+          childGender: "P",
+          birthPlace: "Bekasi",
+          dateOfBirth: "2021-03-15",
+          agama: "ISLAM",
+          kewarganegaraan: "WNI",
+        },
+        // The form always sends BOTH blocks: the skipped parent's one arrives blank.
+        ayahData: { name: "", phone: "", email: "", address: { perumahan: "" } },
+        ibuData: { name: "E2E Ibu" },
+        consentData: {
+          agreed: true,
+          version: CONSENT_VERSION,
+          onlyParent: "ibu",
+          ayah: { name: "" },
+          ibu: { name: "E2E Ibu" },
+        },
+      },
+    });
+    expect(submit.status()).toBe(201);
+    expect((await submit.json()).fee).toMatchObject({ amount: FEE, status: "UNPAID" });
+  });
+
   test("admin list: Belum bayar, the filter, and a WhatsApp reminder that never exposes the token in JSON", async () => {
     const list = await admin.request.get(`/api/enrollments?payment=unpaid&search=${encodeURIComponent(CHILD)}`);
     expect(list.status()).toBe(200);
