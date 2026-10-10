@@ -5,10 +5,20 @@ on:
     branches: [staging, main]
   push:
     branches: [staging, main]
+  workflow_dispatch:
 
+# A new push to a PR cancels the run it supersedes. Pushes to staging/main always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Cost control (private repo, metered Actions minutes). Draft PRs skip CI entirely. Ready PRs
+# run lint, typecheck, unit tests and build. The heavy jobs (Playwright e2e, backup self-test)
+# run on pushes to staging/main, on manual dispatch, or on a ready PR labelled `e2e`.
 jobs:
   lint-typecheck-test:
     name: Lint, Typecheck & Test
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -38,6 +48,7 @@ jobs:
 
   build:
     name: Build
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -59,8 +70,11 @@ jobs:
 
   e2e:
     name: Playwright E2E
-    runs-on: ubuntu-latest
     needs: build
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft != true && contains(github.event.pull_request.labels.*.name, 'e2e'))
+    runs-on: ubuntu-latest
 
     services:
       postgres:
@@ -140,6 +154,9 @@ jobs:
 
   backup-selftest:
     name: Backup Pipeline Self-Test
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft != true && contains(github.event.pull_request.labels.*.name, 'e2e'))
     runs-on: ubuntu-latest
     # Rehearses the whole nightly-backup pipeline against throwaway
     # infrastructure — a fixture Postgres, a generated GPG keypair and a local
@@ -247,6 +264,7 @@ jobs:
 
   keepalive-selftest:
     name: Keepalive & Alert Self-Test
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     # Regression guard for the two scripts that stand between a production
     # outage and somebody finding out about it. Both are exercised against

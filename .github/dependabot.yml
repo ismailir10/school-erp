@@ -2,8 +2,10 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: "/"
+    # Monthly, not weekly: each Dependabot PR runs CI, and CI minutes are metered. Security
+    # updates are still raised as soon as they are published, regardless of this schedule.
     schedule:
-      interval: weekly
+      interval: monthly
     target-branch: staging
     open-pull-requests-limit: 10
     labels:
@@ -18,6 +20,11 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # Every other minor and patch bump lands in one PR per month.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
       # TS majors (6/7 native compiler) break Build + Lint until Next toolchain
       # supports them — see closed PR #389. Minors/patches still flow.
@@ -31,7 +38,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     target-branch: staging
     open-pull-requests-limit: 5
     labels:
