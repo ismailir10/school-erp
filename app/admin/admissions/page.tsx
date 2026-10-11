@@ -29,6 +29,7 @@ import {
   SendFormulirDialog,
   type SendFormulirResult,
 } from "@/components/admin/admissions/send-formulir-dialog";
+import { KirimFormulirForm } from "@/components/admin/admissions/kirim-formulir-form";
 import { resolveFollowUpPhone } from "@/lib/enrollment/follow-up";
 import { admissionChildLabel } from "@/lib/admission/child-label";
 import { NEXT_STATUS, ADMISSION_STATUS_LABELS } from "@/components/admin/admissions/constants";
@@ -110,6 +111,8 @@ export default function AdmissionsPage() {
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
   // "Terima" (→ ADMITTED) is the one pipeline step that commits the family; confirm it.
   const [admitTarget, setAdmitTarget] = useState<Admission | null>(null);
+  // "Kirim formulir" question (program + Day Care) → the lead it is open for.
+  const [sendTarget, setSendTarget] = useState<Admission | null>(null);
   // "Formulir siap dikirim" card: the lead the link was made for + the invite response.
   const [formulirSent, setFormulirSent] = useState<{ admission: Admission; result: SendFormulirResult } | null>(null);
   const admissionFormId = useId();
@@ -208,31 +211,10 @@ export default function AdmissionsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  // "Kirim Formulir" — creates/refreshes the EnrollmentApplication and emails the
-  // tokenized link when the lead has an email. No email is fine (walk-ins): the
-  // result card hands staff the link to share, copy or fill together.
-  // 409 when the form is already filled/processed.
-  const sendEnrollmentForm = useCallback(async (a: Admission) => {
-    const res = await fetch("/api/enrollments/invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ admissionId: a.id }),
-    });
-    if (res.ok) {
-      const d = (await res.json().catch(() => ({}))) as Partial<SendFormulirResult>;
-      if (d.formUrl) {
-        setFormulirSent({
-          admission: a,
-          result: { formUrl: d.formUrl, emailed: !!d.emailed, hasEmail: !!d.hasEmail },
-        });
-      } else {
-        toast.error("Formulir disiapkan, tetapi tautannya tidak terbaca. Muat ulang lalu coba lagi.");
-      }
-      return;
-    }
-    const d = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-    toast.error(d.message || d.error || "Gagal mengirim formulir");
-  }, []);
+  // "Kirim Formulir" first asks for the Program + Day Care that set the price
+  // (KirimFormulirForm owns the invite request, which creates the fee). Its result
+  // card then hands staff the link to share, copy or fill together; no email needed.
+  const sendEnrollmentForm = useCallback((a: Admission) => setSendTarget(a), []);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     if (discardOpen) return;
@@ -439,6 +421,16 @@ export default function AdmissionsPage() {
         onConfirm={async () => {
           if (admitTarget) await advanceStatus(admitTarget);
         }}
+      />
+
+      <KirimFormulirForm
+        admission={sendTarget}
+        onClose={() => setSendTarget(null)}
+        onSent={(admission, result) => {
+          setSendTarget(null);
+          setFormulirSent({ admission, result });
+        }}
+        onStale={() => { fetchAdmissions(); fetchStats(); }}
       />
 
       <SendFormulirDialog

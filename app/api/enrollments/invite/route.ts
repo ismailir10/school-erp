@@ -147,7 +147,10 @@ const RATE_WINDOW_MS = 60_000;
  * school's device). When the inquiry has an email, the parent is also best-effort
  * emailed the tokenized form link.
  *
- * Response: { id, formUrl, emailed, hasEmail, fee, feeNote? }. `emailed` = the
+ * Response: { id, formUrl, emailed, hasEmail, created, fee, feeNote? }. `created` is
+ * true when this call created the application (a first send) and false for a resend,
+ * so the UI can tell "no fee row because the program is free" from "no fee row because
+ * the formulir was sent before pay-first". `emailed` = the
  * invite email went out; `hasEmail` tells the UI whether "no email" is the reason
  * nothing was sent or the send failed. `fee` is the staff view of the fee row
  * (null when there is none); `feeNote` says what a resend did to an existing fee
@@ -354,11 +357,11 @@ export async function POST(req: NextRequest) {
         },
         tx,
       );
-      return { id, accessToken: savedToken, fee: feeRow ? toAdminFeeView(feeRow) : null, feeNote };
+      return { id, accessToken: savedToken, fee: feeRow ? toAdminFeeView(feeRow) : null, feeNote, created: target === null };
     });
   }
 
-  type Persisted = { id: string; accessToken: string; fee: AdminFeeView | null; feeNote: FeeNote | undefined };
+  type Persisted = { id: string; accessToken: string; fee: AdminFeeView | null; feeNote: FeeNote | undefined; created: boolean };
   let app: Persisted | null;
   try {
     app = await persist(existing);
@@ -412,6 +415,9 @@ export async function POST(req: NextRequest) {
     id: app.id,
     emailed,
     hasEmail: Boolean(email),
+    // True only for the call that made the application. A raced send that lost the
+    // unique-admissionId race resolves through the resend path and reports false.
+    created: app.created,
     formUrl,
     fee: app.fee,
     ...(app.feeNote && app.feeNote !== "none" ? { feeNote: app.feeNote } : {}),

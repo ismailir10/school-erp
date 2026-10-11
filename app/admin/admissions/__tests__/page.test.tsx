@@ -361,22 +361,53 @@ describe("AdmissionsPage — no inquiry-row convert", () => {
   });
 });
 
-describe("AdmissionsPage — Kirim Formulir result card", () => {
-  const invite = (body: Record<string, unknown>) => (url: string, init?: RequestInit) =>
-    url.endsWith("/api/enrollments/invite") && init?.method === "POST"
-      ? ({ ok: true, status: 200, json: async () => ({ id: "ea-1", sent: false, ...body }) } as Response)
-      : undefined;
+describe("AdmissionsPage — Kirim Formulir", () => {
+  const PROGRAMS = [
+    { id: "prog-1", code: "TK", name: "TK A", enrollmentFee: 300000 },
+    { id: "prog-2", code: "DCARE", name: "Day Care", enrollmentFee: 150000 },
+  ];
+  const reply = (body: unknown, status = 200) =>
+    ({ ok: status < 400, status, json: async () => body }) as Response;
+  /** The config list, plus the invite answered by `inviteReply`. */
+  const invite = (inviteReply: Response) => (url: string, init?: RequestInit) => {
+    if (url.endsWith("/api/config/enrollment")) return reply({ programs: PROGRAMS });
+    if (url.endsWith("/api/enrollments/invite") && init?.method === "POST") return inviteReply;
+    return undefined;
+  };
+  const sent = (body: Record<string, unknown>) => reply({ id: "ea-1", created: true, fee: null, ...body });
 
-  async function clickKirimFormulir(user: ReturnType<typeof userEvent.setup>) {
+  beforeEach(async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(toast.error).mockClear();
+  });
+
+  async function openKirimFormulir(user: ReturnType<typeof userEvent.setup>) {
     await screen.findByText("Aisyah");
     await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
     await user.click(await screen.findByRole("menuitem", { name: "Kirim Formulir" }));
+    return screen.findByRole("dialog", { name: "Kirim formulir" });
+  }
+  async function clickKirimFormulir(user: ReturnType<typeof userEvent.setup>) {
+    const ask = await openKirimFormulir(user);
+    // The lead's program is prefilled once the prices are here.
+    await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Rp 300.000"));
+    await user.click(within(ask).getByRole("button", { name: "Kirim formulir" }));
   }
 
+  it("asks for the program first: the lead's program is prefilled and nothing is sent until Kirim formulir", async () => {
+    const fetchMock = serveRows([baseRow({ programId: "prog-1", program: { name: "TK A" } })], invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1" })));
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    const ask = await openKirimFormulir(user);
+    await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Biaya formulir: Rp 300.000"));
+    expect(within(ask).getByRole("combobox", { name: /Program/ })).toHaveTextContent("TK A");
+    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/api/enrollments/invite"))).toBe(false);
+  });
+
   it("a walk-in with only a phone gets the card: link, WhatsApp and fill-together, no email wording", async () => {
-    serveRows(
-      [baseRow({ parentPhone: "0812-3456-7890" })],
-      invite({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: false, hasEmail: false }),
+    const fetchMock = serveRows(
+      [baseRow({ parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
+      invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: false, hasEmail: false })),
     );
     const user = userEvent.setup();
     render(<AdmissionsPage />);
@@ -393,14 +424,34 @@ describe("AdmissionsPage — Kirim Formulir result card", () => {
       "href",
       "https://talib.example/pendaftaran/tok-1",
     );
+    const call = fetchMock.mock.calls.find(([u]) => String(u).endsWith("/api/enrollments/invite"))!;
+    expect(JSON.parse((call[1] as RequestInit).body as string)).toEqual({ admissionId: "a1" });
     const { toast } = await import("sonner");
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("shows the amount and status from the invite on the card", async () => {
+    serveRows(
+      [baseRow({ parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
+      invite(
+        sent({
+          formUrl: "https://talib.example/pendaftaran/tok-1",
+          fee: { status: "UNPAID", amount: 300000, baseAmount: 300000, discountPercent: 0 },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await clickKirimFormulir(user);
+    const dialog = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(within(dialog).getByTestId("formulir-fee")).toHaveTextContent("Biaya formulir: Rp 300.000");
+    expect(within(dialog).getByText("Belum bayar")).toBeInTheDocument();
+  });
+
   it("names the address when the email went out", async () => {
     serveRows(
-      [baseRow({ parentEmail: "dewi@test.com", parentPhone: "0812-3456-7890" })],
-      invite({ formUrl: "https://talib.example/pendaftaran/tok-1", sent: true, emailed: true, hasEmail: true }),
+      [baseRow({ parentEmail: "dewi@test.com", parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
+      invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: true, hasEmail: true })),
     );
     const user = userEvent.setup();
     render(<AdmissionsPage />);
@@ -409,10 +460,9 @@ describe("AdmissionsPage — Kirim Formulir result card", () => {
   });
 
   it("an error from the server still shows as a toast, with no card", async () => {
-    serveRows([baseRow()], (url, init) =>
-      url.endsWith("/api/enrollments/invite") && init?.method === "POST"
-        ? ({ ok: false, status: 409, json: async () => ({ message: "Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang." }) } as Response)
-        : undefined,
+    const fetchMock = serveRows(
+      [baseRow({ programId: "prog-1", program: { name: "TK A" } })],
+      invite(reply({ error: "ALREADY_IN_PROGRESS", message: "Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang." }, 409)),
     );
     const user = userEvent.setup();
     render(<AdmissionsPage />);
@@ -422,6 +472,9 @@ describe("AdmissionsPage — Kirim Formulir result card", () => {
       expect(toast.error).toHaveBeenCalledWith("Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang."),
     );
     expect(screen.queryByRole("dialog", { name: "Formulir siap dikirim" })).not.toBeInTheDocument();
+    // The list is read again: the lead may have moved on since it was loaded.
+    const listReads = () => fetchMock.mock.calls.filter(([u]) => String(u).includes("pageSize=20")).length;
+    await waitFor(() => expect(listReads()).toBe(2));
   });
 
   it("a cancelled lead is not offered a formulir", async () => {

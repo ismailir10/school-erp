@@ -390,6 +390,8 @@ describe("POST /api/enrollments/invite", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.id).toBe("ea-1");
+    // A first send says so, so the UI can tell a free program from an older formulir.
+    expect(json.created).toBe(true);
     expect(json).not.toHaveProperty("sent");
     expect(json.emailed).toBe(true);
     expect(json.hasEmail).toBe(true);
@@ -476,7 +478,9 @@ describe("POST /api/enrollments/invite — pay-first: program, Day Care and the 
       const res = await POST(req({ admissionId: "adm-1", programId: FREE }));
       expect(res.status).toBe(200);
       expect(feeCreate).not.toHaveBeenCalled();
-      expect((await res.json()).fee).toBeNull();
+      const json = await res.json();
+      expect(json.fee).toBeNull();
+      expect(json.created).toBe(true);
       expect(enrollmentCreate).toHaveBeenCalledTimes(1);
     });
 
@@ -614,7 +618,9 @@ describe("POST /api/enrollments/invite — pay-first: program, Day Care and the 
       );
       expect(enrollmentUpdate).not.toHaveBeenCalled();
       expect(feeUpdate.mock.calls[0][0].data).not.toHaveProperty("paymentUrl");
-      expect((await res.json()).fee).toMatchObject({ amount: 500_000, linkActive: true });
+      const json = await res.json();
+      expect(json.fee).toMatchObject({ amount: 500_000, linkActive: true });
+      expect(json.created).toBe(false);
     });
 
     it("a resend naming no program keeps the application's own (set in 'Ubah data'), not the lead's", async () => {
@@ -732,6 +738,8 @@ describe("POST /api/enrollments/invite — pay-first: program, Day Care and the 
         expect(programFindMany).not.toHaveBeenCalled();
         const json = await res.json();
         expect(json.fee).toBeNull();
+        // A resend with no fee row is how the UI recognises a formulir sent before pay-first.
+        expect(json.created).toBe(false);
         expect(json).not.toHaveProperty("feeNote");
         expect(json.formUrl).toContain("/pendaftaran/");
         expect(sendInvite).toHaveBeenCalledTimes(1);
