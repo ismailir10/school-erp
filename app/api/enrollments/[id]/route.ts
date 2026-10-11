@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
-import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
-import { programIdSchema } from "@/lib/validations/program-id";
 import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
-import { isDocumentKey, toAdminDocuments } from "@/lib/enrollment/documents";
+import { toAdminDocuments } from "@/lib/enrollment/documents";
 import { mergeJsonKey } from "@/lib/enrollment/json-merge";
-import { ADMIN_FEE_SELECT, feeAttentionFrom, toAdminFeeView } from "@/lib/enrollment/fee-admin-view";
+import { ADMIN_FEE_SELECT, feeAttentionFrom, toAdminFeeView, type AdminFeeView } from "@/lib/enrollment/fee-admin-view";
+import { getProgramFees } from "@/lib/enrollment/fee-config";
+import { repriceUnpaidFee, type FeeNote } from "@/lib/enrollment/fee-snapshot";
+import { changedKeys, isPlainObject, mergeSection } from "@/lib/enrollment/staff-edit";
+import { parseEnrollmentEdit } from "@/lib/validations/enrollment-edit";
+import { rateLimit } from "@/lib/rate-limit";
+import { recordAudit } from "@/lib/audit";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { canRemind, parentFormUrl } from "@/lib/enrollment/follow-up";
 import { resolveAppOrigin } from "@/lib/payments/session";
 
@@ -21,49 +25,19 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   REJECTED: ["UNDER_REVIEW"],
 };
 
-const patchSchema = z
-  .object({
-    status: z.enum(["UNDER_REVIEW", "ACCEPTED", "REJECTED", "SUBMITTED"]).optional(),
-    studentData: z.object({}).passthrough().optional(),
-    ayahData: z.object({}).passthrough().optional(),
-    ibuData: z.object({}).passthrough().optional(),
-    consentData: z.object({}).passthrough().optional(),
-    programId: z.union([programIdSchema, z.literal(""), z.null()]).optional(),
-    dcareAddon: z.boolean().optional(),
-    // Kelengkapan Berkas: staff ticks "diterima (fisik)". Merged key-by-key in
-    // SQL (never a blob replace) and the ONLY field allowed after conversion.
-    documentsReceived: z
-      .record(z.string(), z.boolean())
-      .refine((o) => Object.keys(o).every(isDocumentKey), "Jenis berkas tidak dikenal")
-      .optional(),
-  })
-  .refine((o) => Object.keys(o).length > 0, "Tidak ada perubahan");
-
-function asObject(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-}
-
-/**
- * Admin-edited consent blob: signatures are evidence, not form fields, so an
- * edit can never set or clear them. Client-sent `signatureToken`/`signedAt` are
- * dropped from ayah/ibu and the STORED values are carried over from the row.
- * (Read-modify-write is fine here: once submitted, the token routes no longer
- * write this row, so there is no concurrent writer.)
- */
-function mergeConsentKeepingSignatures(incoming: Record<string, unknown>, stored: unknown): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...incoming };
-  const storedConsent = asObject(stored);
-  for (const side of ["ayah", "ibu"] as const) {
-    const block = { ...asObject(out[side]) };
-    delete block.signatureToken;
-    delete block.signedAt;
-    const prev = asObject(storedConsent[side]);
-    if (prev.signatureToken !== undefined) block.signatureToken = prev.signatureToken;
-    if (prev.signedAt !== undefined) block.signedAt = prev.signedAt;
-    out[side] = block;
+// Thrown inside the transaction to abort it with a specific HTTP response.
+class PatchError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly errors?: { field: string; message: string }[],
+  ) {
+    super(message);
   }
-  return out;
 }
+
+const REPRICE_FORBIDDEN = "Mengubah program mengubah biaya pendaftaran; butuh izin keuangan.";
+const CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa dan tidak bisa diubah.";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -156,65 +130,208 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const tenantId = session.tenantId;
+
+  const limit = rateLimit(`enrollment-edit:${session.id}`, 60, 60_000);
+  if (!limit.success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
+
   const { id } = await params;
 
   const app = await prisma.enrollmentApplication.findUnique({
     where: { id },
-    select: { id: true, tenantId: true, status: true, studentId: true, consentData: true },
+    select: {
+      id: true,
+      tenantId: true,
+      status: true,
+      studentId: true,
+      programId: true,
+      dcareAddon: true,
+      fee: { select: { status: true } },
+    },
   });
-  if (!app || app.tenantId !== session.tenantId) {
+  if (!app || app.tenantId !== tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const parsed = patchSchema.safeParse(await req.json().catch(() => ({})));
+  const parsed = parseEnrollmentEdit(await req.json().catch(() => ({})));
   if (!parsed.success) {
-    console.error("[enrollments PATCH] validation failed", JSON.stringify(parsed.error.issues));
-    return NextResponse.json({ error: "Validasi gagal" }, { status: 400 });
+    return NextResponse.json({ error: "Validasi gagal", errors: parsed.errors }, { status: 400 });
   }
-  const body = parsed.data;
+  const { data: body, clears } = parsed;
 
   // A converted application is frozen — except the physical-receipt checklist,
   // which staff keep ticking as paper documents arrive after conversion.
-  if (app.studentId && Object.keys(body).some((k) => k !== "documentsReceived")) {
-    return NextResponse.json(
-      { error: "Pendaftaran ini sudah dikonversi menjadi siswa dan tidak bisa diubah." },
-      { status: 409 },
-    );
+  const touchesForm = Object.entries(body).some(([k, v]) => k !== "documentsReceived" && v !== undefined);
+  if (app.studentId && touchesForm) {
+    return NextResponse.json({ error: CONVERTED }, { status: 409 });
   }
 
-  const data: Record<string, unknown> = {};
-  if (body.status !== undefined) {
-    const allowed = ALLOWED_TRANSITIONS[app.status] ?? [];
-    if (!allowed.includes(body.status)) {
-      return NextResponse.json(
-        { error: `Transisi status ${app.status} → ${body.status} tidak diizinkan` },
-        { status: 400 },
-      );
-    }
-    data.status = body.status;
+  // Changing the program or Day Care re-prices an UNPAID fee: that is the same
+  // revenue decision as a discount, so it needs the finance key on top of
+  // admissions.edit (checked before anything is written; re-checked under the lock).
+  const canEditFees = hasPermission(session, "fees.edit");
+  const programMoves = body.programId !== undefined && (body.programId || null) !== (app.programId ?? null);
+  const dcareMoves = body.dcareAddon !== undefined && body.dcareAddon !== app.dcareAddon;
+  if ((programMoves || dcareMoves) && app.fee?.status === "UNPAID" && !canEditFees) {
+    return NextResponse.json({ error: REPRICE_FORBIDDEN }, { status: 403 });
   }
-  if (body.studentData !== undefined) {
-    data.studentData = body.studentData;
-    const cn = (body.studentData as { childName?: unknown }).childName;
-    if (typeof cn === "string" && cn.trim()) data.childName = cn.trim().slice(0, 80);
-  }
-  if (body.ayahData !== undefined) data.ayahData = body.ayahData;
-  if (body.ibuData !== undefined) data.ibuData = body.ibuData;
-  if (body.consentData !== undefined) {
-    data.consentData = mergeConsentKeepingSignatures(body.consentData, app.consentData);
-  }
-  if (body.programId !== undefined) {
-    if (body.programId && body.programId !== "") {
-      // Guard against a cross-tenant program reference (IDOR write).
-      if (!(await programBelongsToTenant(body.programId, session.tenantId))) {
-        return NextResponse.json({ error: "Program tidak ditemukan" }, { status: 400 });
+
+  let result: { id: string; status: string; fee?: AdminFeeView | null; feeNote?: FeeNote } = { id: app.id, status: app.status };
+
+  if (touchesForm) {
+    try {
+      result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Row lock: a parent's draft save (a single UPDATE) waits for this
+        // transaction, so the read-merge-write below cannot lose a signature or
+        // a field the parent typed meanwhile. Also re-checks the converted rule.
+        const locked = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "EnrollmentApplication" WHERE id = ${id} AND "tenantId" = ${tenantId} FOR UPDATE
+        `;
+        if (!locked || locked.length === 0) throw new PatchError("Not found", 404);
+        const cur = await tx.enrollmentApplication.findUnique({
+          where: { id },
+          select: {
+            status: true,
+            studentId: true,
+            programId: true,
+            dcareAddon: true,
+            studentData: true,
+            ayahData: true,
+            ibuData: true,
+            consentData: true,
+          },
+        });
+        if (!cur) throw new PatchError("Not found", 404);
+        if (cur.studentId) throw new PatchError(CONVERTED, 409);
+
+        const data: Record<string, unknown> = {};
+        const changed: string[] = [];
+        let onlyParentChange: { from: string | null; to: string | null } | null = null;
+
+        if (body.status !== undefined) {
+          const allowed = ALLOWED_TRANSITIONS[cur.status] ?? [];
+          if (!allowed.includes(body.status)) {
+            throw new PatchError(`Transisi status ${cur.status} → ${body.status} tidak diizinkan`, 400);
+          }
+          data.status = body.status;
+          changed.push("status");
+        }
+
+        for (const section of ["studentData", "ayahData", "ibuData"] as const) {
+          if (body[section] === undefined) continue;
+          const next = mergeSection(cur[section], body[section], clears[section]);
+          const keys = changedKeys(cur[section], next);
+          if (keys.length === 0) continue;
+          data[section] = next;
+          changed.push(...keys.map((k) => `${section}.${k}`));
+          if (section === "studentData" && keys.includes("childName")) {
+            // The column mirrors the form field; a cleared name is stored empty.
+            const cn = next.childName;
+            data.childName = typeof cn === "string" ? cn.trim().slice(0, 80) : "";
+          }
+        }
+
+        if (body.consentData !== undefined) {
+          // Only `onlyParent` survives validation, so the stored signatures, signing
+          // times and agreement ride through the merge untouched.
+          const next = mergeSection(cur.consentData, body.consentData, clears.consentData);
+          const keys = changedKeys(cur.consentData, next);
+          if (keys.length > 0) {
+            data.consentData = next;
+            if (keys.includes("onlyParent")) {
+              onlyParentChange = {
+                from: ((isPlainObject(cur.consentData) ? cur.consentData.onlyParent : undefined) as string | undefined) ?? null,
+                to: (next.onlyParent as string | undefined) ?? null,
+              };
+            }
+            changed.push(...keys.map((k) => `consentData.${k}`));
+          }
+        }
+
+        let nextProgramId: string | null = cur.programId ?? null;
+        if (body.programId !== undefined) {
+          const requested = body.programId || null;
+          if (requested !== (cur.programId ?? null)) {
+            if (requested) {
+              // ACTIVE program of THIS tenant only (IDOR guard + no retired program).
+              // Only checked when it CHANGES: re-sending a retired program the
+              // form already holds must not block fixing a typo elsewhere.
+              const programs = await getProgramFees(tenantId, tx);
+              if (!programs.some((p) => p.id === requested)) {
+                throw new PatchError("Validasi gagal", 400, [
+                  { field: "programId", message: "Program tidak ditemukan atau sudah tidak aktif" },
+                ]);
+              }
+            }
+            nextProgramId = requested;
+            data.programId = requested;
+            changed.push("programId");
+          }
+        }
+        const nextDcare = body.dcareAddon ?? cur.dcareAddon;
+        if (nextDcare !== cur.dcareAddon) {
+          data.dcareAddon = nextDcare;
+          changed.push("dcareAddon");
+        }
+
+        if (("programId" in data || "dcareAddon" in data) && !canEditFees) {
+          // The pre-read can be stale: re-check under the lock before touching a fee.
+          const owed = await tx.enrollmentFee.findFirst({
+            where: { applicationId: id, tenantId, status: "UNPAID" },
+            select: { id: true },
+          });
+          if (owed) throw new PatchError(REPRICE_FORBIDDEN, 403);
+        }
+
+        const out: { id: string; status: string; fee?: AdminFeeView | null; feeNote?: FeeNote } = { id, status: cur.status };
+        if (Object.keys(data).length > 0) {
+          const updated = await tx.enrollmentApplication.update({ where: { id, tenantId }, data, select: { id: true, status: true } });
+          out.id = updated.id;
+          out.status = updated.status;
+        }
+        if (changed.length > 0) {
+          // Field NAMES only — the values are parent / child PII.
+          await recordAudit(
+            {
+              tenantId,
+              actorId: session.id,
+              entity: "EnrollmentApplication",
+              entityId: id,
+              action: "update",
+              after: {
+                fields: changed,
+                // An enum, not PII: say who fills the form, from and to.
+                ...(onlyParentChange ? { onlyParent: onlyParentChange } : {}),
+              },
+            },
+            tx,
+          );
+        }
+
+        // Program or Day Care moved: the price moves with it (UNPAID only).
+        if ("programId" in data || "dcareAddon" in data) {
+          const repriced = await repriceUnpaidFee(tx, {
+            tenantId,
+            applicationId: id,
+            programId: nextProgramId,
+            dcareAddon: nextDcare,
+            actorId: session.id,
+          });
+          out.fee = repriced.fee;
+          out.feeNote = repriced.note;
+        }
+        return out;
+      });
+    } catch (e) {
+      if (e instanceof PatchError) {
+        return NextResponse.json(
+          e.errors ? { error: e.message, errors: e.errors } : { error: e.message },
+          { status: e.status },
+        );
       }
-      data.programId = body.programId;
-    } else {
-      data.programId = null;
+      throw e;
     }
   }
-  if (body.dcareAddon !== undefined) data.dcareAddon = body.dcareAddon;
 
   if (body.documentsReceived !== undefined) {
     const nowIso = new Date().toISOString();
@@ -224,19 +341,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         "documents",
         key,
         { receivedPhysical: received, receivedAt: received ? nowIso : null },
-        { requireInvited: false },
+        { requireInvited: false, tenantId },
       );
       if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    // The checklist is merged key-by-key outside the form transaction (its own
+    // atomic UPDATE), so its audit row is separate. Names only.
+    await recordAudit({
+      tenantId,
+      actorId: session.id,
+      entity: "EnrollmentApplication",
+      entityId: id,
+      action: "update",
+      after: { fields: ["documentsReceived"], documents: Object.keys(body.documentsReceived) },
+    });
   }
 
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ id: app.id, status: app.status });
-  }
-  const updated = await prisma.enrollmentApplication.update({
-    where: { id },
-    data,
-    select: { id: true, status: true },
-  });
-  return NextResponse.json(updated);
+  return NextResponse.json(result);
 }

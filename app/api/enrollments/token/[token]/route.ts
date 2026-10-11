@@ -33,6 +33,9 @@ const draftSchema = z.object({
  */
 function normalizeConsentDraft(consent: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...consent };
+  // The staff-recorded marker is evidence staff write ("Tandai formulir masuk");
+  // a token holder must not be able to pre-seed it.
+  for (const key of ["staffRecorded", "note", "by", "at"]) delete out[key];
   for (const side of ["ayah", "ibu"] as const) {
     const v = out[side];
     const block: Record<string, unknown> =

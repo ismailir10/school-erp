@@ -40,6 +40,14 @@ describe("mergeJsonKey", () => {
     expect(sql).not.toContain("status = 'INVITED'");
   });
 
+  it("adds the tenant guard as a bound parameter when a tenant is given", async () => {
+    await mergeJsonKey("ea-1", "documents", "kk", { receivedPhysical: true }, { requireInvited: false, tenantId: "t-1" });
+    const { sql, values } = lastSql();
+    expect(sql).toContain(`AND "tenantId" = ?`);
+    expect(values).toContain("t-1");
+    expect(sql).not.toContain("t-1");
+  });
+
   it("returns false when no row matched", async () => {
     executeRaw.mockResolvedValue(0);
     expect(await mergeJsonKey("ea-1", "documents", "kk", {}, { requireInvited: true })).toBe(false);

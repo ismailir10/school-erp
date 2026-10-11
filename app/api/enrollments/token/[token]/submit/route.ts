@@ -8,7 +8,7 @@ import { submitEnrollmentSchema, flattenSubmitErrors, isSideWaived } from "@/lib
 import { DOCUMENT_ITEMS, missingUploads } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { getProgramFees } from "@/lib/enrollment/fee-config";
-import { computeEnrollmentFee } from "@/lib/enrollment/fee";
+import { createFeeSnapshot } from "@/lib/enrollment/fee-snapshot";
 
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
@@ -175,21 +175,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // rewrite it). Created only after the INVITED→SUBMITTED flip won, so a lost
     // race cannot leave a fee behind; no gateway call under this row lock — the
     // payment session is created lazily by the /pay route.
-    const breakdown = computeEnrollmentFee({ programs, programId: data.programId, dcareAddon: data.dcareAddon });
-    let fee: { baseAmount: number; amount: number; status: "UNPAID" } | null = null;
-    if (breakdown.amount > 0) {
-      await tx.enrollmentFee.create({
-        data: {
-          tenantId,
-          applicationId: id,
-          baseAmount: breakdown.baseAmount,
-          discountPercent: 0,
-          amount: breakdown.amount,
-          status: "UNPAID",
-        },
-      });
-      fee = { baseAmount: breakdown.baseAmount, amount: breakdown.amount, status: "UNPAID" };
-    }
+    const fee = await createFeeSnapshot(tx, {
+      tenantId,
+      applicationId: id,
+      programs,
+      programId: data.programId,
+      dcareAddon: data.dcareAddon,
+    });
 
     return NextResponse.json({ ok: true, id, fee }, { status: 201 });
   });

@@ -106,6 +106,15 @@ describe("PATCH — consentData and signatures", () => {
     expect(update).not.toHaveBeenCalled(); // nothing else to write
   });
 
+  it("strips the staff-recorded marker so a token holder cannot pre-seed it", async () => {
+    invited();
+    await PATCH(
+      req({ consentData: { agreed: true, staffRecorded: true, note: "Disetujui langsung di sekolah", by: "u-1", at: "2026-10-11T00:00:00.000Z" } }),
+      ctx,
+    );
+    expect(writeConsent.mock.calls[0][1]).toEqual({ agreed: true, ayah: {}, ibu: {} });
+  });
+
   it("strips client-sent signatureToken/signedAt and forces ayah/ibu to objects", async () => {
     invited();
     await PATCH(

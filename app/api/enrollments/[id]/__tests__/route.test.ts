@@ -1,27 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { findUnique, update, getSession, isAdminRole, programFindFirst, mergeJsonKey, eventFindMany } = vi.hoisted(() => ({
-  mergeJsonKey: vi.fn(),
-  eventFindMany: vi.fn(),
-  findUnique: vi.fn(),
-  update: vi.fn(),
-  getSession: vi.fn(),
-  isAdminRole: vi.fn(),
-  programFindFirst: vi.fn(),
-}));
+const { findUnique, update, getSession, isAdminRole, programFindMany, mergeJsonKey, eventFindMany, queryRaw, auditCreate, feeFindFirst } = vi.hoisted(
+  () => ({
+    mergeJsonKey: vi.fn(),
+    eventFindMany: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    getSession: vi.fn(),
+    isAdminRole: vi.fn(),
+    programFindMany: vi.fn(),
+    queryRaw: vi.fn(),
+    auditCreate: vi.fn(),
+    feeFindFirst: vi.fn(),
+  }),
+);
 
-vi.mock("@/lib/db", () => ({
-  prisma: {
+// PATCH runs inside an interactive transaction; the mock hands the callback the same client.
+vi.mock("@/lib/db", () => {
+  const client = {
     enrollmentApplication: { findUnique, update },
-    program: { findFirst: programFindFirst },
+    program: { findMany: programFindMany },
     webhookEvent: { findMany: eventFindMany },
-  },
-}));
+    auditLog: { create: auditCreate },
+    enrollmentFee: { findFirst: feeFindFirst },
+    $queryRaw: queryRaw,
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(client),
+  };
+  return { prisma: client };
+});
 vi.mock("@/lib/auth", () => ({ getSession, isAdminRole }));
 vi.mock("@/lib/enrollment/json-merge", () => ({ mergeJsonKey }));
 
 import { GET, PATCH } from "../route";
+import { __resetRateLimitForTest } from "@/lib/rate-limit";
 
 const ctx = (id = "ea-1") => ({ params: Promise.resolve({ id }) });
 function patchReq(body: unknown) {
@@ -34,6 +46,10 @@ function patchReq(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetRateLimitForTest();
+  queryRaw.mockResolvedValue([{ id: "ea-1" }]);
+  feeFindFirst.mockResolvedValue(null);
+  programFindMany.mockResolvedValue([]);
   getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SUPER_ADMIN" });
   isAdminRole.mockReturnValue(true);
   update.mockResolvedValue({ id: "ea-1", status: "UNDER_REVIEW" });
@@ -155,7 +171,7 @@ describe("PATCH /api/enrollments/[id]", () => {
     expect(res.status).toBe(200);
     const data = update.mock.calls[0][0].data;
     expect(data.childName).toBe("Budi");
-    expect(data.studentData).toEqual({ childName: "  Budi  " });
+    expect(data.studentData).toEqual({ childName: "Budi" });
   });
 
   it("400 on empty patch body", async () => {
@@ -166,7 +182,7 @@ describe("PATCH /api/enrollments/[id]", () => {
 
   it("accepts a prefixed (non-cuid) programId that belongs to the tenant", async () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
-    programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
+    programFindMany.mockResolvedValue([{ id: "program_ab57fd0432e25d5b3013", code: "KB", name: "KB", enrollmentFee: 0 }]);
     const res = await PATCH(patchReq({ programId: "program_ab57fd0432e25d5b3013" }), ctx());
     expect(res.status).toBe(200);
     expect(update.mock.calls[0][0].data.programId).toBe("program_ab57fd0432e25d5b3013");
@@ -174,7 +190,7 @@ describe("PATCH /api/enrollments/[id]", () => {
 
   it("400 when the chosen program is not in the admin's tenant (IDOR guard)", async () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
-    programFindFirst.mockResolvedValue(null);
+    programFindMany.mockResolvedValue([]);
     const res = await PATCH(patchReq({ programId: "program_from-another-tenant" }), ctx());
     expect(res.status).toBe(400);
     expect(update).not.toHaveBeenCalled();
@@ -190,7 +206,7 @@ describe("PATCH /api/enrollments/[id] — documentsReceived", () => {
     expect(update).not.toHaveBeenCalled(); // nothing but documents to write
     expect(mergeJsonKey).toHaveBeenCalledTimes(2);
     const [id, col, key, patch, opts] = mergeJsonKey.mock.calls[0];
-    expect([id, col, key, opts]).toEqual(["ea-1", "documents", "kk", { requireInvited: false }]);
+    expect([id, col, key, opts]).toEqual(["ea-1", "documents", "kk", { requireInvited: false, tenantId: "t-1" }]);
     expect(patch.receivedPhysical).toBe(true);
     expect(typeof patch.receivedAt).toBe("string");
     expect(mergeJsonKey.mock.calls[1][3]).toEqual({ receivedPhysical: false, receivedAt: null });
@@ -250,44 +266,60 @@ describe("PATCH /api/enrollments/[id] — documentsReceived", () => {
 describe("PATCH /api/enrollments/[id] — consentData never touches signatures", () => {
   const TOK_A = "supabase:v1:enrollment/ea-1/ayah-signature-0123456789abcdef.png";
   const TOK_I = "supabase:v1:enrollment/ea-1/ibu-signature-0123456789abcdef.png";
+  const SIGNED_AT = "2026-10-01T00:00:00.000Z";
   const stored = {
     agreed: true,
-    ayah: { name: "Bapak", signatureToken: TOK_A, signedAt: "2026-10-01T00:00:00.000Z" },
-    ibu: { name: "Ibu", signatureToken: TOK_I, signedAt: "2026-10-01T00:00:00.000Z" },
+    ayah: { name: "Bapak", signatureToken: TOK_A, signedAt: SIGNED_AT },
+    ibu: { name: "Ibu", signatureToken: TOK_I, signedAt: SIGNED_AT },
   };
+  const row = (consentData: unknown) => ({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null, consentData });
 
-  it("drops client-sent signatureToken/signedAt and carries the stored ones over", async () => {
-    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null, consentData: stored });
+  it("staff can set onlyParent; the stored signatures and agreement come through untouched", async () => {
+    findUnique.mockResolvedValue(row(stored));
+    const res = await PATCH(patchReq({ consentData: { onlyParent: "ayah" } }), ctx());
+    expect(res.status).toBe(200);
+    expect(update.mock.calls[0][0].data.consentData).toEqual({ ...stored, onlyParent: "ayah" });
+  });
+
+  it("drops a client-sent signatureToken/signedAt/agreed/name: only onlyParent is editable", async () => {
+    findUnique.mockResolvedValue(row(stored));
     const res = await PATCH(
       patchReq({
         consentData: {
-          agreed: true,
+          onlyParent: "ibu",
+          agreed: false,
+          version: "FORGED-VERSION",
           ayah: { name: "Bapak Edit", signatureToken: "FORGED", signedAt: "2000-01-01" },
-          ibu: { name: "Ibu Edit", signatureToken: "" },
+          ibu: { signatureToken: "" },
         },
       }),
       ctx(),
     );
     expect(res.status).toBe(200);
     const consent = update.mock.calls[0][0].data.consentData;
-    expect(consent.ayah).toEqual({ name: "Bapak Edit", signatureToken: TOK_A, signedAt: "2026-10-01T00:00:00.000Z" });
-    expect(consent.ibu).toEqual({ name: "Ibu Edit", signatureToken: TOK_I, signedAt: "2026-10-01T00:00:00.000Z" });
-    expect(JSON.stringify(consent)).not.toContain("FORGED");
+    expect(consent).toEqual({ ...stored, onlyParent: "ibu" });
+    expect(JSON.stringify(consent)).not.toMatch(/FORGED|2000-01-01/);
   });
 
-  it("cannot clear a signature by omitting ayah/ibu, and cannot invent one when none is stored", async () => {
-    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null, consentData: stored });
-    await PATCH(patchReq({ consentData: { agreed: true } }), ctx());
-    const kept = update.mock.calls[0][0].data.consentData;
-    expect(kept.ayah.signatureToken).toBe(TOK_A);
-    expect(kept.ibu.signatureToken).toBe(TOK_I);
-
-    update.mockClear();
-    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null, consentData: null });
-    await PATCH(patchReq({ consentData: { ayah: { name: "A", signatureToken: "FORGED" } } }), ctx());
+  it("cannot invent a signature when none is stored", async () => {
+    findUnique.mockResolvedValue(row(null));
+    await PATCH(patchReq({ consentData: { onlyParent: "ayah", ayah: { name: "A", signatureToken: "FORGED" } } }), ctx());
     const none = update.mock.calls[0][0].data.consentData;
-    expect(none.ayah).toEqual({ name: "A" });
-    expect(none.ibu).toEqual({});
+    expect(none).toEqual({ onlyParent: "ayah" });
+  });
+
+  it("a blank onlyParent clears the choice and still keeps the signatures", async () => {
+    findUnique.mockResolvedValue(row({ ...stored, onlyParent: "ayah" }));
+    await PATCH(patchReq({ consentData: { onlyParent: "" } }), ctx());
+    expect(update.mock.calls[0][0].data.consentData).toEqual(stored);
+  });
+
+  it("400 on an unknown onlyParent value", async () => {
+    findUnique.mockResolvedValue(row(stored));
+    const res = await PATCH(patchReq({ consentData: { onlyParent: "wali" } }), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).errors[0].field).toBe("consentData.onlyParent");
+    expect(update).not.toHaveBeenCalled();
   });
 });
 
