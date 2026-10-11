@@ -118,6 +118,8 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 
 ## Implementation
 
+- Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (one subagent per slice, no commits by workers; the driver re-runs every gate, reviews and commits). T1 ∥ T2 parallel (disjoint files: admin lead API/dialog vs public `/daftar`); T3 → T4 → T5 → T6 → T7 → T8 → T9 sequential, because T3-T8 share `app/admin/admissions/page.tsx`, `columns.tsx`, `app/api/enrollments/**` and `lib/enrollment/**`. Two-axis review (standards + spec) per task; a third security review on tasks touching `app/api/**` (T1, T3, T4, T5, T6). No task inline: each slice is too large to hold in the driver's context.
+
 ## Verification
 
 ## Ship Notes
