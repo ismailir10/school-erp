@@ -52,7 +52,7 @@ beforeEach(() => {
   programFindMany.mockResolvedValue([]);
   getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SUPER_ADMIN" });
   isAdminRole.mockReturnValue(true);
-  update.mockResolvedValue({ id: "ea-1", status: "UNDER_REVIEW" });
+  update.mockResolvedValue({ id: "ea-1", status: "ACCEPTED" });
   mergeJsonKey.mockResolvedValue(true);
   eventFindMany.mockResolvedValue([]);
 });
@@ -131,7 +131,7 @@ describe("GET /api/enrollments/[id]", () => {
 describe("PATCH /api/enrollments/[id]", () => {
   it("requires admissions.edit even when the custom admin can read", async () => {
     getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
-    const res = await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx());
+    const res = await PATCH(patchReq({ status: "ACCEPTED" }), ctx());
     expect(res.status).toBe(403);
     expect(findUnique).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe("PATCH /api/enrollments/[id]", () => {
   it("allows admissions.edit for a custom admin without widening tenant scope", async () => {
     getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.edit"] });
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "other", status: "SUBMITTED", studentId: null });
-    expect((await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx())).status).toBe(404);
+    expect((await PATCH(patchReq({ status: "ACCEPTED" }), ctx())).status).toBe(404);
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -151,12 +151,32 @@ describe("PATCH /api/enrollments/[id]", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("allows a valid transition SUBMITTED → UNDER_REVIEW", async () => {
-    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
-    const res = await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx());
+  it.each([
+    ["SUBMITTED", "ACCEPTED"],
+    ["SUBMITTED", "REJECTED"],
+    ["ACCEPTED", "SUBMITTED"],
+    ["ACCEPTED", "REJECTED"],
+    ["REJECTED", "SUBMITTED"],
+    // Legacy rows stored as UNDER_REVIEW can still move on.
+    ["UNDER_REVIEW", "ACCEPTED"],
+    ["UNDER_REVIEW", "REJECTED"],
+    ["UNDER_REVIEW", "SUBMITTED"],
+  ])("allows a valid transition %s → %s", async (from, to) => {
+    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: from, studentId: null });
+    const res = await PATCH(patchReq({ status: to }), ctx());
     expect(res.status).toBe(200);
-    expect(update.mock.calls[0][0].data.status).toBe("UNDER_REVIEW");
+    expect(update.mock.calls[0][0].data.status).toBe(to);
   });
+
+  it.each(["SUBMITTED", "ACCEPTED", "REJECTED", "UNDER_REVIEW"])(
+    "UNDER_REVIEW is no longer a status staff can move %s to",
+    async (from) => {
+      findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: from, studentId: null });
+      const res = await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx());
+      expect(res.status).toBe(400);
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects an illegal transition REJECTED → ACCEPTED", async () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "REJECTED", studentId: null });
@@ -239,11 +259,11 @@ describe("PATCH /api/enrollments/[id] — documentsReceived", () => {
 
   it("combines with other fields on an unconverted application", async () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED", studentId: null });
-    const res = await PATCH(patchReq({ status: "UNDER_REVIEW", documentsReceived: { ktp_ayah: true } }), ctx());
+    const res = await PATCH(patchReq({ status: "ACCEPTED", documentsReceived: { ktp_ayah: true } }), ctx());
     expect(res.status).toBe(200);
     expect(mergeJsonKey).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].data).toEqual({ status: "UNDER_REVIEW" });
-    expect(await res.json()).toEqual({ id: "ea-1", status: "UNDER_REVIEW" });
+    expect(update.mock.calls[0][0].data).toEqual({ status: "ACCEPTED" });
+    expect(await res.json()).toEqual({ id: "ea-1", status: "ACCEPTED" });
   });
 
   it("does not write documents when another field fails validation (no partial write)", async () => {

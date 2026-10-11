@@ -288,12 +288,12 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 209 |
+| `app/api/**/route.ts` | 208 |
 | `app/admin` pages | 44 |
 | `app/teacher` pages | 14 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 69 |
-| `e2e/*.spec.ts` | 40 |
+| `e2e/*.spec.ts` | 39 |
 | `.claude/standards/*` | 10 |
 | `docs/cycles` active / archived | 96 / 233 |
 <!-- /generated:counts -->

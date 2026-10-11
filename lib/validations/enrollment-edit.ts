@@ -15,7 +15,7 @@ import { splitClears, type EditSection } from "@/lib/enrollment/staff-edit";
  */
 export const enrollmentEditSchema = z
   .object({
-    status: z.enum(["UNDER_REVIEW", "ACCEPTED", "REJECTED", "SUBMITTED"]).optional(),
+    status: z.enum(["ACCEPTED", "REJECTED", "SUBMITTED"]).optional(),
     studentData: staffStudentSchema.optional(),
     ayahData: staffParentSchema.optional(),
     ibuData: staffParentSchema.optional(),

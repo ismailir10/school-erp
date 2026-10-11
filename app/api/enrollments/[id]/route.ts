@@ -17,12 +17,14 @@ import { canRemind, parentFormUrl } from "@/lib/enrollment/follow-up";
 import { resolveAppOrigin } from "@/lib/payments/session";
 
 // Admin status workflow. INVITED is owned by the parent (pre-submit) and is
-// never an admin target. A converted application (studentId set) is frozen.
+// never an admin target. UNDER_REVIEW is no longer a target (the "Mulai Tinjau"
+// step is gone) but stays a legal SOURCE so legacy rows can still move on.
+// A converted application (studentId set) is frozen.
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED: ["UNDER_REVIEW", "ACCEPTED", "REJECTED"],
+  SUBMITTED: ["ACCEPTED", "REJECTED"],
   UNDER_REVIEW: ["ACCEPTED", "REJECTED", "SUBMITTED"],
-  ACCEPTED: ["UNDER_REVIEW", "REJECTED"],
-  REJECTED: ["UNDER_REVIEW"],
+  ACCEPTED: ["SUBMITTED", "REJECTED"],
+  REJECTED: ["SUBMITTED"],
 };
 
 // Thrown inside the transaction to abort it with a specific HTTP response.
