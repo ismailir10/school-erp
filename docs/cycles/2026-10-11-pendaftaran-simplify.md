@@ -14,7 +14,7 @@ Today a family goes through **two lists, two status machines and two "convert" r
 
 `VISIT_SCHEDULED` / `VISITED` and `UNDER_REVIEW` are clicked through but nothing reads them. The public `/daftar` form asks three steps of required child data although the full formulir is sent anyway.
 
-Feedback that started this (Ais, 10 Oct): pay the formulir fee first. That is **not** in this cycle (see Non-goals), but this cycle fixes the program / Day Care choice at "Kirim Formulir", which makes it a small change next.
+Feedback that started this (Ais, 10 Oct): pay the formulir fee **first**, then fill the form, so "can fill = has paid" and Ibu sees who is serious from day one. The fee is **non-refundable** (Ismail, 11 Oct), and Ismail asked for pay-first to ship in this same cycle.
 
 Inputs: UAT `2026-10-06-enrollment-form` (0 blockers, 1 major on slow-uplink upload — not touched here); `2026-09-29-full-e2e` majors X-1 and CORE-1 already fixed in round 2. Prior cycles constrain: `2026-10-10-pendaftaran-fee-payment` (A3: an unpaid application stays convertible with a warning, never a block; fee is its own `EnrollmentFee` row).
 
@@ -24,12 +24,13 @@ Inputs: UAT `2026-10-06-enrollment-form` (0 blockers, 1 major on slow-uplink upl
 2. **Stage is derived, not clicked.** Lead status shrinks to Baru / Batal. Everything after comes from the formulir (sent, submitted, accepted) and from the student link. `VISIT_SCHEDULED`, `VISITED` and `UNDER_REVIEW` are removed from every screen and transition. Rows already holding those values are **read as their neighbour** (visit steps = *Baru*, under review = *Formulir masuk*); no data is rewritten.
 3. **Lead form = who and how to reach them.** Required: Nama orang tua + at least one of No. HP/WhatsApp or Email. Also: Ayah/Ibu/Wali. Optional (collapsed under "Data anak"): nama anak, tanggal lahir, jenis kelamin, program. Plus catatan. Gone from the form: pendidikan, pekerjaan, penghasilan, preferensi kampus, tanggal tindak lanjut, sumber (set automatically: Website / Datang langsung). Same short form for the public `/daftar` (one page, no stepper).
 4. **Admin can override anything.** Every field of the lead and of the formulir (anak, Ayah, Ibu, program, Day Care, catatan) is editable by staff with `admissions.edit` at any stage until the student exists, via an **Ubah data** mode on the detail page. Format is validated, completeness is not (staff can save a half-filled form). Clearing a field now works. After conversion, corrections happen on the student / wali pages as today.
-5. **Walk-ins work.** *Kirim Formulir* no longer needs an email. It opens a result card with **Kirim lewat WhatsApp**, **Salin tautan**, **Isi bersama orang tua** (opens the real parent form on the admin's device so the parent can sign on screen) and, only when an email exists, sends the email too.
+5. **Walk-ins work.** *Kirim Formulir* no longer needs an email. It first asks for the **Program** (prefilled from the lead) and the **Day Care** add-on, since they set the price, then opens a result card with **Kirim lewat WhatsApp**, **Salin tautan**, **Isi bersama orang tua** (opens the real parent form on the admin's device so the parent can sign on screen) and, only when an email exists, sends the email too.
 6. **Staff can submit on the parent's behalf.** *Tandai formulir masuk* moves a not-yet-submitted formulir to *Formulir masuk* without digital signatures; consent is recorded as "disetujui langsung di sekolah" with who and when, and an audit row. Signatures stay evidence only the parent writes.
 7. **One convert, one click.** *Terima & Jadikan Siswa* from *Formulir masuk* (single confirm; the unpaid-fee warning from A3 stays). *Tolak* stays in the overflow menu. Convert is also allowed straight from *Formulir dikirim* when staff filled the data. It needs only child name + one parent name; anything missing is named in the error. The old inquiry-row convert route, its dialogs and `conversion.ts` are deleted; the **duplicate-student / existing-wali confirmation moves into the one route** (it has none today).
 8. **Repricing.** Changing program or Day Care on an `UNPAID` fee recomputes it (staff discount percent kept, stale payment link dropped). On `PAID` / `WAIVED` the fee is left alone and the screen says so.
 9. **Labels.** Keep glossary words: *Pertanyaan*, *Formulir*, *Kirim Formulir*, *Konversi → Jadikan Siswa*. Button *Catat Pertanyaan* stays. Copy follows `voice.md` (Pak Budi persona for staff).
-10. **Branch.** Worked on the harness-assigned branch `claude/intelligent-archimedes-i25p8i`, not a `feat/*` worktree; the cloud session is already isolated.
+10. **Pay first.** Sending a formulir creates the pendaftaran fee right then (price = program + Day Care at that moment; free program = no fee, form opens straight away). Until the fee is **PAID or WAIVED** the parent's link shows a *Bayar dulu* screen (amount, what the 7 steps and documents are) instead of the form; paying returns them to the form. Program and Day Care are **locked** in the form once the fee exists (staff can still change them in *Ubah data*, which reprices an unpaid fee). Only the *parent* is gated: staff can always edit, fill together, or submit on their behalf, and can settle the fee in one tap (*Tandai lunas* tunai/transfer, or *Bebaskan*) so a walk-in parent can start immediately. A resent link never reprices a paid fee. Forms sent **before** this change keep the old order (fill → pay at the end); no existing row is rewritten. Cancelling a lead closes its open payment link.
+11. **Branch.** Worked on the harness-assigned branch `claude/intelligent-archimedes-i25p8i`, not a `feat/*` worktree; the cloud session is already isolated.
 
 ## Acceptance criteria
 
@@ -43,6 +44,13 @@ Inputs: UAT `2026-10-06-enrollment-form` (0 blockers, 1 major on slow-uplink upl
 - [ ] *Ubah data* edits every formulir section, rejects malformed phone/email/date with inline errors and changes nothing on failure, and is hidden for viewers without `admissions.edit` and after conversion.
 - [ ] Changing program/Day Care re-prices an unpaid fee; leaves a paid or waived fee alone and says so.
 - [ ] *Tandai formulir masuk* works from *Formulir dikirim*, writes the consent note + audit row, creates the fee row like a parent submit, and never fabricates a signature.
+- [ ] Sending a formulir asks for Program + Day Care, creates the fee at that price (none when the program is free), and the link opens the *Bayar dulu* screen until the fee is PAID or WAIVED; a paid parent lands on the form, and a free program goes straight to the form.
+- [ ] While unpaid, every parent-side write (autosave, upload, signature, submit) is refused with a clear message; staff routes are never gated.
+- [ ] Program and Day Care are read-only in the parent form once the fee exists; submit uses the stored choice and never creates a second fee.
+- [ ] Resending a formulir refreshes the link and (for an unpaid fee) the price; a paid or waived fee is never repriced or duplicated.
+- [ ] Staff can *Tandai lunas* / *Bebaskan* straight from the send result card and from the row; an unpaid, sent formulir shows *Belum bayar* and offers the WhatsApp reminder, which opens the link that leads to payment.
+- [ ] A form sent before this change (no fee row) still fills and submits in the old order, and still prices at submit.
+- [ ] Cancelling a lead closes its open payment link (no new link, no double charge).
 - [ ] *Terima & Jadikan Siswa* creates Student, Ayah/Ibu wali links and links the lead in one confirm; unpaid fee warns, does not block; a possible duplicate student or existing wali asks before merging; missing child/parent name names what is missing.
 - [ ] `POST /api/admissions/[id]/convert`, its dialogs and `conversion.ts` are gone with no dangling import or test.
 - [ ] README, `/panduan` admissions slide, UAT jobs ADM-01/03/04, crud standard and the ADR table match the new flow; `scripts/audit-docs.sh` exits 0.
@@ -51,10 +59,11 @@ Inputs: UAT `2026-10-06-enrollment-form` (0 blockers, 1 major on slow-uplink upl
 
 Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin`).
 
-1. **Walk-in, no email.** Admin: Pendaftaran → Catat Pertanyaan with parent name + phone only → row *Baru* → Kirim Formulir → result card → *Isi bersama orang tua* → fill and sign on screen → submit → row *Formulir masuk*, *Belum bayar* → *Terima & Jadikan Siswa* → student and two wali exist, row *Siswa*.
-2. **Parent online, then a correction.** Public `/daftar` short form → row *Baru* → Kirim Formulir (with email) → parent submits via token → admin sees a wrong phone → Ubah data fixes it, changes Day Care → unpaid fee re-prices → convert. **Edge:** same child name + DOB as an existing student → convert asks first.
+1. **Walk-in, no email.** Admin: Pendaftaran → Catat Pertanyaan with parent name + phone only → row *Baru* → Kirim Formulir (pick program, Day Care) → result card shows the amount → *Tandai lunas (tunai)* → *Isi bersama orang tua* → fill and sign on screen → submit → row *Formulir masuk*, *Lunas* → *Terima & Jadikan Siswa* → student and two wali exist, row *Siswa*.
+2. **Parent online, pay first, then a correction.** Public `/daftar` short form → row *Baru* → Kirim Formulir (with email) → parent opens the link: *Bayar dulu* screen, form refused until paid (try an autosave: refused) → demo payment → lands on the form with program locked → submits → admin sees a wrong phone → Ubah data fixes it, changes Day Care → unpaid fee re-prices → convert. **Edge:** same child name + DOB as an existing student → convert asks first.
 3. **Errors.** Ubah data with a malformed phone: inline error, nothing saved. Convert from *Formulir dikirim* with no child name: error names it. Clear the lead's email in edit: stays cleared. Viewer role: no edit/convert controls.
-4. **Legacy.** A lead stored as `VISITED` shows *Baru*, can receive a formulir and continue.
+4. **Legacy.** A lead stored as `VISITED` shows *Baru*, can receive a formulir and continue. A formulir sent before this change (no fee row) opens straight to the form and prices at submit.
+5. **Pay-first edges.** Free program → no payment screen. Resend after payment → link refreshed, fee unchanged. Staff waive → parent's open payment screen now leads to the form. Cancel lead with an unpaid link → link dead.
 
 ## UX notes
 
@@ -72,7 +81,7 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 
 ## Non-goals
 
-- **Pay-first** (fee before the formulir opens). Separate next cycle. The school's refund question is settled (the formulir fee is **non-refundable**, per Ismail 2026-10-11), so nothing blocks it except sequencing. This cycle only fixes program/Day Care at send time.
+- Refunds and instalments of the formulir fee (it is non-refundable).
 - Assigning a class during convert (stays the student page's *Daftarkan ke Kelas*).
 - Moving the pendaftaran fee into `Invoice`; automatic reminders; discount tiers.
 - Changing the parent form's steps, consent text or document rules.
@@ -91,6 +100,7 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 ## Gate re-openers
 
 - **Auth/PII (stated here, approved with this spec):** staff edit of parent and child PII on a formulir, staff submit on the parent's behalf with a recorded "disetujui di sekolah" consent, invite links without email.
+- **Payment gating (stated here, approved with this spec):** the public token routes now refuse writes until the fee is settled; the fee row is created at send time instead of at submit. No webhook, gateway or amount-matching logic changes.
 - Schema migration: **none**. New dependency: **none**. Production write: **none**. Paid API: **none**.
 - Deleting one API route (`POST /api/admissions/[id]/convert`); no data deleted.
 
@@ -101,8 +111,10 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 - [ ] T3 Invite without email + result card (WhatsApp, copy, Isi bersama orang tua) — accept: invite route test for no-email; card test (deps: T1, reuse: `lib/enrollment/follow-up.ts`)
 - [ ] T4 Admin editing of the formulir — validated PATCH, reprice unpaid fee, *Ubah data* UI, *Tandai formulir masuk* with consent note — accept: route + component tests (deps: T3, reuse: `lib/enrollment/submit-validation.ts`, form-logic field specs)
 - [ ] T5 One convert — relax preconditions, move duplicate/wali confirmation into the rich route, single-click *Terima & Jadikan Siswa*, drop Mulai Tinjau/UNDER_REVIEW from UI, delete inquiry convert route + dialogs + `conversion.ts` — accept: convert tests incl. duplicate and missing-name (deps: T4)
-- [ ] T6 Unified Pendaftaran list — Tahap + Pembayaran columns and filters, stage-driven actions, single stats call, drop duplicate date column, `/admin/enrollments` redirect, fix inbound links — accept: list tests; redirect test (deps: T5)
-- [ ] T7 Docs, deck and e2e sweep — README, `/panduan` slide, UAT jobs ADM-01/03/04, crud.md, ADR row, e2e specs, `bash scripts/audit-docs.sh --write` — accept: `audit-docs.sh` exits 0 (deps: T6)
+- [ ] T6 Pay-first server — invite creates/reprices the fee and takes program + Day Care, `PAYMENT_REQUIRED` access state, gate on autosave/documents/signature/submit, pay route allowed before submit, submit stops creating the fee (legacy rows keep old order), program locked, cancelled lead closes the link, reminder works for unpaid sent forms — accept: route + resolve-token + fee-payment tests (deps: T4, reuse: `lib/enrollment/{resolve-token,fee,fee-payment,follow-up}.ts`)
+- [ ] T7 Pay-first UI — Kirim Formulir dialog (program, Day Care, amount), *Tandai lunas* / *Bebaskan* on the result card, public *Bayar dulu* screen, pembayaran page rework (no redirect loop), locked program step — accept: component + page tests (deps: T6, reuse: `payment-panel.tsx`, `fee-view.ts`)
+- [ ] T8 Unified Pendaftaran list — Tahap + Pembayaran columns and filters, stage-driven actions, single stats call, drop duplicate date column, `/admin/enrollments` redirect, fix inbound links — accept: list tests; redirect test (deps: T5, T7)
+- [ ] T9 Docs, deck and e2e sweep — README, `/panduan` slide, UAT jobs ADM-01/03/04, crud.md, ADR row, e2e specs, `bash scripts/audit-docs.sh --write` — accept: `audit-docs.sh` exits 0 (deps: T8)
 
 ## Implementation
 
