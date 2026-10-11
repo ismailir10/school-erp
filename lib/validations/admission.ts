@@ -1,52 +1,77 @@
 import { z } from "zod";
 import { optionalTrimmed, optionalEnum, partialWithoutDefaults } from "./zod-helpers";
-import { cleanText, labelText, longText, nameText } from "./text";
+import { cleanText, longText, nameText } from "./text";
 
 const short = (max: number) => cleanText({ max, singleLine: true });
 
+/** Shown when a lead has no way to reach the family. Shared by the schema, the PUT merge check and the tests. */
+export const ADMISSION_CONTACT_REQUIRED = "Isi minimal satu kontak: No. HP, WhatsApp atau Email";
+
 /**
- * Admin-side create/update schemas for Admission rows.
+ * Admin-side create/update schemas for Admission rows ("Catat Pertanyaan").
+ *
+ * A lead is "who and how to reach them": parent name + at least one contact are
+ * required; everything about the child is optional. Removed from the lead on
+ * 2026-10-11 (columns stay in Prisma, nothing writes them): parentEducation,
+ * parentOccupation, parentIncome, campusPreference, followUpDate. `source` is no
+ * longer client-writable either — staff-created leads are always WALK_IN and the
+ * public /daftar route sets WEBSITE. Unknown keys are stripped (zod default), so
+ * an old client that still sends them keeps working.
  *
  * Every optional string field uses `optionalTrimmed` so an empty-string
  * payload from an unfilled HTML input (e.g. `parentEmail: ""`) is coerced
  * to `undefined` before the inner validator runs. Without this, `.email()`
  * on `""` returns "Email tidak valid" and admin edits 400 — see
  * `docs/cycles/archive/2026-05-11-admin-admissions-empty-string-fix.md`.
+ * Because blank collapses to `undefined`, the PUT route decides "was this key
+ * sent?" from the raw body, not from the parsed value (that is how a field is
+ * cleared).
  *
  * `childAge` is NOT exposed here — it is auto-derived from `dateOfBirth`
- * via `lib/admission/age.ts:formatAgeFromDob` at display time. The schema
- * column stays in `prisma/schema.prisma` for backward compatibility with
- * legacy rows, but new writes never set it.
+ * via `lib/admission/age.ts:formatAgeFromDob` at display time.
  */
-export const createAdmissionSchema = z.object({
-  childName: nameText({ required: "Nama anak wajib diisi" }),
+function isRealIsoDate(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= new Date(Date.UTC(y, mo, 0)).getUTCDate();
+}
+
+const admissionFieldsSchema = z.object({
+  parentName: nameText({ required: "Nama orang tua wajib diisi" }),
   // optionalEnum: form `<Select>` whose value is "" must coerce to undefined
   // before z.enum() runs; .optional() alone only allows undefined, not "".
-  childGender: optionalEnum(z.enum(["L", "P"])),
-  dateOfBirth: optionalTrimmed(short(32)),
-  parentName: nameText({ required: "Nama orang tua wajib diisi" }),
-  parentPhone: optionalTrimmed(short(30)),
-  parentEmail: optionalTrimmed(z.string().email("Email tidak valid").max(254, "Maksimal 254 karakter.")),
-  parentWhatsapp: optionalTrimmed(short(30)),
-  parentEducation: optionalTrimmed(labelText({ max: 100 })),
-  parentOccupation: optionalTrimmed(labelText({ max: 100 })),
-  parentIncome: optionalTrimmed(short(50)),
   parentRelationship: optionalEnum(z.enum(["AYAH", "IBU", "WALI", "OTHER"])),
+  parentPhone: optionalTrimmed(short(30)),
+  parentWhatsapp: optionalTrimmed(short(30)),
+  parentEmail: optionalTrimmed(z.string().email("Email tidak valid").max(254, "Maksimal 254 karakter.")),
+  // The DB column is NOT NULL, so an absent child name is stored as "".
+  childName: optionalTrimmed(nameText()),
+  childGender: optionalEnum(z.enum(["L", "P"])),
+  // Format + real calendar day only; the age range is a public-form rule (admissionDobError), not an admin one.
+  dateOfBirth: optionalTrimmed(short(32).refine(isRealIsoDate, "Tanggal lahir tidak valid")),
   programId: optionalTrimmed(short(64)),
-  // Campus ID — preferred campus for the resulting enrollment when convert
-  // creates one. Convert today only creates Student + Parent, so per cycle
-  // assumption #3 this value is stashed on Student.metadata.campusPreference
-  // during convert (T11). Optional so existing admissions without a campus
-  // preference still round-trip cleanly.
-  campusPreference: optionalTrimmed(short(64)),
-  source: z.enum(["WHATSAPP", "WALK_IN", "WEBSITE", "REFERRAL", "OTHER"]).default("WALK_IN"),
   notes: optionalTrimmed(longText()),
-  followUpDate: optionalTrimmed(short(32)),
 });
 
-// partialWithoutDefaults: a bare `.partial()` keeps `source`'s WALK_IN default in
-// Zod 4, so a status-only PUT reset the lead source (CORE-1 / X-2).
-export const updateAdmissionSchema = partialWithoutDefaults(createAdmissionSchema).extend({
+/** True when at least one of phone / WhatsApp / email carries a value. */
+export function hasAdmissionContact(v: {
+  parentPhone?: string | null;
+  parentWhatsapp?: string | null;
+  parentEmail?: string | null;
+}): boolean {
+  return Boolean(v.parentPhone?.trim() || v.parentWhatsapp?.trim() || v.parentEmail?.trim());
+}
+
+export const createAdmissionSchema = admissionFieldsSchema.refine(hasAdmissionContact, {
+  // On the first contact field so the inline error lands next to the inputs.
+  path: ["parentPhone"],
+  message: ADMISSION_CONTACT_REQUIRED,
+});
+
+// Built from the un-refined object: a partial body (status change, one field)
+// must not need a contact. The PUT route re-checks the MERGED row instead.
+export const updateAdmissionSchema = partialWithoutDefaults(admissionFieldsSchema).extend({
   status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
 });
 

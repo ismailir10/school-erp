@@ -36,5 +36,3 @@ export type Admission = {
 };
 
 export type Program = { id: string; name: string };
-
-export type Campus = { id: string; name: string };

@@ -7,6 +7,8 @@ import { createAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { hasPermission } from "@/lib/permissions";
 import { detectSibling } from "@/lib/admission/sibling-detect";
+import { recordAudit } from "@/lib/audit";
+import { programInTenant, PROGRAM_NOT_FOUND } from "@/lib/admission/program-scope";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -76,8 +78,10 @@ export async function POST(req: NextRequest) {
   if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const tenantId = session.tenantId;
 
-  const parsed = createAdmissionSchema.safeParse(await req.json());
+  // An unreadable body is a validation failure (400), not a thrown 500.
+  const parsed = createAdmissionSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     // Log issues so Vercel runtime logs surface the actual reason (issues
     // array) — request bodies are not captured by default; this is what
@@ -91,27 +95,47 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  const admission = await prisma.admission.create({
-    data: {
-      tenantId: session.tenantId,
-      childName: body.childName.trim(),
-      // childAge is auto-derived at display time from dateOfBirth — never written.
-      childGender: body.childGender || null,
-      dateOfBirth: body.dateOfBirth || null,
-      parentName: body.parentName.trim(),
-      parentPhone: body.parentPhone?.trim() || null,
-      parentEmail: body.parentEmail?.trim() || null,
-      parentWhatsapp: body.parentWhatsapp?.trim() || null,
-      parentEducation: body.parentEducation || null,
-      parentOccupation: body.parentOccupation || null,
-      parentIncome: body.parentIncome || null,
-      parentRelationship: body.parentRelationship || null,
-      programId: body.programId || null,
-      campusPreference: body.campusPreference || null,
-      source: body.source ?? "WALK_IN",
-      notes: body.notes?.trim() || null,
-      followUpDate: body.followUpDate || null,
-    },
+  if (body.programId && !(await programInTenant(tenantId, body.programId))) {
+    return NextResponse.json(
+      { error: "Validasi gagal", errors: [{ field: "programId", message: PROGRAM_NOT_FOUND }] },
+      { status: 400 },
+    );
+  }
+
+  // Create + audit commit together: a lead written without its audit row is
+  // not allowed (recordAudit re-throws inside a transaction).
+  const admission = await prisma.$transaction(async (tx) => {
+    const created = await tx.admission.create({
+      data: {
+        tenantId,
+        // The column is NOT NULL; an absent child name is stored as "" and shown as "Belum diisi".
+        childName: body.childName?.trim() ?? "",
+        // childAge is auto-derived at display time from dateOfBirth — never written.
+        childGender: body.childGender || null,
+        dateOfBirth: body.dateOfBirth || null,
+        parentName: body.parentName.trim(),
+        parentPhone: body.parentPhone?.trim() || null,
+        parentEmail: body.parentEmail?.trim() || null,
+        parentWhatsapp: body.parentWhatsapp?.trim() || null,
+        parentRelationship: body.parentRelationship || null,
+        programId: body.programId || null,
+        // Staff-created leads are always WALK_IN; a `source` in the body is ignored (public /daftar sets WEBSITE).
+        source: "WALK_IN",
+        notes: body.notes?.trim() || null,
+      },
+    });
+    await recordAudit(
+      {
+        tenantId,
+        actorId: session.id,
+        entity: "Admission",
+        entityId: created.id,
+        action: "create",
+        after: { source: "WALK_IN", status: created.status },
+      },
+      tx,
+    );
+    return created;
   });
 
   // R2-ADMIN-1: same sibling auto-detect as the public /daftar submit. Without
@@ -122,7 +146,7 @@ export async function POST(req: NextRequest) {
   try {
     const match = await detectSibling(
       {
-        tenantId: session.tenantId,
+        tenantId,
         parentEmail: admission.parentEmail,
         parentPhone: admission.parentPhone,
         parentWhatsapp: admission.parentWhatsapp,

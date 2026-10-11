@@ -28,7 +28,7 @@ const modules = [
   { name: "admissions", render: () => render(<AdmissionsPage />), row: admission, rowName: admission.childName,
     endpoint: "/api/admissions", query: "search", search: "Cari nama anak atau orang tua...",
     empty: "Tidak ada pendaftaran", error: "Gagal memuat data pendaftaran. Coba lagi.",
-    trigger: "Catat Pertanyaan", dialog: "Catat Pertanyaan Baru", field: /^Nama Anak\*?$/, edit: "Ubah", editDialog: "Edit Pendaftaran" },
+    trigger: "Catat Pertanyaan", dialog: "Catat Pertanyaan Baru", field: /^Nama orang tua\*?$/, edit: "Ubah", editDialog: "Edit Pendaftaran" },
   { name: "classes", render: () => render(<ClassesClient canWrite={true} />), row: klass, rowName: klass.name,
     endpoint: "/api/admin/classes", query: "q", search: "Cari nama kelas...",
     empty: "Belum ada kelas", error: "Gagal memuat daftar kelas. Coba lagi.",

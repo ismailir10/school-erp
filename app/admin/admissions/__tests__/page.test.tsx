@@ -39,9 +39,6 @@ function stubFetch() {
     if (url.includes("/api/programs")) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response);
     }
-    if (url.includes("/api/config/campuses")) {
-      return Promise.resolve({ ok: true, json: async () => [] } as Response);
-    }
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
   });
 }
@@ -87,9 +84,6 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
       if (url.includes("/api/programs")) {
         return Promise.resolve({ ok: true, json: async () => [] } as Response);
       }
-      if (url.includes("/api/config/campuses")) {
-        return Promise.resolve({ ok: true, json: async () => [] } as Response);
-      }
       return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
     });
   }
@@ -110,8 +104,8 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Catat Pertanyaan" }));
 
-    expect(await within(dialog).findByText("Nama anak wajib diisi")).toBeInTheDocument();
-    expect(within(dialog).getByText("Nama orang tua wajib diisi")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Nama orang tua wajib diisi")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Nama anak wajib diisi")).not.toBeInTheDocument();
     expect(
       fetchSpy.mock.calls.some(
         ([reqUrl, init]) => String(reqUrl).includes("/api/admissions") && (init as RequestInit | undefined)?.method === "POST",
@@ -119,16 +113,38 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
     ).toBe(false);
   });
 
-  it("sends a POST with the filled fields on a valid submit", async () => {
+  it("asks for one contact when only the parent name is filled", async () => {
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Catat Pertanyaan" }));
+    const dialog = await screen.findByRole("dialog", { name: "Catat Pertanyaan Baru" });
+    await user.type(within(dialog).getByLabelText(/^Nama orang tua\*?$/), "Ibu Fatimah");
+    vi.mocked(fetch).mockClear();
+
+    await user.click(within(dialog).getByRole("button", { name: "Catat Pertanyaan" }));
+
+    expect(await within(dialog).findByText("Isi minimal satu kontak: No. HP, WhatsApp atau Email")).toBeInTheDocument();
+    expect(
+      vi.mocked(fetch).mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST"),
+    ).toBe(false);
+  });
+
+  it("saves with only the parent name and a phone; the child fields stay out of the way", async () => {
     const user = userEvent.setup();
     render(<AdmissionsPage />);
 
     await user.click(await screen.findByRole("button", { name: "Catat Pertanyaan" }));
     const dialog = await screen.findByRole("dialog", { name: "Catat Pertanyaan Baru" });
 
-    await user.type(within(dialog).getByLabelText(/^Nama Anak\*?$/), "Aisyah");
-    await user.type(within(dialog).getByLabelText(/^Nama Orang Tua\*?$/), "Ibu Fatimah");
+    // The child section is collapsed on a new lead; the removed lead fields are gone.
+    expect(within(dialog).getByRole("button", { name: "Data anak (opsional)" })).toBeInTheDocument();
+    for (const gone of [/Pendidikan/, /Pekerjaan/, /Penghasilan/, /Preferensi Kampus/, /Tanggal Tindak Lanjut/, /Sumber/]) {
+      expect(within(dialog).queryByLabelText(gone)).not.toBeInTheDocument();
+    }
 
+    await user.type(within(dialog).getByLabelText(/^Nama orang tua\*?$/), "Ibu Fatimah");
+    await user.type(within(dialog).getByLabelText("No. HP"), "081234567890");
     await user.click(within(dialog).getByRole("button", { name: "Catat Pertanyaan" }));
 
     const { toast } = await import("sonner");
@@ -140,8 +156,53 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
     expect(postCall).toBeTruthy();
     const [, postInit] = postCall as [string, RequestInit];
     const body = JSON.parse(postInit.body as string);
-    expect(body.childName).toBe("Aisyah");
     expect(body.parentName).toBe("Ibu Fatimah");
+    expect(body.parentPhone).toBe("081234567890");
+    expect(body.childName).toBe("");
+    for (const key of ["source", "parentEducation", "parentOccupation", "parentIncome", "campusPreference", "followUpDate"]) {
+      expect(body).not.toHaveProperty(key);
+    }
+  });
+
+  it("sends a cleared email as blank when editing, so the server can clear it", async () => {
+    const lead = {
+      id: "a1", childName: "", status: "INQUIRY", childAge: null, dateOfBirth: null, childGender: null,
+      parentName: "Ibu Fatimah", parentPhone: "081234567890", parentWhatsapp: null, parentEmail: "fatimah@example.com",
+      parentRelationship: null, programId: null, source: "WALK_IN", notes: null,
+      studentId: null, createdAt: "2026-10-01T00:00:00.000Z", program: null,
+      detectedParentId: null, detectedParent: null,
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/admissions") && init?.method === "PUT") {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }
+      if (url.includes("/api/admissions")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [lead], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 }, canEdit: true }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await screen.findByText("Ibu Fatimah", { exact: false });
+    await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
+    await user.click(await screen.findByRole("menuitem", { name: "Ubah" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit Pendaftaran" });
+
+    await user.clear(within(dialog).getByLabelText("Email"));
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(true));
+    const putInit = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT")![1]!;
+    const body = JSON.parse(putInit.body as string);
+    expect(body.parentEmail).toBe("");
+    expect(body.parentPhone).toBe("081234567890");
+    expect(body.childName).toBe("");
   });
 });
 

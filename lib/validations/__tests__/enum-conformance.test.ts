@@ -12,7 +12,7 @@ import {
   updateGuardianSchema,
   toggleGuardianStatusSchema,
 } from "../guardian";
-import { createAdmissionSchema, updateAdmissionSchema } from "../admission";
+import { updateAdmissionSchema } from "../admission";
 import { recordPaymentSchema, updateInvoiceSchema } from "../invoice";
 import { updateStudentAttendanceSchema } from "../student-attendance";
 import { createCategorySchema } from "../student-journal";
@@ -113,6 +113,7 @@ function zodEnumValues(schema: z.ZodObject<z.ZodRawShape>, key: string): string[
  *   - Parent.status (no admin parent CRUD schema)
  *   - Parent.education (free-text, no enum in Zod)
  *   - Admission.parentEducation (free-text, no enum in Zod)
+ *   - Admission.source (server-set: WALK_IN from the admin form, WEBSITE from /daftar; no API input)
  *   - FeeComponentDef.category (no Zod schema)
  *   - FeeComponentDef.status (no Zod schema)
  *   - ProgramFeeStructure.status (no Zod schema)
@@ -138,7 +139,6 @@ const FIELDS: Row[] = [
   { model: "StudentGuardian", field: "relationship", schema: updateGuardianSchema, key: "relationship", label: "StudentGuardian.relationship / updateGuardianSchema" },
   { model: "StudentGuardian", field: "status", schema: toggleGuardianStatusSchema, key: "status", label: "StudentGuardian.status / toggleGuardianStatusSchema" },
   { model: "StudentEnrollment", field: "status", schema: updateEnrollmentSchema, key: "status", label: "StudentEnrollment.status / updateEnrollmentSchema" },
-  { model: "Admission", field: "source", schema: createAdmissionSchema, key: "source", label: "Admission.source / createAdmissionSchema" },
   { model: "Admission", field: "status", schema: updateAdmissionSchema, key: "status", label: "Admission.status / updateAdmissionSchema" },
   { model: "Invoice", field: "status", schema: updateInvoiceSchema, key: "status", label: "Invoice.status / updateInvoiceSchema" },
   { model: "Payment", field: "method", schema: recordPaymentSchema, key: "method", label: "Payment.method / recordPaymentSchema" },

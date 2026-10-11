@@ -22,7 +22,6 @@ import { sendJson } from "@/lib/api/send-json";
 import {
   AdmissionFormBody,
   EMPTY_ADMISSION_FORM,
-  type AdmissionFormValues,
 } from "@/components/admin/admissions/admission-form-body";
 import { SiblingDetectBanner } from "@/components/admin/admissions/sibling-detect-banner";
 import {
@@ -34,8 +33,9 @@ import {
   AdmissionDuplicateDialog,
   type PossibleDuplicate,
 } from "@/components/admin/admissions/duplicate-dialog";
+import { admissionChildLabel } from "@/lib/admission/child-label";
 import { NEXT_STATUS, ADMISSION_STATUS_LABELS } from "@/components/admin/admissions/constants";
-import type { Admission, Program, Campus } from "@/components/admin/admissions/types";
+import type { Admission, Program } from "@/components/admin/admissions/types";
 
 type Pagination = {
   page: number;
@@ -69,7 +69,6 @@ function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onD
 export default function AdmissionsPage() {
   const [data, setData] = useState<Admission[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [campuses, setCampuses] = useState<Campus[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     pageSize: 20,
@@ -152,17 +151,12 @@ export default function AdmissionsPage() {
     } else closeForm();
   }
 
-  // Fetch programs + campuses once. Campuses cached for 1 h server-side
-  // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
+  // Fetch programs once (the lead form's "Program diminati" select).
   useEffect(() => {
     fetch("/api/programs")
       .then((r) => r.json())
       .then((p) => setPrograms(Array.isArray(p) ? p : p.data ?? []))
       .catch((err) => console.error("[admissions] programs fetch failed", err));
-    fetch("/api/config/campuses")
-      .then((r) => r.json())
-      .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch((err) => console.error("[admissions] campuses fetch failed", err));
   }, []);
 
   const fetchAdmissions = useCallback(async () => {
@@ -325,15 +319,21 @@ export default function AdmissionsPage() {
       return;
     }
     // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
-    void runConvert(a.id, true, false, a.childName);
+    void runConvert(a.id, true, false, admissionChildLabel(a.childName));
   }, [runConvert]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     if (discardOpen) return;
     const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
     const method = editingAdmission ? "PUT" : "POST";
+    // The schema turns a blank field into `undefined`, which JSON.stringify would drop —
+    // and a dropped key means "leave it as it is". Send every field, blank included,
+    // so clearing a field in edit actually clears it.
+    const payload = Object.fromEntries(
+      Object.keys(EMPTY_ADMISSION_FORM).map((key) => [key, values[key as keyof typeof values] ?? ""]),
+    );
     try {
-      await sendJson(url, { method, body: values }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
+      await sendJson(url, { method, body: payload }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       closeForm();
       fetchAdmissions(); fetchStats();
@@ -389,15 +389,10 @@ export default function AdmissionsPage() {
     setDiscardOpen(false);
     setEditingAdmission(a);
     form.reset({
+      parentName: a.parentName, parentRelationship: a.parentRelationship ?? "",
+      parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "", parentEmail: a.parentEmail ?? "",
       childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
-      parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
-      parentEmail: a.parentEmail ?? "", parentEducation: a.parentEducation ?? "",
-      parentOccupation: a.parentOccupation ?? "",
-      parentIncome: a.parentIncome ?? "",
-      parentRelationship: a.parentRelationship ?? "",
-      programId: a.programId ?? "",
-      campusPreference: a.campusPreference ?? "",
-      source: a.source as AdmissionFormValues["source"], notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+      programId: a.programId ?? "", notes: a.notes ?? "",
     });
     setDialogOpen(true);
   }, [form]);
@@ -512,14 +507,14 @@ export default function AdmissionsPage() {
           {editingAdmission?.detectedParent && (
             <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
           )}
-          <AdmissionFormBody control={form.control} programs={programs} campuses={campuses} />
+          <AdmissionFormBody control={form.control} programs={programs} />
         </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog
         open={!!cancelTarget}
         onOpenChange={(o) => !o && setCancelTarget(null)}
-        entityName={cancelTarget ? `pendaftaran ${cancelTarget.childName}` : ""}
+        entityName={cancelTarget ? `pendaftaran ${admissionChildLabel(cancelTarget.childName)}` : ""}
         action="cancel"
         onConfirm={handleCancel}
       />
@@ -527,7 +522,7 @@ export default function AdmissionsPage() {
       <ConfirmDialog
         open={!!admitTarget}
         onOpenChange={(o) => !o && setAdmitTarget(null)}
-        title={`Terima pendaftaran ${admitTarget?.childName ?? "anak ini"}?`}
+        title={`Terima pendaftaran ${admitTarget ? admissionChildLabel(admitTarget.childName) : "anak ini"}?`}
         description="Keluarga bisa melanjutkan ke tahap berikutnya, dan pendaftaran ini siap dikonversi menjadi data siswa."
         confirmLabel="Terima"
         onConfirm={async () => {
@@ -543,7 +538,7 @@ export default function AdmissionsPage() {
           setEmailConflict(null);
         }}
         onConvert={(admissionId, mergeWithDetected) =>
-          void runConvert(admissionId, mergeWithDetected, false, convertTarget?.childName)
+          void runConvert(admissionId, mergeWithDetected, false, admissionChildLabel(convertTarget?.childName))
         }
       />
 

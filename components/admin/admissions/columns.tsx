@@ -6,6 +6,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { UserPlus, ArrowRight, Send, Users2 } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { formatAgeFromDob } from "@/lib/admission/age";
+import { admissionChildLabel } from "@/lib/admission/child-label";
 import { canConvertAdmissionToStudent } from "@/app/admin/admissions/conversion";
 import { SOURCE_LABELS, NEXT_STATUS, TERMINAL_STATUSES } from "./constants";
 import type { Admission } from "./types";
@@ -59,7 +60,7 @@ export function createAdmissionColumns({
         return (
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{a.childName}</span>
+              <span className="text-sm font-medium">{admissionChildLabel(a.childName)}</span>
               {(() => {
                 // Prefer derived age from dateOfBirth (new rows); fall back to
                 // the legacy childAge free-text column for rows created before

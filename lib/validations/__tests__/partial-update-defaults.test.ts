@@ -50,8 +50,8 @@ describe("update schemas do not invent keys the client never sent", () => {
     expect("source" in data).toBe(false);
   });
 
-  it("updateAdmissionSchema: an explicit source still passes through", () => {
-    expect(updateAdmissionSchema.parse({ source: "WEBSITE" })).toEqual({ source: "WEBSITE" });
+  it("updateAdmissionSchema: source is not client-writable (stripped)", () => {
+    expect(updateAdmissionSchema.parse({ source: "WEBSITE" })).toEqual({});
   });
 
   it("updateCategorySchema: status-only body keeps order absent", () => {
