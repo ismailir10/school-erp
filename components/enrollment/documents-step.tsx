@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { prepareUpload } from "@/lib/enrollment/compress-image";
+import { readConflict } from "@/lib/enrollment/conflict";
 import {
   DOCUMENT_ITEMS,
   MAX_DOCUMENT_BYTES,
@@ -57,6 +58,9 @@ export function documentErrorMessage(status: number | null): string {
   }
 }
 
+/** Pay-first: the fee is still owed, so the server refuses every file change. */
+const PAYMENT_REQUIRED_MESSAGE = "Bayar biaya formulir dulu supaya berkas bisa diunggah.";
+
 function deleteErrorMessage(status: number | null): string {
   return status === 409 || status === 429
     ? documentErrorMessage(status)
@@ -74,10 +78,23 @@ function formatSize(bytes: number): string {
  * updates are functional so two rows finishing together never overwrite each
  * other, and they keep working after the step component has unmounted.
  */
-export function useDocumentUploads(token: string, initial: PublicDocuments) {
+export function useDocumentUploads(token: string, initial: PublicDocuments, onPaymentRequired?: () => void) {
   const [documents, setDocuments] = useState<PublicDocuments>(initial);
   const [busy, setBusy] = useState<Partial<Record<DocumentKey, RowBusy>>>({});
   const [errors, setErrors] = useState<Partial<Record<DocumentKey, string>>>({});
+
+  // Read through a ref so a new callback each render does not rebuild upload/remove.
+  const paymentRequiredRef = useRef(onPaymentRequired);
+  useEffect(() => {
+    paymentRequiredRef.current = onPaymentRequired;
+  });
+  /** True (after telling the wizard) when a 409 means "pay first" rather than "already sent". */
+  const refusedForPayment = useCallback(async (res: Response, key: DocumentKey): Promise<boolean> => {
+    if ((await readConflict(res)) !== "PAYMENT_REQUIRED") return false;
+    setErrors((e) => ({ ...e, [key]: PAYMENT_REQUIRED_MESSAGE }));
+    paymentRequiredRef.current?.();
+    return true;
+  }, []);
 
   const url = useCallback(
     (key: DocumentKey) => `/api/enrollments/token/${token}/documents?key=${key}`,
@@ -116,6 +133,7 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
         if (key === "lainnya" && label?.trim()) fd.append("label", label.trim().slice(0, MAX_LABEL));
         const res = await fetch(url(key), { method: "POST", body: fd });
         if (!res.ok) {
+          if (await refusedForPayment(res, key)) return;
           setRowError(key, documentErrorMessage(res.status));
           return;
         }
@@ -136,7 +154,7 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
         setRowBusy(key, null);
       }
     },
-    [url, setRowBusy, setRowError],
+    [url, setRowBusy, setRowError, refusedForPayment],
   );
 
   const remove = useCallback(
@@ -146,6 +164,7 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
       try {
         const res = await fetch(url(key), { method: "DELETE" });
         if (!res.ok) {
+          if (await refusedForPayment(res, key)) return false;
           setRowError(key, deleteErrorMessage(res.status));
           return false;
         }
@@ -162,7 +181,7 @@ export function useDocumentUploads(token: string, initial: PublicDocuments) {
         setRowBusy(key, null);
       }
     },
-    [url, setRowBusy, setRowError],
+    [url, setRowBusy, setRowError, refusedForPayment],
   );
 
   // The server says these required files are gone (removed from another

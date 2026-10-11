@@ -25,6 +25,11 @@ import type { PublicFeeView } from "@/lib/enrollment/fee-view";
  *   start     right after submit — "Langkah terakhir"
  *   pending   back from DOKU, payment not seen yet — "Menunggu pembayaran"
  *   cancelled back from DOKU after cancelling
+ *
+ * `gate` is the pay-first variant ("Bayar dulu"): the formulir has not been filled
+ * yet, so the panel names the program (and Day Care) the fee was priced for rather
+ * than the child, drops the "Langkah terakhir" cue and says the fee is not
+ * refundable instead of "pay later".
  */
 export type PaymentPanelMode = "start" | "pending" | "cancelled";
 
@@ -34,13 +39,24 @@ const COPY = {
   offline: "Koneksi terputus. Coba lagi sebentar ya.",
   rateLimited: "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
   linkFailed: "Tautan pembayaran belum bisa dibuat. Coba lagi sebentar.",
+  expired: "Tautan sudah kedaluwarsa. Hubungi tim penerimaan untuk tautan baru.",
 } as const;
+
+/** Only a real HTTPS gateway page is ever navigated to; anything else (javascript:, data:, http:) is refused. */
+function isSafeGatewayUrl(url: string): boolean {
+  try {
+    return new URL(url, window.location.origin).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 type PayResponse = { paymentUrl?: unknown; status?: unknown; error?: unknown; message?: unknown };
 
 /** Parent-facing text for a non-OK answer. Never the server's raw body. */
 function messageFor(status: number, body: PayResponse): { text: string; closed?: boolean } {
   if (status === 409 && body.error === "APPLICATION_CLOSED") return { text: COPY.closed, closed: true };
+  if (status === 410) return { text: COPY.expired };
   if (status === 429) return { text: COPY.rateLimited };
   if (status === 502) return { text: COPY.linkFailed };
   return { text: COPY.generic };
@@ -53,6 +69,7 @@ export function PaymentPanel({
   mode = "start",
   closed = false,
   headingLevel = 2,
+  gate,
   navigate = (url) => window.location.assign(url),
 }: {
   token: string;
@@ -63,6 +80,8 @@ export function PaymentPanel({
   closed?: boolean;
   /** Level of the panel's heading: 2 under a page `h1`, 3 inside a card that already has an `h2`. */
   headingLevel?: 2 | 3;
+  /** Pay-first: what the fee was priced for. Set on the "Bayar dulu" screen only. */
+  gate?: { programName: string | null; dcareAddon: boolean };
   /** Where the browser goes for the gateway page; a seam for tests. */
   navigate?: (url: string) => void;
 }) {
@@ -100,6 +119,11 @@ export function PaymentPanel({
       const res = await fetch(`/api/enrollments/token/${encodeURIComponent(token)}/pay`, { method: "POST" });
       const body = (await res.json().catch(() => ({}))) as PayResponse;
       if (res.ok && typeof body.paymentUrl === "string") {
+        if (!isSafeGatewayUrl(body.paymentUrl)) {
+          setError(COPY.linkFailed);
+          setBusy(false);
+          return;
+        }
         // Leave the button busy: the page is about to be replaced.
         navigate(body.paymentUrl);
         return;
@@ -135,7 +159,9 @@ export function PaymentPanel({
       ? "Menunggu pembayaran"
       : mode === "cancelled"
         ? "Pembayaran belum selesai"
-        : "Bayar biaya pendaftaran";
+        : gate
+          ? "Biaya formulir"
+          : "Bayar biaya pendaftaran";
   const payLabel = mode === "start" && !fee.started ? "Bayar sekarang" : "Lanjutkan pembayaran";
 
   return (
@@ -143,12 +169,12 @@ export function PaymentPanel({
       aria-labelledby="fee-heading"
       className="rounded-xl border border-primary-text/20 bg-primary/5 p-5 text-left sm:p-6"
     >
-      {mode === "start" && !isClosed && <p className="text-xs font-medium text-primary-text">Langkah terakhir</p>}
+      {mode === "start" && !isClosed && !gate && <p className="text-xs font-medium text-primary-text">Langkah terakhir</p>}
       <Heading id="fee-heading" className="mt-1 text-lg font-semibold text-foreground text-balance">
         {heading}
       </Heading>
 
-      <FeeAmount childName={childName} fee={fee} />
+      <FeeAmount childName={childName} fee={fee} gate={gate} />
 
       {mode === "pending" && !isClosed && (
         <p role="status" className="mt-4 text-sm leading-relaxed text-muted-foreground text-pretty">
@@ -169,6 +195,13 @@ export function PaymentPanel({
         <Alert variant="destructive" className="mt-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      )}
+
+      {/* Said before the button, so the parent reads it before paying. */}
+      {!isClosed && gate && (
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground text-pretty">
+          Biaya formulir tidak dapat dikembalikan. Bapak/Ibu akan diarahkan ke halaman pembayaran DOKU.
+        </p>
       )}
 
       {isClosed ? (
@@ -213,7 +246,7 @@ export function PaymentPanel({
         </div>
       )}
 
-      {!isClosed && mode === "start" && (
+      {!isClosed && !gate && mode === "start" && (
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground text-pretty">
           Bapak/Ibu akan diarahkan ke halaman pembayaran DOKU. Belum sempat sekarang? Biaya ini
           bisa dibayar nanti lewat tautan formulir yang sama.
@@ -224,14 +257,43 @@ export function PaymentPanel({
 }
 
 /** Amount, with the discount shown when there is one. Spacing groups it; only the total gets a rule. */
-function FeeAmount({ childName, fee }: { childName: string; fee: PublicFeeView }) {
+function FeeAmount({
+  childName,
+  fee,
+  gate,
+}: {
+  childName: string;
+  fee: PublicFeeView;
+  gate?: { programName: string | null; dcareAddon: boolean };
+}) {
   const discount = Math.max(0, fee.baseAmount - fee.amount);
   return (
     <div className="mt-3 text-sm">
-      <p className="text-muted-foreground">
-        Biaya pendaftaran ananda <span className="font-medium text-foreground">{childName}</span>
-      </p>
+      {gate ? (
+        <p className="text-muted-foreground">Biaya formulir pendaftaran</p>
+      ) : (
+        <p className="text-muted-foreground">
+          Biaya pendaftaran ananda <span className="font-medium text-foreground">{childName}</span>
+        </p>
+      )}
       <dl>
+        {/* Pay-first: the fee was priced before the form was filled, so say for what. */}
+        {gate && (gate.programName || gate.dcareAddon) && (
+          <div className="mt-3 space-y-1">
+            {gate.programName && (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-muted-foreground">Program</dt>
+                <dd className="text-right font-medium text-foreground">{gate.programName}</dd>
+              </div>
+            )}
+            {gate.dcareAddon && (
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-muted-foreground">Tambahan Day Care</dt>
+                <dd className="text-right font-medium text-foreground">Ya</dd>
+              </div>
+            )}
+          </div>
+        )}
         {discount > 0 && (
           <div className="mt-3 space-y-1">
             <div className="flex items-baseline justify-between gap-4">
@@ -279,8 +341,15 @@ function PaidPanel({ childName, fee, Heading }: { childName: string; fee: Public
             Pembayaran diterima
           </Heading>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
-            Alhamdulillah, biaya pendaftaran ananda <span className="font-medium text-foreground">{childName}</span>{" "}
-            sudah lunas. Terima kasih, Bapak/Ibu.
+            {childName ? (
+              <>
+                Alhamdulillah, biaya pendaftaran ananda <span className="font-medium text-foreground">{childName}</span>{" "}
+                sudah lunas.
+              </>
+            ) : (
+              "Alhamdulillah, biaya pendaftaran sudah lunas."
+            )}{" "}
+            Terima kasih, Bapak/Ibu.
           </p>
         </div>
       </div>
@@ -308,8 +377,14 @@ function WaivedPanel({ childName, Heading }: { childName: string; Heading: Headi
         Biaya pendaftaran dibebaskan
       </Heading>
       <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
-        Tidak ada biaya pendaftaran yang perlu dibayar untuk ananda{" "}
-        <span className="font-medium text-foreground">{childName}</span>.
+        {childName ? (
+          <>
+            Tidak ada biaya pendaftaran yang perlu dibayar untuk ananda{" "}
+            <span className="font-medium text-foreground">{childName}</span>.
+          </>
+        ) : (
+          "Biaya pendaftaran sudah dibebaskan."
+        )}
       </p>
     </section>
   );

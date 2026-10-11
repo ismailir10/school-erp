@@ -18,11 +18,13 @@ vi.mock("@/lib/enrollment/compress-image", () => ({
 function Harness({
   initial = {},
   required,
+  onPaymentRequired,
 }: {
   initial?: PublicDocuments;
   required?: DocumentKey[];
+  onPaymentRequired?: () => void;
 }) {
-  const docs = useDocumentUploads("tok-1", initial);
+  const docs = useDocumentUploads("tok-1", initial, onPaymentRequired);
   return (
     <DocumentsStep
       documents={docs.documents}
@@ -135,6 +137,50 @@ describe("DocumentsStep", () => {
     render(<Harness />);
     await user.upload(screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }), png());
     expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  describe("pay-first (409 PAYMENT_REQUIRED)", () => {
+    const PAY = { error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." };
+
+    it("an upload refused for payment says so, tells the wizard, and is not 'sudah dikirim'", async () => {
+      vi.mocked(fetch).mockImplementation(() => res(409, PAY));
+      const onPaymentRequired = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness onPaymentRequired={onPaymentRequired} />);
+      await user.upload(screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }), png());
+
+      expect(await screen.findByText("Bayar biaya formulir dulu supaya berkas bisa diunggah.")).toBeInTheDocument();
+      expect(screen.queryByText("Formulir sudah dikirim, berkas tidak bisa diubah.")).not.toBeInTheDocument();
+      expect(onPaymentRequired).toHaveBeenCalledTimes(1);
+    });
+
+    it("a removal refused for payment does the same and keeps the file listed", async () => {
+      vi.mocked(fetch).mockImplementation(() => res(409, PAY));
+      const onPaymentRequired = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <Harness
+          onPaymentRequired={onPaymentRequired}
+          initial={{ kk: { fileName: "kk.png", mimeType: "image/png", size: 3, uploadedAt: "2026-10-06T00:00:00.000Z" } }}
+        />,
+      );
+      await user.click(screen.getByRole("button", { name: "Hapus Kartu Keluarga (KK)" }));
+      await user.click(await screen.findByRole("button", { name: "Hapus" }));
+
+      await waitFor(() => expect(onPaymentRequired).toHaveBeenCalledTimes(1));
+      expect(screen.getByText(/kk\.png/)).toBeInTheDocument();
+    });
+
+    it("'already submitted' is untouched and does not call the wizard", async () => {
+      vi.mocked(fetch).mockImplementation(() => res(409, { error: "ALREADY_SUBMITTED" }));
+      const onPaymentRequired = vi.fn();
+      const user = userEvent.setup();
+      render(<Harness onPaymentRequired={onPaymentRequired} />);
+      await user.upload(screen.getByLabelText(/Kartu Keluarga/, { selector: "input" }), png());
+
+      expect(await screen.findByText("Formulir sudah dikirim, berkas tidak bisa diubah.")).toBeInTheDocument();
+      expect(onPaymentRequired).not.toHaveBeenCalled();
+    });
   });
 
   it("deletes with DELETE on the same URL and clears the row", async () => {

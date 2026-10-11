@@ -61,6 +61,8 @@ export type ResumeInput = {
   ayah: { name: string } & ParentContacts;
   ibu: { name: string } & ParentContacts;
   programId: string;
+  /** The program is fixed by the fee (pay-first), so a missing id never sends the parent to that step. */
+  programLocked?: boolean;
   documents: PublicDocuments;
   requiredDocuments: readonly DocumentKey[];
   consent: {
@@ -87,7 +89,7 @@ export function resumeStep(d: ResumeInput): number {
   const only = d.consent.onlyParent ?? "";
   if (!isWaived(only, "ayah") && (!d.ayah.name.trim() || parentContactIssues("ayah", d.ayah).length > 0)) return 1;
   if (!isWaived(only, "ibu") && (!d.ibu.name.trim() || parentContactIssues("ibu", d.ibu).length > 0)) return 2;
-  if (!d.programId) return 3;
+  if (!d.programId && !d.programLocked) return 3;
   if (missingUploads(d.documents, d.requiredDocuments).length > 0) return 4;
   const c = d.consent;
   if (!c.agreed) return STEP_CONSENT;

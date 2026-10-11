@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getProgramFees } from "@/lib/enrollment/fee-config";
 import { getPublicFeeView } from "@/lib/enrollment/fee-view";
+import { getPaymentGateView } from "@/lib/enrollment/payment-gate";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
 import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
@@ -63,6 +64,23 @@ async function loadFee(applicationId: string) {
     return await getPublicFeeView(applicationId);
   } catch (err) {
     console.error("[pendaftaran/page] fee lookup failed", err);
+    return null;
+  }
+}
+
+/**
+ * Pay-first: once the fee row exists (the formulir was sent with its price), program
+ * and Day Care are fixed, so the form shows them as text. Null for a formulir sent
+ * before pay-first (no fee row: the parent still chooses) and when the read fails,
+ * which only costs the read-only display; the server ignores the body's choice.
+ */
+async function loadLockedProgram(applicationId: string, tenantId: string | undefined) {
+  if (!tenantId) return null;
+  try {
+    const gate = await getPaymentGateView(applicationId, tenantId);
+    return gate ? { programName: gate.programName, dcareAddon: gate.dcareAddon, feeStatus: gate.fee.status } : null;
+  } catch (err) {
+    console.error("[pendaftaran/page] program lock lookup failed", err);
     return null;
   }
 }
@@ -148,13 +166,16 @@ export default async function PendaftaranTokenPage({
     );
   }
 
-  // Pay-first: while the fee is owed the parent sees the payment screen, never the
-  // form (its routes refuse writes anyway). The payment page owns the way back.
+  // Pay-first: while the fee is owed the parent sees the "Bayar dulu" screen, never
+  // the form (its routes refuse writes anyway). That screen lives at /pembayaran and
+  // redirects back here only once the fee is settled, i.e. when this page renders
+  // the form; the two never redirect to each other for the same state.
   if (access === "PAYMENT_REQUIRED") redirect(`/pendaftaran/${encodeURIComponent(token)}/pembayaran`);
 
-  const [programs, requiredDocuments] = await Promise.all([
+  const [programs, requiredDocuments, lockedProgram] = await Promise.all([
     getActivePrograms(tenantId),
     getRequired(tenantId),
+    loadLockedProgram(application.id, tenantId),
   ]);
 
   return (
@@ -174,6 +195,7 @@ export default async function PendaftaranTokenPage({
         token={token}
         programs={programs}
         requiredDocuments={requiredDocuments}
+        lockedProgram={lockedProgram}
         prefill={{
           programId: application.programId,
           dcareAddon: application.dcareAddon,
