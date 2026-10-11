@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import {
   AGAMA_OPTIONS,
   KEWARGANEGARAAN_OPTIONS,
@@ -81,9 +82,13 @@ export function ApplicationSection({
   title: string;
   children: React.ReactNode;
 }) {
+  const headingId = useId();
   return (
-    <section className="rounded-xl border bg-card p-4">
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
+    // Named region: Anak / Ayah / Ibu can be told apart by a screen reader (and by a test).
+    <section aria-labelledby={headingId} className="rounded-xl border bg-card p-4">
+      <h3 id={headingId} className="mb-2 text-sm font-semibold">
+        {title}
+      </h3>
       {children}
     </section>
   );

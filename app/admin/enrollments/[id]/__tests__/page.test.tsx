@@ -11,7 +11,7 @@
  * Also covers the convert action (header placement, "Lihat siswa" link, toast action).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
@@ -26,7 +26,9 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/components/admin/enrollment-application-view", () => ({
+// Only the read-only body is stubbed; the editor reuses the module's section chrome.
+vi.mock("@/components/admin/enrollment-application-view", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/admin/enrollment-application-view")>()),
   EnrollmentApplicationView: () => <div>Isi formulir</div>,
 }));
 
@@ -446,5 +448,205 @@ describe("EnrollmentDetailPage — pendaftaran fee", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]) === "/api/enrollments/ea-1")).toBe(true));
     // The card never unmounted.
     expect(screen.getByRole("heading", { name: "Pembayaran pendaftaran" })).toBeInTheDocument();
+  });
+});
+
+describe("EnrollmentDetailPage — Ubah data and Tandai formulir masuk", () => {
+  const invited = {
+    id: "ea-1",
+    canEdit: true,
+    status: "INVITED",
+    studentId: null as string | null,
+    childName: "Aisyah",
+    dcareAddon: false,
+    studentData: { childName: "Aisyah" },
+    ayahData: { name: "Budi" },
+    ibuData: {},
+    consentData: {},
+    documents: {},
+    program: { id: "p-1", name: "TK A" },
+    fee: null,
+  };
+
+  function serve(detail: Record<string, unknown>, markReply: { ok: boolean; status: number; body: unknown } = { ok: true, status: 200, body: { id: "ea-1", status: "SUBMITTED" } }) {
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      if (url.endsWith("/mark-submitted")) {
+        return Promise.resolve({ ok: markReply.ok, status: markReply.status, json: async () => markReply.body } as Response);
+      }
+      if (url === "/api/config/enrollment") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ programs: [] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => detail } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  const marks = (f: ReturnType<typeof serve>) => f.mock.calls.filter(([u]) => String(u).endsWith("/mark-submitted"));
+
+  it("an invited formulir offers both actions to staff who can edit", async () => {
+    serve(invited);
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    expect(await screen.findByRole("button", { name: "Ubah data" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tandai formulir masuk" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a viewer without admissions.edit", { ...invited, canEdit: false }],
+    ["a converted application", { ...invited, status: "ACCEPTED", studentId: "stu-1" }],
+  ])("%s sees no edit or mark actions", async (_label, detail) => {
+    serve(detail);
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("button", { name: "Ubah data" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tandai formulir masuk" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Ubah data" })).not.toBeInTheDocument();
+  });
+
+  it("Tandai formulir masuk is only for a formulir that is still INVITED", async () => {
+    serve({ ...invited, status: "SUBMITTED" });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("button", { name: "Tandai formulir masuk" })).not.toBeInTheDocument();
+  });
+
+  it("when the header is already full, Ubah data moves into the overflow menu", async () => {
+    serve({ ...invited, status: "ACCEPTED" });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByRole("button", { name: "Konversi ke Siswa" });
+    expect(screen.queryByRole("button", { name: "Ubah data" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    expect(await screen.findByRole("menuitem", { name: "Ubah data" })).toBeInTheDocument();
+  });
+
+  it("Ubah data swaps the body for the editor and hides the stage actions; Batal comes back with focus on the action", async () => {
+    serve(invited);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Ubah data" }));
+
+    expect(await screen.findByRole("heading", { name: "Ubah data formulir" })).toBeInTheDocument();
+    expect(screen.queryByText("Isi formulir")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tandai formulir masuk" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    expect(await screen.findByText("Isi formulir")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ubah data formulir" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ubah data" })).toHaveFocus());
+  });
+
+  it("a saved edit reloads the detail and leaves edit mode", async () => {
+    const fetchMock = serve(invited);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Ubah data" }));
+    await user.type(await screen.findByLabelText("Nama panggilan"), "Aisy");
+    const detailLoads = () => fetchMock.mock.calls.filter(([u, init]) => String(u) === "/api/enrollments/ea-1" && !init?.method).length;
+    const before = detailLoads();
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Ubah data formulir" })).not.toBeInTheDocument());
+    expect(detailLoads()).toBeGreaterThan(before);
+    expect(await screen.findByText("Isi formulir")).toBeInTheDocument();
+  });
+
+  it("when Ubah data sits in the overflow menu, focus returns to the menu trigger after Batal", async () => {
+    serve({ ...invited, status: "ACCEPTED" });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByRole("button", { name: "Konversi ke Siswa" });
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Ubah data" }));
+    await user.click(await screen.findByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Aksi lainnya" })).toHaveFocus());
+  });
+
+  it("with nowhere else to land, focus returns to the page heading", async () => {
+    // No edit action is rendered for a viewer, so a finished action can only fall back to the heading.
+    const fetchMock = serve(invited);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Tandai formulir masuk" }));
+    // The refreshed detail drops every action (viewer / converted meanwhile).
+    fetchMock.mockImplementation((input) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => (String(input).endsWith("/mark-submitted") ? { id: "ea-1", status: "SUBMITTED" } : { ...invited, canEdit: false }),
+      } as Response),
+    );
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tandai masuk" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: /Aisyah/ })).toHaveFocus());
+  });
+
+  it("Tandai formulir masuk confirms with the consent wording, then posts and reloads", async () => {
+    vi.mocked(toast.success).mockClear();
+    const fetchMock = serve(invited);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    await user.click(await screen.findByRole("button", { name: "Tandai formulir masuk" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(
+        'Orang tua tidak perlu mengisi lagi. Persetujuan dicatat sebagai "disetujui langsung di sekolah" atas nama Anda.',
+      ),
+    ).toBeInTheDocument();
+    expect(marks(fetchMock)).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Tandai masuk" }));
+    await waitFor(() => expect(marks(fetchMock)).toHaveLength(1));
+    expect(marks(fetchMock)[0][1]).toMatchObject({ method: "POST" });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Formulir ditandai masuk."));
+  });
+
+  it("cancelling the confirm posts nothing", async () => {
+    const fetchMock = serve(invited);
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Tandai formulir masuk" }));
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Batal" }));
+    expect(marks(fetchMock)).toHaveLength(0);
+  });
+
+  it("a 400 shows the server message and offers to open Ubah data", async () => {
+    vi.mocked(toast.error).mockClear();
+    // The server's real envelope: a generic error plus one message per missing field.
+    const missingChild = "Nama anak belum diisi. Lengkapi lewat Ubah data.";
+    const missingParent = "Nama Ayah atau Ibu belum diisi. Lengkapi lewat Ubah data.";
+    serve(invited, {
+      ok: false,
+      status: 400,
+      body: {
+        error: "Validasi gagal",
+        errors: [
+          { field: "childName", message: missingChild },
+          { field: "ayahData.name", message: missingParent },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Tandai formulir masuk" }));
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tandai masuk" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const [shown, options] = vi.mocked(toast.error).mock.calls[0] as [string, { action: { label: string; onClick: () => void } }];
+    expect(shown).toBe(`${missingChild} ${missingParent}`);
+    expect(options.action.label).toBe("Ubah data");
+    act(() => options.action.onClick());
+    expect(await screen.findByRole("heading", { name: "Ubah data formulir" })).toBeInTheDocument();
+  });
+
+  it("a 409 shows the server message and refreshes the page", async () => {
+    vi.mocked(toast.error).mockClear();
+    const message = "Formulir ini sudah ditandai masuk atau sedang diproses.";
+    const fetchMock = serve(invited, { ok: false, status: 409, body: { error: message } });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await user.click(await screen.findByRole("button", { name: "Tandai formulir masuk" }));
+    await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tandai masuk" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+    expect(fetchMock.mock.calls.filter(([u, init]) => String(u) === "/api/enrollments/ea-1" && !init?.method).length).toBeGreaterThan(1);
   });
 });

@@ -12,11 +12,13 @@ import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
 import { EnrollmentApplicationView } from "@/components/admin/enrollment-application-view";
+import { EnrollmentApplicationEditor, type EditorDoneReason } from "@/components/admin/enrollment-application-editor";
 import { EnrollmentDocumentsCard } from "@/components/admin/enrollment-documents-card";
 import { EnrollmentFeeCard } from "@/components/admin/enrollment-fee-card";
 import type { AdminDocuments } from "@/lib/enrollment/documents";
 import type { AdminFeeView, FeeAttention } from "@/lib/enrollment/fee-admin-view";
 import { formatRupiah } from "@/lib/format";
+import { readApiError } from "@/lib/api/client-errors";
 
 type Detail = {
   id: string;
@@ -75,6 +77,11 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const [convertOpen, setConvertOpen] = useState(false);
   // Terima / Tolak are decisions the family feels — confirm before they fire.
   const [decision, setDecision] = useState<"ACCEPTED" | "REJECTED" | null>(null);
+  // "Ubah data" swaps the read-only body for the editor; "Tandai formulir masuk" confirms first.
+  const [editing, setEditing] = useState(false);
+  const [markOpen, setMarkOpen] = useState(false);
+  // Bumped when an action finishes, so focus lands somewhere sensible once the new view is rendered.
+  const [focusReturn, setFocusReturn] = useState(0);
 
   // `showSkeleton` is off for refreshes after an action, so the page does not
   // flash to a skeleton and lose the staff member's place.
@@ -92,6 +99,61 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   useEffect(() => {
     void load();
   }, [load]);
+
+  // After leaving edit mode / marking submitted, focus returns to the action that opened it; when that
+  // lives in the closed overflow menu, to the menu trigger; failing that, to the page heading.
+  useEffect(() => {
+    if (focusReturn === 0) return;
+    const target =
+      document.querySelector<HTMLElement>('[data-testid="enrollment-edit-action"]') ??
+      document.querySelector<HTMLElement>('button[aria-label="Aksi lainnya"]') ??
+      document.querySelector<HTMLElement>("h1");
+    if (target && !target.hasAttribute("tabindex") && target.tagName === "H1") target.tabIndex = -1;
+    target?.focus();
+  }, [focusReturn]);
+
+  async function editorDone(reason: EditorDoneReason) {
+    // Saved or locked: show what the server now holds before leaving edit mode.
+    if (reason !== "cancelled") {
+      try {
+        await load(false);
+      } catch {
+        // The view keeps the previous data; the success / error toast already told the story.
+      }
+    }
+    setEditing(false);
+    setFocusReturn((n) => n + 1);
+  }
+
+  async function markSubmitted() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/enrollments/${id}/mark-submitted`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Formulir ditandai masuk.");
+        try {
+          await load(false);
+        } catch {
+          // Keep the previous view; the toast already confirmed the change.
+        }
+        setFocusReturn((n) => n + 1);
+        return;
+      }
+      const err = await readApiError(res, "Gagal menandai formulir masuk. Coba lagi.");
+      if (res.status === 400) {
+        // Data is missing: the API names each field; staff can fix it right here.
+        const detail = err.fieldErrors.map((e) => e.message).join(" ");
+        toast.error(detail || err.message, { action: { label: "Ubah data", onClick: () => setEditing(true) } });
+      } else {
+        toast.error(err.message);
+        if (res.status === 409) void load(false);
+      }
+    } catch {
+      toast.error("Gagal menandai formulir masuk. Periksa koneksi, lalu coba lagi.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function convert() {
     setBusy(true);
@@ -212,6 +274,31 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const primaryEnrollmentActions = actions.filter((a) => !a.menu).map(toAction);
   const menuEnrollmentActions = actions.filter((a) => a.menu).map(toAction);
 
+  // Staff correction tools: only with admissions.edit, never once the student exists.
+  const canChange = d.canEdit && !d.studentId;
+  const isEditing = editing && canChange;
+  const editAction: DetailPageHeaderAction = {
+    label: "Ubah data",
+    onClick: () => setEditing(true),
+    disabled: busy,
+    // Before the formulir is in, correcting the data is the natural first step.
+    variant: d.status === "INVITED" ? "default" : "outline",
+    testId: "enrollment-edit-action",
+  };
+  const markAction: DetailPageHeaderAction = {
+    label: "Tandai formulir masuk",
+    onClick: () => setMarkOpen(true),
+    disabled: busy,
+    variant: "outline",
+  };
+  if (canChange) {
+    // The header shows at most two buttons: a full header keeps these in the overflow menu.
+    for (const a of d.status === "INVITED" ? [editAction, markAction] : [editAction]) {
+      if (primaryEnrollmentActions.length < 2) primaryEnrollmentActions.push(a);
+      else menuEnrollmentActions.push(a);
+    }
+  }
+
   return (
     <>
       <DetailPageHeader
@@ -220,8 +307,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         title={d.childName || "Tanpa nama"}
         description={`${d.program?.name ?? "—"}${d.dcareAddon ? " + Dcare" : ""}`}
         badge={<StatusChip status={d.status} studentId={d.studentId} />}
-        primaryActions={primaryEnrollmentActions}
-        menuActions={menuEnrollmentActions}
+        primaryActions={isEditing ? [] : primaryEnrollmentActions}
+        menuActions={isEditing ? [] : menuEnrollmentActions}
       />
 
       <div className="space-y-section">
@@ -246,15 +333,32 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
           canEdit={d.canEdit}
         />
 
-        <EnrollmentApplicationView
-          application={{
-            id,
-            studentData: d.studentData,
-            ayahData: d.ayahData,
-            ibuData: d.ibuData,
-            consentData: d.consentData,
-          }}
-        />
+        {isEditing ? (
+          <EnrollmentApplicationEditor
+            application={{
+              id,
+              studentData: d.studentData,
+              ayahData: d.ayahData,
+              ibuData: d.ibuData,
+              consentData: d.consentData,
+              program: d.program,
+              dcareAddon: d.dcareAddon,
+              fee: d.fee ?? null,
+              canAdjustFee: d.feePermissions?.adjust ?? false,
+            }}
+            onDone={editorDone}
+          />
+        ) : (
+          <EnrollmentApplicationView
+            application={{
+              id,
+              studentData: d.studentData,
+              ayahData: d.ayahData,
+              ibuData: d.ibuData,
+              consentData: d.consentData,
+            }}
+          />
+        )}
 
         {d.studentId && (
           <>
@@ -288,6 +392,16 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         destructive={decision === "REJECTED"}
         loading={busy}
         onConfirm={() => (decision ? transition(decision) : undefined)}
+      />
+
+      <ConfirmDialog
+        open={markOpen}
+        onOpenChange={setMarkOpen}
+        title={`Tandai formulir ${d.childName || "anak ini"} sudah masuk?`}
+        description='Orang tua tidak perlu mengisi lagi. Persetujuan dicatat sebagai "disetujui langsung di sekolah" atas nama Anda.'
+        confirmLabel="Tandai masuk"
+        loading={busy}
+        onConfirm={markSubmitted}
       />
 
       <ConfirmDialog
