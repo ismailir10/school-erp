@@ -25,6 +25,7 @@ import { escapeHtml } from "../escape";
  */
 
 export type AdmissionSubmittedEmailParams = {
+  /** Empty when the family has not named a child yet (short /daftar lead). */
   childName: string;
   parentName: string;
   appUrl: string;
@@ -35,8 +36,11 @@ export function admissionSubmittedEmailHtml({
   parentName,
   appUrl,
 }: AdmissionSubmittedEmailParams): string {
-  const safeChild = escapeHtml(childName);
+  const safeChild = escapeHtml(childName.trim());
   const safeParent = escapeHtml(parentName);
+  const thanks = safeChild
+    ? `terima kasih telah mendaftarkan ananda <strong>${safeChild}</strong> di Talib oleh An Nisaa' Sekolahku.`
+    : `terima kasih telah menghubungi Talib oleh An Nisaa' Sekolahku.`;
   return `
 <!DOCTYPE html>
 <html lang="id">
@@ -69,7 +73,7 @@ export function admissionSubmittedEmailHtml({
             </p>
 
             <p style="margin:0 0 20px 0;color:#57534E;font-size:14px;line-height:1.6;">
-              Bapak/Ibu <strong>${safeParent}</strong>, terima kasih telah mendaftarkan ananda <strong>${safeChild}</strong> di Talib oleh An Nisaa' Sekolahku.
+              Bapak/Ibu <strong>${safeParent}</strong>, ${thanks}
             </p>
 
             <p style="margin:0 0 20px 0;color:#57534E;font-size:14px;line-height:1.6;">

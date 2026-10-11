@@ -9,7 +9,7 @@ import DaftarClient from "./client";
 export const metadata: Metadata = {
   title: "Pendaftaran Siswa Baru", // root layout template appends " · Talib"
   description:
-    "Daftarkan ananda di An Nisaa' Sekolahku. Isi data anak, orang tua, dan preferensi program — tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja.",
+    "Daftarkan ananda di An Nisaa' Sekolahku. Tinggalkan nama dan kontak Bapak/Ibu — tim kami akan menghubungi dalam 1–3 hari kerja.",
   robots: { index: true, follow: true },
 };
 
@@ -55,7 +55,7 @@ export default async function DaftarPage() {
             Pendaftaran Siswa Baru
           </h1>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Assalamu&apos;alaikum, Bapak/Ibu. Silakan lengkapi data berikut —
+            Assalamu&apos;alaikum, Bapak/Ibu. Cukup isi nama dan nomor HP atau email —
             tim kami akan menghubungi dalam 1–3 hari kerja.
           </p>
         </div>

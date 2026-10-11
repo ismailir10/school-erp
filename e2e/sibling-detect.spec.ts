@@ -122,26 +122,23 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     expect(Object.keys(body)).toEqual(["id"]);
 
     // ----- UX-shape assertion (no submit; no rate-limit interaction) -----
-    // /daftar must not surface any sibling-related copy at any step. This
-    // assertion exercises the static UX shape without a second POST.
+    // /daftar must not surface any sibling-related copy. This assertion
+    // exercises the static UX shape without a second POST.
     await page.goto("/daftar");
     await expect(
       page.getByRole("heading", { name: "Pendaftaran Siswa Baru" }),
     ).toBeVisible();
 
-    await page.getByTestId("field-child-name").fill(`E2E UX ${Date.now()}`);
-    await page.getByTestId("field-date-of-birth").fill("2020-03-15");
-    await page.getByText("Perempuan", { exact: true }).click();
-    await page.getByTestId("daftar-next").click();
-    await expect(page.getByTestId("daftar-step-2")).toBeVisible();
+    // Fill the whole (single-page) form, child block included, without sending.
     await page.getByTestId("field-parent-name").fill("E2E UX Applicant");
     await page
       .getByTestId("field-parent-phone")
       .fill(applicantParentPhoneInput);
-    await page.getByTestId("daftar-next").click();
-    await expect(page.getByTestId("daftar-step-3")).toBeVisible();
+    await page.getByTestId("daftar-child-toggle").click();
+    await page.getByTestId("field-child-name").fill(`E2E UX ${Date.now()}`);
+    await expect(page.getByTestId("daftar-submit")).toBeVisible();
 
-    // The /daftar page (across all 3 steps) must never carry sibling copy.
+    // The /daftar page (form filled in, child block open) must never carry sibling copy.
     const pageText = (await page.textContent("body")) ?? "";
     expect(pageText.toLowerCase()).not.toContain("saudara");
     expect(pageText.toLowerCase()).not.toContain("sibling");

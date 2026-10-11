@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,43 +8,34 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Check, CheckCircle2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PHONE_FORMAT_ERROR, WHATSAPP_FORMAT_ERROR, admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
-import { clearDraft, formatAdmissionRef, loadDraft, saveDraft } from "./draft";
+import { PHONE_FORMAT_ERROR, admissionDobBounds, admissionDobError } from "@/lib/validations/admission";
+import { CONTACT_REQUIRED_ERROR, PHONE_REGEX } from "@/lib/admission/submit-validation";
+import { clearDraft, formatAdmissionRef, loadDraft, saveDraft, type DraftForm } from "./draft";
 
 type Program = { id: string; name: string };
-type Step = 1 | 2 | 3;
 type FieldErrors = Record<string, string>;
-
-type FormState = {
-  childName: string;
-  dateOfBirth: string;
-  childGender: "" | "L" | "P";
-  parentName: string;
-  parentPhone: string;
-  parentWhatsapp: string;
-  parentEmail: string;
-  programId: string;
-  notes: string;
-};
+type FormState = DraftForm;
 
 const EMPTY_FORM: FormState = {
+  parentName: "",
+  parentRelationship: "",
+  parentPhone: "",
+  parentEmail: "",
   childName: "",
   dateOfBirth: "",
   childGender: "",
-  parentName: "",
-  parentPhone: "",
-  parentWhatsapp: "",
-  parentEmail: "",
   programId: "",
   notes: "",
 };
 
-// Indonesian phone shape — mirrors the server-side regex in
-// lib/admission/submit-validation.ts (PHONE_REGEX). Client-side check is a
-// UX convenience; trust boundary remains the server.
-const PHONE_RE = /^[+\d\s\-()]{6,20}$/;
+// The optional child block opens by itself when it holds data or an error.
+const CHILD_KEYS = ["childName", "dateOfBirth", "childGender", "programId"] as const;
+
+// Phone uses the server's own regex (PHONE_REGEX). The email check is a looser
+// UX convenience; the trust boundary remains the server schema.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Public-form controls: 44px tall, 16px text (also stops iOS zooming on focus).
@@ -57,7 +48,7 @@ const INPUT_CLASS = cn("h-11 px-3 text-base md:text-base", PLACEHOLDER_CLASS);
 const SELECT_CLASS = "h-11 pl-3 text-base";
 // Primary CTA: --primary (#5DB4B8) is a fill colour that reads pale/disabled
 // with dark text; --primary-text (#2F7A7D) carries white text at >= 4.5:1.
-const CTA_CLASS = "h-11 bg-primary-text px-5 text-base text-white hover:bg-primary-text/90";
+const CTA_CLASS = "h-12 w-full bg-primary-text px-5 text-base text-white hover:bg-primary-text/90";
 
 type SubmitOk = { id: string };
 type SubmitErr =
@@ -65,115 +56,144 @@ type SubmitErr =
   | { error: "rate_limited" }
   | { error: "submit_failed" };
 
+// Top-to-bottom order of the fields, and the input each error key points at
+// (the contact error sits on the phone field, the first of the two).
+const FOCUS_ORDER = [
+  "parentName",
+  "parentRelationship",
+  "parentPhone",
+  "parentEmail",
+  "contact",
+  "childName",
+  "dateOfBirth",
+  "childGender",
+  "programId",
+  "notes",
+] as const;
+const FOCUS_TARGET: Record<(typeof FOCUS_ORDER)[number], string> = {
+  parentName: "parentName",
+  parentRelationship: "parentRelationship",
+  parentPhone: "parentPhone",
+  parentEmail: "parentEmail",
+  contact: "parentPhone",
+  childName: "childName",
+  dateOfBirth: "dateOfBirth",
+  childGender: "childGender-L",
+  programId: "programId",
+  notes: "notes",
+};
+
+const hasChildData = (f: FormState) => CHILD_KEYS.some((key) => f[key] !== "");
+
 export default function DaftarClient({ programs }: { programs: Program[] }) {
-  const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<{ id: string; childName: string } | null>(
-    null,
-  );
+  const [childOpen, setChildOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<{
+    id: string;
+    parentName: string;
+    emailed: boolean;
+  } | null>(null);
   // Draft restore runs after mount (sessionStorage is client-only); persisting
   // waits for it so the empty first render can't overwrite a stored draft.
   const [draftReady, setDraftReady] = useState(false);
   const [dobBounds] = useState(() => admissionDobBounds());
+  // Field to focus once the next render has put it (and the child block) in the DOM.
+  const focusAfterRender = useRef<string | null>(null);
 
   useEffect(() => {
     const draft = loadDraft(EMPTY_FORM);
     if (draft) {
       setForm(draft.form);
-      setStep(draft.step);
+      if (hasChildData(draft.form)) setChildOpen(true);
     }
     setDraftReady(true);
   }, []);
 
   useEffect(() => {
     if (!draftReady || confirmation) return;
-    saveDraft({ step, form });
-  }, [draftReady, confirmation, step, form]);
+    saveDraft({ form });
+  }, [draftReady, confirmation, form]);
+
+  // aria-describedby for a field: its own error (when shown) plus any extra ids.
+  function describedBy(key: string, ...extra: string[]) {
+    return [errors[key] ? `${key}-error` : null, ...extra].filter(Boolean).join(" ") || undefined;
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
-    if (errors[key]) {
+    // Editing either contact field clears the shared "pick one" error too.
+    const cleared = key === "parentPhone" || key === "parentEmail" ? [key, "contact"] : [key];
+    if (cleared.some((k) => errors[k])) {
       setErrors((e) => {
         const next = { ...e };
-        delete next[key];
+        for (const k of cleared) delete next[k];
         return next;
       });
     }
   }
 
-  function validateStep(target: Step): FieldErrors {
+  function validate(): FieldErrors {
     const errs: FieldErrors = {};
-    if (target === 1) {
-      if (!form.childName.trim()) errs.childName = "Nama anak wajib diisi";
-      if (!form.dateOfBirth) errs.dateOfBirth = "Tanggal lahir wajib diisi";
-      else {
-        const dobError = admissionDobError(form.dateOfBirth);
-        if (dobError) errs.dateOfBirth = dobError;
-      }
-      if (form.childGender !== "L" && form.childGender !== "P") {
-        errs.childGender = "Pilih jenis kelamin";
-      }
-    }
-    if (target === 2) {
-      if (!form.parentName.trim()) errs.parentName = "Nama orang tua wajib diisi";
-      if (!form.parentPhone.trim()) {
-        errs.parentPhone = "Nomor telepon wajib diisi";
-      } else if (!PHONE_RE.test(form.parentPhone.trim())) {
-        errs.parentPhone = PHONE_FORMAT_ERROR;
-      }
-      if (form.parentWhatsapp.trim() && !PHONE_RE.test(form.parentWhatsapp.trim())) {
-        errs.parentWhatsapp = WHATSAPP_FORMAT_ERROR;
-      }
-      if (form.parentEmail.trim() && !EMAIL_RE.test(form.parentEmail.trim())) {
-        errs.parentEmail = "Email tidak valid";
-      }
-    }
-    if (target === 3) {
-      if (form.notes.length > 500) errs.notes = "Catatan terlalu panjang (maksimal 500 karakter)";
+    const phone = form.parentPhone.trim();
+    const email = form.parentEmail.trim();
+    if (!form.parentName.trim()) errs.parentName = "Nama orang tua wajib diisi";
+    if (phone && !PHONE_REGEX.test(phone)) errs.parentPhone = PHONE_FORMAT_ERROR;
+    if (email && !EMAIL_RE.test(email)) errs.parentEmail = "Email tidak valid";
+    if (!phone && !email) errs.contact = CONTACT_REQUIRED_ERROR;
+    if (form.dateOfBirth) {
+      const dobError = admissionDobError(form.dateOfBirth);
+      if (dobError) errs.dateOfBirth = dobError;
     }
     return errs;
   }
 
-  function nextStep() {
-    const errs = validateStep(step);
-    if (Object.keys(errs).length) {
-      setErrors(errs);
-      return;
-    }
-    setErrors({});
-    setStep((s) => (Math.min(s + 1, 3) as Step));
+  function showErrors(errs: FieldErrors) {
+    setErrors(errs);
+    if (CHILD_KEYS.some((key) => errs[key])) setChildOpen(true);
+    const first = FOCUS_ORDER.find((key) => errs[key]);
+    if (first) focusAfterRender.current = FOCUS_TARGET[first];
   }
 
-  function prevStep() {
-    setErrors({});
-    setStep((s) => (Math.max(s - 1, 1) as Step));
-  }
+  // Runs after the render that shows the errors (and opens the child block).
+  useEffect(() => {
+    const id = focusAfterRender.current;
+    if (!id) return;
+    focusAfterRender.current = null;
+    // The child block mounts its content a frame late, so retry briefly.
+    let tries = 0;
+    let raf = 0;
+    const tryFocus = () => {
+      const el = document.getElementById(id);
+      if (el) el.focus();
+      else if (tries++ < 10) raf = requestAnimationFrame(tryFocus);
+    };
+    tryFocus();
+    return () => cancelAnimationFrame(raf);
+  }, [errors]);
 
   async function handleSubmit() {
-    // Final validation across all steps before sending.
-    const all = { ...validateStep(1), ...validateStep(2), ...validateStep(3) };
-    if (Object.keys(all).length) {
-      setErrors(all);
-      // Return to first failing step.
-      if (all.childName || all.dateOfBirth || all.childGender) setStep(1);
-      else if (all.parentName || all.parentPhone || all.parentWhatsapp || all.parentEmail) setStep(2);
+    const errs = validate();
+    if (Object.keys(errs).length) {
+      showErrors(errs);
       return;
     }
+    setErrors({});
 
     setSubmitting(true);
     setGlobalError(null);
 
+    // Only what the family filled in — the server treats "" as absent anyway.
     const payload = {
-      childName: form.childName,
-      dateOfBirth: form.dateOfBirth,
-      childGender: form.childGender,
       parentName: form.parentName,
-      parentPhone: form.parentPhone,
-      ...(form.parentWhatsapp.trim() ? { parentWhatsapp: form.parentWhatsapp } : {}),
+      ...(form.parentRelationship ? { parentRelationship: form.parentRelationship } : {}),
+      ...(form.parentPhone.trim() ? { parentPhone: form.parentPhone } : {}),
       ...(form.parentEmail.trim() ? { parentEmail: form.parentEmail } : {}),
+      ...(form.childName.trim() ? { childName: form.childName } : {}),
+      ...(form.dateOfBirth ? { dateOfBirth: form.dateOfBirth } : {}),
+      ...(form.childGender ? { childGender: form.childGender } : {}),
       ...(form.programId ? { programId: form.programId } : {}),
       ...(form.notes.trim() ? { notes: form.notes } : {}),
     };
@@ -188,22 +208,18 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       if (res.status === 201) {
         const ok = (await res.json()) as SubmitOk;
         clearDraft();
-        setConfirmation({ id: ok.id, childName: form.childName });
+        setConfirmation({
+          id: ok.id,
+          parentName: form.parentName.trim(),
+          emailed: form.parentEmail.trim() !== "",
+        });
         return;
       }
 
       const body = (await res.json().catch(() => null)) as SubmitErr | null;
 
       if (res.status === 400 && body?.error === "validation_failed") {
-        setErrors(body.fields ?? {});
-        if (body.fields?.childName || body.fields?.dateOfBirth || body.fields?.childGender) setStep(1);
-        else if (
-          body.fields?.parentName ||
-          body.fields?.parentPhone ||
-          body.fields?.parentWhatsapp ||
-          body.fields?.parentEmail
-        )
-          setStep(2);
+        showErrors(body.fields ?? {});
         setGlobalError("Mohon periksa kembali isian yang ditandai.");
         return;
       }
@@ -215,7 +231,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         return;
       }
 
-      setGlobalError("Pendaftaran tidak terkirim. Silakan coba kembali.");
+      setGlobalError("Data belum terkirim. Silakan coba kembali.");
     } catch {
       setGlobalError("Tidak dapat terhubung ke server. Periksa koneksi internet Bapak/Ibu.");
     } finally {
@@ -228,7 +244,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
     setForm(EMPTY_FORM);
     setErrors({});
     setGlobalError(null);
-    setStep(1);
+    setChildOpen(false);
     setConfirmation(null);
   }
 
@@ -244,12 +260,13 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
           strokeWidth={1.5}
         />
         <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
-          Pendaftaran ananda{" "}
-          <span data-testid="confirmation-child-name">{confirmation.childName}</span> tercatat
+          Terima kasih,{" "}
+          <span data-testid="confirmation-parent-name">{confirmation.parentName}</span>
         </h2>
         <p className="mt-3 text-sm text-muted-foreground sm:text-base">
-          Insya Allah tim kami akan menghubungi Bapak/Ibu dalam 1–3 hari kerja untuk menjadwalkan
-          kunjungan.
+          Data Bapak/Ibu sudah tercatat. Insya Allah tim kami akan menghubungi dalam 1–3 hari kerja
+          untuk menjadwalkan kunjungan.
+          {confirmation.emailed ? " Konfirmasi juga kami kirim ke email Bapak/Ibu." : ""}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           Nomor pendaftaran:{" "}
@@ -275,235 +292,244 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (step < 3) nextStep();
-        else handleSubmit();
+        handleSubmit();
       }}
       className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8"
     >
-      <Stepper step={step} />
+      <div className="space-y-5">
+        <Field>
+          <FieldLabel htmlFor="parentName" required>Nama orang tua</FieldLabel>
+          <Input
+            id="parentName"
+            name="parentName"
+            autoComplete="name"
+            required
+            maxLength={80}
+            className={INPUT_CLASS}
+            value={form.parentName}
+            onChange={(e) => update("parentName", e.target.value)}
+            aria-invalid={!!errors.parentName}
+            aria-describedby={describedBy("parentName")}
+            data-testid="field-parent-name"
+            placeholder="Ibu Fatimah Az-Zahra"
+          />
+          {errors.parentName && <FieldError id="parentName-error">{errors.parentName}</FieldError>}
+        </Field>
 
-      {step === 1 && (
-        <div data-testid="daftar-step-1" className="space-y-5">
-          <Field>
-            <FieldLabel htmlFor="childName" required>Nama Lengkap Anak</FieldLabel>
-            <Input
-              id="childName"
-              name="childName"
-              autoComplete="off"
-              required
-              maxLength={80}
-              className={INPUT_CLASS}
-              value={form.childName}
-              onChange={(e) => update("childName", e.target.value)}
-              aria-invalid={!!errors.childName}
-              data-testid="field-child-name"
-              placeholder="Aisyah Putri"
-            />
-            {errors.childName && <FieldError>{errors.childName}</FieldError>}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="dateOfBirth" required>Tanggal Lahir</FieldLabel>
-            <Input
-              id="dateOfBirth"
-              name="dateOfBirth"
-              type="date"
-              required
-              min={dobBounds.min}
-              max={dobBounds.max}
-              className={INPUT_CLASS}
-              value={form.dateOfBirth}
-              onChange={(e) => update("dateOfBirth", e.target.value)}
-              aria-invalid={!!errors.dateOfBirth}
-              data-testid="field-date-of-birth"
-            />
-            {errors.dateOfBirth && <FieldError>{errors.dateOfBirth}</FieldError>}
-          </Field>
-
-          <Field>
-            <FieldLabel id="childGender-label" required>Jenis Kelamin</FieldLabel>
-            <RadioGroup
-              value={form.childGender}
-              onValueChange={(value) => update("childGender", value as "L" | "P")}
-              aria-labelledby="childGender-label"
-              aria-invalid={!!errors.childGender}
-              aria-required="true"
-              required
-              className="grid grid-cols-2 gap-3"
-            >
-              {[
-                { value: "L", label: "Laki-laki" },
-                { value: "P", label: "Perempuan" },
-              ].map((opt) => (
-                <FieldLabel
-                  key={opt.value}
-                  htmlFor={`childGender-${opt.value}`}
-                  className={cn(
-                    "flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-base font-medium transition-colors",
-                    form.childGender === opt.value
-                      ? "border-2 border-primary bg-primary/10 text-primary-text"
-                      : "border-border bg-background text-foreground hover:bg-accent",
-                  )}
-                >
-                  {/* Visible circle + dot (PAR-5): the control keeps its own
-                      focus-visible ring for keyboard users. */}
-                  <RadioGroupItem
-                    id={`childGender-${opt.value}`}
-                    value={opt.value}
-                    className="size-5 border-2 border-muted-foreground/60 bg-background data-checked:border-primary"
-                    data-testid={`field-child-gender-${opt.value.toLowerCase()}`}
-                  />
-                  {opt.label}
-                </FieldLabel>
-              ))}
-            </RadioGroup>
-            {errors.childGender && <FieldError>{errors.childGender}</FieldError>}
-          </Field>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div data-testid="daftar-step-2" className="space-y-5">
-          <Field>
-            <FieldLabel htmlFor="parentName" required>Nama Lengkap Orang Tua</FieldLabel>
-            <Input
-              id="parentName"
-              name="parentName"
-              autoComplete="name"
-              required
-              maxLength={80}
-              className={INPUT_CLASS}
-              value={form.parentName}
-              onChange={(e) => update("parentName", e.target.value)}
-              aria-invalid={!!errors.parentName}
-              data-testid="field-parent-name"
-              placeholder="Ibu Fatimah Az-Zahra"
-            />
-            {errors.parentName && <FieldError>{errors.parentName}</FieldError>}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="parentPhone" required>Nomor Telepon</FieldLabel>
-            <Input
-              id="parentPhone"
-              name="parentPhone"
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              required
-              maxLength={20}
-              className={INPUT_CLASS}
-              value={form.parentPhone}
-              onChange={(e) => update("parentPhone", e.target.value)}
-              aria-invalid={!!errors.parentPhone}
-              data-testid="field-parent-phone"
-              placeholder="0812-3456-7890"
-            />
-            {errors.parentPhone && <FieldError>{errors.parentPhone}</FieldError>}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="parentWhatsapp">
-              Nomor WhatsApp{" "}
-              <span className="font-normal text-muted-foreground">(opsional)</span>
-            </FieldLabel>
-            <Input
-              id="parentWhatsapp"
-              name="parentWhatsapp"
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              maxLength={20}
-              className={INPUT_CLASS}
-              value={form.parentWhatsapp}
-              onChange={(e) => update("parentWhatsapp", e.target.value)}
-              aria-invalid={!!errors.parentWhatsapp}
-              data-testid="field-parent-whatsapp"
-              placeholder="Sama dengan nomor telepon"
-            />
-            <FieldDescription>
-              Tim kami biasanya menghubungi melalui WhatsApp.
-            </FieldDescription>
-            {errors.parentWhatsapp && <FieldError>{errors.parentWhatsapp}</FieldError>}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="parentEmail">
-              Email <span className="font-normal text-muted-foreground">(opsional)</span>
-            </FieldLabel>
-            <Input
-              id="parentEmail"
-              name="parentEmail"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              className={INPUT_CLASS}
-              value={form.parentEmail}
-              onChange={(e) => update("parentEmail", e.target.value)}
-              aria-invalid={!!errors.parentEmail}
-              data-testid="field-parent-email"
-              placeholder="nama@contoh.com"
-            />
-            <FieldDescription>
-              Isi email agar formulir pendaftaran lengkap bisa kami kirimkan.
-              Konfirmasi pendaftaran juga dikirim ke sini.
-            </FieldDescription>
-            {errors.parentEmail && <FieldError>{errors.parentEmail}</FieldError>}
-          </Field>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div data-testid="daftar-step-3" className="space-y-5">
-          {programs.length > 0 && (
-            <Field>
-              <FieldLabel htmlFor="programId">
-                Program yang Diminati{" "}
-                <span className="font-normal text-muted-foreground">(opsional)</span>
-              </FieldLabel>
-              <NativeSelect
-                id="programId"
-                name="programId"
-                value={form.programId}
-                onChange={(e) => update("programId", e.target.value)}
-                className="w-full"
-                selectClassName={cn(SELECT_CLASS, form.programId === "" && "text-muted-foreground/70")}
-                data-testid="field-program-id"
-              >
-                <NativeSelectOption value="">— Pilih program —</NativeSelectOption>
-                {programs.map((p) => (
-                  <NativeSelectOption key={p.id} value={p.id}>
-                    {p.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
+        <Field>
+          <FieldLabel htmlFor="parentRelationship">
+            Hubungan dengan anak{" "}
+            <span className="font-normal text-muted-foreground">(opsional)</span>
+          </FieldLabel>
+          <NativeSelect
+            id="parentRelationship"
+            name="parentRelationship"
+            value={form.parentRelationship}
+            onChange={(e) => update("parentRelationship", e.target.value as FormState["parentRelationship"])}
+            className="w-full"
+            selectClassName={cn(SELECT_CLASS, form.parentRelationship === "" && "text-muted-foreground/70")}
+            aria-invalid={!!errors.parentRelationship}
+            aria-describedby={describedBy("parentRelationship")}
+            data-testid="field-parent-relationship"
+          >
+            <NativeSelectOption value="">— Pilih —</NativeSelectOption>
+            <NativeSelectOption value="AYAH">Ayah</NativeSelectOption>
+            <NativeSelectOption value="IBU">Ibu</NativeSelectOption>
+            <NativeSelectOption value="WALI">Wali</NativeSelectOption>
+          </NativeSelect>
+          {errors.parentRelationship && (
+            <FieldError id="parentRelationship-error">{errors.parentRelationship}</FieldError>
           )}
+        </Field>
 
-          <Field>
-            <FieldLabel htmlFor="notes">
-              Catatan untuk Sekolah{" "}
+        <Field>
+          <FieldLabel htmlFor="parentPhone">No. HP/WhatsApp</FieldLabel>
+          <Input
+            id="parentPhone"
+            name="parentPhone"
+            type="tel"
+            autoComplete="tel"
+            maxLength={20}
+            className={INPUT_CLASS}
+            value={form.parentPhone}
+            onChange={(e) => update("parentPhone", e.target.value)}
+            aria-invalid={!!errors.parentPhone || !!errors.contact}
+            aria-describedby={describedBy("parentPhone", ...(errors.contact ? ["contact-error"] : []), "contact-hint")}
+            data-testid="field-parent-phone"
+            placeholder="0812-3456-7890"
+          />
+          {errors.parentPhone && <FieldError id="parentPhone-error">{errors.parentPhone}</FieldError>}
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="parentEmail">Email</FieldLabel>
+          <Input
+            id="parentEmail"
+            name="parentEmail"
+            type="email"
+            autoComplete="email"
+            className={INPUT_CLASS}
+            value={form.parentEmail}
+            onChange={(e) => update("parentEmail", e.target.value)}
+            maxLength={254}
+            autoCapitalize="none"
+            spellCheck={false}
+            aria-invalid={!!errors.parentEmail || !!errors.contact}
+            aria-describedby={describedBy("parentEmail", ...(errors.contact ? ["contact-error"] : []), "contact-hint")}
+            data-testid="field-parent-email"
+            placeholder="nama@contoh.com"
+          />
+          {errors.parentEmail && <FieldError id="parentEmail-error">{errors.parentEmail}</FieldError>}
+          <FieldDescription id="contact-hint" data-testid="daftar-contact-hint">
+            Isi salah satu atau keduanya. Dengan email, formulir pendaftaran bisa langsung kami
+            kirimkan.
+          </FieldDescription>
+          {errors.contact && (
+            <FieldError id="contact-error" data-testid="error-contact">{errors.contact}</FieldError>
+          )}
+        </Field>
+
+        <Collapsible open={childOpen} onOpenChange={setChildOpen}>
+          <CollapsibleTrigger
+            data-testid="daftar-child-toggle"
+            className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-background px-4 text-left text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span>
+              Data anak{" "}
               <span className="font-normal text-muted-foreground">(opsional)</span>
-            </FieldLabel>
-            <Textarea
-              id="notes"
-              name="notes"
-              rows={4}
-              maxLength={500}
-              value={form.notes}
-              onChange={(e) => update("notes", e.target.value)}
-              aria-invalid={!!errors.notes}
-              className={cn("px-3 py-2.5 text-base md:text-base", PLACEHOLDER_CLASS)}
-              data-testid="field-notes"
-              placeholder="Misal: ananda sudah pernah ikut kelas trial, atau saudara sudah bersekolah di sini."
+            </span>
+            <ChevronRight
+              aria-hidden="true"
+              className={cn("size-4 transition-transform", childOpen && "rotate-90")}
             />
-            <FieldDescription>
-              {form.notes.length}/500 karakter
-            </FieldDescription>
-            {errors.notes && <FieldError>{errors.notes}</FieldError>}
-          </Field>
-        </div>
-      )}
+          </CollapsibleTrigger>
+          <CollapsibleContent data-testid="daftar-child-section" className="space-y-5 pt-5">
+            <Field>
+              <FieldLabel htmlFor="childName">Nama anak</FieldLabel>
+              <Input
+                id="childName"
+                name="childName"
+                autoComplete="off"
+                maxLength={80}
+                className={INPUT_CLASS}
+                value={form.childName}
+                onChange={(e) => update("childName", e.target.value)}
+                aria-invalid={!!errors.childName}
+                aria-describedby={describedBy("childName")}
+                data-testid="field-child-name"
+                placeholder="Aisyah Putri"
+              />
+              {errors.childName && <FieldError id="childName-error">{errors.childName}</FieldError>}
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="dateOfBirth">Tanggal lahir</FieldLabel>
+              <Input
+                id="dateOfBirth"
+                name="dateOfBirth"
+                type="date"
+                min={dobBounds.min}
+                max={dobBounds.max}
+                className={INPUT_CLASS}
+                value={form.dateOfBirth}
+                onChange={(e) => update("dateOfBirth", e.target.value)}
+                aria-invalid={!!errors.dateOfBirth}
+                aria-describedby={describedBy("dateOfBirth")}
+                data-testid="field-date-of-birth"
+              />
+              {errors.dateOfBirth && <FieldError id="dateOfBirth-error">{errors.dateOfBirth}</FieldError>}
+            </Field>
+
+            <Field>
+              <FieldLabel id="childGender-label">Jenis kelamin</FieldLabel>
+              <RadioGroup
+                value={form.childGender}
+                onValueChange={(value) => update("childGender", value as "L" | "P")}
+                aria-labelledby="childGender-label"
+                aria-invalid={!!errors.childGender}
+                aria-describedby={describedBy("childGender")}
+                className="grid grid-cols-2 gap-3"
+              >
+                {[
+                  { value: "L", label: "Laki-laki" },
+                  { value: "P", label: "Perempuan" },
+                ].map((opt) => (
+                  <FieldLabel
+                    key={opt.value}
+                    htmlFor={`childGender-${opt.value}`}
+                    className={cn(
+                      "flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-base font-medium transition-colors",
+                      form.childGender === opt.value
+                        ? "border-2 border-primary bg-primary/10 text-primary-text"
+                        : "border-border bg-background text-foreground hover:bg-accent",
+                    )}
+                  >
+                    {/* Visible circle + dot (PAR-5): the control keeps its own
+                        focus-visible ring for keyboard users. */}
+                    <RadioGroupItem
+                      id={`childGender-${opt.value}`}
+                      value={opt.value}
+                      className="size-5 border-2 border-muted-foreground/60 bg-background data-checked:border-primary"
+                      data-testid={`field-child-gender-${opt.value.toLowerCase()}`}
+                    />
+                    {opt.label}
+                  </FieldLabel>
+                ))}
+              </RadioGroup>
+              {errors.childGender && <FieldError id="childGender-error">{errors.childGender}</FieldError>}
+            </Field>
+
+            {programs.length > 0 && (
+              <Field>
+                <FieldLabel htmlFor="programId">Program yang diminati</FieldLabel>
+                <NativeSelect
+                  id="programId"
+                  name="programId"
+                  value={form.programId}
+                  onChange={(e) => update("programId", e.target.value)}
+                  className="w-full"
+                  selectClassName={cn(SELECT_CLASS, form.programId === "" && "text-muted-foreground/70")}
+                  aria-invalid={!!errors.programId}
+                  aria-describedby={describedBy("programId")}
+                  data-testid="field-program-id"
+                >
+                  <NativeSelectOption value="">— Pilih program —</NativeSelectOption>
+                  {programs.map((p) => (
+                    <NativeSelectOption key={p.id} value={p.id}>
+                      {p.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                {errors.programId && <FieldError id="programId-error">{errors.programId}</FieldError>}
+              </Field>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+
+        <Field>
+          <FieldLabel htmlFor="notes">
+            Catatan untuk sekolah{" "}
+            <span className="font-normal text-muted-foreground">(opsional)</span>
+          </FieldLabel>
+          <Textarea
+            id="notes"
+            name="notes"
+            rows={3}
+            maxLength={500}
+            value={form.notes}
+            onChange={(e) => update("notes", e.target.value)}
+            aria-invalid={!!errors.notes}
+            aria-describedby={describedBy("notes")}
+            className={cn("px-3 py-2.5 text-base md:text-base", PLACEHOLDER_CLASS)}
+            data-testid="field-notes"
+            placeholder="Misal: ingin tahu biaya, atau saudara sudah bersekolah di sini."
+          />
+          <FieldDescription>
+            {form.notes.length}/500 karakter
+          </FieldDescription>
+          {errors.notes && <FieldError id="notes-error">{errors.notes}</FieldError>}
+        </Field>
+      </div>
 
       {globalError && (
         <p
@@ -515,118 +541,28 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         </p>
       )}
 
-      {step === 3 && (
-        <p className="mt-5 text-sm text-muted-foreground" data-testid="daftar-consent">
-          Dengan mengirim, Anda menyetujui{" "}
-          <Link href="/legal/privacy" className="text-primary-text underline underline-offset-2">
-            Kebijakan Privasi
-          </Link>{" "}
-          dan{" "}
-          <Link href="/legal/terms" className="text-primary-text underline underline-offset-2">
-            Syarat &amp; Ketentuan
-          </Link>
-          .
-        </p>
-      )}
+      <p className="mt-5 text-sm text-muted-foreground" data-testid="daftar-consent">
+        Dengan mengirim, Anda menyetujui{" "}
+        <Link href="/legal/privacy" className="text-primary-text underline underline-offset-2">
+          Kebijakan Privasi
+        </Link>{" "}
+        dan{" "}
+        <Link href="/legal/terms" className="text-primary-text underline underline-offset-2">
+          Syarat &amp; Ketentuan
+        </Link>
+        .
+      </p>
 
-      <div
-        className={cn(
-          "mt-6 flex flex-col-reverse gap-2 sm:flex-row",
-          step > 1 && "sm:justify-between",
-        )}
-      >
-        {step > 1 && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={prevStep}
-            className="h-11 px-5 text-base"
-            data-testid="daftar-back"
-            disabled={submitting}
-          >
-            Kembali
-          </Button>
-        )}
-
-        {step < 3 ? (
-          <Button
-            type="submit"
-            className={cn(CTA_CLASS, step > 1 ? "sm:min-w-40" : "sm:w-full")}
-            data-testid="daftar-next"
-          >
-            Lanjut
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            disabled={submitting}
-            className={cn(CTA_CLASS, "sm:min-w-40")}
-            data-testid="daftar-submit"
-          >
-            {submitting ? "Mengirim..." : "Kirim Pendaftaran"}
-          </Button>
-        )}
+      <div className="mt-6">
+        <Button
+          type="submit"
+          disabled={submitting}
+          className={CTA_CLASS}
+          data-testid="daftar-submit"
+        >
+          {submitting ? "Mengirim..." : "Kirim Pertanyaan"}
+        </Button>
       </div>
     </form>
-  );
-}
-
-function Stepper({ step }: { step: Step }) {
-  const items: { step: Step; label: string }[] = [
-    { step: 1, label: "Data Anak" },
-    { step: 2, label: "Data Orang Tua" },
-    { step: 3, label: "Preferensi" },
-  ];
-  return (
-    <div
-      role="group"
-      aria-label={`Langkah ${step} dari ${items.length}`}
-      className="mb-8"
-    >
-      <ol aria-label="Langkah pendaftaran" className="grid grid-cols-3">
-        {items.map((item, i) => {
-          const active = item.step === step;
-          const done = item.step < step;
-          return (
-            <li
-              key={item.step}
-              className="relative flex min-w-0 flex-col items-center gap-2 text-center"
-            >
-              {/* Rail: runs from the previous circle's centre to this one's. */}
-              {i > 0 && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2 rounded-full transition-colors",
-                    item.step <= step ? "bg-primary-text" : "bg-border",
-                  )}
-                />
-              )}
-              <span
-                aria-current={active ? "step" : undefined}
-                className={cn(
-                  "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                  done
-                    ? "bg-primary-text text-white"
-                    : active
-                      ? "border-2 border-primary-text bg-card text-primary-text"
-                      : "border border-border bg-card text-muted-foreground",
-                )}
-              >
-                {done ? <Check className="size-3.5" strokeWidth={3} /> : item.step}
-              </span>
-              <span
-                className={cn(
-                  "px-1 text-xs leading-tight",
-                  active ? "font-semibold text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {item.label}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
   );
 }

@@ -1,137 +1,171 @@
 import { describe, it, expect } from "vitest";
-import { submitAdmissionSchema, flattenSubmitErrors } from "./submit-validation";
+import { submitAdmissionSchema, flattenSubmitErrors, CONTACT_REQUIRED_ERROR } from "./submit-validation";
 
 const VALID = {
-  childName: "Aisyah Putri",
-  dateOfBirth: "2020-03-15",
-  childGender: "P" as const,
   parentName: "Ibu Fatimah",
   parentPhone: "081234567890",
 };
 
+function errorsFor(input: unknown) {
+  const result = submitAdmissionSchema.safeParse(input);
+  expect(result.success).toBe(false);
+  return result.success ? {} : flattenSubmitErrors(result.error);
+}
+
 describe("submitAdmissionSchema", () => {
-  it("accepts a valid minimal payload", () => {
+  it("accepts a parent name and a phone only — every child field is optional", () => {
     const result = submitAdmissionSchema.safeParse(VALID);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.childName).toBe("Aisyah Putri");
+      expect(result.data.parentName).toBe("Ibu Fatimah");
       expect(result.data.parentPhone).toBe("081234567890");
+      expect(result.data.childName).toBeUndefined();
+      expect(result.data.dateOfBirth).toBeUndefined();
+      expect(result.data.childGender).toBeUndefined();
     }
   });
 
-  it("rejects missing childName", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, childName: "" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.childName).toBe("Nama anak wajib diisi");
-    }
+  it.each([
+    ["phone", { parentPhone: "081234567890" }],
+    ["WhatsApp", { parentWhatsapp: "081234567890" }],
+    ["email", { parentEmail: "fatimah@example.com" }],
+  ])("accepts %s as the only contact", (_label, contact) => {
+    expect(submitAdmissionSchema.safeParse({ parentName: "Ibu Fatimah", ...contact }).success).toBe(true);
   });
 
-  it("rejects whitespace-only childName after trim", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, childName: "    " });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.childName).toBe("Nama anak wajib diisi");
-    }
+  it("rejects a payload without any contact and says so under `contact`", () => {
+    const errs = errorsFor({ parentName: "Ibu Fatimah" });
+    expect(errs).toEqual({ contact: CONTACT_REQUIRED_ERROR });
   });
 
-  it("rejects missing dateOfBirth", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, dateOfBirth: undefined });
-    expect(result.success).toBe(false);
+  it("treats blank contact strings as no contact", () => {
+    const errs = errorsFor({ parentName: "Ibu Fatimah", parentPhone: "  ", parentWhatsapp: "", parentEmail: "" });
+    expect(errs.contact).toBe(CONTACT_REQUIRED_ERROR);
   });
 
-  it("rejects malformed dateOfBirth", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, dateOfBirth: "15/03/2020" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.dateOfBirth).toMatch(/format/i);
-    }
+  it("rejects missing or whitespace-only parentName", () => {
+    expect(errorsFor({ ...VALID, parentName: "" }).parentName).toBe("Nama orang tua wajib diisi");
+    expect(errorsFor({ ...VALID, parentName: "    " }).parentName).toBe("Nama orang tua wajib diisi");
   });
 
-  it("rejects invalid childGender (only L or P allowed)", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, childGender: "X" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.childGender).toBe("Pilih jenis kelamin");
-    }
+  it("rejects a parentName longer than 80 characters", () => {
+    expect(errorsFor({ ...VALID, parentName: "a".repeat(81) }).parentName).toBe(
+      "Nama orang tua terlalu panjang",
+    );
   });
 
-  it("rejects malformed parentPhone", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, parentPhone: "not-a-phone-!!!" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.parentPhone).toBe("Nomor telepon tidak valid. Contoh: 0812 3456 7890");
-    }
+  it("rejects malformed parentPhone with the format example", () => {
+    expect(errorsFor({ ...VALID, parentPhone: "not-a-phone-!!!" }).parentPhone).toBe(
+      "Nomor telepon tidak valid. Contoh: 0812 3456 7890",
+    );
+  });
+
+  it("does not add a contact error on top of a malformed phone", () => {
+    const errs = errorsFor({ ...VALID, parentPhone: "abc" });
+    expect(errs.contact).toBeUndefined();
+  });
+
+  it("rejects an email longer than 254 characters", () => {
+    expect(errorsFor({ ...VALID, parentEmail: `${"a".repeat(250)}@example.com` }).parentEmail).toBe(
+      "Email tidak valid",
+    );
+  });
+
+  it("rejects a programId longer than 64 characters", () => {
+    expect(errorsFor({ ...VALID, programId: "p".repeat(65) }).programId).toBe("Program tidak valid");
+    expect(submitAdmissionSchema.safeParse({ ...VALID, programId: "p".repeat(64) }).success).toBe(true);
   });
 
   it("rejects invalid parentEmail when present", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, parentEmail: "not-an-email" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.parentEmail).toBe("Email tidak valid");
+    expect(errorsFor({ ...VALID, parentEmail: "not-an-email" }).parentEmail).toBe("Email tidak valid");
+  });
+
+  it("treats empty-string optional fields as omitted (form sends '' for unfilled)", () => {
+    const result = submitAdmissionSchema.safeParse({
+      ...VALID,
+      parentEmail: "",
+      parentWhatsapp: "",
+      parentRelationship: "",
+      childName: "",
+      dateOfBirth: "",
+      childGender: "",
+      programId: "",
+      notes: "",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      for (const key of [
+        "parentEmail",
+        "parentWhatsapp",
+        "parentRelationship",
+        "childName",
+        "dateOfBirth",
+        "childGender",
+        "programId",
+        "notes",
+      ] as const) {
+        expect(result.data[key]).toBeUndefined();
+      }
     }
   });
 
-  it("treats empty-string parentEmail as omitted (form sends '' for unfilled optional)", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, parentEmail: "" });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.parentEmail).toBeUndefined();
+  it("accepts Ayah, Ibu and Wali as relationship and rejects anything else", () => {
+    for (const rel of ["AYAH", "IBU", "WALI"]) {
+      expect(submitAdmissionSchema.safeParse({ ...VALID, parentRelationship: rel }).success).toBe(true);
     }
+    expect(errorsFor({ ...VALID, parentRelationship: "PAMAN" }).parentRelationship).toBe(
+      "Pilih Ayah, Ibu, atau Wali",
+    );
   });
 
-  it("treats empty-string parentWhatsapp as omitted", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, parentWhatsapp: "" });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.parentWhatsapp).toBeUndefined();
-    }
+  describe("date of birth is checked only when given", () => {
+    it("accepts a plausible date", () => {
+      expect(submitAdmissionSchema.safeParse({ ...VALID, dateOfBirth: "2021-03-15" }).success).toBe(true);
+    });
+
+    it("rejects a malformed date", () => {
+      expect(errorsFor({ ...VALID, dateOfBirth: "15/03/2020" }).dateOfBirth).toMatch(/format/i);
+    });
+
+    it.each([
+      ["2035-01-01", /masa depan/],
+      ["1900-01-01", /maksimal 8 tahun/],
+    ])("rejects the implausible age %s", (dob, message) => {
+      expect(errorsFor({ ...VALID, dateOfBirth: dob }).dateOfBirth).toMatch(message);
+    });
   });
 
-  it("treats empty-string programId / notes as omitted", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, programId: "", notes: "" });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.programId).toBeUndefined();
-      expect(result.data.notes).toBeUndefined();
-    }
+  it("accepts L and P and rejects any other childGender", () => {
+    expect(submitAdmissionSchema.safeParse({ ...VALID, childGender: "L" }).success).toBe(true);
+    expect(errorsFor({ ...VALID, childGender: "X" }).childGender).toBe("Pilih jenis kelamin");
+  });
+
+  it("rejects a childName longer than 80 characters", () => {
+    expect(errorsFor({ ...VALID, childName: "a".repeat(81) }).childName).toBe("Nama anak terlalu panjang");
   });
 
   it("rejects notes longer than 500 chars", () => {
-    const longNotes = "a".repeat(501);
-    const result = submitAdmissionSchema.safeParse({ ...VALID, notes: longNotes });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.notes).toMatch(/terlalu panjang/i);
-    }
+    expect(errorsFor({ ...VALID, notes: "a".repeat(501) }).notes).toMatch(/terlalu panjang/i);
   });
 
   it("trims whitespace on string fields", () => {
     const result = submitAdmissionSchema.safeParse({
-      ...VALID,
-      childName: "  Aisyah Putri  ",
       parentName: "  Ibu Fatimah  ",
       parentPhone: "  081234567890  ",
+      childName: "  Aisyah Putri  ",
       notes: "  Anak mandiri.  ",
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.childName).toBe("Aisyah Putri");
       expect(result.data.parentName).toBe("Ibu Fatimah");
       expect(result.data.parentPhone).toBe("081234567890");
+      expect(result.data.childName).toBe("Aisyah Putri");
       expect(result.data.notes).toBe("Anak mandiri.");
     }
   });
 
   it("silently strips admin-only fields injected by attacker", () => {
-    const attacker = {
+    const result = submitAdmissionSchema.safeParse({
       ...VALID,
       source: "REFERRAL",
       status: "ADMITTED",
@@ -140,87 +174,57 @@ describe("submitAdmissionSchema", () => {
       parentEducation: "S3",
       parentIncome: "> Rp 10 Juta",
       followUpDate: "2026-12-01",
-    };
-    const result = submitAdmissionSchema.safeParse(attacker);
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       const data = result.data as Record<string, unknown>;
-      expect(data.source).toBeUndefined();
-      expect(data.status).toBeUndefined();
-      expect(data.studentId).toBeUndefined();
-      expect(data.tenantId).toBeUndefined();
-      expect(data.parentEducation).toBeUndefined();
-      expect(data.parentIncome).toBeUndefined();
-      expect(data.followUpDate).toBeUndefined();
+      for (const key of ["source", "status", "studentId", "tenantId", "parentEducation", "parentIncome", "followUpDate"]) {
+        expect(data[key]).toBeUndefined();
+      }
     }
   });
 
   it("accepts a prefixed (non-cuid) programId — prod Program ids aren't all cuid()-shaped", () => {
-    const result = submitAdmissionSchema.safeParse({
-      ...VALID,
-      programId: "program_ab57fd0432e25d5b3013",
-    });
+    const result = submitAdmissionSchema.safeParse({ ...VALID, programId: "program_ab57fd0432e25d5b3013" });
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.programId).toBe("program_ab57fd0432e25d5b3013");
-    }
+    if (result.success) expect(result.data.programId).toBe("program_ab57fd0432e25d5b3013");
   });
 
   it("accepts a fully-populated valid payload", () => {
-    const result = submitAdmissionSchema.safeParse({
-      ...VALID,
-      parentWhatsapp: "+62 812-3456-7890",
-      parentEmail: "fatimah@example.com",
-      programId: "ckabcdefghijklmnopqrstuvw",
-      notes: "Anak sudah pernah ikut kelas trial.",
-    });
-    expect(result.success).toBe(true);
+    expect(
+      submitAdmissionSchema.safeParse({
+        ...VALID,
+        parentRelationship: "IBU",
+        parentWhatsapp: "+62 812-3456-7890",
+        parentEmail: "fatimah@example.com",
+        childName: "Aisyah Putri",
+        dateOfBirth: "2021-03-15",
+        childGender: "P",
+        programId: "ckabcdefghijklmnopqrstuvw",
+        notes: "Anak sudah pernah ikut kelas trial.",
+      }).success,
+    ).toBe(true);
   });
 });
 
 describe("flattenSubmitErrors", () => {
-  it("returns one message per field, first error wins", () => {
-    const result = submitAdmissionSchema.safeParse({
-      childName: "",
-      dateOfBirth: "bad-date",
-      childGender: "X",
-      parentName: "",
-      parentPhone: "x",
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.childName).toBe("Nama anak wajib diisi");
-      expect(errs.dateOfBirth).toMatch(/format/i);
-      expect(errs.childGender).toBe("Pilih jenis kelamin");
-      expect(errs.parentName).toBe("Nama orang tua wajib diisi");
-      expect(errs.parentPhone).toBe("Nomor telepon tidak valid. Contoh: 0812 3456 7890");
-    }
+  it("answers an empty body in Indonesian, never Zod's English default (R2-P-13)", () => {
+    const errs = errorsFor({});
+    expect(errs.parentName).toBe("Nama orang tua wajib diisi");
+    for (const msg of Object.values(errs)) expect(msg).not.toMatch(/invalid input|expected/i);
   });
 
-  it("answers an empty body in Indonesian, never Zod's English default (R2-P-13)", () => {
-    const result = submitAdmissionSchema.safeParse({});
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs).toEqual({
-        childName: "Nama anak wajib diisi",
-        dateOfBirth: "Tanggal lahir wajib diisi (format YYYY-MM-DD)",
-        childGender: "Pilih jenis kelamin",
-        parentName: "Nama orang tua wajib diisi",
-        parentPhone: "Nomor telepon wajib diisi",
-      });
-      for (const msg of Object.values(errs)) expect(msg).not.toMatch(/invalid input|expected/i);
-    }
+  it("returns one message per field, first error wins", () => {
+    const errs = errorsFor({ parentName: "", parentPhone: "x", dateOfBirth: "bad-date", childGender: "X" });
+    expect(errs.parentName).toBe("Nama orang tua wajib diisi");
+    expect(errs.parentPhone).toBe("Nomor telepon tidak valid. Contoh: 0812 3456 7890");
+    expect(errs.dateOfBirth).toMatch(/format/i);
+    expect(errs.childGender).toBe("Pilih jenis kelamin");
   });
 
   it("includes a format example in the phone and WhatsApp errors (R2-P-13)", () => {
-    const result = submitAdmissionSchema.safeParse({ ...VALID, parentPhone: "abc", parentWhatsapp: "abc" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const errs = flattenSubmitErrors(result.error);
-      expect(errs.parentPhone).toContain("Contoh: 0812 3456 7890");
-      expect(errs.parentWhatsapp).toContain("Contoh: 0812 3456 7890");
-    }
+    const errs = errorsFor({ ...VALID, parentPhone: "abc", parentWhatsapp: "abc" });
+    expect(errs.parentPhone).toContain("Contoh: 0812 3456 7890");
+    expect(errs.parentWhatsapp).toContain("Contoh: 0812 3456 7890");
   });
 });

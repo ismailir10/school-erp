@@ -107,7 +107,7 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 ## Tasks
 
 - [ ] T1 Lead model and API — slim create/update schema (parent + contact required, child optional), PUT writes every field incl. clears, audit rows, legacy statuses read as neighbours, auto source — accept: route + schema tests green (reuse: `lib/validations/admission.ts`, `app/api/admissions/**`)
-- [ ] T2 Public `/daftar` one short page — accept: e2e `daftar-public` updated and green; duplicate window kept (deps: T1, parallel with T3)
+- [x] T2 Public `/daftar` one short page — accept: e2e `daftar-public` updated and green; duplicate window kept (deps: T1, parallel with T3)
 - [ ] T3 Invite without email + result card (WhatsApp, copy, Isi bersama orang tua) — accept: invite route test for no-email; card test (deps: T1, reuse: `lib/enrollment/follow-up.ts`)
 - [ ] T4 Admin editing of the formulir — validated PATCH, reprice unpaid fee, *Ubah data* UI, *Tandai formulir masuk* with consent note — accept: route + component tests (deps: T3, reuse: `lib/enrollment/submit-validation.ts`, form-logic field specs)
 - [ ] T5 One convert — relax preconditions, move duplicate/wali confirmation into the rich route, single-click *Terima & Jadikan Siswa*, drop Mulai Tinjau/UNDER_REVIEW from UI, delete inquiry convert route + dialogs + `conversion.ts` — accept: convert tests incl. duplicate and missing-name (deps: T4)
@@ -119,6 +119,7 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 ## Implementation
 
 - Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (one subagent per slice, no commits by workers; the driver re-runs every gate, reviews and commits). T1 ∥ T2 parallel (disjoint files: admin lead API/dialog vs public `/daftar`); T3 → T4 → T5 → T6 → T7 → T8 → T9 sequential, because T3-T8 share `app/admin/admissions/page.tsx`, `columns.tsx`, `app/api/enrollments/**` and `lib/enrollment/**`. Two-axis review (standards + spec) per task; a third security review on tasks touching `app/api/**` (T1, T3, T4, T5, T6). No task inline: each slice is too large to hold in the driver's context.
+- T2: `app/daftar/{client.tsx,draft.ts,page.tsx}`, `app/api/admission/submit/route.ts`, `lib/admission/submit-validation.ts`, `lib/email/templates/admission-submitted.ts`, tests, `e2e/{daftar-public,sibling-detect}.spec.ts` — `/daftar` is one short page (parent name + one contact; child block collapsed and optional), draft key `daftar-draft-v2`, duplicate guard rebuilt on contact + parent name compared in JS (a DB `ILIKE` would treat `%`/`_` as wildcards), a resubmit that adds a child name makes a new row, `.max(254)` email / `.max(64)` program, per-recipient email throttle (2/24h), error ids wired to `aria-describedby` and focus moved to the first error. Checked against `design-system.html` and `voice.md` (design-system).
 
 ## Verification
 
