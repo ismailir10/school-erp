@@ -72,7 +72,7 @@ Data: demo auth, disposable local Postgres, seeded school-admin (`u_school_admin
 
 ## Non-goals
 
-- **Pay-first** (fee before the formulir opens). Separate next cycle; needs the school's answer on refunds. This cycle only fixes program/Day Care at send time.
+- **Pay-first** (fee before the formulir opens). Separate next cycle. The school's refund question is settled (the formulir fee is **non-refundable**, per Ismail 2026-10-11), so nothing blocks it except sequencing. This cycle only fixes program/Day Care at send time.
 - Assigning a class during convert (stays the student page's *Daftarkan ke Kelas*).
 - Moving the pendaftaran fee into `Invoice`; automatic reminders; discount tiers.
 - Changing the parent form's steps, consent text or document rules.
