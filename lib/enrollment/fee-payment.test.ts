@@ -182,6 +182,44 @@ describe("getOrCreateFeePaymentLink", () => {
     expect(createSession).not.toHaveBeenCalled();
   });
 
+  it("CLOSED when the lead was cancelled, even while the form is still INVITED — no new link, no gateway call", async () => {
+    const f = fee();
+    feeFindUnique.mockResolvedValue(fee({ application: { ...f.application, status: "INVITED", admission: { ...f.application.admission, status: "CANCELLED" } } }));
+    expect(await getOrCreateFeePaymentLink(base)).toEqual({ kind: "CLOSED" });
+    expect(createSession).not.toHaveBeenCalled();
+    expect(feeUpdate).not.toHaveBeenCalled();
+  });
+
+  it("pay-first: a link is minted for a formulir still INVITED, and a blank child name leaves the order description clean", async () => {
+    const f = fee();
+    feeFindUnique.mockResolvedValue(
+      fee({ application: { ...f.application, status: "INVITED", childName: "", admission: { ...f.application.admission, status: "INQUIRY" } } }),
+    );
+    expect(await getOrCreateFeePaymentLink(base)).toMatchObject({ kind: "LINK", reused: false });
+    expect(createSession.mock.calls[0][0].description).toBe("Biaya pendaftaran");
+    expect(createSession.mock.calls[0][0].customerName).toBe("Bu Siti");
+  });
+
+  it("the compare-and-set that stores a fresh link also requires the application to be neither rejected nor its lead cancelled", async () => {
+    await getOrCreateFeePaymentLink(base);
+    // A reject / cancel landing between the CLOSED check and this write must not leave a payable stored link.
+    expect(feeUpdate.mock.calls[0][0].where.application).toEqual({
+      status: { not: "REJECTED" },
+      admission: { status: { not: "CANCELLED" } },
+    });
+  });
+
+  it("when that guarded write matches nothing (cancelled meanwhile) the freshly minted session is discarded and the retry answers CLOSED", async () => {
+    const f = fee();
+    feeFindUnique
+      .mockResolvedValueOnce(fee())
+      .mockResolvedValueOnce(fee({ application: { ...f.application, admission: { ...f.application.admission, status: "CANCELLED" } } }));
+    feeUpdate.mockResolvedValueOnce({ count: 0 });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await getOrCreateFeePaymentLink(base)).toEqual({ kind: "CLOSED" });
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
+
   it("a fee already PAID stays SETTLED even if the application was later rejected", async () => {
     feeFindUnique.mockResolvedValue(fee({ status: "PAID", application: { ...fee().application, status: "REJECTED" } }));
     expect(await getOrCreateFeePaymentLink(base)).toEqual({ kind: "SETTLED", status: "PAID" });

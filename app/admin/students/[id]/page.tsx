@@ -339,6 +339,23 @@ export default function StudentDetailPage() {
     jumpToSection(target);
   }, [loading, jumpToSection, overview]);
 
+  /**
+   * `?aksi=daftarkan-kelas` opens "Daftarkan ke Kelas" — the pendaftaran convert toast links
+   * here so staff can place the new student without hunting for the button. Read once after
+   * the student loads, then dropped from the URL so a refresh does not reopen the dialog.
+   */
+  const enrollIntentHandled = useRef(false);
+  useEffect(() => {
+    if (loading || !student || enrollIntentHandled.current) return;
+    enrollIntentHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("aksi") !== "daftarkan-kelas") return;
+    params.delete("aksi");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    if (student.canEdit && student.status === "ACTIVE") setEnrollDialog(true);
+  }, [loading, student]);
+
   // --- Data Anak edit toggle ---
   function startEditingDataAnak() {
     if (!student) return;

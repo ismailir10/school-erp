@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ApiError } from "@/lib/api/client-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { FEE_SETTLE_FALLBACK, FEE_SETTLE_TOAST, isSettledElsewhere, settleEnrollmentFee, settleErrorText } from "@/lib/enrollment/fee-client";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { paymentMethodLabel } from "@/lib/constants/payment-methods";
@@ -103,13 +104,13 @@ export function EnrollmentFeeCard({
 
   async function waive() {
     try {
-      await sendJson(feeUrl, { method: "PATCH", body: { action: "WAIVE" } }, "Gagal membebaskan biaya. Coba lagi.");
-      toast.success("Biaya pendaftaran dibebaskan");
+      await settleEnrollmentFee(applicationId, { action: "WAIVE" });
+      toast.success(FEE_SETTLE_TOAST.WAIVE);
       onChange();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Gagal membebaskan biaya. Coba lagi.");
+      toast.error(settleErrorText(err, "WAIVE"));
       // A 409 means someone settled it first: show what is true now.
-      if (err instanceof ApiError && err.status === 409) onChange();
+      if (isSettledElsewhere(err)) onChange();
       throw err;
     }
   }
@@ -258,7 +259,7 @@ export function EnrollmentFeeCard({
       <MarkPaidDialog
         open={dialog === "paid"}
         onClose={() => setDialog(null)}
-        feeUrl={feeUrl}
+        applicationId={applicationId}
         fee={fee}
         onDone={onChange}
       />
@@ -392,13 +393,13 @@ function DiscountDialog({
 function MarkPaidDialog({
   open,
   onClose,
-  feeUrl,
+  applicationId,
   fee,
   onDone,
 }: {
   open: boolean;
   onClose: () => void;
-  feeUrl: string;
+  applicationId: string;
   fee: AdminFeeView;
   onDone: () => void;
 }) {
@@ -415,16 +416,12 @@ function MarkPaidDialog({
 
   const submit = form.handleSubmit(async (values) => {
     try {
-      await sendJson(
-        feeUrl,
-        { method: "PATCH", body: { action: "MARK_PAID", method: values.method, note: values.note || undefined } },
-        "Gagal mencatat pembayaran. Coba lagi.",
-      );
-      toast.success("Pembayaran dicatat");
+      await settleEnrollmentFee(applicationId, { action: "MARK_PAID", method: values.method, note: values.note || undefined });
+      toast.success(FEE_SETTLE_TOAST.MARK_PAID);
       onClose();
       onDone();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal mencatat pembayaran. Coba lagi.");
+      applyServerErrors(form, err, FEE_SETTLE_FALLBACK.MARK_PAID);
       // Someone settled it first: applyServerErrors has toasted why; close the
       // dialog (its submit would only 409 again) and show what is true now.
       if (err instanceof ApiError && err.status === 409) {

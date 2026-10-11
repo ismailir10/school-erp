@@ -180,21 +180,21 @@ describe("employee schemas (STR-7)", () => {
 });
 
 describe("admission schemas (STR-7)", () => {
-  const base = { childName: "Ahmad", parentName: "Bapak Budi" };
+  const base = { childName: "Ahmad", parentName: "Bapak Budi", parentPhone: "081234567890" };
 
   it("accepts the minimal payload and trims names", () => {
-    const r = createAdmissionSchema.safeParse({ childName: "  Ahmad ", parentName: "Bapak Budi" });
+    const r = createAdmissionSchema.safeParse({ childName: "  Ahmad ", parentName: "  Bapak Budi ", parentPhone: "0812" });
     expect(r.success && r.data.childName).toBe("Ahmad");
+    expect(r.success && r.data.parentName).toBe("Bapak Budi");
   });
 
   it("keeps empty-string → undefined for optional fields", () => {
-    const r = createAdmissionSchema.safeParse({ ...base, parentEmail: "", parentPhone: "  ", notes: "", dateOfBirth: "" });
+    const r = createAdmissionSchema.safeParse({ ...base, parentEmail: "", notes: "", dateOfBirth: "" });
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.parentEmail).toBeUndefined();
-      expect(r.data.parentPhone).toBeUndefined();
       expect(r.data.notes).toBeUndefined();
-      expect(r.data.source).toBe("WALK_IN");
+      expect(r.data.dateOfBirth).toBeUndefined();
     }
   });
 
@@ -202,11 +202,11 @@ describe("admission schemas (STR-7)", () => {
     expect(createAdmissionSchema.safeParse({ ...base, childName: NUL }).success).toBe(false);
     expect(createAdmissionSchema.safeParse({ ...base, parentName: HUGE }).success).toBe(false);
     expect(createAdmissionSchema.safeParse({ ...base, notes: "x".repeat(2001) }).success).toBe(false);
-    expect(createAdmissionSchema.safeParse({ ...base, parentOccupation: HUGE }).success).toBe(false);
+    expect(createAdmissionSchema.safeParse({ ...base, parentPhone: HUGE }).success).toBe(false);
   });
 
-  it("update does not reset the source default", () => {
-    const r = updateAdmissionSchema.safeParse({ status: "VISITED" });
+  it("update never invents keys the client did not send", () => {
+    const r = updateAdmissionSchema.safeParse({ status: "CANCELLED" });
     expect(r.success).toBe(true);
     if (r.success) expect("source" in r.data).toBe(false);
   });

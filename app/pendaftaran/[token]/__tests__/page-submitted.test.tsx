@@ -8,7 +8,12 @@ import { render, screen } from "@testing-library/react";
 
 const { resolveToken, getFee } = vi.hoisted(() => ({ resolveToken: vi.fn(), getFee: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  redirect: (to: string) => {
+    throw new Error(`REDIRECT:${to}`);
+  },
+}));
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 vi.mock("@/lib/enrollment/resolve-token", () => ({ resolveEnrollmentToken: resolveToken }));
 vi.mock("@/lib/enrollment/fee-view", () => ({ getPublicFeeView: getFee }));
@@ -88,10 +93,23 @@ describe("form link after submit", () => {
     expect(screen.queryByRole("button", { name: /Bayar/ })).not.toBeInTheDocument();
   });
 
+  it("a cancelled lead shows no pay button either (its link is closed)", async () => {
+    resolveToken.mockResolvedValue({ access: "SUBMITTED", tenantId: "t-1", application: app({ admission: { status: "CANCELLED" } }) });
+    await renderPage();
+    expect(screen.queryByRole("button", { name: /Bayar/ })).not.toBeInTheDocument();
+  });
+
   it("a failed fee lookup never hides the thank-you card", async () => {
     getFee.mockRejectedValue(new Error("db down"));
     await renderPage();
     expect(screen.getByRole("heading", { name: "Formulir sudah diterima" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Bayar/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("form link while the pendaftaran fee is owed (pay-first)", () => {
+  it("sends the parent to the payment screen instead of rendering the form", async () => {
+    resolveToken.mockResolvedValue({ access: "PAYMENT_REQUIRED", tenantId: "t-1", application: app({ status: "INVITED" }) });
+    await expect(renderPage()).rejects.toThrow("REDIRECT:/pendaftaran/tok/pembayaran");
   });
 });

@@ -3,6 +3,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
+import { denyTokenAccess } from "@/lib/enrollment/access-response";
 import { prisma } from "@/lib/db";
 import { mergeJsonKey } from "@/lib/enrollment/json-merge";
 import { saveFile } from "@/lib/storage";
@@ -30,10 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 
   const { token } = await params;
   const { access, id } = await resolveEnrollmentAccess(token, new Date());
-  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  if (access === "SUBMITTED")
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  const denied = denyTokenAccess(access);
+  if (denied) return denied;
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const row = await prisma.enrollmentApplication.findUnique({
@@ -76,10 +75,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { token } = await params;
   const { access, id } = await resolveEnrollmentAccess(token, new Date());
-  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  if (access === "SUBMITTED")
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  const denied = denyTokenAccess(access);
+  if (denied) return denied;
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const which = req.nextUrl.searchParams.get("which");

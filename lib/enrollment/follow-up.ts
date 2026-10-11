@@ -1,12 +1,16 @@
 /**
- * Chasing an unpaid pendaftaran fee by WhatsApp (cycle 2026-10-10-pendaftaran-fee-payment).
+ * WhatsApp messages staff send to a parent about their formulir: the invitation
+ * (`inviteWaUrl`, cycle 2026-10-11-pendaftaran-simplify) and the unpaid-fee
+ * reminder (cycle 2026-10-10-pendaftaran-fee-payment).
  *
  * Staff tap one button and WhatsApp opens on the parent's number with the
- * reminder already written, link included. Pure helpers: who to message, what
- * to say. The final `wa.me` URL is built by the reminder endpoint at click time
+ * message already written, link included. Pure helpers: who to message, what to
+ * say. The reminder's final `wa.me` URL is built by its endpoint at click time
  * (`app/api/enrollments/[id]/fee/reminder`), because the message carries the
  * parent's form link and its access token is a credential: lists only ever
- * learn WHETHER a reminder can be sent (`canRemind`), never the token.
+ * learn WHETHER a reminder can be sent (`canRemind`), never the token. The
+ * invitation URL is built in the browser from the invite response, which only
+ * the inviting admin receives.
  */
 
 import { formatRupiah } from "@/lib/format";
@@ -59,9 +63,11 @@ export function feeReminderText(input: {
 }): string {
   const who = input.parentName?.trim() ? `Bapak/Ibu ${input.parentName.trim()}` : "Bapak/Ibu";
   const school = input.schoolName?.trim();
+  // Pay-first: the fee can be chased before the child has been named.
+  const child = input.childName.trim();
   return [
     school ? `Assalamu'alaikum ${who}. Kami dari ${school}.` : `Assalamu'alaikum ${who}.`,
-    `Biaya pendaftaran ananda ${input.childName} sebesar ${formatRupiah(input.amount)} belum kami terima.`,
+    `Biaya pendaftaran ananda${child ? ` ${child}` : ""} sebesar ${formatRupiah(input.amount)} belum kami terima.`,
     `Bapak/Ibu bisa membayarnya lewat tautan berikut: ${input.formUrl}`,
     "Jika sudah membayar, mohon abaikan pesan ini. Jazakumullah khairan.",
   ].join("\n\n");
@@ -80,6 +86,44 @@ export function feeReminderWaUrl(
   const phone = resolveFollowUpPhone(src);
   if (!phone) return null;
   return whatsappHrefWithText(phone, feeReminderText(src));
+}
+
+/**
+ * The message staff send when handing a parent their formulir link (walk-ins and
+ * anyone without an email). Parent voice from `voice.md`: greeting, courteous,
+ * short, the link last-but-one so it is easy to tap.
+ */
+export function inviteText(input: {
+  parentName: string | null | undefined;
+  /** Blank (a lead logged before the child was named) → the line speaks of "ananda" in general. */
+  childName?: string | null;
+  formUrl: string;
+  schoolName?: string | null;
+}): string {
+  const who = input.parentName?.trim() ? `Bapak/Ibu ${input.parentName.trim()}` : "Bapak/Ibu";
+  const school = input.schoolName?.trim();
+  const child = input.childName?.trim();
+  return [
+    school ? `Assalamu'alaikum ${who}. Kami dari ${school}.` : `Assalamu'alaikum ${who}.`,
+    `Berikut tautan formulir pendaftaran${child ? ` ananda ${child}` : ""}: ${input.formUrl}`,
+    "Mohon dilengkapi dengan teliti. Jika ada yang kurang jelas, silakan balas pesan ini. Jazakumullah khairan.",
+  ].join("\n\n");
+}
+
+/**
+ * `wa.me` URL on the parent's number with the formulir invitation prefilled, or
+ * null when `phone` is not a number WhatsApp can open (same normalisation as the
+ * fee reminder: `0812…` → `62812…`). Takes one number: callers pick it with
+ * `resolveFollowUpPhone`.
+ */
+export function inviteWaUrl(input: {
+  phone: string | null | undefined;
+  parentName: string | null | undefined;
+  childName?: string | null;
+  formUrl: string;
+  schoolName?: string | null;
+}): string | null {
+  return whatsappHrefWithText(input.phone, inviteText(input));
 }
 
 /** The public link a parent uses to reach (and pay) the fee: the form link, which leads to the fee once submitted. */

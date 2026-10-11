@@ -7,6 +7,7 @@ import { validateBody } from "@/lib/api/validate";
 import { recordAudit } from "@/lib/audit";
 import { enrollmentFeeActionSchema } from "@/lib/validations/enrollment-fee";
 import { applyDiscount } from "@/lib/enrollment/fee";
+import { DROP_LINK } from "@/lib/enrollment/fee-snapshot";
 import { ADMIN_FEE_SELECT, toAdminFeeView } from "@/lib/enrollment/fee-admin-view";
 
 /**
@@ -38,9 +39,6 @@ import { ADMIN_FEE_SELECT, toAdminFeeView } from "@/lib/enrollment/fee-admin-vie
 
 const SETTLED = "Biaya pendaftaran ini sudah selesai dan tidak bisa diubah lagi.";
 const FORBIDDEN_ACTION = "Anda tidak memiliki izin untuk tindakan ini.";
-
-/** Stop handing out the stored link. The session id stays so a payment on it is still found. */
-const DROP_LINK = { paymentUrl: null, sessionExpiresAt: null, linkError: null } as const;
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();

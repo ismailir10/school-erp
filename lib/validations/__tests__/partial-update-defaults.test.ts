@@ -45,13 +45,13 @@ describe("partialWithoutDefaults", () => {
 
 describe("update schemas do not invent keys the client never sent", () => {
   it("updateAdmissionSchema: status-only body keeps source absent", () => {
-    const data = updateAdmissionSchema.parse({ status: "VISIT_SCHEDULED" });
-    expect(data).toEqual({ status: "VISIT_SCHEDULED" });
+    const data = updateAdmissionSchema.parse({ status: "CANCELLED" });
+    expect(data).toEqual({ status: "CANCELLED" });
     expect("source" in data).toBe(false);
   });
 
-  it("updateAdmissionSchema: an explicit source still passes through", () => {
-    expect(updateAdmissionSchema.parse({ source: "WEBSITE" })).toEqual({ source: "WEBSITE" });
+  it("updateAdmissionSchema: source is not client-writable (stripped)", () => {
+    expect(updateAdmissionSchema.parse({ source: "WEBSITE" })).toEqual({});
   });
 
   it("updateCategorySchema: status-only body keeps order absent", () => {

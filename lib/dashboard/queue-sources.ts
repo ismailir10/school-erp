@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { stageWhere } from "@/lib/admission/stage";
 import { adminWorkPermissions, type AdminQueueSection, type AdminQueueSources } from "./admin-work-queue";
 
 /** How long an unanswered inquiry counts as "new" work. */
@@ -36,16 +37,15 @@ export async function loadAdminQueueSources(
   const permitted = adminWorkPermissions(session);
 
   const [inquiries, enrollments, leave, invoices, payroll] = await Promise.all([
-    // A public /daftar submission lands as an Admission in status INQUIRY and
-    // used to be visible only inside Pendaftaran (X-6). "New" = the last
-    // INQUIRY_WINDOW_DAYS days; "not yet followed up" = still INQUIRY (moving it
-    // to a visit, admitted or cancelled takes it off the queue); converted rows
-    // (studentId set) are done.
+    // A public /daftar submission lands as an Admission and used to be visible only inside
+    // Pendaftaran (X-6). "New" = the last INQUIRY_WINDOW_DAYS days; "not yet followed up" = the
+    // list's own Baru stage (lib/admission/stage): no formulir sent yet, not cancelled, not a
+    // student. Legacy VISIT_* / ADMITTED-without-formulir rows read as Baru too, so the queue and
+    // the list's "Baru" filter always show the same families.
     loadSection(permitted.inquiries, "inquiries", async () => {
       const where = {
         tenantId,
-        status: "INQUIRY",
-        studentId: null,
+        AND: [stageWhere("BARU")],
         createdAt: { gte: new Date(Date.now() - INQUIRY_WINDOW_DAYS * 24 * 60 * 60 * 1000) },
       };
       const [count, records] = await Promise.all([

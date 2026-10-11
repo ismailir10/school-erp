@@ -87,7 +87,8 @@ const VERB_MAP: Record<VerbKey, VerbBuilder> = {
   "Admission.convert": (t) => ({ verb: `mengonversi pendaftaran ${t} menjadi siswa`, href: "/admin/admissions" }),
   "EnrollmentApplication.convert": (t) => ({
     verb: `mengonversi formulir pendaftaran ${t} menjadi siswa`,
-    href: "/admin/enrollments",
+    // The unified Pendaftaran list (the separate formulir list is retired); the converted family is a Siswa there.
+    href: "/admin/admissions?tahap=SISWA",
   }),
   "Student.withdraw": (t) => ({ verb: `mencatat ${t} keluar dari sekolah`, href: "/admin/students" }),
   "Student.graduate": (t) => ({ verb: `meluluskan ${t}`, href: "/admin/students" }),

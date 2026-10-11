@@ -802,10 +802,10 @@ describe("Admissions: createAdmissionSchema (form, reused for edit) -> createAdm
   it("round-trips a minimal valid create submission", async () => {
     const { createAdmissionSchema } = await import("../admission");
     const form = createAdmissionSchema.safeParse({
-      childName: "Aisyah",
       parentName: "Budi",
+      parentPhone: "081234567890",
       parentEmail: "",
-      source: "WALK_IN",
+      childName: "",
     });
     expect(form.success).toBe(true);
     if (!form.success) return;
@@ -818,7 +818,6 @@ describe("Admissions: createAdmissionSchema (form, reused for edit) -> createAdm
       childName: "Aisyah",
       parentName: "Budi",
       parentEmail: "budi@example.com",
-      source: "WEBSITE",
     });
     expect(form.success).toBe(true);
     if (!form.success) return;

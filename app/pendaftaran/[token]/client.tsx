@@ -62,7 +62,8 @@ import {
 } from "./form-logic";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
 import { PaymentPanel } from "./payment-panel";
-import type { PublicFeeView } from "@/lib/enrollment/fee-view";
+import { readConflict } from "@/lib/enrollment/conflict";
+import type { PublicFeeStatus, PublicFeeView } from "@/lib/enrollment/fee-view";
 
 // `code` + `enrollmentFee` price the pendaftaran fee shown on Tinjau; the
 // server recomputes it on submit and never trusts what this form displays.
@@ -77,6 +78,14 @@ type Prefill = {
   consentData: unknown;
   documents: PublicDocuments;
 };
+
+/**
+ * Pay-first: once the fee row exists, the program and Day Care it was priced for
+ * are fixed. The page passes them so the Program step shows them as text, and
+ * `feeStatus` so Tinjau can say the fee is settled instead of showing a price.
+ * Absent for a formulir sent before pay-first (the parent still chooses).
+ */
+type LockedProgram = { programName: string | null; dcareAddon: boolean; feeStatus: PublicFeeStatus };
 
 type AddressState = { perumahan: string; blokCluster: string; rtRw: string; kecamatan: string; kodePos: string };
 type ParentState = {
@@ -213,21 +222,29 @@ const BTN_CLASS =
 const PRIMARY_CLASS =
   "bg-primary-text text-white hover:bg-primary-text/90 aria-disabled:pointer-events-none aria-disabled:opacity-50";
 
-export default function PendaftaranClient({
-  token,
-  programs,
-  prefill,
-  requiredDocuments = [],
-  initialStep,
-}: {
+type FormProps = {
   token: string;
   programs: Program[];
   prefill: Prefill;
   /** Documents the school requires uploaded before submit (empty = all optional). */
   requiredDocuments?: DocumentKey[];
+  /** Set when a pay-first fee row exists: Program and Day Care are shown, not chosen. */
+  lockedProgram?: LockedProgram | null;
+  /** Where the browser goes for the payment screen; a seam for tests. */
+  navigate?: (url: string) => void;
   /** Overrides the resume calculation (tests). */
   initialStep?: number;
-}) {
+};
+
+export default function PendaftaranClient({
+  token,
+  programs,
+  prefill,
+  requiredDocuments = [],
+  lockedProgram = null,
+  navigate = (url) => window.location.assign(url),
+  initialStep,
+}: FormProps) {
   // The draft stores no step index, so a returning parent resumes at the first
   // step that still lacks required data rather than tapping through from 1.
   const [startStep] = useState(
@@ -238,6 +255,7 @@ export default function PendaftaranClient({
         ayah: initParent(prefill.ayahData),
         ibu: initParent(prefill.ibuData),
         programId: prefill.programId ?? "",
+        programLocked: lockedProgram !== null,
         documents: prefill.documents ?? {},
         requiredDocuments,
         consent: initConsent(prefill.consentData),
@@ -278,7 +296,9 @@ export default function PendaftaranClient({
   const [sigSaving, setSigSaving] = useState({ ayah: false, ibu: false });
   // Owned here (not by the Berkas step) so an in-flight upload still shows as
   // busy if the parent steps away and comes back.
-  const docs = useDocumentUploads(token, prefill.documents ?? {});
+  const paymentRedirected = useRef(false);
+  const handlePaymentRequiredRef = useRef<() => void>(() => undefined);
+  const docs = useDocumentUploads(token, prefill.documents ?? {}, () => handlePaymentRequiredRef.current());
   // Keys the server rejected as missing count as required from then on, even
   // if the page was loaded before the school's list changed; otherwise Lanjut
   // would pass and the next submit would bounce again.
@@ -299,8 +319,8 @@ export default function PendaftaranClient({
     const cleanAddr = (a: AddressState) => ({ ...a });
     const cleanParent = (p: ParentState) => ({ ...p, address: cleanAddr(p.address) });
     return {
-      programId,
-      dcareAddon,
+      // Locked by the fee: the server keeps the stored choice, so the form does not send one.
+      ...(lockedProgram ? {} : { programId, dcareAddon }),
       studentData: {
         ...student,
         address: cleanAddr(student.address),
@@ -325,6 +345,20 @@ export default function PendaftaranClient({
     buildPayloadRef.current = buildPayload;
   });
 
+  // Pay-first: the server refused a write because the fee is still owed (rare: staff reopened an
+  // auto-waived fee). The server already holds the saved draft, so go to the payment screen; it hands
+  // back to the form once paid. Once only: several writes can be refused together.
+  useEffect(() => {
+    handlePaymentRequiredRef.current = () => {
+      if (paymentRedirected.current) return;
+      paymentRedirected.current = true;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      savePending.current = false;
+      navigate(`/pendaftaran/${encodeURIComponent(token)}/pembayaran`);
+    };
+  });
+
   const sendDraft = useCallback(
     (keepalive: boolean) => {
       savePending.current = false;
@@ -333,7 +367,11 @@ export default function PendaftaranClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayloadRef.current()),
         keepalive,
-      }).catch(() => undefined);
+      })
+        .then(async (res) => {
+          if ((await readConflict(res)) === "PAYMENT_REQUIRED") handlePaymentRequiredRef.current();
+        })
+        .catch(() => undefined);
     },
     [token],
   );
@@ -386,7 +424,7 @@ export default function PendaftaranClient({
     }
     if (s === 1 && !isWaived(consent.onlyParent, "ayah") && !ayah.name.trim()) e.push("Nama ayah wajib diisi.");
     if (s === 2 && !isWaived(consent.onlyParent, "ibu") && !ibu.name.trim()) e.push("Nama ibu wajib diisi.");
-    if (s === 3 && !programId) e.push("Program wajib dipilih.");
+    if (s === 3 && !lockedProgram && !programId) e.push("Program wajib dipilih.");
     // Step 4 (Berkas): only the school-configured required list blocks; the
     // rest stays optional.
     if (s === 4) e.push(...documentErrors(missingUploads(documents, required)));
@@ -478,6 +516,10 @@ export default function PendaftaranClient({
         body: fd,
       });
       if (!res.ok) {
+        if ((await readConflict(res)) === "PAYMENT_REQUIRED") {
+          handlePaymentRequiredRef.current();
+          return;
+        }
         setGlobalError("Gagal menyimpan tanda tangan. Mohon coba lagi.");
         return;
       }
@@ -553,9 +595,15 @@ export default function PendaftaranClient({
       if (res.status === 201) {
         // The submit succeeded whatever the body says; a missing or odd `fee`
         // just means no payment step is shown (the thank-you card still is).
-        const created = (await res.json().catch(() => null)) as { fee?: { baseAmount?: unknown; amount?: unknown } | null } | null;
+        const created = (await res.json().catch(() => null)) as {
+          fee?: { baseAmount?: unknown; amount?: unknown } | null;
+          feeStatus?: unknown;
+        } | null;
+        // Paid first (or waived): nothing is due, so no payment step. A formulir from before
+        // pay-first answers with the fee it priced instead and keeps the pay-after-submit step.
+        const settled = created?.feeStatus === "PAID" || created?.feeStatus === "WAIVED";
         const amount = Number(created?.fee?.amount);
-        if (created?.fee && Number.isFinite(amount) && amount > 0) {
+        if (!settled && created?.fee && Number.isFinite(amount) && amount > 0) {
           const base = Number(created.fee.baseAmount);
           setFee({
             amount,
@@ -594,6 +642,11 @@ export default function PendaftaranClient({
         return;
       }
       if (res.status === 409) {
+        if ((await readConflict(res)) === "PAYMENT_REQUIRED") {
+          // Nothing was sent; the edits are parked and the parent is taken to pay.
+          handlePaymentRequiredRef.current();
+          return;
+        }
         setGlobalError("Formulir ini sudah diterima sebelumnya.");
         return;
       }
@@ -680,7 +733,8 @@ export default function PendaftaranClient({
             onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
           />
         )}
-        {step === 3 && (
+        {step === 3 && lockedProgram && <LockedProgramStep locked={lockedProgram} />}
+        {step === 3 && !lockedProgram && (
           <ProgramStep
             programs={programs}
             programId={programId}
@@ -710,7 +764,7 @@ export default function PendaftaranClient({
             onRevealed={() => setConsentSeen(true)}
           />
         )}
-        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} />}
+        {step === 6 && <ReviewStep student={student} ayah={ayah} ibu={ibu} programs={programs} programId={programId} dcareAddon={dcareAddon} consent={consent} documents={documents} uploading={uploadsInFlight} signatureSaving={signatureSavingNow} locked={lockedProgram} />}
         </StepTransition>
       </div>
 
@@ -1120,6 +1174,20 @@ function ParentStep({
   );
 }
 
+/** Pay-first: the fee was priced for these, so they are read-only here (staff change them in "Ubah data"). */
+function LockedProgramStep({ locked }: { locked: LockedProgram }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-foreground">Pilihan Program</h2>
+      <div>
+        <Row label="Program" value={locked.programName ?? "—"} />
+        <Row label="Day Care" value={locked.dcareAddon ? "Ya" : "Tidak"} />
+      </div>
+      <p className="text-sm text-muted-foreground">Dipilih saat formulir dikirim.</p>
+    </div>
+  );
+}
+
 function ProgramStep({
   programs, programId, dcareAddon, onProgram, onDcare,
 }: {
@@ -1350,12 +1418,13 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewStep({
-  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading, signatureSaving,
+  student, ayah, ibu, programs, programId, dcareAddon, consent, documents, uploading, signatureSaving, locked,
 }: {
   student: StudentState; ayah: ParentState; ibu: ParentState; programs: Program[];
   programId: string; dcareAddon: boolean; consent: ConsentState; documents: PublicDocuments; uploading: number; signatureSaving: boolean;
+  locked: LockedProgram | null;
 }) {
-  const programName = programs.find((p) => p.id === programId)?.name ?? "—";
+  const programName = locked ? (locked.programName ?? "—") : (programs.find((p) => p.id === programId)?.name ?? "—");
   const fee = computeEnrollmentFee({
     programs: programs.map((p) => ({ id: p.id, code: p.code ?? "", enrollmentFee: p.enrollmentFee ?? 0 })),
     programId,
@@ -1387,9 +1456,19 @@ function ReviewStep({
       <section>
         <h3 className="mb-1 text-sm font-semibold text-foreground">Program</h3>
         <Row label="Program" value={programName} />
-        <Row label="Dcare" value={dcareAddon ? "Ya" : ""} />
+        <Row label="Day Care" value={(locked ? locked.dcareAddon : dcareAddon) ? "Ya" : ""} />
       </section>
-      {fee.amount > 0 && (
+      {/* Pay-first: the fee is already settled (or waived), so there is no price to show or pay. */}
+      {locked && (
+        <section aria-label="Biaya pendaftaran">
+          <h3 className="mb-1 text-sm font-semibold text-foreground">Biaya pendaftaran</h3>
+          <Row
+            label="Biaya formulir"
+            value={locked.feeStatus === "PAID" ? "Lunas" : locked.feeStatus === "WAIVED" ? "Dibebaskan" : "Belum dibayar"}
+          />
+        </section>
+      )}
+      {!locked && fee.amount > 0 && (
         <section aria-label="Biaya pendaftaran">
           <h3 className="mb-1 text-sm font-semibold text-foreground">Biaya pendaftaran</h3>
           <Row label={programName} value={formatRupiah(fee.programFee)} />

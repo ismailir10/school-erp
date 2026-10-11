@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { schoolContactPhone } from "@/lib/contact";
 import { getPublicFeeView } from "@/lib/enrollment/fee-view";
+import { getPaymentGateView, type PaymentGateView } from "@/lib/enrollment/payment-gate";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { isTokenShape } from "@/lib/enrollment/token";
 import { prisma } from "@/lib/db";
 import { reconcileEnrollmentFee } from "@/lib/payments/reconcile";
+import { SchoolHero } from "@/components/brand/school-photos";
 import { MessageCard } from "../message-card";
+import { PayFirstScreen } from "../pay-first-screen";
 import { PaymentPanel, type PaymentPanelMode } from "../payment-panel";
 import { Shell } from "../shell";
 
@@ -25,6 +29,12 @@ const POLL_INTERVAL_MS = 15_000;
  * the hint is only used to pick the words — whether the fee is paid is decided
  * by the stored state, after asking the gateway (throttled), because nothing on
  * a return URL proves anything and notifications are not reliable.
+ *
+ * Pay-first: this page is also THE "Bayar dulu" screen. While a formulir that was
+ * not yet filled still owes its fee the form link lands here (`PAYMENT_REQUIRED`);
+ * once the fee is settled this page hands the parent back to the form. It only
+ * ever redirects to the form when the form is open, and the form only redirects
+ * here while it is closed, so the two cannot bounce.
  */
 export default async function PembayaranPage({
   params,
@@ -38,7 +48,7 @@ export default async function PembayaranPage({
   const contactPhone = schoolContactPhone();
 
   if (!isTokenShape(token)) return <NotFound phone={contactPhone} />;
-  const { access, application } = await resolveEnrollmentToken(token, new Date());
+  const { access, application, tenantId } = await resolveEnrollmentToken(token, new Date());
 
   if (access === "NOT_FOUND" || !application) return <NotFound phone={contactPhone} />;
   // The form was never sent, so there is nothing to pay: back to the form.
@@ -53,6 +63,11 @@ export default async function PembayaranPage({
         />
       </Shell>
     );
+  }
+
+  if (access === "PAYMENT_REQUIRED") {
+    if (!tenantId) return <NotFound phone={contactPhone} />;
+    return payFirst({ token, hint, applicationId: application.id, tenantId, phone: contactPhone });
   }
 
   let fee = await getPublicFeeView(application.id);
@@ -99,7 +114,7 @@ export default async function PembayaranPage({
             childName={application.childName}
             fee={fee}
             mode={mode}
-            closed={application.status === "REJECTED"}
+            closed={isFeeClosed(application)}
           />
         </div>
         <p className="mt-5 text-sm text-muted-foreground">
@@ -111,6 +126,77 @@ export default async function PembayaranPage({
           </a>
         </p>
       </div>
+    </Shell>
+  );
+}
+
+/** Opens the form's way once the fee is settled; otherwise the pay-first screen, or a dead end when staff closed it. */
+async function payFirst({
+  token,
+  hint,
+  applicationId,
+  tenantId,
+  phone,
+}: {
+  token: string;
+  hint: string | undefined;
+  applicationId: string;
+  tenantId: string;
+  phone: string | null;
+}) {
+  const unavailable = (
+    <Shell>
+      <MessageCard
+        title="Halaman pembayaran belum bisa dibuka"
+        body="Mohon coba muat ulang beberapa saat lagi. Jika masih sama, hubungi tim penerimaan An Nisaa' Sekolahku."
+        phone={phone}
+      />
+    </Shell>
+  );
+
+  let gate: PaymentGateView | null;
+  try {
+    gate = await getPaymentGateView(applicationId, tenantId);
+    // Ask the gateway before rendering (same rules as below), so a parent who has
+    // just paid goes straight to the form even if no notification arrived. A closed
+    // registration is not collected any more, so it is not polled.
+    if (gate && !gate.closed && gate.fee.status === "UNPAID" && gate.fee.started) {
+      try {
+        const feeId = await feeIdFor(applicationId);
+        if (feeId) await reconcileEnrollmentFee(feeId, { minIntervalMs: POLL_INTERVAL_MS });
+        gate = (await getPaymentGateView(applicationId, tenantId)) ?? gate;
+      } catch (err) {
+        console.error("[pendaftaran/pembayaran] reconcile failed", err);
+      }
+    }
+  } catch (err) {
+    console.error("[pendaftaran/pembayaran] gate lookup failed", err);
+    return unavailable;
+  }
+  // No fee row after all: show a notice, never redirect — the form link would send
+  // the parent straight back here if the fee reappeared in between.
+  if (!gate) return unavailable;
+
+  // Settled: the form is open now.
+  if (!gate.closed && gate.fee.status !== "UNPAID") redirect(`/pendaftaran/${encodeURIComponent(token)}`);
+
+  if (gate.closed) {
+    return (
+      <Shell>
+        <MessageCard
+          title="Mohon maaf, Bapak/Ibu"
+          body="Maaf, Bapak/Ibu, pembayaran untuk formulir ini sudah ditutup. Silakan hubungi tim penerimaan."
+          phone={phone}
+        />
+      </Shell>
+    );
+  }
+
+  const mode: PaymentPanelMode = hint === "cancel" ? "cancelled" : gate.fee.started ? "pending" : "start";
+  return (
+    <Shell>
+      <SchoolHero variant="slim" />
+      <PayFirstScreen token={token} gate={gate} mode={mode} phone={phone} />
     </Shell>
   );
 }

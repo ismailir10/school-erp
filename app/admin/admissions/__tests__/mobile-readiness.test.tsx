@@ -1,20 +1,20 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdmissionsPage from "@/app/admin/admissions/page";
 import { ClassesClient } from "@/app/admin/classes/client";
+import { navStore } from "./helpers";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin/admissions" }));
+vi.mock("next/navigation", async () => (await import("./helpers")).navigationMock());
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const year = { id: "audit-year", name: "2026/2027", status: "ACTIVE", startDate: "2026-07-01", endDate: "2027-06-30" };
 const admission = {
   id: "audit-admission", childName: "AUDIT admission", parentName: "AUDIT guardian", status: "INQUIRY",
   childAge: null, dateOfBirth: null, childGender: null, parentPhone: null, parentWhatsapp: null,
-  parentEmail: null, parentEducation: null, parentOccupation: null, parentIncome: null,
-  parentRelationship: null, programId: null, campusPreference: null, source: "WALK_IN", notes: null,
-  followUpDate: null, studentId: null, createdAt: "2026-10-10", program: null,
-  detectedParentId: null, detectedParent: null,
+  parentEmail: null, parentRelationship: null, programId: null, source: "WALK_IN", notes: null,
+  studentId: null, createdAt: "2026-10-10", program: null, detectedParent: null,
+  stage: "BARU", payment: "NONE", application: null,
 };
 const klass = {
   id: "audit-class", name: "AUDIT class", capacity: 20, slotTemplate: "FULL_DAY", ageGroup: "A",
@@ -27,13 +27,15 @@ const response = (data: unknown, ok = true) => ({ ok, status: ok ? 200 : 503, js
 const modules = [
   { name: "admissions", render: () => render(<AdmissionsPage />), row: admission, rowName: admission.childName,
     endpoint: "/api/admissions", query: "search", search: "Cari nama anak atau orang tua...",
-    empty: "Tidak ada pendaftaran", error: "Gagal memuat data pendaftaran. Coba lagi.",
-    trigger: "Catat Pertanyaan", dialog: "Catat Pertanyaan Baru", field: /^Nama Anak\*?$/, edit: "Ubah", editDialog: "Edit Pendaftaran" },
+    empty: "Belum ada calon siswa. Catat pertanyaan pertama.", error: "Gagal memuat data pendaftaran. Coba lagi.",
+    trigger: "Catat Pertanyaan", dialog: "Catat Pertanyaan Baru", field: /^Nama orang tua\*?$/, edit: "Ubah data pertanyaan", editDialog: "Ubah data pertanyaan" },
   { name: "classes", render: () => render(<ClassesClient canWrite={true} />), row: klass, rowName: klass.name,
     endpoint: "/api/admin/classes", query: "q", search: "Cari nama kelas...",
     empty: "Belum ada kelas", error: "Gagal memuat daftar kelas. Coba lagi.",
     trigger: "Tambah Kelas", dialog: "Tambah Kelas", field: /^Nama kelas\*?$/, edit: "Ubah", editDialog: "Ubah Kelas" },
 ];
+
+beforeEach(() => navStore.reset());
 
 for (const m of modules) {
   const payload = (rows: unknown[]) => ({ data: rows, canEdit: true, pagination: { page: 1, pageSize: 20, total: rows.length, totalPages: rows.length ? 1 : 0 } });

@@ -199,6 +199,33 @@ export const submitEnrollmentSchema = z.preprocess(
     }),
 );
 
+/**
+ * Staff-edit variants (admin "Ubah data"). Derived from the SAME field schemas as
+ * the parent submit, so a value is format-checked identically (phone regex, email,
+ * YYYY-MM-DD, option sets, max lengths) — but every field is optional: staff may
+ * save a half-filled form, and completeness is the parent's submit gate, not
+ * theirs. A blank value is handled by the caller (it means "clear this field")
+ * before these run. Unknown keys are stripped by zod's default object mode.
+ */
+export const staffStudentSchema = studentSchema.partial();
+export const staffParentSchema = parentSchema.partial();
+
+/**
+ * Staff may only choose who fills the form. `agreed`, `version` and every
+ * signature field are evidence the parent writes — they are not editable here
+ * and are stripped from anything staff send.
+ */
+export const staffConsentSchema = z.object({ onlyParent: onlyParentSchema });
+
+/** The fields (top level, and inside `address`) a staff edit may touch. */
+export const STAFF_EDITABLE_KEYS = {
+  studentData: Object.keys(staffStudentSchema.shape),
+  ayahData: Object.keys(staffParentSchema.shape),
+  ibuData: Object.keys(staffParentSchema.shape),
+  consentData: Object.keys(staffConsentSchema.shape),
+  address: Object.keys(addressSchema.unwrap().shape),
+} as const;
+
 export type SubmitEnrollmentInput = z.infer<typeof submitEnrollmentSchema>;
 
 /**

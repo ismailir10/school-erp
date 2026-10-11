@@ -91,6 +91,24 @@ describe("GET /api/enrollments/[id]/fee/reminder", () => {
     expect(await res.text()).not.toContain("SECRET-TOKEN");
   });
 
+  it("pay-first: a formulir still INVITED with an unpaid fee is reminded; the link is the form link that opens the payment screen", async () => {
+    appFindFirst.mockResolvedValue(app({ status: "INVITED", childName: "" }));
+    const res = await get();
+    expect(res.status).toBe(302);
+    const text = decodeURIComponent(res.headers.get("location")!.split("?text=")[1]);
+    expect(text).toContain("https://talib.example/pendaftaran/SECRET-TOKEN");
+    expect(text).toContain("Rp 240.000");
+    expect(text).not.toMatch(/ananda\s{2,}/);
+  });
+
+  it("409 for a lead that was cancelled: its pay link is closed too", async () => {
+    appFindFirst.mockResolvedValue(app({ status: "INVITED", admission: { status: "CANCELLED", parentName: "Siti", parentPhone: null, parentWhatsapp: "0812-3456-7890" } }));
+    const res = await get();
+    expect(res.status).toBe(409);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.text()).not.toContain("SECRET-TOKEN");
+  });
+
   it("422 when there is no number WhatsApp can open, and no redirect", async () => {
     appFindFirst.mockResolvedValue(app({ admission: { parentName: "Siti", parentPhone: "123", parentWhatsapp: null } }));
     const res = await get();

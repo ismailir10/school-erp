@@ -225,7 +225,7 @@ describe("describeAuditEntry — pairs the app actually writes", () => {
     ["Employee", "restore", "Pak Budi", null, "mengaktifkan kembali karyawan Pak Budi", "/admin/employees"],
     ["LeaveRequest", "approve", "Bu Sari", null, "menyetujui cuti Bu Sari", "/admin/leave-requests"],
     ["LeaveRequest", "reject", "Bu Sari", null, "menolak cuti Bu Sari", "/admin/leave-requests"],
-    ["EnrollmentApplication", "convert", "Aisyah", null, "mengonversi formulir pendaftaran Aisyah menjadi siswa", "/admin/enrollments"],
+    ["EnrollmentApplication", "convert", "Aisyah", null, "mengonversi formulir pendaftaran Aisyah menjadi siswa", "/admin/admissions?tahap=SISWA"],
     ["Admission", "convert", "Aisyah", null, "mengonversi pendaftaran Aisyah menjadi siswa", "/admin/admissions"],
     ["Student", "withdraw", "Aisyah", null, "mencatat Aisyah keluar dari sekolah", "/admin/students"],
     ["Student", "graduate", "Aisyah", null, "meluluskan Aisyah", "/admin/students"],
@@ -339,7 +339,7 @@ describe("getRecentActivity — real audit rows", () => {
 
     const events = await getRecentActivity("tenant-1");
     expect(events.map((e) => [e.verb, e.target, e.href])).toEqual([
-      ["mengonversi formulir pendaftaran Aisyah Putri menjadi siswa", "Aisyah Putri", "/admin/enrollments"],
+      ["mengonversi formulir pendaftaran Aisyah Putri menjadi siswa", "Aisyah Putri", "/admin/admissions?tahap=SISWA"],
       ["mengonversi pendaftaran Zahra menjadi siswa", "Zahra", "/admin/admissions"],
       ["menyetujui cuti Bu Rina", "Bu Rina", "/admin/leave-requests"],
       ["menolak cuti Pak Budi", "Pak Budi", "/admin/leave-requests"],

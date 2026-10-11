@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess } from "@/lib/enrollment/resolve-token";
+import { denyTokenAccess } from "@/lib/enrollment/access-response";
 import { mergeJsonKey, removeJsonFields } from "@/lib/enrollment/json-merge";
 import {
   MAX_DOCUMENT_BYTES,
@@ -36,10 +37,8 @@ async function gate(
 
   const { token } = await params;
   const { access, id } = await resolveEnrollmentAccess(token, new Date());
-  if (access === "NOT_FOUND") return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
-  if (access === "EXPIRED") return { error: NextResponse.json({ error: "EXPIRED" }, { status: 410 }) };
-  if (access === "SUBMITTED")
-    return { error: NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 }) };
+  const denied = denyTokenAccess(access);
+  if (denied) return { error: denied };
   if (!id) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
 
   const key = req.nextUrl.searchParams.get("key");
