@@ -12,8 +12,9 @@ import { escapeHtml } from "../escape";
  * docs/runbooks/supabase-email-templates.md).
  *
  * `childName` / `parentName` are DB-sourced → HTML-escaped. `formUrl` is
- * server-built from NEXT_PUBLIC_APP_URL + the access token (server-issued, not
- * DB-sourced); it carries the secret token so it must never be logged.
+ * server-built from the request origin + the access token (server-issued, not
+ * DB-sourced); it carries the secret token so it must never be logged. Both
+ * URLs are still escaped, since they land in attribute and text positions.
  */
 
 export type EnrollmentInviteEmailParams = {
@@ -29,8 +30,12 @@ export function enrollmentInviteEmailHtml({
   formUrl,
   appUrl,
 }: EnrollmentInviteEmailParams): string {
-  const safeChild = escapeHtml(childName);
+  // A lead may have no child name yet (child fields are optional).
+  const safeChild = escapeHtml(childName.trim());
+  const childPhrase = safeChild ? `ananda <strong>${safeChild}</strong>` : "putra/putri Bapak/Ibu";
   const safeParent = escapeHtml(parentName);
+  const safeFormUrl = escapeHtml(formUrl);
+  const safeAppUrl = escapeHtml(appUrl);
   return `
 <!DOCTYPE html>
 <html lang="id">
@@ -41,7 +46,7 @@ export function enrollmentInviteEmailHtml({
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="background-color:#FFFFFF;border-radius:12px 12px 0 0;border:1px solid #E5E2DE;border-bottom:3px solid #5DB4B8;">
         <tr>
           <td align="center" bgcolor="#FFFFFF" style="padding:24px 28px;background-color:#FFFFFF;">
-            <img src="${appUrl}/logo.png" alt="Talib — An Nisaa' Sekolahku" width="48" height="48" style="display:block;border-radius:12px;margin:0 auto 8px auto;" />
+            <img src="${safeAppUrl}/logo.png" alt="Talib — An Nisaa' Sekolahku" width="48" height="48" style="display:block;border-radius:12px;margin:0 auto 8px auto;" />
             <h1 style="margin:0;color:#1A2E2F;font-size:20px;font-weight:700;letter-spacing:-0.01em;">Talib</h1>
             <p style="margin:2px 0 0 0;color:#57534E;font-size:12px;">by An Nisaa' Sekolahku</p>
           </td>
@@ -57,7 +62,7 @@ export function enrollmentInviteEmailHtml({
             </p>
 
             <p style="margin:0 0 20px 0;color:#57534E;font-size:14px;line-height:1.6;">
-              Bapak/Ibu <strong>${safeParent}</strong>, alhamdulillah ananda <strong>${safeChild}</strong> melanjutkan proses pendaftaran di An Nisaa' Sekolahku. Mohon melengkapi formulir penerimaan murid baru melalui tautan di bawah ini.
+              Bapak/Ibu <strong>${safeParent}</strong>, alhamdulillah ${childPhrase} melanjutkan proses pendaftaran di An Nisaa' Sekolahku. Mohon melengkapi formulir penerimaan murid baru melalui tautan di bawah ini.
             </p>
 
             <p style="margin:0 0 24px 0;color:#57534E;font-size:14px;line-height:1.6;">
@@ -67,7 +72,7 @@ export function enrollmentInviteEmailHtml({
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;">
               <tr>
                 <td bgcolor="#0C5C3F" style="border-radius:8px;background-color:#0C5C3F;">
-                  <a href="${formUrl}" style="display:inline-block;padding:12px 24px;color:#FFFFFF;font-size:14px;font-weight:600;text-decoration:none;">
+                  <a href="${safeFormUrl}" style="display:inline-block;padding:12px 24px;color:#FFFFFF;font-size:14px;font-weight:600;text-decoration:none;">
                     Lengkapi Formulir Pendaftaran
                   </a>
                 </td>
@@ -75,7 +80,7 @@ export function enrollmentInviteEmailHtml({
             </table>
 
             <p style="margin:0 0 24px 0;color:#6B6B7A;font-size:12px;line-height:1.5;word-break:break-all;">
-              Jika tombol tidak berfungsi, salin tautan ini ke peramban:<br>${formUrl}
+              Jika tombol tidak berfungsi, salin tautan ini ke peramban:<br>${safeFormUrl}
             </p>
 
             <p style="margin:0 0 4px 0;color:#1A2E2F;font-size:14px;">Wassalamu'alaikum warahmatullahi wabarakatuh,</p>

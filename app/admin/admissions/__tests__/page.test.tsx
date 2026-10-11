@@ -421,3 +421,76 @@ describe("AdmissionsPage — possible duplicate on convert (R2-ADMIN-1)", () => 
     expect(convertPosts(fetchMock)).toHaveLength(1);
   });
 });
+
+describe("AdmissionsPage — Kirim Formulir result card", () => {
+  const invite = (body: Record<string, unknown>) => (url: string, init?: RequestInit) =>
+    url.endsWith("/api/enrollments/invite") && init?.method === "POST"
+      ? ({ ok: true, status: 200, json: async () => ({ id: "ea-1", sent: false, ...body }) } as Response)
+      : undefined;
+
+  async function clickKirimFormulir(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByText("Aisyah");
+    await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
+    await user.click(await screen.findByRole("menuitem", { name: "Kirim Formulir" }));
+  }
+
+  it("a walk-in with only a phone gets the card: link, WhatsApp and fill-together, no email wording", async () => {
+    serveRows(
+      [baseRow({ parentPhone: "0812-3456-7890" })],
+      invite({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: false, hasEmail: false }),
+    );
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await clickKirimFormulir(user);
+
+    const dialog = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(within(dialog).getByText("Tidak ada email — bagikan lewat WhatsApp")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Tautan formulir")).toHaveValue("https://talib.example/pendaftaran/tok-1");
+    expect(within(dialog).getByRole("link", { name: "Kirim lewat WhatsApp (tab baru)" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/6281234567890?text="),
+    );
+    expect(within(dialog).getByRole("link", { name: "Isi bersama orang tua (tab baru)" })).toHaveAttribute(
+      "href",
+      "https://talib.example/pendaftaran/tok-1",
+    );
+    const { toast } = await import("sonner");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("names the address when the email went out", async () => {
+    serveRows(
+      [baseRow({ parentEmail: "dewi@test.com", parentPhone: "0812-3456-7890" })],
+      invite({ formUrl: "https://talib.example/pendaftaran/tok-1", sent: true, emailed: true, hasEmail: true }),
+    );
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await clickKirimFormulir(user);
+    expect(await screen.findByText("Email terkirim ke dewi@test.com")).toBeInTheDocument();
+  });
+
+  it("an error from the server still shows as a toast, with no card", async () => {
+    serveRows([baseRow()], (url, init) =>
+      url.endsWith("/api/enrollments/invite") && init?.method === "POST"
+        ? ({ ok: false, status: 409, json: async () => ({ message: "Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang." }) } as Response)
+        : undefined,
+    );
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await clickKirimFormulir(user);
+    const { toast } = await import("sonner");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang."),
+    );
+    expect(screen.queryByRole("dialog", { name: "Formulir siap dikirim" })).not.toBeInTheDocument();
+  });
+
+  it("a cancelled lead is not offered a formulir", async () => {
+    serveRows([baseRow({ status: "CANCELLED" })]);
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await screen.findByText("Aisyah");
+    await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
+    expect(screen.queryByRole("menuitem", { name: "Kirim Formulir" })).not.toBeInTheDocument();
+  });
+});

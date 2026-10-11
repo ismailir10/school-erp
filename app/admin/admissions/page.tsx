@@ -33,6 +33,11 @@ import {
   AdmissionDuplicateDialog,
   type PossibleDuplicate,
 } from "@/components/admin/admissions/duplicate-dialog";
+import {
+  SendFormulirDialog,
+  type SendFormulirResult,
+} from "@/components/admin/admissions/send-formulir-dialog";
+import { resolveFollowUpPhone } from "@/lib/enrollment/follow-up";
 import { admissionChildLabel } from "@/lib/admission/child-label";
 import { NEXT_STATUS, ADMISSION_STATUS_LABELS } from "@/components/admin/admissions/constants";
 import type { Admission, Program } from "@/components/admin/admissions/types";
@@ -119,6 +124,8 @@ export default function AdmissionsPage() {
   // R2-ADMIN-1: convert answered 409 POSSIBLE_DUPLICATE — ask before adding a second record.
   const [duplicate, setDuplicate] = useState<PossibleDuplicate | null>(null);
   const [duplicatePending, setDuplicatePending] = useState(false);
+  // "Formulir siap dikirim" card: the lead the link was made for + the invite response.
+  const [formulirSent, setFormulirSent] = useState<{ admission: Admission; result: SendFormulirResult } | null>(null);
   const admissionFormId = useId();
   const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
   const dirty = form.formState.isDirty;
@@ -283,9 +290,9 @@ export default function AdmissionsPage() {
     }
   }, [runConvert]);
 
-  // Cycle A: "Kirim Formulir" — invite the parent to complete the rich
-  // enrollment application. Creates/refreshes the EnrollmentApplication +
-  // emails the tokenized link. 422 NO_EMAIL when the inquiry lacks an email;
+  // "Kirim Formulir" — creates/refreshes the EnrollmentApplication and emails the
+  // tokenized link when the lead has an email. No email is fine (walk-ins): the
+  // result card hands staff the link to share, copy or fill together.
   // 409 when the form is already filled/processed.
   const sendEnrollmentForm = useCallback(async (a: Admission) => {
     const res = await fetch("/api/enrollments/invite", {
@@ -294,18 +301,15 @@ export default function AdmissionsPage() {
       body: JSON.stringify({ admissionId: a.id }),
     });
     if (res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { sent?: boolean; formUrl?: string };
-      toast.success(
-        d.sent
-          ? "Formulir pendaftaran dikirim ke email orang tua"
-          : "Formulir disiapkan (email tidak terkirim — bagikan tautan manual)",
-        d.formUrl
-          ? {
-              description: "Salin tautan untuk dibagikan via WhatsApp",
-              action: { label: "Salin tautan", onClick: () => void navigator.clipboard?.writeText(d.formUrl!) },
-            }
-          : undefined,
-      );
+      const d = (await res.json().catch(() => ({}))) as Partial<SendFormulirResult>;
+      if (d.formUrl) {
+        setFormulirSent({
+          admission: a,
+          result: { formUrl: d.formUrl, emailed: !!d.emailed, hasEmail: !!d.hasEmail },
+        });
+      } else {
+        toast.error("Formulir disiapkan, tetapi tautannya tidak terbaca. Muat ulang lalu coba lagi.");
+      }
       return;
     }
     const d = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
@@ -547,6 +551,15 @@ export default function AdmissionsPage() {
         pending={duplicatePending}
         onClose={() => setDuplicate(null)}
         onConfirm={(dup) => void confirmDuplicateConvert(dup)}
+      />
+
+      <SendFormulirDialog
+        result={formulirSent?.result ?? null}
+        email={formulirSent?.admission.parentEmail}
+        parentName={formulirSent?.admission.parentName ?? ""}
+        childName={formulirSent?.admission.childName}
+        phone={formulirSent ? resolveFollowUpPhone({ admission: formulirSent.admission }) : null}
+        onClose={() => setFormulirSent(null)}
       />
     </>
   );

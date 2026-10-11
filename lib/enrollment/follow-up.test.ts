@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { canRemind, feeReminderText, feeReminderWaUrl, parentFormUrl, resolveFollowUpPhone } from "./follow-up";
+import {
+  canRemind,
+  feeReminderText,
+  feeReminderWaUrl,
+  inviteText,
+  inviteWaUrl,
+  parentFormUrl,
+  resolveFollowUpPhone,
+} from "./follow-up";
 
 describe("resolveFollowUpPhone", () => {
   it("prefers the inquiry's WhatsApp number", () => {
@@ -94,5 +102,57 @@ describe("parentFormUrl", () => {
   it("joins origin and token, tolerating a trailing slash and encoding the token", () => {
     expect(parentFormUrl("https://talib.example/", "abc_DEF-123")).toBe("https://talib.example/pendaftaran/abc_DEF-123");
     expect(parentFormUrl("https://talib.example", "a/b c")).toBe("https://talib.example/pendaftaran/a%2Fb%20c");
+  });
+});
+
+describe("inviteText", () => {
+  const base = { parentName: "Siti", childName: "Aisyah", formUrl: "https://talib.example/pendaftaran/tok" };
+
+  it("greets the parent, names the child and carries the link", () => {
+    const t = inviteText(base);
+    expect(t).toContain("Assalamu'alaikum Bapak/Ibu Siti");
+    expect(t).toContain("formulir pendaftaran ananda Aisyah");
+    expect(t).toContain("https://talib.example/pendaftaran/tok");
+  });
+
+  it("speaks of the formulir in general when the child is not named yet", () => {
+    expect(inviteText({ ...base, childName: "" })).toContain("tautan formulir pendaftaran: https://");
+    expect(inviteText({ ...base, childName: undefined })).not.toContain("ananda");
+  });
+
+  it("still greets politely without a parent name and names the school only when given", () => {
+    expect(inviteText({ ...base, parentName: " " })).toContain("Assalamu'alaikum Bapak/Ibu.");
+    expect(inviteText({ ...base, schoolName: "Taman Aster" })).toContain("Kami dari Taman Aster.");
+    expect(inviteText(base)).not.toContain("Kami dari");
+  });
+});
+
+describe("inviteWaUrl", () => {
+  const base = { parentName: "Siti", childName: "Aisyah", formUrl: "https://talib.example/pendaftaran/tok" };
+
+  it("opens WhatsApp on the normalised number with the message URL-encoded", () => {
+    const url = inviteWaUrl({ ...base, phone: "0812-3456-7890" })!;
+    expect(url.startsWith("https://wa.me/6281234567890?text=")).toBe(true);
+    const text = decodeURIComponent(url.split("?text=")[1]);
+    expect(text).toBe(
+      [
+        "Assalamu'alaikum Bapak/Ibu Siti.",
+        "Berikut tautan formulir pendaftaran ananda Aisyah: https://talib.example/pendaftaran/tok",
+        "Mohon dilengkapi dengan teliti. Jika ada yang kurang jelas, silakan balas pesan ini. Jazakumullah khairan.",
+      ].join("\n\n"),
+    );
+    // the link survives encoding intact, so the tap opens the right page
+    expect(url).toContain(encodeURIComponent(base.formUrl));
+  });
+
+  it("accepts an already international number", () => {
+    expect(inviteWaUrl({ ...base, phone: "+62 812 3456 7890" })!.startsWith("https://wa.me/628123456789")).toBe(true);
+  });
+
+  it("is null when there is no number WhatsApp can open", () => {
+    expect(inviteWaUrl({ ...base, phone: null })).toBeNull();
+    expect(inviteWaUrl({ ...base, phone: "" })).toBeNull();
+    expect(inviteWaUrl({ ...base, phone: "123" })).toBeNull();
+    expect(inviteWaUrl({ ...base, phone: "-" })).toBeNull();
   });
 });

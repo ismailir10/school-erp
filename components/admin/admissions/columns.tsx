@@ -203,11 +203,14 @@ export function createAdmissionColumns({
             onClick: () => onConvertToStudent(a),
           });
         }
-        extras.push({
-          label: "Kirim Formulir",
-          icon: <Send size={14} />,
-          onClick: () => onSendEnrollmentForm(a),
-        });
+        // No email needed (walk-ins get a link to share); a cancelled lead gets no formulir.
+        if (!TERMINAL_STATUSES.has(a.status)) {
+          extras.push({
+            label: "Kirim Formulir",
+            icon: <Send size={14} />,
+            onClick: () => onSendEnrollmentForm(a),
+          });
+        }
         return (
           <DataTableRowActions
             onEdit={() => onEdit(a)}
