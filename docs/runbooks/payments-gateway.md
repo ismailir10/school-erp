@@ -36,7 +36,7 @@ Hourly would be better, but **Vercel's Hobby plan allows one cron per day, max t
 
 ## The pendaftaran (registration) fee rides the same gateway
 
-A parent pays the pendaftaran fee after submitting the form (`/pendaftaran/[token]`). It is **not** an `Invoice`: it is one `EnrollmentFee` row per application, priced and snapshotted at submit from `Program.enrollmentFee` (Pengaturan → Pengaturan Pendaftaran; 0 = no payment step; a school child with the Day Care add-on pays both fees). The gateway `referenceId` is the **fee's id**; the shared processor (`processPaymentEvent`) looks for an Invoice with that id first and falls back to the fee, so the same webhook URL, the same signature check and the same dedup serve both.
+A parent pays the pendaftaran fee **before** filling the form: until it is PAID or WAIVED the token pages lead to `/pendaftaran/[token]/pembayaran` and every parent-side write is refused (`PAYMENT_REQUIRED`). Forms sent before pay-first have no fee row yet and keep the old order (fill, then pay at submit). The fee is **not** an `Invoice`: it is one `EnrollmentFee` row per application, created and priced when staff press Kirim Formulir (re-priced while UNPAID if staff change program or Day Care; at submit for pre-pay-first forms) from `Program.enrollmentFee` (Pengaturan → Pengaturan Pendaftaran; 0 = no payment step; a school child with the Day Care add-on pays both fees). The gateway `referenceId` is the **fee's id**; the shared processor (`processPaymentEvent`) looks for an Invoice with that id first and falls back to the fee, so the same webhook URL, the same signature check and the same dedup serve both.
 
 What differs from an invoice:
 

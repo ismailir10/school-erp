@@ -61,7 +61,7 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 **Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `p-page-x` / `py-page-y` from the spacing scale).
 
-**Sibling list pages sharing one nav entry** (e.g. Pendaftaran → `/admin/admissions` and `/admin/enrollments`) use `AdminLinkTabs` (`components/admin/admin-tabs.tsx`), a link-based tab strip: plain `<Link>`s styled like `AdminTabsTrigger`, active state derived from `usePathname()` and marked `aria-current="page"`. Reach for it when the tabs are separate routes, not panels within one page — `AdminTabs` covers the latter.
+**One nav entry, one list.** Pendaftaran is a single list at `/admin/admissions` (the old `/admin/enrollments` list was folded into it and redirects there); a stage-driven entity shows a derived **Tahap** column and filter instead of a second tab. Use `AdminTabs` for panels within one page.
 
 ## Recipe 2 — Admin Detail
 
@@ -208,7 +208,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 
 ## Recipe 5 — Workflow Queue
 
-**When:** approval list where the row action IS the domain work (LeaveRequest approve/reject, AdmissionConversion, refund approval).
+**When:** approval list where the row action IS the domain work (LeaveRequest approve/reject, refund approval).
 
 **Layout skeleton:** same as Admin List (Recipe 1) but with:
 - `DataTableRowActions` using `extraActions` for "Setujui" / "Tolak" (see `ui.md` — domain-specific actions exception).

@@ -31,12 +31,15 @@ Copy `.env.example` to `.env`. Names only below — values live in Vercel and in
 | `DOKU_CHECKOUT_VERSION` (`v1` \| `v2`; unset → `v1`) | — | `v1`² | `v1`² |
 | `NEXT_PUBLIC_APP_URL` | — | preview origin³ | production origin³ |
 | `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
+| `SCHOOL_CONTACT_PHONE` (optional; omit → screens show a generic next step) | — | school number⁴ | school number⁴ |
 
 ¹ **`DIRECT_URL` is mandatory on Vercel.** The build runs `prisma migrate deploy`, which needs port 5432 — the 6543 pooler is PgBouncer transaction mode and does not support advisory locks.
 
 ² Stays `v1` until a DOKU notification is observed arriving — see [`payments-gateway.md`](payments-gateway.md).
 
 ³ **Per-environment, throws if missing.** It is the origin for payment-gateway return URLs when there is no request scope (reseed, cron). There is deliberately no silent production fallback.
+
+⁴ **Public school number, not a secret.** Read server-side by `lib/contact.ts` (`schoolContactPhone()`); shown to parents on the pendaftaran pay screen, the message card and the parent portal (invoice sheet, profile) as a WhatsApp/tel contact. Tenant and campus carry no phone column, so this env var is the single source.
 
 ## Related runbooks
 

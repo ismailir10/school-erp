@@ -97,7 +97,19 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Ketuk (tap an on-screen control) | Tap ("Tap Masuk" shipped on the session roster for a year — the rest of the app has always said Ketuk) |
 | Bu Guru / Pak Guru | Ustadz / Ustadzah (not used at this school, even though it is an Islamic school; the teachers are *Bu Guru*, and *Pak Guru* is the male form should one join) |
 | Catatan (data row, log entry, journal note) | Record |
-| Pertanyaan (admission lifecycle: first contact) | Inquiry (StatusBadge already maps `INQUIRY → "Pertanyaan"` — keep button labels consistent) |
+| Pertanyaan (admission lifecycle: first contact; the thing staff *catat* — button "Catat Pertanyaan", dashboard tile "Pertanyaan pendaftaran baru") | Inquiry (the lead's stage chip itself reads **Baru**, see the Tahap rows below) |
+| Tahap (the derived stage column and filter on the Pendaftaran list) | Status, Stage (the lead only stores Baru / Batal; Tahap is read from the lead, its formulir and the student link, never clicked) |
+| Baru (Tahap: a lead with no formulir sent yet) | Pertanyaan as a stage chip, Inquiry, Kunjungan dijadwalkan, Sudah berkunjung (the visit steps are retired) |
+| Formulir dikirim (Tahap: the link is out, the parent has not submitted) | Undangan terkirim, Invited |
+| Formulir masuk (Tahap: the parent, or staff on their behalf, submitted the formulir) | Sedang ditinjau, Dalam tinjauan, Under review (there is no review step to click) |
+| Diterima (Tahap: accepted, student not created yet — normally brief, convert accepts and creates in one step) | Admitted, Disetujui |
+| Siswa (Tahap: converted, the student exists; row action "Lihat siswa") | Terdaftar, Registered, Enrolled |
+| Menunggu pembayaran (the Pendaftaran stat card and a fee that is sent but not settled; the filter beside it reads "Belum bayar") | Tertunda, Pending |
+| Tandai lunas (staff settle the formulir fee in cash or transfer; asks once more because it cannot be undone) | Bayar manual, Mark paid |
+| Bebaskan biaya (staff waive the formulir fee; the parent's payment screen then opens the form) | Gratiskan, Hapus biaya |
+| Ubah data (staff edit any field of a formulir before the student exists) | Edit formulir, Koreksi (Edit stays the generic word for ordinary forms) |
+| Tandai formulir masuk (staff submit on the parent's behalf; consent is noted as "disetujui langsung di sekolah", never a drawn signature) | Submit atas nama, Paksa kirim |
+| Terima & Jadikan Siswa (the one convert action: accept the formulir and create the student and wali links, one confirm) | Konversi ke Siswa, Mulai Tinjau + Terima + Konversi (the three old clicks) |
 | Perencanaan (academic-year status pre-launch) | Planning |
 | Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
 | Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |

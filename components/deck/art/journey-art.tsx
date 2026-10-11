@@ -1,11 +1,11 @@
 import { Art, Avatar, Bar, Card, INK, Label } from "./kit";
 
-/** Slide 3 — enquiry → emailed link → seven-step form → student. Numbers match the list beside it. */
+/** Slide 3 — catat pertanyaan → Kirim Formulir (pay first) → formulir masuk → student. Numbers match the list beside it. */
 const NODES = [
-  { cx: 84, cy: 296, title: "Pertanyaan", sub: "halaman pendaftaran" },
-  { cx: 214, cy: 148, title: "Undangan", sub: "tautan email, 14 hari" },
-  { cx: 346, cy: 296, title: "Formulir", sub: "7 langkah, tanda tangan" },
-  { cx: 478, cy: 148, title: "Siswa", sub: "data siswa dan wali" },
+  { cx: 84, cy: 296, title: "Pertanyaan", sub: "dicatat admin" },
+  { cx: 214, cy: 148, title: "Kirim Formulir", sub: "program, biaya, bayar dulu" },
+  { cx: 346, cy: 296, title: "Formulir masuk", sub: "7 langkah, tanda tangan" },
+  { cx: 478, cy: 148, title: "Siswa", sub: "Terima & Jadikan Siswa" },
 ] as const;
 
 const GLYPH: Record<number, React.ReactNode> = {
