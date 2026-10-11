@@ -6,8 +6,8 @@
  * which sub-view they're in and jump to the other. This guards that the
  * strip renders on the admissions page with "Calon Siswa" marked current.
  *
- * Companion coverage for the conversion-eligibility logic lives in
- * `page.test.ts` (node env, no DOM) — unchanged by this cycle.
+ * Converting a family to a student lives on the formulir detail page
+ * (`app/admin/enrollments/[id]`); the list has no convert action.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
@@ -170,7 +170,7 @@ describe("AdmissionsPage — Catat Pertanyaan dialog (RHF)", () => {
       parentName: "Ibu Fatimah", parentPhone: "081234567890", parentWhatsapp: null, parentEmail: "fatimah@example.com",
       parentRelationship: null, programId: null, source: "WALK_IN", notes: null,
       studentId: null, createdAt: "2026-10-01T00:00:00.000Z", program: null,
-      detectedParentId: null, detectedParent: null,
+      detectedParent: null,
     };
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -215,7 +215,7 @@ describe("AdmissionsPage — Terima confirm", () => {
     parentEducation: null, parentOccupation: null, parentIncome: null, parentRelationship: null,
     programId: null, campusPreference: null, source: "WHATSAPP", notes: null, followUpDate: null,
     studentId: null, createdAt: "2026-10-01T00:00:00.000Z", program: null,
-    detectedParentId: null, detectedParent: null,
+    detectedParent: null,
   });
 
   function serve(status: string) {
@@ -281,7 +281,7 @@ const baseRow = (over: Record<string, unknown> = {}) => ({
   parentEducation: null, parentOccupation: null, parentIncome: null, parentRelationship: null,
   programId: null, campusPreference: null, source: "WHATSAPP", notes: null, followUpDate: null,
   studentId: null, createdAt: "2026-10-01T00:00:00.000Z", program: null,
-  detectedParentId: null, detectedParent: null,
+  detectedParent: null,
   ...over,
 });
 
@@ -347,78 +347,17 @@ describe("AdmissionsPage — list contact + status naming (R2-ADMIN-14, 16)", ()
   });
 });
 
-describe("AdmissionsPage — possible duplicate on convert (R2-ADMIN-1)", () => {
-  const dupResponse = () =>
-    ({
-      ok: false,
-      status: 409,
-      json: async () => ({
-        error: "POSSIBLE_DUPLICATE",
-        code: "POSSIBLE_DUPLICATE",
-        existingStudents: [{ id: "stu-old", name: "Aisyah Putri Ramadhani", status: "ACTIVE" }],
-        existingParent: { id: "par-old", name: "Dewi Sartika Ramadhani" },
-      }),
-    }) as Response;
-
-  async function clickConvert(user: ReturnType<typeof userEvent.setup>) {
+describe("AdmissionsPage — no inquiry-row convert", () => {
+  // Converting is the formulir's job now (POST /api/enrollments/[id]/convert, from the detail page).
+  it.each(["INQUIRY", "ADMITTED"])("a %s row's menu has no 'Konversi ke Siswa'", async (status) => {
+    const fetchMock = serveRows([baseRow({ status })]);
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
     await screen.findByText("Aisyah");
     await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
-    await user.click(await screen.findByRole("menuitem", { name: "Konversi ke Siswa" }));
-  }
-  const convertPosts = (f: ReturnType<typeof serveRows>) =>
-    f.mock.calls.filter(([u, init]) => String(u).endsWith("/convert") && init?.method === "POST");
-
-  it("shows the existing student + wali with Lihat links, and re-sends with confirmDuplicate on 'Tetap konversi'", async () => {
-    let first = true;
-    const fetchMock = serveRows([baseRow({ status: "ADMITTED" })], (url, init) => {
-      if (url.endsWith("/convert") && init?.method === "POST") {
-        if (first) {
-          first = false;
-          return dupResponse();
-        }
-        return { ok: true, status: 200, json: async () => ({ student: { id: "stu-new" } }) } as Response;
-      }
-      return undefined;
-    });
-    const user = userEvent.setup();
-    render(<AdmissionsPage />);
-    await clickConvert(user);
-
-    const dialog = await screen.findByRole("dialog", { name: "Kemungkinan sudah terdaftar" });
-    expect(within(dialog).getByText(/Kemungkinan siswa\/wali ini sudah terdaftar/)).toBeInTheDocument();
-    expect(within(dialog).getByText("Aisyah Putri Ramadhani")).toBeInTheDocument();
-    expect(within(dialog).getByText("Dewi Sartika Ramadhani")).toBeInTheDocument();
-    expect(within(dialog).getByRole("link", { name: "Lihat Aisyah Putri Ramadhani" })).toHaveAttribute(
-      "href",
-      "/admin/students/stu-old",
-    );
-    expect(within(dialog).getByRole("link", { name: "Lihat Dewi Sartika Ramadhani" })).toHaveAttribute(
-      "href",
-      "/admin/guardians/par-old",
-    );
-    expect(JSON.parse(convertPosts(fetchMock)[0][1]!.body as string)).toEqual({ mergeWithDetected: true });
-
-    await user.click(within(dialog).getByRole("button", { name: "Tetap konversi" }));
-    await waitFor(() => expect(convertPosts(fetchMock)).toHaveLength(2));
-    expect(JSON.parse(convertPosts(fetchMock)[1][1]!.body as string)).toEqual({
-      mergeWithDetected: true,
-      confirmDuplicate: true,
-    });
-    const { toast } = await import("sonner");
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Dikonversi menjadi siswa"));
-  });
-
-  it("'Batal' leaves it unconverted (no second request)", async () => {
-    const fetchMock = serveRows([baseRow({ status: "ADMITTED" })], (url, init) =>
-      url.endsWith("/convert") && init?.method === "POST" ? dupResponse() : undefined,
-    );
-    const user = userEvent.setup();
-    render(<AdmissionsPage />);
-    await clickConvert(user);
-    const dialog = await screen.findByRole("dialog", { name: "Kemungkinan sudah terdaftar" });
-    await user.click(within(dialog).getByRole("button", { name: "Batal" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(convertPosts(fetchMock)).toHaveLength(1);
+    await screen.findByRole("menuitem", { name: "Kirim Formulir" });
+    expect(screen.queryByRole("menuitem", { name: "Konversi ke Siswa" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/api/admissions/") && String(u).endsWith("/convert"))).toBe(false);
   });
 });
 

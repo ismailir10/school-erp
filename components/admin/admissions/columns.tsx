@@ -3,11 +3,10 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { UserPlus, ArrowRight, Send, Users2 } from "lucide-react";
+import { ArrowRight, Send, Users2 } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { formatAgeFromDob } from "@/lib/admission/age";
 import { admissionChildLabel } from "@/lib/admission/child-label";
-import { canConvertAdmissionToStudent } from "@/app/admin/admissions/conversion";
 import { SOURCE_LABELS, NEXT_STATUS, TERMINAL_STATUSES } from "./constants";
 import type { Admission } from "./types";
 
@@ -26,7 +25,6 @@ export type AdmissionColumnHandlers = {
   onEdit: (a: Admission) => void;
   onCancelRequest: (a: Admission) => void;
   onAdvanceStatus: (a: Admission) => void;
-  onConvertToStudent: (a: Admission) => void;
   onSendEnrollmentForm: (a: Admission) => void;
 };
 
@@ -46,7 +44,6 @@ export function createAdmissionColumns({
   onEdit,
   onCancelRequest,
   onAdvanceStatus,
-  onConvertToStudent,
   onSendEnrollmentForm,
 }: AdmissionColumnHandlers): ColumnDef<Admission>[] {
   return [
@@ -194,13 +191,6 @@ export function createAdmissionColumns({
             label: next.label,
             icon: <ArrowRight size={14} />,
             onClick: () => onAdvanceStatus(a),
-          });
-        }
-        if (canConvertAdmissionToStudent(a.status)) {
-          extras.push({
-            label: "Konversi ke Siswa",
-            icon: <UserPlus size={14} />,
-            onClick: () => onConvertToStudent(a),
           });
         }
         // No email needed (walk-ins get a link to share); a cancelled lead gets no formulir.

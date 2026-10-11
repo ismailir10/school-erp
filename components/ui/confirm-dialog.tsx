@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ export function ConfirmDialog({
   onConfirm,
   destructive = false,
   loading = false,
+  focusCancel = false,
   children,
 }: {
   open: boolean;
@@ -44,6 +45,11 @@ export function ConfirmDialog({
   onConfirm: () => void | Promise<void>;
   destructive?: boolean;
   loading?: boolean;
+  /**
+   * Open with focus on the cancel button. Needed when `children` holds links or other tabbable
+   * content, which would otherwise take the first focus ahead of the safe choice.
+   */
+  focusCancel?: boolean;
   /** Optional body rendered between the description and the footer (e.g. a required Textarea). */
   children?: ReactNode;
 }) {
@@ -66,10 +72,11 @@ export function ConfirmDialog({
   }
 
   const busy = loading || isLoading;
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent {...(focusCancel ? { initialFocus: cancelRef } : {})}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description && (
@@ -78,7 +85,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel ref={cancelRef} disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}

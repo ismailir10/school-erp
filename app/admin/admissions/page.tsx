@@ -24,15 +24,7 @@ import {
   EMPTY_ADMISSION_FORM,
 } from "@/components/admin/admissions/admission-form-body";
 import { SiblingDetectBanner } from "@/components/admin/admissions/sibling-detect-banner";
-import {
-  AdmissionConvertDialog,
-  type EmailConflict,
-} from "@/components/admin/admissions/convert-dialog";
 import { createAdmissionColumns } from "@/components/admin/admissions/columns";
-import {
-  AdmissionDuplicateDialog,
-  type PossibleDuplicate,
-} from "@/components/admin/admissions/duplicate-dialog";
 import {
   SendFormulirDialog,
   type SendFormulirResult,
@@ -68,7 +60,7 @@ function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onD
 
 // ------------------------------------------------------------------
 // Page (owns list state, fetching, stats, dialogs' open state + handlers;
-// columns + form body + convert dialog live in components/admin/admissions/*)
+// columns + form body live in components/admin/admissions/*)
 // ------------------------------------------------------------------
 
 export default function AdmissionsPage() {
@@ -118,12 +110,6 @@ export default function AdmissionsPage() {
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
   // "Terima" (→ ADMITTED) is the one pipeline step that commits the family; confirm it.
   const [admitTarget, setAdmitTarget] = useState<Admission | null>(null);
-  // T10: convert-confirm + email-conflict UI state.
-  const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
-  const [emailConflict, setEmailConflict] = useState<EmailConflict | null>(null);
-  // R2-ADMIN-1: convert answered 409 POSSIBLE_DUPLICATE — ask before adding a second record.
-  const [duplicate, setDuplicate] = useState<PossibleDuplicate | null>(null);
-  const [duplicatePending, setDuplicatePending] = useState(false);
   // "Formulir siap dikirim" card: the lead the link was made for + the invite response.
   const [formulirSent, setFormulirSent] = useState<{ admission: Admission; result: SendFormulirResult } | null>(null);
   const admissionFormId = useId();
@@ -222,74 +208,6 @@ export default function AdmissionsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  // T10: when an admission has a sibling-detect match, intercept Convert with
-  // a confirmation dialog (state below). For admissions without detection the
-  // direct path runs unchanged. The runConvert helper does the actual POST so
-  // both call sites + the dialog confirm action route through one place.
-  const runConvert = useCallback(async (
-    admissionId: string,
-    mergeWithDetected: boolean,
-    confirmDuplicate = false,
-    childName = "",
-  ) => {
-    const res = await fetch(`/api/admissions/${admissionId}/convert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mergeWithDetected, ...(confirmDuplicate ? { confirmDuplicate: true } : {}) }),
-    });
-    if (res.ok) {
-      toast.success(
-        mergeWithDetected ? "Dikonversi menjadi siswa" : "Dikonversi tanpa menggabungkan",
-      );
-      setConvertTarget(null);
-      setEmailConflict(null);
-      setDuplicate(null);
-      fetchAdmissions();
-      fetchStats();
-      return;
-    }
-    if (res.status === 409) {
-      const d = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        conflictingParentName?: string;
-        message?: string;
-        existingStudents?: PossibleDuplicate["existingStudents"];
-        existingParent?: PossibleDuplicate["existingParent"];
-      };
-      if (d.error === "POSSIBLE_DUPLICATE") {
-        setConvertTarget(null);
-        setDuplicate({
-          admissionId,
-          childName,
-          mergeWithDetected,
-          existingStudents: d.existingStudents ?? [],
-          existingParent: d.existingParent ?? null,
-        });
-        return;
-      }
-      if (d.error === "EMAIL_CONFLICT") {
-        setEmailConflict({
-          message:
-            d.message ??
-            "Email orang tua sudah terdaftar. Pilih Gabungkan atau hapus email pendaftaran.",
-          conflictingParentName: d.conflictingParentName ?? null,
-        });
-        return;
-      }
-    }
-    const d = await res.json().catch(() => ({}));
-    toast.error(d.error || "Gagal mengonversi pendaftaran. Coba lagi.");
-  }, [fetchAdmissions, fetchStats]);
-
-  const confirmDuplicateConvert = useCallback(async (dup: PossibleDuplicate) => {
-    setDuplicatePending(true);
-    try {
-      await runConvert(dup.admissionId, dup.mergeWithDetected, true, dup.childName);
-    } finally {
-      setDuplicatePending(false);
-    }
-  }, [runConvert]);
-
   // "Kirim Formulir" — creates/refreshes the EnrollmentApplication and emails the
   // tokenized link when the lead has an email. No email is fine (walk-ins): the
   // result card hands staff the link to share, copy or fill together.
@@ -315,16 +233,6 @@ export default function AdmissionsPage() {
     const d = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     toast.error(d.message || d.error || "Gagal mengirim formulir");
   }, []);
-
-  const convertToStudent = useCallback((a: Admission) => {
-    if (a.detectedParentId) {
-      setConvertTarget(a);
-      setEmailConflict(null);
-      return;
-    }
-    // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
-    void runConvert(a.id, true, false, admissionChildLabel(a.childName));
-  }, [runConvert]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     if (discardOpen) return;
@@ -416,10 +324,9 @@ export default function AdmissionsPage() {
         onEdit: handleEditRow,
         onCancelRequest: handleCancelRequest,
         onAdvanceStatus: requestAdvance,
-        onConvertToStudent: convertToStudent,
         onSendEnrollmentForm: sendEnrollmentForm,
       }),
-    [canEdit, handleEditRow, handleCancelRequest, requestAdvance, convertToStudent, sendEnrollmentForm],
+    [canEdit, handleEditRow, handleCancelRequest, requestAdvance, sendEnrollmentForm],
   );
 
   return (
@@ -532,25 +439,6 @@ export default function AdmissionsPage() {
         onConfirm={async () => {
           if (admitTarget) await advanceStatus(admitTarget);
         }}
-      />
-
-      <AdmissionConvertDialog
-        convertTarget={convertTarget}
-        emailConflict={emailConflict}
-        onClose={() => {
-          setConvertTarget(null);
-          setEmailConflict(null);
-        }}
-        onConvert={(admissionId, mergeWithDetected) =>
-          void runConvert(admissionId, mergeWithDetected, false, admissionChildLabel(convertTarget?.childName))
-        }
-      />
-
-      <AdmissionDuplicateDialog
-        duplicate={duplicate}
-        pending={duplicatePending}
-        onClose={() => setDuplicate(null)}
-        onConfirm={(dup) => void confirmDuplicateConvert(dup)}
       />
 
       <SendFormulirDialog

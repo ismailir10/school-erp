@@ -14,7 +14,7 @@ const admission = {
   parentEmail: null, parentEducation: null, parentOccupation: null, parentIncome: null,
   parentRelationship: null, programId: null, campusPreference: null, source: "WALK_IN", notes: null,
   followUpDate: null, studentId: null, createdAt: "2026-10-10", program: null,
-  detectedParentId: null, detectedParent: null,
+  detectedParent: null,
 };
 const klass = {
   id: "audit-class", name: "AUDIT class", capacity: 20, slotTemplate: "FULL_DAY", ageGroup: "A",

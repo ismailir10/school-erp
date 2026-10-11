@@ -27,7 +27,6 @@ export type Admission = {
   studentId: string | null;
   createdAt: string;
   program: { name: string } | null;
-  detectedParentId: string | null;
   detectedParent: {
     id: string;
     name: string;

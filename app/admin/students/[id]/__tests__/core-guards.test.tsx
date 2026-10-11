@@ -11,7 +11,7 @@
  *
  * Stubs mirror lifecycle-and-forms.test.tsx (ResizeObserver, class picker).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -273,6 +273,53 @@ describe("ADM-1 — header actions follow the student's status", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Daftarkan ke Kelas" });
     expect(await within(dialog).findByText(message)).toBeInTheDocument();
+  });
+});
+
+describe("Deep link from the pendaftaran convert toast (?aksi=daftarkan-kelas)", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("opens Daftarkan ke Kelas for an ACTIVE student, then drops the param so a refresh does not reopen it", async () => {
+    window.history.replaceState(null, "", "/admin/students/s1?aksi=daftarkan-kelas");
+    vi.stubGlobal(
+      "fetch",
+      stubFetch(makeStudent({ enrollments: [] }), (url) =>
+        url.includes("/api/class-sections") ? ({ ok: true, json: async () => [] } as Response) : undefined,
+      ),
+    );
+    render(<StudentDetailPage />);
+
+    expect(await screen.findByRole("dialog", { name: "Daftarkan ke Kelas" })).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("does not open for a student who cannot be enrolled", async () => {
+    window.history.replaceState(null, "", "/admin/students/s1?aksi=daftarkan-kelas");
+    vi.stubGlobal("fetch", stubFetch(makeStudent({ status: "WITHDRAWN", enrollments: [] })));
+    render(<StudentDetailPage />);
+
+    await screen.findByRole("button", { name: "Aktifkan kembali" });
+    expect(screen.queryByRole("dialog", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
+    expect(window.location.search).toBe("");
+  });
+
+  it("is a silent no-op for staff who cannot edit, and still removes the param", async () => {
+    window.history.replaceState(null, "", "/admin/students/s1?aksi=daftarkan-kelas");
+    vi.stubGlobal("fetch", stubFetch(makeStudent({ canEdit: false, enrollments: [] })));
+    render(<StudentDetailPage />);
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
+
+  it("without the param the dialog stays closed", async () => {
+    vi.stubGlobal("fetch", stubFetch(makeStudent({ enrollments: [] })));
+    render(<StudentDetailPage />);
+    await screen.findByRole("button", { name: "Daftarkan ke Kelas" });
+    expect(screen.queryByRole("dialog", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
   });
 });
 
