@@ -47,6 +47,17 @@ describe("AdmissionsPage — one list", () => {
     expect(screen.queryByText("Total Calon")).not.toBeInTheDocument();
   });
 
+  it("shows the formulir's program, not the lead's unset one, once a formulir exists", async () => {
+    serveList([
+      leadRow({ program: null, stage: "FORMULIR_DIKIRIM", application: formulir({ programName: "Day Care" }) }),
+      leadRow({ id: "a2", childName: "Bima", program: null }),
+    ]);
+    render(<AdmissionsPage />);
+    await screen.findByText("Aisyah");
+    expect(screen.getByText("Day Care")).toBeInTheDocument();
+    expect(screen.getAllByText("Belum dipilih")).toHaveLength(1);
+  });
+
   it("shows a dash instead of a count until the stats are here", async () => {
     serveList([leadRow()], { stats: null });
     render(<AdmissionsPage />);

@@ -75,7 +75,7 @@ function IdentityCell({ admission: a, canEdit, onEdit }: { admission: Admission;
         {name}
         {age && <span className="text-xs text-muted-foreground">{age}</span>}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground break-words">
         {a.parentName}
         {/* A WhatsApp-only lead still shows a way to reach the family. */}
         {contact}
@@ -102,7 +102,7 @@ export function createAdmissionColumns({ canEdit, onEdit, onCancelRequest, onSen
       meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.program?.name ?? <span className="text-muted-foreground italic">Belum dipilih</span>}
+          {row.original.application?.programName ?? row.original.program?.name ?? <span className="text-muted-foreground italic">Belum dipilih</span>}
         </span>
       ),
     },

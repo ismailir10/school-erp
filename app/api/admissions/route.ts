@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
               id: true,
               status: true,
               programId: true,
+              program: { select: { name: true } },
               dcareAddon: true,
               studentId: true,
               submittedAt: true,
@@ -150,6 +151,8 @@ export async function GET(req: NextRequest) {
           id: app.id,
           status: app.status,
           programId: app.programId,
+          // The formulir's program is the one that counts once a formulir exists (the lead's own may be unset).
+          programName: app.program?.name ?? null,
           dcareAddon: app.dcareAddon,
           studentId: app.studentId,
           submittedAt: app.submittedAt,

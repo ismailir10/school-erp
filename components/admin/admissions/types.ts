@@ -25,6 +25,7 @@ export type AdmissionApplication = {
   id: string;
   status: string;
   programId: string | null;
+  programName: string | null;
   dcareAddon: boolean;
   studentId: string | null;
   submittedAt: string | null;
