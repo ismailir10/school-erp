@@ -72,7 +72,9 @@ export const createAdmissionSchema = admissionFieldsSchema.refine(hasAdmissionCo
 // Built from the un-refined object: a partial body (status change, one field)
 // must not need a contact. The PUT route re-checks the MERGED row instead.
 export const updateAdmissionSchema = partialWithoutDefaults(admissionFieldsSchema).extend({
-  status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
+  // Only Baru / Batal are writable. VISIT_SCHEDULED, VISITED and ADMITTED are retired: rows may still
+  // hold them (read as Baru, see lib/admission/stage) but nothing can set them any more.
+  status: z.enum(["INQUIRY", "CANCELLED"]).optional(),
 });
 
 // ── Public inquiry: phone messages (R2-P-13) ─────────────────────────────────

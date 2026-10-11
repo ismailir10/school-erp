@@ -9,14 +9,36 @@ import { hasPermission } from "@/lib/permissions";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { recordAudit } from "@/lib/audit";
 import { programInTenant, PROGRAM_NOT_FOUND } from "@/lib/admission/program-scope";
+import { deriveStage, isStage, stageWhere, UNPAID_WHERE, MENUNGGU_BAYAR_WHERE } from "@/lib/admission/stage";
+import { canRemind } from "@/lib/enrollment/follow-up";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
+const EMPTY_STATS = { total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 };
+
+/**
+ * GET /api/admissions — the unified Pendaftaran list (cycle 2026-10-11-pendaftaran-simplify).
+ *
+ * One row per lead. Each carries its derived `stage` (lib/admission/stage), the formulir
+ * fee's `payment` (UNPAID | PAID | WAIVED | NONE) and a lean `application` (no token, no
+ * payment URL, no form blocks). `?tahap=<STAGE>` and `?payment=unpaid` filter in the
+ * database so pagination stays right. `stats` counts the caller's whole tenant (search and
+ * filters do not touch it) so the page needs no extra requests. The retired `?status=`
+ * param is ignored.
+ */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   // HR-16: anonymous callers get a real 401, not an empty 200.
   if (!session?.tenantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
-    return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
+    return NextResponse.json({
+      data: [],
+      pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+      stats: EMPTY_STATS,
+    });
   }
+  const tenantId = session.tenantId;
+  const canEdit = hasPermission(session, "admissions.edit");
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
@@ -27,46 +49,126 @@ export async function GET(req: NextRequest) {
   });
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
-  const status = searchParams.get("status");
+  const tahapParam = searchParams.get("tahap");
+  const tahap = isStage(tahapParam) ? tahapParam : null;
+  const unpaidOnly = searchParams.get("payment") === "unpaid";
   const search = escapeLike(cleanSearch(searchParams.get("search")));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: any = { tenantId: session.tenantId };
-  if (status && status !== "all") where.status = status;
+  const and: Prisma.AdmissionWhereInput[] = [];
+  if (tahap) and.push(stageWhere(tahap));
+  if (unpaidOnly) and.push(UNPAID_WHERE);
   if (search) {
-    where.OR = [
-      { childName: { contains: search, mode: "insensitive" } },
-      { parentName: { contains: search, mode: "insensitive" } },
-      { parentPhone: { contains: search, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { childName: { contains: search, mode: "insensitive" } },
+        { parentName: { contains: search, mode: "insensitive" } },
+        { parentPhone: { contains: search, mode: "insensitive" } },
+      ],
+    });
   }
+  const where: Prisma.AdmissionWhereInput = { tenantId, ...(and.length ? { AND: and } : {}) };
+  const scoped = (w: Prisma.AdmissionWhereInput): Prisma.AdmissionWhereInput => ({ tenantId, AND: [w] });
 
-  const [admissions, total] = await Promise.all([
-    prisma.admission.findMany({
-      where,
-      skip,
-      take,
-      include: {
-        program: { select: { name: true } },
-        detectedParent: {
-          select: {
-            id: true,
-            name: true,
-            guardians: {
-              where: { status: "ACTIVE" },
-              select: { student: { select: { name: true } } },
+  // The stats total is the whole tenant; with no filter that is exactly `total`, so it is not counted twice.
+  const filtered = and.length > 0;
+
+  const [admissions, total, tenantTotal, baru, formulirDikirim, menungguBayar, formulirMasuk, diterima, siswa] =
+    await Promise.all([
+      prisma.admission.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          program: { select: { name: true } },
+          detectedParent: {
+            select: {
+              id: true,
+              name: true,
+              guardians: {
+                where: { status: "ACTIVE" },
+                select: { student: { select: { name: true } } },
+              },
+            },
+          },
+          enrollmentApplication: {
+            select: {
+              id: true,
+              status: true,
+              programId: true,
+              dcareAddon: true,
+              studentId: true,
+              submittedAt: true,
+              fee: { select: { status: true, amount: true } },
             },
           },
         },
-      },
-      orderBy,
-    }),
-    prisma.admission.count({ where }),
-  ]);
+        // `id` breaks ties so a page boundary can never repeat or skip a row that shares the sort value.
+        orderBy: [orderBy, { id: "asc" }],
+      }),
+      prisma.admission.count({ where }),
+      filtered ? prisma.admission.count({ where: { tenantId } }) : Promise.resolve(null),
+      prisma.admission.count({ where: scoped(stageWhere("BARU")) }),
+      prisma.admission.count({ where: scoped(stageWhere("FORMULIR_DIKIRIM")) }),
+      prisma.admission.count({ where: scoped(MENUNGGU_BAYAR_WHERE) }),
+      prisma.admission.count({ where: scoped(stageWhere("FORMULIR_MASUK")) }),
+      prisma.admission.count({ where: scoped(stageWhere("DITERIMA")) }),
+      prisma.admission.count({ where: scoped(stageWhere("SISWA")) }),
+    ]);
+
+  // Whether a WhatsApp reminder CAN be sent matters only for an open, unpaid fee and only to staff
+  // who can send one. The lead's own numbers answer it for nearly every row; the parents' form
+  // blocks (a phone written there is the fallback) are read ONLY for the few rows with no usable
+  // lead number, in one query, and never returned.
+  const needsFormPhone: string[] = [];
+  const remindable = (lead: (typeof admissions)[number], app: NonNullable<(typeof admissions)[number]["enrollmentApplication"]>) =>
+    canEdit && app.fee?.status === "UNPAID" && !isFeeClosed({ status: app.status, admission: lead });
+  for (const row of admissions) {
+    const app = row.enrollmentApplication;
+    if (app && remindable(row, app) && !canRemind({ admission: row })) needsFormPhone.push(app.id);
+  }
+  const formPhoneIds = new Set<string>();
+  if (needsFormPhone.length > 0) {
+    const blocks = await prisma.enrollmentApplication.findMany({
+      where: { id: { in: needsFormPhone }, tenantId },
+      select: { id: true, ayahData: true, ibuData: true },
+    });
+    for (const b of blocks) if (canRemind({ ayahData: b.ayahData, ibuData: b.ibuData })) formPhoneIds.add(b.id);
+  }
+
+  const data = admissions.map((row) => {
+    const { enrollmentApplication: app, ...lead } = row;
+    const fee = app?.fee ?? null;
+    // A dead row (rejected formulir, cancelled lead) has no open payment link: nothing to chase, so it
+    // never reads "Belum bayar". `application.fee.status` stays the raw value.
+    const closed = app ? isFeeClosed({ status: app.status, admission: lead }) : false;
+    const payment = fee && !(fee.status === "UNPAID" && closed) ? fee.status : "NONE";
+    // The application is picked field by field so nothing the query selects can leak through a spread.
+    const application = app
+      ? {
+          id: app.id,
+          status: app.status,
+          programId: app.programId,
+          dcareAddon: app.dcareAddon,
+          studentId: app.studentId,
+          submittedAt: app.submittedAt,
+          fee: fee
+            ? {
+                status: fee.status,
+                amount: Math.round(Number(fee.amount)),
+                // Same rule as /api/enrollments: any unpaid fee whose link is still open, a formulir
+                // that was only sent included (pay-first).
+                canRemind: remindable(row, app) && (canRemind({ admission: lead }) || formPhoneIds.has(app.id)),
+              }
+            : null,
+        }
+      : null;
+    return { ...lead, stage: deriveStage(lead, app), payment, application };
+  });
 
   return NextResponse.json({
-    ...paginatedResponse(admissions, total, page, pageSize),
-    canEdit: hasPermission(session, "admissions.edit"),
+    ...paginatedResponse(data, total, page, pageSize),
+    stats: { total: tenantTotal ?? total, baru, formulirDikirim, menungguBayar, formulirMasuk, diterima, siswa },
+    canEdit,
   });
 }
 

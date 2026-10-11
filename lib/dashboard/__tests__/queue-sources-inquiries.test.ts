@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({ prisma: db }));
 
 import { INQUIRY_WINDOW_DAYS, loadAdminQueueSources } from "../queue-sources";
 import { buildAdminWorkQueue } from "../admin-work-queue";
+import { stageWhere } from "@/lib/admission/stage";
 
 const NOW = new Date("2026-09-29T03:00:00.000Z");
 const admin = (permissions: string[]) => ({ role: "SCHOOL_ADMIN", tenantId: "t1", permissions });
@@ -26,7 +27,7 @@ beforeEach(() => {
 });
 
 describe("admin work queue: new admission inquiries (X-6)", () => {
-  it("queries only this tenant's un-followed-up, unconverted, recent inquiries", async () => {
+  it("queries only this tenant's recent leads in the Baru stage", async () => {
     db.admission.count.mockResolvedValue(2);
     db.admission.findMany.mockResolvedValue([
       { id: "a1", childName: "Zahra", parentName: "Ibu Nur", createdAt: new Date("2026-09-28T05:00:00.000Z") },
@@ -34,7 +35,9 @@ describe("admin work queue: new admission inquiries (X-6)", () => {
     const sources = await loadAdminQueueSources(admin(["admissions.view", "admissions.edit"]), { take: 5 });
 
     const where = db.admission.count.mock.calls[0][0].where;
-    expect(where).toMatchObject({ tenantId: "t1", status: "INQUIRY", studentId: null });
+    // Same definition of "not yet followed up" as the list's Baru stage (formulir sent, cancelled and
+    // converted leads drop off; legacy visit steps stay).
+    expect(where).toMatchObject({ tenantId: "t1", AND: [stageWhere("BARU")] });
     expect(where.createdAt.gte.toISOString()).toBe(
       new Date(NOW.getTime() - INQUIRY_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     );

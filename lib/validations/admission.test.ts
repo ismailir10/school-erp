@@ -150,10 +150,15 @@ describe("updateAdmissionSchema — partial + status enum", () => {
     if (result.success) expect(result.data.childGender).toBeUndefined();
   });
 
-  it("accepts a valid status transition target", () => {
-    const result = updateAdmissionSchema.safeParse({ status: "VISIT_SCHEDULED" });
+  it.each(["INQUIRY", "CANCELLED"])("accepts %s as a status", (status) => {
+    const result = updateAdmissionSchema.safeParse({ status });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.status).toBe("VISIT_SCHEDULED");
+    if (result.success) expect(result.data.status).toBe(status);
+  });
+
+  // The visit steps and ADMITTED are retired: rows may still hold them (read as Baru) but the API no longer accepts them.
+  it.each(["VISIT_SCHEDULED", "VISITED", "ADMITTED"])("rejects the retired status %s", (status) => {
+    expect(updateAdmissionSchema.safeParse({ status }).success).toBe(false);
   });
 
   it("does not demand a contact on a partial body (the route checks the merged row)", () => {

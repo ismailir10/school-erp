@@ -45,8 +45,8 @@ describe("partialWithoutDefaults", () => {
 
 describe("update schemas do not invent keys the client never sent", () => {
   it("updateAdmissionSchema: status-only body keeps source absent", () => {
-    const data = updateAdmissionSchema.parse({ status: "VISIT_SCHEDULED" });
-    expect(data).toEqual({ status: "VISIT_SCHEDULED" });
+    const data = updateAdmissionSchema.parse({ status: "CANCELLED" });
+    expect(data).toEqual({ status: "CANCELLED" });
     expect("source" in data).toBe(false);
   });
 

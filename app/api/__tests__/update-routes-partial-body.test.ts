@@ -63,7 +63,7 @@ beforeEach(() => {
 describe("PUT /api/admissions/[id]", () => {
   beforeEach(() => {
     db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
-      fn({ admission: db.admission, auditLog: { create: vi.fn() } }),
+      fn({ admission: db.admission, enrollmentFee: { updateMany: vi.fn(async () => ({ count: 0 })) }, auditLog: { create: vi.fn() } }),
     );
   });
 
@@ -79,9 +79,9 @@ describe("PUT /api/admissions/[id]", () => {
     db.admission.findFirst.mockResolvedValue(existing);
     db.admission.update.mockImplementation(async ({ data }) => ({ ...existing, ...data }));
 
-    const res = await admissionPut(put({ status: "VISIT_SCHEDULED" }), params);
+    const res = await admissionPut(put({ status: "CANCELLED" }), params);
     expect(res.status).toBe(200);
-    expect(db.admission.update.mock.calls[0][0].data).toEqual({ status: "VISIT_SCHEDULED" });
+    expect(db.admission.update.mock.calls[0][0].data).toEqual({ status: "CANCELLED" });
   });
 
   it("source is not client-writable: a source in the body is ignored and nothing is written", async () => {

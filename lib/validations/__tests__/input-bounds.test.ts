@@ -206,7 +206,7 @@ describe("admission schemas (STR-7)", () => {
   });
 
   it("update never invents keys the client did not send", () => {
-    const r = updateAdmissionSchema.safeParse({ status: "VISITED" });
+    const r = updateAdmissionSchema.safeParse({ status: "CANCELLED" });
     expect(r.success).toBe(true);
     if (r.success) expect("source" in r.data).toBe(false);
   });

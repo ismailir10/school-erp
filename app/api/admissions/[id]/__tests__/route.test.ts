@@ -33,6 +33,7 @@ type AdmissionRow = {
   notes: string | null;
   followUpDate: string | null;
   status: string;
+  studentId?: string | null;
 };
 
 const state = {
@@ -271,6 +272,80 @@ describe("PUT /api/admissions/[id] — the merged row keeps a contact", () => {
     state.admission = freshAdmission();
     expect((await PUT(putReq({ status: "CANCELLED" }) as never, { params })).status).toBe(200);
     expect((await PUT(putReq({ notes: "Telepon dulu" }) as never, { params })).status).toBe(200);
+  });
+});
+
+describe("PUT /api/admissions/[id] — status: only INQUIRY and CANCELLED, cancel from anywhere open", () => {
+  it.each(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED"])("cancels a lead stored as %s", async (status) => {
+    state.admission = freshAdmission({ status });
+    const res = await PUT(putReq({ status: "CANCELLED" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate).toEqual({ status: "CANCELLED" });
+  });
+
+  it.each(["VISIT_SCHEDULED", "VISITED", "ADMITTED", "UNDER_REVIEW", "BOGUS"])(
+    "rejects %s as a target status with a 400 and writes nothing",
+    async (status) => {
+      const res = await PUT(putReq({ status }) as never, { params });
+      expect(res.status).toBe(400);
+      expect(state.lastUpdate).toBeNull();
+    },
+  );
+
+  it("CANCELLED is terminal: it cannot go back to INQUIRY", async () => {
+    state.admission = freshAdmission({ status: "CANCELLED" });
+    const res = await PUT(putReq({ status: "INQUIRY" }) as never, { params });
+    expect(res.status).toBe(400);
+    expect(state.lastUpdate).toBeNull();
+  });
+
+  it.each(["VISIT_SCHEDULED", "VISITED", "ADMITTED"])(
+    "status INQUIRY on a legacy %s lead is a no-op 200: nothing written, the row can continue",
+    async (status) => {
+      state.admission = freshAdmission({ status });
+      const res = await PUT(putReq({ status: "INQUIRY" }) as never, { params });
+      expect(res.status).toBe(200);
+      expect(state.lastUpdate).toBeNull();
+      expect(audit.recordAudit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("status INQUIRY plus a real edit on a legacy lead writes the edit but leaves the stored status alone", async () => {
+    state.admission = freshAdmission({ status: "VISITED", parentPhone: "0811" });
+    const res = await PUT(putReq({ status: "INQUIRY", notes: "x" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate).toEqual({ notes: "x" });
+  });
+
+  it("cancelling a lead that already became a student is a 409 with a plain message and changes nothing", async () => {
+    state.admission = freshAdmission({ status: "ADMITTED", studentId: "s1", parentPhone: "0811" });
+    state.droppedLinkCount = 1;
+    const res = await PUT(putReq({ status: "CANCELLED" }) as never, { params });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Calon siswa ini sudah menjadi siswa, jadi tidak bisa dibatalkan.");
+    expect(state.lastUpdate).toBeNull();
+    expect(state.feeLinkDrops).toHaveLength(0);
+    expect(audit.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("a converted lead can still be edited", async () => {
+    state.admission = freshAdmission({ status: "ADMITTED", studentId: "s1", parentPhone: "0811" });
+    const res = await PUT(putReq({ notes: "catatan" }) as never, { params });
+    expect(res.status).toBe(200);
+  });
+
+  it("re-sending the current INQUIRY status is not a transition", async () => {
+    state.admission = freshAdmission({ status: "INQUIRY", parentPhone: "0811" });
+    const res = await PUT(putReq({ status: "INQUIRY", notes: "x" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate).toEqual({ notes: "x" });
+  });
+
+  it("editing a legacy lead (no status in the body) keeps working", async () => {
+    state.admission = freshAdmission({ status: "ADMITTED", parentPhone: "0811" });
+    const res = await PUT(putReq({ notes: "catatan" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastUpdate).toEqual({ notes: "catatan" });
   });
 });
 

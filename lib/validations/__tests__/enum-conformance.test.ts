@@ -127,6 +127,11 @@ type Row = {
   schema: z.ZodObject<z.ZodRawShape>;
   key: string;
   label: string;
+  /**
+   * Values the column may still HOLD (the Prisma comment keeps documenting them, no row is
+   * rewritten) but the API no longer accepts, so the Zod enum is the documented list without them.
+   */
+  retired?: string[];
 };
 
 const FIELDS: Row[] = [
@@ -139,7 +144,8 @@ const FIELDS: Row[] = [
   { model: "StudentGuardian", field: "relationship", schema: updateGuardianSchema, key: "relationship", label: "StudentGuardian.relationship / updateGuardianSchema" },
   { model: "StudentGuardian", field: "status", schema: toggleGuardianStatusSchema, key: "status", label: "StudentGuardian.status / toggleGuardianStatusSchema" },
   { model: "StudentEnrollment", field: "status", schema: updateEnrollmentSchema, key: "status", label: "StudentEnrollment.status / updateEnrollmentSchema" },
-  { model: "Admission", field: "status", schema: updateAdmissionSchema, key: "status", label: "Admission.status / updateAdmissionSchema" },
+  // Pendaftaran simplify (2026-10-11): the visit steps and ADMITTED are read as "Baru" but cannot be set any more.
+  { model: "Admission", field: "status", schema: updateAdmissionSchema, key: "status", label: "Admission.status / updateAdmissionSchema", retired: ["VISIT_SCHEDULED", "VISITED", "ADMITTED"] },
   { model: "Invoice", field: "status", schema: updateInvoiceSchema, key: "status", label: "Invoice.status / updateInvoiceSchema" },
   { model: "Payment", field: "method", schema: recordPaymentSchema, key: "method", label: "Payment.method / recordPaymentSchema" },
   { model: "StudentAttendance", field: "status", schema: updateStudentAttendanceSchema, key: "status", label: "StudentAttendance.status / updateStudentAttendanceSchema" },
@@ -149,7 +155,7 @@ const FIELDS: Row[] = [
 ];
 
 describe("Zod ↔ Prisma enum conformance", () => {
-  it.each(FIELDS)("$label", ({ model, field, schema, key }) => {
-    expect(zodEnumValues(schema, key)).toEqual(prismaDocumentedValues(model, field));
+  it.each(FIELDS)("$label", ({ model, field, schema, key, retired = [] }) => {
+    expect(zodEnumValues(schema, key)).toEqual(prismaDocumentedValues(model, field).filter((v) => !retired.includes(v)));
   });
 });

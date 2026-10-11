@@ -9,19 +9,15 @@ import { programInTenant, PROGRAM_NOT_FOUND } from "@/lib/admission/program-scop
 import { recordAudit } from "@/lib/audit";
 import { DROP_LINK } from "@/lib/enrollment/fee-snapshot";
 
-// Allowed status transitions for the Admission state machine.
-// Terminal state CANCELLED has no outgoing transitions. ADMITTED is terminal
-// in the next-action surface (no NEXT_STATUS entry) but retains the ADMITTED
-// → CANCELLED escape hatch; "converted vs not" is encoded by `studentId`
-// (cycle 2026-05-12 — REGISTERED state dropped, see docs/cycles/archive/2026-05-12-admission-lifecycle-simplification.md).
-// Kept in sync with the ⋮ menu on /admin/admissions.
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  INQUIRY: ["VISIT_SCHEDULED", "CANCELLED"],
-  VISIT_SCHEDULED: ["VISITED", "CANCELLED"],
-  VISITED: ["ADMITTED", "CANCELLED"],
-  ADMITTED: ["CANCELLED"],
-  CANCELLED: [],
-};
+// The status the API accepts is INQUIRY | CANCELLED (updateAdmissionSchema). Stage after
+// the lead (formulir sent, submitted, accepted, student) is derived, never set here
+// (lib/admission/stage). The only move is to cancel, from any state that is not already
+// cancelled — including rows still stored as VISIT_SCHEDULED / VISITED / ADMITTED, which are
+// READ as Baru and never rewritten. CANCELLED is terminal. Asking for INQUIRY on a lead that is
+// not cancelled is a no-op (handled in PUT); a converted lead cannot be cancelled (409).
+function canTransition(from: string, to: string): boolean {
+  return to === "CANCELLED" && from !== "CANCELLED";
+}
 
 /** Optional text/enum columns: a key present in the body is written; blank clears it to null. */
 const NULLABLE_FIELDS = [
@@ -82,17 +78,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // read from the raw body: a present key is written (blank clears it).
   const sent = (key: string) => Object.prototype.hasOwnProperty.call(raw as object, key);
 
-  if (body.status && body.status !== existing.status) {
-    const allowed = VALID_TRANSITIONS[existing.status] ?? [];
-    if (!allowed.includes(body.status)) {
-      console.error(
-        `[admin-admissions PUT] invalid transition id=${id} from=${existing.status} to=${body.status}`,
-      );
-      return NextResponse.json(
-        { error: `Invalid status transition from ${existing.status} to ${body.status}` },
-        { status: 400 },
-      );
-    }
+  // INQUIRY is "Baru". A lead that is not cancelled already reads as Baru (including rows still stored as
+  // VISIT_* / ADMITTED), so asking for it is a no-op, not an error: a legacy row can keep being edited.
+  const requestedStatus = body.status === "INQUIRY" && existing.status !== "CANCELLED" ? undefined : body.status;
+
+  if (requestedStatus && requestedStatus !== existing.status && !canTransition(existing.status, requestedStatus)) {
+    console.error(
+      `[admin-admissions PUT] invalid transition id=${id} from=${existing.status} to=${requestedStatus}`,
+    );
+    return NextResponse.json(
+      { error: `Invalid status transition from ${existing.status} to ${requestedStatus}` },
+      { status: 400 },
+    );
+  }
+  // A converted lead is a student now; cancelling it would only hide that behind a "Batal" status.
+  if (requestedStatus === "CANCELLED" && existing.status !== "CANCELLED" && existing.studentId) {
+    return NextResponse.json(
+      { error: "Calon siswa ini sudah menjadi siswa, jadi tidak bisa dibatalkan." },
+      { status: 409 },
+    );
   }
 
   const data: Record<string, string | null> = {};
@@ -125,7 +129,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return fieldError("programId", PROGRAM_NOT_FOUND);
   }
 
-  const statusChanged = body.status !== undefined && body.status !== existing.status;
+  const statusChanged = requestedStatus !== undefined && requestedStatus !== existing.status;
   const changedFields = Object.keys(data).filter(
     (k) => data[k] !== (existing as unknown as Record<string, string | null>)[k],
   );
@@ -135,12 +139,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Update + audit commit together (recordAudit re-throws inside a transaction).
   // The audit row names the fields that changed, never their values (PII).
-  const cancelling = statusChanged && body.status === "CANCELLED";
+  const cancelling = statusChanged && requestedStatus === "CANCELLED";
   let admission = await prisma.$transaction(async (tx) => {
     const updated = await tx.admission.update({
       // tenantId in the unique filter: a write can never land on another school's row.
       where: { id, tenantId },
-      data: { ...data, ...(body.status ? { status: body.status } : {}) },
+      data: { ...data, ...(statusChanged && requestedStatus ? { status: requestedStatus } : {}) },
     });
     // Pay-first: a cancelled lead's open payment link is no longer handed out. The
     // gateway session id stays, so reconcile can still see an order that was already
@@ -162,7 +166,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ...(statusChanged ? { before: { status: existing.status } } : {}),
         after: {
           changedFields,
-          ...(statusChanged ? { status: body.status } : {}),
+          ...(statusChanged ? { status: requestedStatus } : {}),
           ...(closedLinks && closedLinks.count > 0 ? { paymentLinkClosed: true } : {}),
         },
       },
