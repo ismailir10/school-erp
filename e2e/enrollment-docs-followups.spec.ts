@@ -212,6 +212,7 @@ test.describe("Enrollment documents follow-ups", () => {
       ip,
       child: CHILD_COPY,
       email: `e2e-salin-${STAMP}@example.com`,
+      programId,
     });
 
     // Unique parent emails/phones so convert creates NEW Parent rows instead of
@@ -262,9 +263,7 @@ test.describe("Enrollment documents follow-ups", () => {
     expect(row).toBeTruthy();
     const appId = row.id as string;
 
-    const accept = await admin.request.patch(`/api/enrollments/${appId}`, { data: { status: "ACCEPTED" } });
-    expect(accept.ok()).toBeTruthy();
-
+    // One convert: straight from the submitted formulir (it stores ACCEPTED itself).
     const convert = await admin.request.post(`/api/enrollments/${appId}/convert`);
     expect(convert.status()).toBe(200);
     const converted = await convert.json();

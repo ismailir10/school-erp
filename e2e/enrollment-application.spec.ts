@@ -1,12 +1,16 @@
 import { test, expect } from "@playwright/test";
-import { PNG_1X1, tinyPdf } from "./helpers/enrollment";
+import { PNG_1X1, firstProgramId, tinyPdf } from "./helpers/enrollment";
 
 /**
  * Cycle A — enrollment application end-to-end smoke.
  *
  * Walks the full funnel against the deployed build:
- *   admission inquiry → admin "Kirim Formulir" (invite + token) →
- *   tokenized public submit → admin accept → convert → student exists.
+ *   admission inquiry → admin "Kirim Formulir" (invite + token, program chosen) →
+ *   tokenized public submit → admin "Terima & Jadikan Siswa" (the ONE convert) →
+ *   student exists.
+ *
+ * Pay-first is covered by enrollment-fee-payment and admin-walkin-pipeline; this
+ * spec invites on a FREE program, so the link opens straight to the form.
  *
  * The parent side is driven through the real public API rather than the
  * wizard (the canvas wizard is exercised by enrollment-signature-handover and
@@ -43,7 +47,7 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     await expect(page.getByText("Tautan tidak ditemukan")).toBeVisible();
   });
 
-  test("invite → tokenized submit → accept → convert → student exists", async ({ page }) => {
+  test("invite → tokenized submit → Terima & Jadikan Siswa → student exists", async ({ page }) => {
     // 1. Create an admission inquiry (public) with an email so it can be invited.
     const adm = await page.request.post("/api/admission/submit", {
       headers: { "X-Forwarded-For": IP },
@@ -59,10 +63,14 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     expect(adm.ok()).toBeTruthy();
     const admissionId = (await adm.json()).id as string;
 
-    // 2. Admin invite → returns the tokenized form URL.
-    const inv = await page.request.post("/api/enrollments/invite", { data: { admissionId } });
+    // 2. Admin invite → returns the tokenized form URL. Program is chosen here (it
+    //    sets the price); a free program creates no fee, so the form is open at once.
+    const programId = await firstProgramId(page.request);
+    const inv = await page.request.post("/api/enrollments/invite", { data: { admissionId, programId } });
     expect(inv.ok()).toBeTruthy();
-    const formUrl = (await inv.json()).formUrl as string;
+    const invited = await inv.json();
+    expect(invited.fee).toBeNull();
+    const formUrl = invited.formUrl as string;
     expect(formUrl).toContain("/pendaftaran/");
     const token = formUrl.split("/pendaftaran/")[1];
     expect(token.length).toBeGreaterThan(20);
@@ -70,13 +78,6 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     // 3. The public form page renders for a valid token.
     await page.goto(`/pendaftaran/${token}`);
     await expect(page.getByRole("heading", { name: "Formulir Pendaftaran Murid Baru" })).toBeVisible();
-
-    // 4. Pick a real ACTIVE program for the tenant.
-    const progRes = await page.request.get("/api/programs");
-    const progJson = await progRes.json();
-    const programs = Array.isArray(progJson) ? progJson : (progJson.data ?? []);
-    expect(programs.length).toBeGreaterThan(0);
-    const programId = programs[0].id as string;
 
     // 5. Submit the full form via the public token API. Signatures live on the
     //    row (the signature route persists them the moment they are drawn) and
@@ -154,11 +155,24 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     expect(row).toBeTruthy();
     const appId = row.id as string;
 
-    // 7. Accept, then convert.
-    const accept = await page.request.patch(`/api/enrollments/${appId}`, { data: { status: "ACCEPTED" } });
-    expect(accept.ok()).toBeTruthy();
-    const convert = await page.request.post(`/api/enrollments/${appId}/convert`);
-    expect(convert.ok()).toBeTruthy();
+    // 7. One convert: "Terima & Jadikan Siswa" on the formulir detail, a single confirm.
+    await page.goto(`/admin/enrollments/${appId}`);
+    await page.getByRole("button", { name: "Terima & Jadikan Siswa" }).click();
+    const confirm = page.getByRole("alertdialog");
+    const convertResponse = page.waitForResponse(
+      (res) => res.url().endsWith(`/api/enrollments/${appId}/convert`) && res.request().method() === "POST",
+    );
+    await confirm.getByRole("button", { name: "Terima & Jadikan Siswa" }).click();
+    const converted = await convertResponse;
+    expect(converted.status()).toBe(200);
+    const convertedBody = await converted.json();
+    expect(convertedBody.student.name).toBe(CHILD);
+    expect(Array.isArray(convertedBody.reusedGuardians)).toBe(true);
+    await expect(page.getByText("sudah dikonversi menjadi data siswa")).toBeVisible();
+
+    // Converting twice is refused, not repeated.
+    const again = await page.request.post(`/api/enrollments/${appId}/convert`);
+    expect(again.status()).toBe(409);
 
     // 7b. Admin view of the documents: redacted (no storage token), streamable,
     //     and the physical-receipt tick still works on a converted application.
@@ -184,10 +198,6 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     // Any other field stays frozen once converted.
     const frozen = await page.request.patch(`/api/enrollments/${appId}`, { data: { status: "REJECTED" } });
     expect(frozen.status()).toBe(409);
-
-    // 8. The detail page now shows the converted state in the real UI.
-    await page.goto(`/admin/enrollments/${appId}`);
-    await expect(page.getByText("sudah dikonversi menjadi data siswa")).toBeVisible();
 
     // 9. A real Student exists for this child in the admin students list.
     const stu = await page.request.get(`/api/students?search=${encodeURIComponent(CHILD)}&pageSize=20`);

@@ -204,14 +204,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     await expect(page.getByText(matchedParentName)).toBeVisible();
   });
 
-  // CI-only flake: the row-action dropdown trigger click on the matched
-  // row never opens the menu in CI (dropdown-menu-item waitFor times out
-  // at 180s test budget). Passes locally. Suspected: serial-mode accumulates
-  // E2E admissions across reruns; matchedRow scrolls into view but the
-  // trigger button is intercepted by a sticky header overlay at the resolved
-  // scroll position. Marked fixme to unblock /ship of an unrelated UI-blockers
-  // cycle; follow-up: capture CI trace + fix trigger interaction.
-  test.fixme("edit-sheet banner renders matched parent context", async ({
+  test("edit-sheet banner renders matched parent context", async ({
     page,
     context,
   }) => {
@@ -235,13 +228,13 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     // off-screen and Playwright's click auto-scroll occasionally times out
     // on cold CI. Force scroll-into-view first, then click.
     await matchedRow.scrollIntoViewIfNeeded();
-    await matchedRow.getByRole("button", { name: /buka menu/i }).click();
+    await matchedRow.getByRole("button", { name: /^Aksi untuk / }).click();
     // Base UI DropdownMenu re-mounts items on focus / row re-render in CI,
     // detaching the menuitem mid-click ("element was detached from the DOM").
     // Anchor on the data-slot the wrapper guarantees + force:true to skip
     // the stability re-check that loses the race.
     const editItem = page.locator('[data-slot="dropdown-menu-item"]', {
-      hasText: /edit/i,
+      hasText: "Ubah data pertanyaan",
     });
     await editItem.waitFor({ state: "visible" });
     await editItem.click({ force: true });

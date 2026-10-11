@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { firstProgramId } from "./helpers/enrollment";
 
 // Demo mode E2E tests — discovers user ID from /api/auth/users and sets
 // session cookie directly to avoid rate-limit on repeated beforeEach calls.
@@ -251,41 +252,58 @@ test.describe("Admin flows", () => {
     }
   });
 
-  test("admission status transitions follow the state machine", async ({ page }) => {
-    // Find an INQUIRY admission to exercise the happy-path + illegal-jump guard
-    const list = await page.request.get("/api/admissions?status=INQUIRY&pageSize=1");
-    expect(list.ok()).toBeTruthy();
-    const json = await list.json();
-    const target = json.data?.[0] as { id: string; status: string } | undefined;
-    if (!target) {
-      test.skip(true, "No INQUIRY admission available");
-      return;
+  test("admission status machine only knows Baru → Batal; the rest of the pipeline is derived", async ({ page }) => {
+    // Cycle 2026-10-11-pendaftaran-simplify: a lead is Baru (INQUIRY) or Batal (CANCELLED). Sent,
+    // submitted, accepted and student come from the formulir and the student link, never from a PUT.
+    const stamp = Date.now();
+    const newLead = async (label: string) => {
+      const res = await page.request.post("/api/admissions", {
+        data: {
+          parentName: `E2E Mesin ${label} ${stamp}`,
+          parentPhone: "081200000777",
+          parentRelationship: "IBU",
+          childName: `E2E Mesin Anak ${label} ${stamp}`,
+        },
+      });
+      expect(res.status()).toBe(201);
+      return (await res.json()) as { id: string; status: string };
+    };
+
+    const lead = await newLead("A");
+    expect(lead.status).toBe("INQUIRY");
+
+    // The retired steps are not reachable any more.
+    for (const status of ["VISIT_SCHEDULED", "VISITED", "ADMITTED", "UNDER_REVIEW"]) {
+      const res = await page.request.put(`/api/admissions/${lead.id}`, { data: { status } });
+      expect(res.status(), `PUT ${status}`).toBe(400);
     }
+    const stillNew = await page.request.get(
+      `/api/admissions?tahap=BARU&search=${encodeURIComponent(`E2E Mesin Anak A ${stamp}`)}`,
+    );
+    const stillNewRow = (await stillNew.json()).data.find((r: { id: string }) => r.id === lead.id);
+    expect(stillNewRow).toMatchObject({ status: "INQUIRY", stage: "BARU" });
 
-    // Happy-path: INQUIRY → VISIT_SCHEDULED is allowed
-    const advance = await page.request.put(`/api/admissions/${target.id}`, {
-      data: { status: "VISIT_SCHEDULED" },
-    });
-    expect(advance.ok()).toBeTruthy();
-    const advanced = await advance.json();
-    expect(advanced.status).toBe("VISIT_SCHEDULED");
+    // A converted lead is a student: it cannot be cancelled (409), and nothing else moves it back.
+    const programId = await firstProgramId(page.request);
+    const invite = await page.request.post("/api/enrollments/invite", { data: { admissionId: lead.id, programId } });
+    expect(invite.ok()).toBeTruthy();
+    const applicationId = (await invite.json()).id as string;
+    const convert = await page.request.post(`/api/enrollments/${applicationId}/convert`);
+    expect(convert.status()).toBe(200);
+    const cancelConverted = await page.request.put(`/api/admissions/${lead.id}`, { data: { status: "CANCELLED" } });
+    expect(cancelConverted.status()).toBe(409);
 
-    // Negative: VISIT_SCHEDULED → ADMITTED skips the VISITED step and must return 400.
-    // (Post-cycle-2026-05-12 the REGISTERED state was dropped; ADMITTED is still a
-    // valid enum value but is not in VALID_TRANSITIONS["VISIT_SCHEDULED"], so the
-    // server's transition gate rejects with the same "Invalid status transition" error.)
-    const skip = await page.request.put(`/api/admissions/${target.id}`, {
-      data: { status: "ADMITTED" },
-    });
-    expect(skip.status()).toBe(400);
-    const skipJson = await skip.json();
-    expect(String(skipJson.error)).toMatch(/Invalid status transition/i);
-
-    // Restore original status so subsequent runs stay idempotent.
-    // INQUIRY is not in allowed[VISIT_SCHEDULED], so we go VISIT_SCHEDULED → CANCELLED
-    // only as a last resort; prefer idempotent restore via direct DB is unavailable.
-    // Instead, leave the row at VISIT_SCHEDULED — the test seeks "an INQUIRY row"
-    // and the seed ships multiple; subsequent runs will pick the next INQUIRY row.
+    // A lead that is not a student can be cancelled, and Batal is final.
+    const other = await newLead("B");
+    const cancel = await page.request.put(`/api/admissions/${other.id}`, { data: { status: "CANCELLED" } });
+    expect(cancel.status()).toBe(200);
+    expect((await cancel.json()).status).toBe("CANCELLED");
+    const reopen = await page.request.put(`/api/admissions/${other.id}`, { data: { status: "INQUIRY" } });
+    expect(reopen.status()).toBe(400);
+    const cancelled = await page.request.get(
+      `/api/admissions?tahap=BATAL&search=${encodeURIComponent(`E2E Mesin Anak B ${stamp}`)}`,
+    );
+    expect((await cancelled.json()).data.some((r: { id: string }) => r.id === other.id)).toBe(true);
   });
 
   test("invoice void flips status to CANCELLED", async ({ page }) => {

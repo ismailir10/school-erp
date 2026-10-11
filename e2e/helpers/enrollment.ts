@@ -45,12 +45,35 @@ export function newIpBlock(block: number): () => string {
   return () => `10.${block}.${run}.${++n}`;
 }
 
-export type Invite = { admissionId: string; token: string };
+export type Invite = {
+  admissionId: string;
+  token: string;
+  /** The EnrollmentApplication id (what the staff fee and detail routes are addressed by). */
+  applicationId: string;
+  /** Staff view of the fee row the invite created (null = free program, nothing to pay). */
+  fee: { status: string; amount: number } | null;
+};
 
-/** Public admission inquiry → admin invite → opaque form token. */
+/** Staff settle a fee in one call (cash), the way the "Tandai lunas" button does. */
+export async function markFeePaid(admin: APIRequestContext, applicationId: string): Promise<void> {
+  const res = await admin.patch(`/api/enrollments/${applicationId}/fee`, {
+    data: { action: "MARK_PAID", method: "CASH", note: "e2e" },
+  });
+  expect(res.status()).toBe(200);
+}
+
+/**
+ * Public admission inquiry → admin invite → opaque form token.
+ *
+ * Pay-first (cycle 2026-10-11-pendaftaran-simplify): the invite takes Program (+ Day Care)
+ * and creates the pendaftaran fee right then; until it is PAID or WAIVED the parent's
+ * writes are refused. Most specs are about the FORM, not the fee, so by default a priced
+ * program's fee is settled in cash straight away (`settle: false` keeps it UNPAID, for
+ * the specs that are about the gate). A free program creates no fee at all.
+ */
 export async function createInvite(
   admin: APIRequestContext,
-  opts: { ip: string; child: string; email: string },
+  opts: { ip: string; child: string; email: string; programId?: string; dcareAddon?: boolean; settle?: boolean },
 ): Promise<Invite> {
   const adm = await admin.post("/api/admission/submit", {
     headers: { "X-Forwarded-For": opts.ip },
@@ -66,12 +89,21 @@ export async function createInvite(
   expect(adm.ok()).toBeTruthy();
   const admissionId = (await adm.json()).id as string;
 
-  const inv = await admin.post("/api/enrollments/invite", { data: { admissionId } });
+  const programId = opts.programId ?? (await firstProgramId(admin));
+  const inv = await admin.post("/api/enrollments/invite", {
+    data: { admissionId, programId, ...(opts.dcareAddon !== undefined ? { dcareAddon: opts.dcareAddon } : {}) },
+  });
   expect(inv.ok()).toBeTruthy();
-  const formUrl = (await inv.json()).formUrl as string;
-  const token = formUrl.split("/pendaftaran/")[1];
+  const body = (await inv.json()) as { id: string; formUrl: string; fee: { status: string; amount: number } | null };
+  const token = body.formUrl.split("/pendaftaran/")[1];
   expect(token.length).toBeGreaterThan(20);
-  return { admissionId, token };
+
+  let fee = body.fee;
+  if (fee?.status === "UNPAID" && opts.settle !== false) {
+    await markFeePaid(admin, body.id);
+    fee = { ...fee, status: "PAID" };
+  }
+  return { admissionId, token, applicationId: body.id, fee };
 }
 
 export async function firstProgramId(admin: APIRequestContext): Promise<string> {
