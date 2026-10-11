@@ -5,42 +5,65 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
+import { Toggle } from "@/components/ui/toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
-import { AdminLinkTabs } from "@/components/admin/admin-tabs";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { Plus, Users, PhoneCall, CheckCircle } from "lucide-react";
+import { ClipboardCheck, Plus, UserPlus, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { createAdmissionSchema } from "@/lib/validations/admission";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { ApiError } from "@/lib/api/client-errors";
 import {
   AdmissionFormBody,
   EMPTY_ADMISSION_FORM,
 } from "@/components/admin/admissions/admission-form-body";
 import { SiblingDetectBanner } from "@/components/admin/admissions/sibling-detect-banner";
 import { createAdmissionColumns } from "@/components/admin/admissions/columns";
+import { isLeadEditable } from "@/components/admin/admissions/row-actions";
 import {
   SendFormulirDialog,
   type SendFormulirResult,
 } from "@/components/admin/admissions/send-formulir-dialog";
 import { KirimFormulirForm } from "@/components/admin/admissions/kirim-formulir-form";
+import { PAYMENT_UNPAID, TAHAP_FILTER_OPTIONS } from "@/components/admin/admissions/constants";
+import { useUrlFilters } from "@/components/admin/admissions/use-url-filters";
+import { useRowFocus } from "@/components/admin/admissions/use-row-focus";
+import { useAdmissionList } from "@/components/admin/admissions/use-admission-list";
 import { resolveFollowUpPhone } from "@/lib/enrollment/follow-up";
 import { admissionChildLabel } from "@/lib/admission/child-label";
-import { NEXT_STATUS, ADMISSION_STATUS_LABELS } from "@/components/admin/admissions/constants";
 import type { Admission, Program } from "@/components/admin/admissions/types";
 
-type Pagination = {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
+const LIST_PATH = "/admin/admissions";
+const CANCEL_FALLBACK = "Gagal membatalkan pendaftaran. Coba lagi.";
+
+type StatFilterKey = "all" | "BARU" | "FORMULIR_MASUK" | "unpaid";
+type StatCardSpec = {
+  label: string; value: string | number; icon: typeof Users; color: "primary" | "warning" | "success";
+  filter: StatFilterKey; active: boolean;
 };
+
+/** A stat card that is also the filter for the rows it counts. */
+function StatFilter({
+  label, value, pressed, onPress, children,
+}: { label: string; value: string | number; pressed: boolean; onPress: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      aria-label={`${label}: ${value}`}
+      onClick={onPress}
+      className="block w-full rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary/40"
+    >
+      {children}
+    </button>
+  );
+}
 
 function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -60,57 +83,33 @@ function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onD
 }
 
 // ------------------------------------------------------------------
-// Page (owns list state, fetching, stats, dialogs' open state + handlers;
-// columns + form body live in components/admin/admissions/*)
+// Page (owns list state, fetching, the dialogs' open state + handlers; columns,
+// row actions and form body live in components/admin/admissions/*).
+// The URL is the source of truth for the filters (`?tahap=`, `?payment=unpaid`,
+// `?search=`, `?page=`), so dashboard links and reloads land on the same view.
 // ------------------------------------------------------------------
 
 export default function AdmissionsPage() {
-  const [data, setData] = useState<Admission[]>([]);
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const listRequestId = useRef(0);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0 });
-  const [canEdit, setCanEdit] = useState(false);
+  const {
+    tahap, unpaidOnly, search, pageNumber, editId,
+    updateQuery, searchInput, setSearchInput, commitSearch,
+  } = useUrlFilters(LIST_PATH);
 
-  // FIND-011: stat-cards were a one-shot useEffect on mount, so creating /
-  // converting / cancelling an admission left the KPI cards stale until the
-  // admin reloaded. Extract into a callable so every mutation handler can
-  // call it alongside `fetchAdmissions()`.
-  const fetchStats = useCallback(() => {
-    // Total Calon must include every status — previously summed only
-    // INQUIRY + ADMITTED, so a Pertanyaan→Kunjungan transition silently
-    // dropped the total by 1 (Finding F-3). Fetch an unfiltered count plus
-    // the two visible buckets in parallel.
-    Promise.all([
-      fetch("/api/admissions?pageSize=1").then(r => r.json()),
-      fetch("/api/admissions?pageSize=1&status=INQUIRY").then(r => r.json()),
-      fetch("/api/admissions?pageSize=1&status=ADMITTED").then(r => r.json()),
-    ]).then(([all, inquiry, admitted]) => {
-      const t = all.pagination?.total ?? 0;
-      const i = inquiry.pagination?.total ?? 0;
-      const a = admitted.pagination?.total ?? 0;
-      setStats({ total: t, inquiry: i, admitted: a });
-    }).catch((err) => console.error("[admissions] stats fetch failed", err));
-  }, []);
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const {
+    data, canEdit, stats, pagination, loading, loadError, loadedQuery, query, refetch: fetchAdmissions, setPageSize, sortBy, sortOrder, setSort,
+  } = useAdmissionList({
+    pageNumber,
+    search,
+    tahap,
+    unpaidOnly,
+    onPageOutOfRange: (lastPage) => updateQuery({ page: lastPage > 1 ? String(lastPage) : null }),
+  });
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
-  // "Terima" (→ ADMITTED) is the one pipeline step that commits the family; confirm it.
-  const [admitTarget, setAdmitTarget] = useState<Admission | null>(null);
   // "Kirim formulir" question (program + Day Care) → the lead it is open for.
   const [sendTarget, setSendTarget] = useState<Admission | null>(null);
   // "Formulir siap dikirim" card: the lead the link was made for + the invite response.
@@ -121,6 +120,9 @@ export default function AdmissionsPage() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const draftFocus = useRef<HTMLElement | null>(null);
 
+  // Focus goes back to the row a dialog was opened from (after the reload, when it changed something).
+  const { focusRow, focusWhenLoaded } = useRowFocus(loading);
+
   function keepDraft() {
     setDiscardOpen(false);
     // Restore after the popup's focus manager handles the removed footer.
@@ -130,11 +132,16 @@ export default function AdmissionsPage() {
     }));
   }
 
-  function closeForm() {
+  function closeForm(options?: { reload?: boolean }) {
+    const rowId = editingAdmission?.id ?? null;
     setDiscardOpen(false);
     setDialogOpen(false);
     setEditingAdmission(null);
     form.reset(EMPTY_ADMISSION_FORM);
+    if (rowId) {
+      if (options?.reload) focusWhenLoaded(rowId);
+      else focusRow(rowId);
+    }
   }
 
   function requestFormClose() {
@@ -155,66 +162,65 @@ export default function AdmissionsPage() {
       .catch((err) => console.error("[admissions] programs fetch failed", err));
   }, []);
 
-  const fetchAdmissions = useCallback(async () => {
-    const requestId = ++listRequestId.current;
-    setLoading(true);
-    setLoadError(false);
-    try {
-      const params = new URLSearchParams({
-        page: String(pagination.page),
-        pageSize: String(pagination.pageSize),
-        sortBy,
-        sortOrder,
-      });
-      if (search) params.set("search", search);
-      if (statusFilter !== "all") params.set("status", statusFilter);
-
-      const res = await fetch(`/api/admissions?${params}`);
-      if (!res.ok) throw new Error("Admissions read failed");
-      const json = await res.json();
-      if (requestId !== listRequestId.current) return;
-      setData(json.data ?? []);
-      setCanEdit(json.canEdit === true);
-      if (json.pagination) setPagination(json.pagination);
-    } catch {
-      if (requestId === listRequestId.current) setLoadError(true);
-    } finally {
-      if (requestId === listRequestId.current) setLoading(false);
-    }
-  }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
-
-  useEffect(() => {
-    fetchAdmissions();
-    return () => { listRequestId.current += 1; };
-  }, [fetchAdmissions]);
-
   // ------------------------------------------------------------------
   // Handlers
   // ------------------------------------------------------------------
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-    setPagination((p) => ({ ...p, page: 1 }));
-  }, []);
-
   const handlePageChange = useCallback((page: number) => {
-    setPagination((p) => ({ ...p, page }));
-  }, []);
+    updateQuery({ page: page > 1 ? String(page) : null });
+  }, [updateQuery]);
 
-  const handlePageSizeChange = useCallback((pageSize: number) => {
-    setPagination((p) => ({ ...p, page: 1, pageSize }));
-  }, []);
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    updateQuery({ page: null });
+  }, [updateQuery, setPageSize]);
 
   const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
-    setSortBy(field);
-    setSortOrder(order);
-    setPagination((p) => ({ ...p, page: 1 }));
-  }, []);
+    // The table reports its starting sort on mount: that must not throw away `?page=`.
+    if (field === sortBy && order === sortOrder) return;
+    setSort(field, order);
+    updateQuery({ page: null });
+  }, [updateQuery, setSort, sortBy, sortOrder]);
 
-  // "Kirim Formulir" first asks for the Program + Day Care that set the price
-  // (KirimFormulirForm owns the invite request, which creates the fee). Its result
-  // card then hands staff the link to share, copy or fill together; no email needed.
-  const sendEnrollmentForm = useCallback((a: Admission) => setSendTarget(a), []);
+  const handleTahapChange = useCallback((value: string) => {
+    updateQuery({ tahap: value === "all" ? null : value, page: null });
+  }, [updateQuery]);
+
+  const handleUnpaidChange = useCallback((pressed: boolean) => {
+    updateQuery({ payment: pressed ? PAYMENT_UNPAID : null, page: null });
+  }, [updateQuery]);
+
+  const handleResetFilters = useCallback(() => {
+    updateQuery({ payment: null, search: null, tahap: null, page: null });
+  }, [updateQuery]);
+
+  // A stat card applies its own filter alone (the counts ignore search, so search is cleared too);
+  // pressing the active card, or Total, shows everything again.
+  const applyStat = useCallback((filter: StatFilterKey) => {
+    const clear = { tahap: null, payment: null, search: null, page: null };
+    if (filter === "all") updateQuery(clear);
+    else if (filter === "unpaid") updateQuery({ ...clear, payment: PAYMENT_UNPAID });
+    else updateQuery({ ...clear, tahap: filter });
+  }, [updateQuery]);
+
+  // "Kirim Formulir" / "Kirim ulang tautan" first ask for the Program + Day Care that set the
+  // price (KirimFormulirForm owns the invite request, which creates or reprices the fee). Its
+  // result card then hands staff the link to share, copy or fill together; no email needed.
+  const requestSend = useCallback((a: Admission) => setSendTarget(a), []);
+
+  function closeSend() {
+    const id = sendTarget?.id;
+    setSendTarget(null);
+    if (id) focusRow(id);
+  }
+
+  function closeSentCard() {
+    const id = formulirSent?.admission.id;
+    setFormulirSent(null);
+    // The fee may have been settled on the card: read the list again before focus returns.
+    if (id) focusWhenLoaded(id);
+    void fetchAdmissions();
+  }
 
   const handleSubmit = form.handleSubmit(async (values) => {
     if (discardOpen) return;
@@ -229,44 +235,41 @@ export default function AdmissionsPage() {
     try {
       await sendJson(url, { method, body: payload }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
-      closeForm();
-      fetchAdmissions(); fetchStats();
+      closeForm({ reload: true });
+      void fetchAdmissions();
     } catch (err) {
       applyServerErrors(form, err, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
     }
   });
 
-  const advanceStatus = useCallback(async (a: Admission) => {
-    const next = NEXT_STATUS[a.status];
-    if (!next) return;
-    const res = await fetch(`/api/admissions/${a.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next.status }),
-    });
-    if (res.ok) {
-      toast.success(`Status diubah ke ${ADMISSION_STATUS_LABELS[next.status] ?? next.status}`);
-      fetchAdmissions(); fetchStats();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal mengubah status");
-    }
-  }, [fetchAdmissions, fetchStats]);
-
-  const requestAdvance = useCallback((a: Admission) => {
-    if (NEXT_STATUS[a.status]?.status === "ADMITTED") setAdmitTarget(a);
-    else void advanceStatus(a);
-  }, [advanceStatus]);
-
   async function handleCancel() {
     if (!cancelTarget) return;
-    const res = await fetch(`/api/admissions/${cancelTarget.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELLED" }),
-    });
-    if (res.ok) { toast.success("Pendaftaran dibatalkan"); setCancelTarget(null); fetchAdmissions(); fetchStats(); }
-    else toast.error("Gagal membatalkan");
+    const id = cancelTarget.id;
+    try {
+      await sendJson(`/api/admissions/${id}`, { method: "PUT", body: { status: "CANCELLED" } }, CANCEL_FALLBACK);
+      toast.success("Pendaftaran dibatalkan");
+      setCancelTarget(null);
+      focusWhenLoaded(id);
+      void fetchAdmissions();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : CANCEL_FALLBACK;
+      toast.error(message);
+      if (err instanceof ApiError && err.status === 409) {
+        // The lead changed since the list was read (it became a student, or was cancelled already):
+        // nothing to retry here, so close and show what it is now.
+        focusWhenLoaded(id);
+        void fetchAdmissions();
+        return;
+      }
+      // 403, 429, a lost connection: keep the dialog open so staff can try again.
+      throw err;
+    }
+  }
+
+  function closeCancel() {
+    const id = cancelTarget?.id;
+    setCancelTarget(null);
+    if (id) focusRow(id);
   }
 
   function openDialog() {
@@ -293,6 +296,34 @@ export default function AdmissionsPage() {
 
   const handleCancelRequest = useCallback((a: Admission) => setCancelTarget(a), []);
 
+  // Deep link `?edit=<admissionId>` (the formulir page's "Data kontak"): open that lead's dialog
+  // once the rows are here, then drop the param so closing the dialog does not reopen it.
+  // The caller adds `?search=<parent name>` so the lead is on the first page. If the first read
+  // fails nothing is dropped, so a reload retries.
+  const handledEdit = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editId) {
+      handledEdit.current = null;
+      return;
+    }
+    if (loadedQuery !== query || handledEdit.current === editId) return;
+    handledEdit.current = editId;
+    const lead = data.find((row) => row.id === editId);
+    if (canEdit) {
+      if (lead && isLeadEditable(lead)) {
+        // Opening the dialog is the response to the URL (an external system), not derived state.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        handleEditRow(lead);
+      } else {
+        toast.error("Data kontak tidak bisa diubah: pertanyaan ini sudah jadi siswa atau dibatalkan, atau tidak ada di daftar.");
+      }
+    }
+    // The link's `?search=` only put the lead on the first page; the dialog holds its own copy, so
+    // the list goes back to unfiltered right away (a search staff typed themselves is never here:
+    // `?edit=` only arrives with a navigation from the formulir page).
+    updateQuery({ edit: null, search: null, page: null });
+  }, [editId, loadedQuery, query, data, canEdit, handleEditRow, updateQuery]);
+
   // ------------------------------------------------------------------
   // Columns — module-level factory (components/admin/admissions/columns.tsx),
   // memoised here with stable useCallback handlers so a rebuild never remounts
@@ -305,17 +336,27 @@ export default function AdmissionsPage() {
         canEdit,
         onEdit: handleEditRow,
         onCancelRequest: handleCancelRequest,
-        onAdvanceStatus: requestAdvance,
-        onSendEnrollmentForm: sendEnrollmentForm,
+        onSend: requestSend,
       }),
-    [canEdit, handleEditRow, handleCancelRequest, requestAdvance, sendEnrollmentForm],
+    [canEdit, handleEditRow, handleCancelRequest, requestSend],
   );
+
+  const isFiltered = !!search || tahap !== "all" || unpaidOnly;
+  const stat = (value: number | undefined) => (stats ? (value ?? 0) : "—");
+  // A card is "on" when its filter is the only one applied (the counts ignore search).
+  const only = (t: string, unpaid = false) => tahap === t && unpaidOnly === unpaid && !search;
+  const statCards: StatCardSpec[] = [
+    { label: "Total", value: stat(stats?.total), icon: Users, color: "primary", filter: "all", active: !isFiltered },
+    { label: "Baru", value: stat(stats?.baru), icon: UserPlus, color: "primary", filter: "BARU", active: only("BARU") },
+    { label: "Belum bayar", value: stat(stats?.belumBayar), icon: Wallet, color: "warning", filter: "unpaid", active: only("all", true) },
+    { label: "Formulir masuk", value: stat(stats?.formulirMasuk), icon: ClipboardCheck, color: "success", filter: "FORMULIR_MASUK", active: only("FORMULIR_MASUK") },
+  ];
 
   return (
     <>
       <PageHeader
         title="Pendaftaran"
-        description="Calon siswa yang bertanya atau mendaftar."
+        description="Dari pertanyaan pertama sampai jadi siswa."
         actions={
           canEdit ? <Button size="sm" onClick={openDialog}>
             <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
@@ -323,39 +364,47 @@ export default function AdmissionsPage() {
         }
       />
 
-      <AdminLinkTabs
-        className="mb-4"
-        items={[
-          { href: "/admin/admissions", label: "Calon Siswa" },
-          { href: "/admin/enrollments", label: "Formulir" },
-        ]}
-      />
-
-      <StatsCardsRow cols={3}>
-        <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label={ADMISSION_STATUS_LABELS.INQUIRY} value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
-        <StatCard label={ADMISSION_STATUS_LABELS.ADMITTED} value={stats.admitted} icon={CheckCircle} color="success" index={2} />
+      <StatsCardsRow cols={4}>
+        {statCards.map((card, index) => (
+          <StatFilter key={card.label} label={card.label} value={card.value} pressed={card.active} onPress={() => applyStat(card.active ? "all" : card.filter)}>
+            <StatCard label={card.label} value={card.value} icon={card.icon} color={card.color} index={index} />
+          </StatFilter>
+        ))}
       </StatsCardsRow>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama anak atau orang tua..."
-        onSearchChange={handleSearchChange}
+        value={searchInput}
+        onValueChange={setSearchInput}
+        onSearchChange={commitSearch}
+        hasExternalFilter={unpaidOnly}
+        onReset={handleResetFilters}
         filters={[
           {
-            key: "status",
-            label: "Status",
-            value: statusFilter,
-            onChange: (v) => {
-              setStatusFilter(v);
-              setPagination((p) => ({ ...p, page: 1 }));
-            },
-            options: [
-              { value: "all", label: "Semua Status" },
-              ...Object.entries(ADMISSION_STATUS_LABELS).map(([value, label]) => ({ value, label })),
-            ],
+            key: "tahap",
+            label: "Tahap",
+            value: tahap,
+            onChange: handleTahapChange,
+            options: TAHAP_FILTER_OPTIONS,
           },
         ]}
+        actions={
+          <Toggle
+            variant="outline"
+            size="lg"
+            pressed={unpaidOnly}
+            onPressedChange={handleUnpaidChange}
+            className="w-full sm:w-auto"
+          >
+            Belum bayar
+          </Toggle>
+        }
       />
+
+      {/* Heard after a filter or search changes; silent while the rows are loading. */}
+      <p className="sr-only" role="status">
+        {loading || loadError ? "" : `${pagination.total} pendaftaran`}
+      </p>
 
       {loadError && (
         <Alert variant="destructive" className="mb-4">
@@ -375,19 +424,19 @@ export default function AdmissionsPage() {
         onSortChange={handleSortChange}
         defaultSort={{ field: "createdAt", order: "desc" }}
         loading={loading}
-        isFiltered={!!search.trim() || statusFilter !== "all"}
-        emptyTitle="Tidak ada pendaftaran"
-        emptyDescription="Catat pertanyaan baru ketika orang tua menghubungi sekolah"
+        isFiltered={isFiltered}
+        emptyTitle={canEdit ? "Belum ada calon siswa. Catat pertanyaan pertama." : "Belum ada calon siswa."}
+        emptyAction={canEdit ? { label: "Catat Pertanyaan", onClick: openDialog } : undefined}
       />}
 
-      {/* Add/Edit Admission — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
+      {/* Add/Edit lead — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
       <ResponsiveFormDialog
         open={dialogOpen}
         onOpenChange={(open) => { if (!open) requestFormClose(); }}
-        title={editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}
+        title={editingAdmission ? "Ubah data pertanyaan" : "Catat Pertanyaan Baru"}
         size="xl"
         footer={
-          discardOpen ? <DiscardAdmissionFooter onKeep={keepDraft} onDiscard={closeForm} /> : <FormDialogFooter
+          discardOpen ? <DiscardAdmissionFooter onKeep={keepDraft} onDiscard={() => closeForm()} /> : <FormDialogFooter
             formId={admissionFormId}
             pending={form.formState.isSubmitting}
             onCancel={requestFormClose}
@@ -406,31 +455,29 @@ export default function AdmissionsPage() {
 
       <DeactivateConfirmDialog
         open={!!cancelTarget}
-        onOpenChange={(o) => !o && setCancelTarget(null)}
+        onOpenChange={(o) => !o && closeCancel()}
         entityName={cancelTarget ? `pendaftaran ${admissionChildLabel(cancelTarget.childName)}` : ""}
         action="cancel"
+        extraWarning={cancelTarget?.application?.fee?.status === "UNPAID" ? "Tautan pembayaran formulir yang belum dibayar ikut ditutup." : undefined}
         onConfirm={handleCancel}
-      />
-
-      <ConfirmDialog
-        open={!!admitTarget}
-        onOpenChange={(o) => !o && setAdmitTarget(null)}
-        title={`Terima pendaftaran ${admitTarget ? admissionChildLabel(admitTarget.childName) : "anak ini"}?`}
-        description="Keluarga bisa melanjutkan ke tahap berikutnya, dan pendaftaran ini siap dikonversi menjadi data siswa."
-        confirmLabel="Terima"
-        onConfirm={async () => {
-          if (admitTarget) await advanceStatus(admitTarget);
-        }}
       />
 
       <KirimFormulirForm
         admission={sendTarget}
-        onClose={() => setSendTarget(null)}
+        // A lead whose formulir is already out is a resend: start from what that formulir holds.
+        resend={sendTarget?.stage === "FORMULIR_DIKIRIM"}
+        current={
+          sendTarget?.stage === "FORMULIR_DIKIRIM" && sendTarget.application
+            ? { programId: sendTarget.application.programId, dcareAddon: sendTarget.application.dcareAddon }
+            : null
+        }
+        onClose={closeSend}
         onSent={(admission, result) => {
           setSendTarget(null);
           setFormulirSent({ admission, result });
+          void fetchAdmissions();
         }}
-        onStale={() => { fetchAdmissions(); fetchStats(); }}
+        onStale={() => { void fetchAdmissions(); }}
       />
 
       <SendFormulirDialog
@@ -439,7 +486,7 @@ export default function AdmissionsPage() {
         parentName={formulirSent?.admission.parentName ?? ""}
         childName={formulirSent?.admission.childName}
         phone={formulirSent ? resolveFollowUpPhone({ admission: formulirSent.admission }) : null}
-        onClose={() => setFormulirSent(null)}
+        onClose={closeSentCard}
       />
     </>
   );

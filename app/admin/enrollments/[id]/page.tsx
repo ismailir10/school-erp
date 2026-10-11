@@ -184,8 +184,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       <EmptyState
         title="Formulir tidak ditemukan"
         description="Formulir pendaftaran ini tidak tersedia atau telah dihapus."
-        actionLabel="Kembali ke Daftar Formulir Pendaftaran"
-        actionHref="/admin/enrollments"
+        actionLabel="Kembali ke Daftar Pendaftaran"
+        actionHref="/admin/admissions"
       />
     );
 
@@ -235,6 +235,15 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     onClick: () => void transition("SUBMITTED"),
     disabled: busy,
   };
+  // The lead's own contact fields (parent phone, WhatsApp, email, catatan) are edited in the
+  // Pendaftaran list's dialog; the search puts this lead on its first page.
+  const contactAction: DetailPageHeaderAction | null = d.admission
+    ? {
+        label: "Data kontak",
+        href: `/admin/admissions?edit=${encodeURIComponent(d.admission.id)}&search=${encodeURIComponent(d.admission.parentName)}`,
+        disabled: busy,
+      }
+    : null;
   let primaryEnrollmentActions: DetailPageHeaderAction[] = [];
   const menuEnrollmentActions: DetailPageHeaderAction[] = [];
   if (canChange) {
@@ -249,6 +258,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     } else {
       menuEnrollmentActions.push(editAction);
     }
+    if (contactAction) menuEnrollmentActions.push(contactAction);
     // Defensive: a header never carries more than two visible buttons.
     menuEnrollmentActions.unshift(...primaryEnrollmentActions.splice(2));
   }
@@ -256,8 +266,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   return (
     <>
       <DetailPageHeader
-        backHref="/admin/enrollments"
-        backLabel="Kembali ke Daftar Formulir Pendaftaran"
+        backHref="/admin/admissions"
+        backLabel="Kembali ke Daftar Pendaftaran"
         title={d.childName || "Tanpa nama"}
         description={`${d.program?.name ?? "—"}${d.dcareAddon ? " + Dcare" : ""}`}
         badge={<StatusChip status={d.status} studentId={d.studentId} />}

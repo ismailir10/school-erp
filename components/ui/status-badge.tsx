@@ -102,17 +102,22 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   // Email log (EmailLog.status) — same reason.
   FAILED: { label: "Gagal", className: "bg-status-absent-subtle text-status-absent-text" },
 
-  // Admission (future)
-  INQUIRY: { label: "Pertanyaan", className: "bg-status-leave-subtle text-status-leave-text" },
-  VISIT_SCHEDULED: { label: "Kunjungan", className: "bg-status-late-subtle text-status-late-text" },
-  VISITED: { label: "Sudah Kunjungan", className: "bg-status-holiday-subtle text-status-holiday-text" },
-  ADMITTED: { label: "Diterima", className: "bg-status-present-subtle text-status-present-text" },
+  // Pendaftaran "Tahap" (derived by the server from the lead, its formulir and the student
+  // link; the unified /admin/admissions list). The lead's own INQUIRY / VISIT_* / ADMITTED
+  // statuses are never shown: nothing reads them any more.
+  BARU: { label: "Baru", className: "bg-status-leave-subtle text-status-leave-text" },
+  FORMULIR_DIKIRIM: { label: "Formulir dikirim", className: "bg-muted text-muted-foreground" },
+  // The one stage staff must act on (review, then Terima & Jadikan Siswa), so it is amber.
+  FORMULIR_MASUK: { label: "Formulir masuk", className: "bg-status-late-subtle text-status-late-text" },
+  DITERIMA: { label: "Diterima", className: "bg-status-present-subtle text-status-present-text" },
+  SISWA: { label: "Siswa", className: "bg-status-present-subtle text-status-present-text" },
+  DITOLAK: { label: "Ditolak", className: "bg-status-absent-subtle text-status-absent-text" },
+  BATAL: { label: "Batal", className: "bg-muted text-muted-foreground" },
   ENROLLED: { label: "Terdaftar di Kelas", className: "bg-status-present-subtle text-status-present-text" },
   GRADUATED: { label: "Lulus", className: "bg-status-holiday-subtle text-status-holiday-text" },
   WITHDRAWN: { label: "Keluar", className: "bg-muted text-muted-foreground" },
   // Registered-but-not-yet-tallied — the "Terdaftar" chip hand-rolled by
-  // admin/admissions and admin/enrollments/status-chip when an ADMITTED /
-  // ACCEPTED row already has a linked studentId. Ported from those local
+  // admin/enrollments/status-chip when an ACCEPTED row already has a linked studentId. Ported from those local
   // `bg-primary/10 text-primary` badges (finding F10 — component half).
   REGISTERED: { label: "Terdaftar", className: "bg-status-present-subtle text-status-present-text" },
 
@@ -188,6 +193,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   CANCELLED: Minus,
   WITHDRAWN: Minus,
   WAIVED: Minus,
+  BATAL: Minus,
   OTHER: Minus,
 
   // Positive confirm
@@ -197,10 +203,12 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   ENROLLED: CheckCircle2,
   ACCEPTED: CheckCircle2,
   REGISTERED: CheckCircle2,
+  DITERIMA: CheckCircle2,
   CREATE: CheckCircle2,
 
   // Negative / attention
   REJECTED: AlertTriangle,
+  DITOLAK: AlertTriangle,
   OVERDUE: AlertTriangle,
   UNFILLED: AlertTriangle,
   FAILED: AlertTriangle,
@@ -215,11 +223,12 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   UNPAID: CircleDot,
   PARTIALLY_PAID: CircleDot,
   UNDER_REVIEW: CircleDot,
+  FORMULIR_MASUK: CircleDot,
 
   // Transit / sent
   SENT: ArrowRight,
-  INQUIRY: ArrowRight,
-  VISIT_SCHEDULED: ArrowRight,
+  BARU: ArrowRight,
+  FORMULIR_DIKIRIM: ArrowRight,
   SUBMITTED: ArrowRight,
   INVITED: ArrowRight,
   UPDATE: Info,
@@ -230,8 +239,7 @@ const STATUS_ICON_MAP: Record<string, LucideIcon> = {
   INCOME: CheckCircle2,
 
   // Verified milestones
-  VISITED: BadgeCheck,
-  ADMITTED: BadgeCheck,
+  SISWA: BadgeCheck,
   GRADUATED: BadgeCheck,
   SLIPS_SENT: BadgeCheck,
   EXPORTED: BadgeCheck,
@@ -251,7 +259,8 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   APPROVED: "border-l-status-present",
   PAID: "border-l-status-present",
   ENROLLED: "border-l-status-present",
-  ADMITTED: "border-l-status-present",
+  DITERIMA: "border-l-status-present",
+  SISWA: "border-l-status-present",
   PUBLISHED: "border-l-status-present",
   ACCEPTED: "border-l-status-present",
   REGISTERED: "border-l-status-present",
@@ -264,6 +273,7 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   // Red / danger (attention-required)
   OVERDUE: "border-l-destructive",
   REJECTED: "border-l-destructive",
+  DITOLAK: "border-l-destructive",
   UNFILLED: "border-l-destructive",
   FAILED: "border-l-destructive",
 
@@ -275,14 +285,14 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   UNPAID: "border-l-status-late",
   HALF_DAY: "border-l-status-late",
   PRESENT_NO_CHECKOUT: "border-l-status-late",
-  VISIT_SCHEDULED: "border-l-status-late",
+  FORMULIR_MASUK: "border-l-status-late",
   UNDER_REVIEW: "border-l-status-late",
 
   // Blue / info
   PERMISSION: "border-l-status-leave",
   LEAVE: "border-l-status-leave",
   SENT: "border-l-status-leave",
-  INQUIRY: "border-l-status-leave",
+  BARU: "border-l-status-leave",
   ANNUAL: "border-l-status-leave",
   EXPORTED: "border-l-status-leave",
   SUBMITTED: "border-l-status-leave",
@@ -290,7 +300,6 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
 
   // Purple / holiday
   HOLIDAY: "border-l-status-holiday",
-  VISITED: "border-l-status-holiday",
   GRADUATED: "border-l-status-holiday",
   SLIPS_SENT: "border-l-status-holiday",
 
@@ -303,6 +312,8 @@ const STATUS_LEFT_BORDER_MAP: Record<string, string> = {
   WAIVED: "border-l-border",
   OTHER: "border-l-border",
   INVITED: "border-l-border",
+  FORMULIR_DIKIRIM: "border-l-border",
+  BATAL: "border-l-border",
   // Salary component types
   INCOME: "border-l-status-present",
   DEDUCTION: "border-l-status-absent",

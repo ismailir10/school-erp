@@ -103,7 +103,7 @@ describe("GET /api/admissions — access", () => {
       const body = await res.json();
       expect(body.data).toEqual([]);
       expect(body.pagination).toEqual({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
-      expect(body.stats).toEqual({ total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 });
+      expect(body.stats).toEqual({ total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 });
     }
     expect(db.findMany).not.toHaveBeenCalled();
     expect(db.count).not.toHaveBeenCalled();
@@ -323,6 +323,7 @@ describe("GET /api/admissions — stats", () => {
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("BARU")] }), 12],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("FORMULIR_DIKIRIM")] }), 9],
       [JSON.stringify({ tenantId: "t1", AND: [MENUNGGU_BAYAR_WHERE] }), 4],
+      [JSON.stringify({ tenantId: "t1", AND: [UNPAID_WHERE] }), 5],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("FORMULIR_MASUK")] }), 6],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("DITERIMA")] }), 2],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("SISWA")] }), 7],
@@ -331,7 +332,7 @@ describe("GET /api/admissions — stats", () => {
 
     const body = await (await get("tahap=BATAL&payment=unpaid&search=zzz")).json();
 
-    expect(body.stats).toEqual({ total: 40, baru: 12, formulirDikirim: 9, menungguBayar: 4, formulirMasuk: 6, diterima: 2, siswa: 7 });
+    expect(body.stats).toEqual({ total: 40, baru: 12, formulirDikirim: 9, menungguBayar: 4, belumBayar: 5, formulirMasuk: 6, diterima: 2, siswa: 7 });
     // None of the stat queries saw the search or the filters.
     for (const [{ where }] of db.count.mock.calls.slice(1)) {
       expect(JSON.stringify(where)).not.toContain("zzz");
@@ -342,12 +343,12 @@ describe("GET /api/admissions — stats", () => {
     db.count.mockResolvedValue(5);
     const body = await (await get()).json();
     expect(body.stats.total).toBe(5);
-    expect(db.count).toHaveBeenCalledTimes(7); // list total + six stage counts
+    expect(db.count).toHaveBeenCalledTimes(8); // list total + six stage counts + belum bayar
   });
 
   it("with a filter the tenant total is counted separately", async () => {
     await get("search=abc");
-    expect(db.count).toHaveBeenCalledTimes(8);
+    expect(db.count).toHaveBeenCalledTimes(9);
     expect(db.count).toHaveBeenCalledWith({ where: { tenantId: "t1" } });
   });
 

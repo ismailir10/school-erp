@@ -14,7 +14,7 @@ import { canRemind } from "@/lib/enrollment/follow-up";
 import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
-const EMPTY_STATS = { total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 };
+const EMPTY_STATS = { total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 };
 
 /**
  * GET /api/admissions — the unified Pendaftaran list (cycle 2026-10-11-pendaftaran-simplify).
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   // The stats total is the whole tenant; with no filter that is exactly `total`, so it is not counted twice.
   const filtered = and.length > 0;
 
-  const [admissions, total, tenantTotal, baru, formulirDikirim, menungguBayar, formulirMasuk, diterima, siswa] =
+  const [admissions, total, tenantTotal, baru, formulirDikirim, menungguBayar, belumBayar, formulirMasuk, diterima, siswa] =
     await Promise.all([
       prisma.admission.findMany({
         where,
@@ -110,6 +110,8 @@ export async function GET(req: NextRequest) {
       prisma.admission.count({ where: scoped(stageWhere("BARU")) }),
       prisma.admission.count({ where: scoped(stageWhere("FORMULIR_DIKIRIM")) }),
       prisma.admission.count({ where: scoped(MENUNGGU_BAYAR_WHERE) }),
+      // The same predicate as the ?payment=unpaid filter, so the "Belum bayar" card and its filter agree.
+      prisma.admission.count({ where: scoped(UNPAID_WHERE) }),
       prisma.admission.count({ where: scoped(stageWhere("FORMULIR_MASUK")) }),
       prisma.admission.count({ where: scoped(stageWhere("DITERIMA")) }),
       prisma.admission.count({ where: scoped(stageWhere("SISWA")) }),
@@ -167,7 +169,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ...paginatedResponse(data, total, page, pageSize),
-    stats: { total: tenantTotal ?? total, baru, formulirDikirim, menungguBayar, formulirMasuk, diterima, siswa },
+    stats: { total: tenantTotal ?? total, baru, formulirDikirim, menungguBayar, belumBayar, formulirMasuk, diterima, siswa },
     canEdit,
   });
 }

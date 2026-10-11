@@ -83,9 +83,9 @@ describe("EnrollmentDetailPage — not-found state (AC12)", () => {
     ).toBeInTheDocument();
 
     const backLink = screen.getByRole("link", {
-      name: "Kembali ke Daftar Formulir Pendaftaran",
+      name: "Kembali ke Daftar Pendaftaran",
     });
-    expect(backLink).toHaveAttribute("href", "/admin/enrollments");
+    expect(backLink).toHaveAttribute("href", "/admin/admissions");
   });
 });
 
@@ -203,6 +203,38 @@ describe("EnrollmentDetailPage — actions by stage", () => {
     expect(await screen.findByRole("menuitem", { name: "Buka lagi" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Ubah data" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Tolak" })).not.toBeInTheDocument();
+  });
+
+  it("the loaded page goes back to the unified Pendaftaran list", async () => {
+    serveDetail({ ...baseDetail });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.getByRole("link", { name: "Kembali ke Daftar Pendaftaran" })).toHaveAttribute("href", "/admin/admissions");
+  });
+
+  it("the menu has Data kontak, which opens that lead's dialog on the Pendaftaran list", async () => {
+    serveDetail({ ...baseDetail, admission: { id: "adm 7", parentName: "Dewi Sartika", parentPhone: null } });
+    const user = userEvent.setup();
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    await openMenu(user);
+    const item = await screen.findByRole("menuitem", { name: "Data kontak" });
+    expect(item).toHaveAttribute("href", "/admin/admissions?edit=adm%207&search=Dewi%20Sartika");
+  });
+
+  it("no Data kontak for a viewer or once the student exists", async () => {
+    const admission = { id: "adm-7", parentName: "Dewi", parentPhone: null };
+    serveDetail({ ...baseDetail, canEdit: false, admission });
+    const { unmount } = render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("button", { name: "Aksi lainnya" })).not.toBeInTheDocument();
+    unmount();
+
+    serveDetail({ ...baseDetail, status: "ACCEPTED", studentId: "stu-9", admission });
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+    await screen.findByText("Aisyah");
+    expect(screen.queryByRole("menuitem", { name: "Data kontak" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aksi lainnya" })).not.toBeInTheDocument();
   });
 
   it("a converted form has no actions, only a link to the student", async () => {
