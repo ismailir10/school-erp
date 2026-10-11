@@ -43,18 +43,52 @@ describe("POST /api/enrollments/token/[token]/pay", () => {
     expect(getLink.mock.calls[0][0]).not.toHaveProperty("amount");
   });
 
+  it("an unknown (well-shaped) token never creates a per-token limiter entry: 20 distinct ones still never reach the token limit, and each is a plain 404", async () => {
+    resolveAccess.mockResolvedValue({ access: "NOT_FOUND", id: null, tenantId: null });
+    for (let i = 0; i < 8; i++) {
+      expect((await POST(req(`3.3.3.${i}`), ctx("same-unknown-token"))).status).toBe(404);
+    }
+    // Had the unknown token been counted (limit 6 a minute), the later calls would be 429.
+    resolveAccess.mockResolvedValue({ access: "SUBMITTED", id: "app-1", tenantId: "t-1" });
+    expect((await POST(req("3.3.3.99"), ctx("same-unknown-token"))).status).toBe(200);
+  });
+
   it("404 for an unknown token, without looking up a fee", async () => {
     resolveAccess.mockResolvedValue({ access: "NOT_FOUND", id: null, tenantId: null });
     expect((await POST(req(), ctx())).status).toBe(404);
     expect(getLink).not.toHaveBeenCalled();
   });
 
-  it("409 NOT_SUBMITTED while the form is still open (no fee exists yet)", async () => {
-    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1" });
+  it("pay-first: works while the form is still INVITED and the fee is owed (PAYMENT_REQUIRED)", async () => {
+    resolveAccess.mockResolvedValue({ access: "PAYMENT_REQUIRED", id: "app-1", tenantId: "t-1", hasFee: true });
+    const res = await POST(req(), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ paymentUrl: "https://doku.example/pay/1" });
+    expect(getLink).toHaveBeenCalledWith({ applicationId: "app-1", tenantId: "t-1", token: "tok", requestOrigin: "https://talib.example" });
+  });
+
+  it.each(["PAID", "WAIVED"])("an INVITED form whose fee is %s answers { status } instead of a link", async (status) => {
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1", hasFee: true });
+    getLink.mockResolvedValue({ kind: "SETTLED", status });
+    const res = await POST(req(), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status });
+  });
+
+  it("404 NO_FEE for an INVITED form that has no fee row (sent before pay-first, or a free program): nothing to pay", async () => {
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1", hasFee: false });
+    getLink.mockResolvedValue({ kind: "NO_FEE" });
+    const res = await POST(req(), ctx());
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "NO_FEE" });
+  });
+
+  it("409 APPLICATION_CLOSED for an INVITED form whose lead was cancelled: no new link", async () => {
+    resolveAccess.mockResolvedValue({ access: "PAYMENT_REQUIRED", id: "app-1", tenantId: "t-1", hasFee: true });
+    getLink.mockResolvedValue({ kind: "CLOSED" });
     const res = await POST(req(), ctx());
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: "NOT_SUBMITTED" });
-    expect(getLink).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: "APPLICATION_CLOSED" });
   });
 
   it("410 for an invite that lapsed before it was ever submitted", async () => {
@@ -80,9 +114,11 @@ describe("POST /api/enrollments/token/[token]/pay", () => {
     expect(getLink).not.toHaveBeenCalled();
   });
 
-  it("404 when the application has no fee to pay (free program)", async () => {
+  it("404 when a submitted application has no fee to pay (free program)", async () => {
     getLink.mockResolvedValue({ kind: "NO_FEE" });
-    expect((await POST(req(), ctx())).status).toBe(404);
+    const res = await POST(req(), ctx());
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Not found" });
   });
 
   it.each(["PAID", "WAIVED"])("200 { status: %s } when there is nothing left to pay", async (status) => {

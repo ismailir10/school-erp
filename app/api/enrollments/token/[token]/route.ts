@@ -7,6 +7,8 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { writeConsentPreservingSignatures } from "@/lib/enrollment/json-merge";
 import { programIdSchema } from "@/lib/validations/program-id";
+import { denyTokenAccess } from "@/lib/enrollment/access-response";
+import { paymentRequiredResponse } from "@/lib/enrollment/payment-required";
 
 const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
 const RATE_WINDOW_MS = 60_000;
@@ -54,11 +56,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   }
 
   const { token } = await params;
-  const { access, id, tenantId } = await resolveEnrollmentAccess(token, new Date());
-  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  if (access === "SUBMITTED")
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  const { access, id, tenantId, hasFee } = await resolveEnrollmentAccess(token, new Date());
+  const denied = denyTokenAccess(access);
+  if (denied) return denied;
   if (!id || !tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let body: unknown;
@@ -85,16 +85,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   if (d.ibuData !== undefined) data.ibuData = d.ibuData;
   // consentData is written separately (below) in one UPDATE that carries the
   // stored signature tokens over, so autosave can never clear a signature.
-  if (d.programId !== undefined) {
+  // Program and Day Care set the price: once a fee row exists (pay-first) they are
+  // staff's to change ("Ubah data" reprices an unpaid fee), so a draft save of them
+  // is ignored. A form sent before pay-first has no fee row and keeps choosing. They
+  // are written by their own guarded UPDATE (below), because a staff resend can
+  // create the fee between the access check and the write.
+  const priceData: Record<string, unknown> = {};
+  if (!hasFee && d.programId !== undefined) {
     // Drop a cross-tenant program ref silently — this is an autosave, not a
     // hard gate; the final submit re-checks and 422s if still invalid.
     if (d.programId && d.programId !== "" && (await programBelongsToTenant(d.programId, tenantId))) {
-      data.programId = d.programId;
+      priceData.programId = d.programId;
     } else if (d.programId === "" || d.programId === null) {
-      data.programId = null;
+      priceData.programId = null;
     }
   }
-  if (d.dcareAddon !== undefined) data.dcareAddon = d.dcareAddon;
+  if (!hasFee && d.dcareAddon !== undefined) priceData.dcareAddon = d.dcareAddon;
 
   if (d.consentData !== undefined) {
     const written = await writeConsentPreservingSignatures(id, normalizeConsentDraft(d.consentData));
@@ -106,6 +112,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     // must not be overwritten by a late autosave.
     const result = await prisma.enrollmentApplication.updateMany({ where: { id, status: "INVITED" }, data });
     if (result.count === 0) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  }
+  if (Object.keys(priceData).length > 0) {
+    // `fee: { is: null }`: a stale draft must never overwrite the choice a fee was
+    // just priced for (a staff resend created it a moment after the access check).
+    const result = await prisma.enrollmentApplication.updateMany({
+      where: { id, status: "INVITED", fee: { is: null } },
+      data: priceData,
+    });
+    if (result.count === 0) {
+      // Either the form was submitted, or the fee appeared and locked the choice.
+      const now = await prisma.enrollmentApplication.findUnique({
+        where: { id },
+        select: { status: true, fee: { select: { status: true } } },
+      });
+      if (now?.status === "INVITED" && now.fee) {
+        // Locked, nothing to save; an unpaid fee also closes the rest of the form.
+        return now.fee.status === "UNPAID" ? paymentRequiredResponse() : NextResponse.json({ ok: true });
+      }
+      return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+    }
   }
   return NextResponse.json({ ok: true });
 }

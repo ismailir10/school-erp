@@ -59,7 +59,7 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("saves only the provided blobs and mirrors childName", async () => {
+  it("saves only the provided blobs and mirrors childName; Day Care goes in its own fee-guarded write", async () => {
     findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
     const res = await PATCH(req({ studentData: { childName: "  Aisyah  " }, dcareAddon: true }), ctx);
     expect(res.status).toBe(200);
@@ -67,14 +67,16 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
     expect(arg.where).toEqual({ id: "a", status: "INVITED" });
     expect(arg.data.studentData).toEqual({ childName: "  Aisyah  " });
     expect(arg.data.childName).toBe("Aisyah");
-    expect(arg.data.dcareAddon).toBe(true);
+    expect("dcareAddon" in arg.data).toBe(false);
     expect("ayahData" in arg.data).toBe(false);
+    expect(update.mock.calls[1][0]).toEqual({ where: { id: "a", status: "INVITED", fee: { is: null } }, data: { dcareAddon: true } });
   });
 
   it("normalizes empty programId to null", async () => {
     findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
     await PATCH(req({ programId: "" }), ctx);
     expect(update.mock.calls[0][0].data.programId).toBeNull();
+    expect(update.mock.calls[0][0].where).toEqual({ id: "a", status: "INVITED", fee: { is: null } });
   });
 
   it("persists a prefixed (non-cuid) programId that belongs to the tenant", async () => {
@@ -192,5 +194,98 @@ describe("PATCH — consentData and signatures", () => {
     const res = await PATCH(req({ dcareAddon: true }), ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
+  });
+});
+
+describe("PATCH — pay-first gate and the program lock", () => {
+  const row = (fee: { status: string } | null) => ({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1", fee });
+
+  it("409 PAYMENT_REQUIRED while the fee is UNPAID, and nothing at all is written", async () => {
+    findUnique.mockResolvedValue(row({ status: "UNPAID" }));
+    const res = await PATCH(
+      req({ studentData: { childName: "Aisyah" }, consentData: { agreed: true }, dcareAddon: true, programId: "c" + "a".repeat(24) }),
+      ctx,
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." });
+    expect(update).not.toHaveBeenCalled();
+    expect(writeConsent).not.toHaveBeenCalled();
+    expect(programFindFirst).not.toHaveBeenCalled();
+  });
+
+  it.each([["PAID"], ["WAIVED"]])("a %s fee lets the draft save through", async (status) => {
+    findUnique.mockResolvedValue(row({ status }));
+    const res = await PATCH(req({ studentData: { childName: "Aisyah" } }), ctx);
+    expect(res.status).toBe(200);
+    expect(update.mock.calls[0][0].data.studentData).toEqual({ childName: "Aisyah" });
+  });
+
+  it("no fee row (sent before pay-first) saves as before, program and Day Care included", async () => {
+    findUnique.mockResolvedValue(row(null));
+    await PATCH(req({ programId: "c" + "a".repeat(24), dcareAddon: true }), ctx);
+    expect(update.mock.calls[0][0].data).toEqual({ programId: "c" + "a".repeat(24), dcareAddon: true });
+  });
+
+  it.each([["PAID"], ["WAIVED"]])("once a %s fee exists, programId and dcareAddon in the draft are ignored (locked)", async (status) => {
+    findUnique.mockResolvedValue(row({ status }));
+    const res = await PATCH(
+      req({ programId: "c" + "a".repeat(24), dcareAddon: true, studentData: { childName: "Aisyah" }, ayahData: { name: "Ahmad" } }),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const data = update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("programId");
+    expect(data).not.toHaveProperty("dcareAddon");
+    // The rest of the draft is saved, and the program is not even looked up.
+    expect(data.studentData).toEqual({ childName: "Aisyah" });
+    expect(data.ayahData).toEqual({ name: "Ahmad" });
+    expect(programFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("a locked draft that carries only program / Day Care writes nothing", async () => {
+    findUnique.mockResolvedValue(row({ status: "PAID" }));
+    const res = await PATCH(req({ programId: "", dcareAddon: false }), ctx);
+    expect(res.status).toBe(200);
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH — a staff resend that created the fee after the access check", () => {
+  const open = { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1", fee: null };
+
+  // First read = the token lookup (no fee yet); later reads = the re-check after a guarded write matched nothing.
+  const raced = (after: { status: string; fee: { status: string } | null }) =>
+    findUnique.mockResolvedValueOnce(open).mockResolvedValue(after);
+
+  it("program and Day Care are written only while no fee exists: the guarded write matches nothing and the stale draft is dropped", async () => {
+    raced({ status: "INVITED", fee: { status: "PAID" } });
+    update.mockResolvedValue({ count: 0 });
+    const res = await PATCH(req({ programId: "c" + "a".repeat(24), dcareAddon: true }), ctx);
+    expect(update.mock.calls[0][0].where).toEqual({ id: "a", status: "INVITED", fee: { is: null } });
+    // Locked by a settled fee: nothing to save, and nothing wrong to report.
+    expect(res.status).toBe(200);
+  });
+
+  it("…and when that fee is still owed the parent is told to pay first", async () => {
+    raced({ status: "INVITED", fee: { status: "UNPAID" } });
+    update.mockResolvedValue({ count: 0 });
+    const res = await PATCH(req({ dcareAddon: true }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("PAYMENT_REQUIRED");
+  });
+
+  it("…and a form that was submitted meanwhile is ALREADY_SUBMITTED", async () => {
+    raced({ status: "SUBMITTED", fee: { status: "PAID" } });
+    update.mockResolvedValue({ count: 0 });
+    const res = await PATCH(req({ dcareAddon: true }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
+  });
+
+  it("the rest of the draft is not held back by the program guard", async () => {
+    findUnique.mockResolvedValue(open);
+    await PATCH(req({ studentData: { childName: "Aisyah" }, dcareAddon: true }), ctx);
+    expect(update.mock.calls[0][0].where).toEqual({ id: "a", status: "INVITED" });
+    expect(update.mock.calls[0][0].data).not.toHaveProperty("dcareAddon");
   });
 });

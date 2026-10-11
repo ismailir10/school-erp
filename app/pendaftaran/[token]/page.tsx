@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getProgramFees } from "@/lib/enrollment/fee-config";
 import { getPublicFeeView } from "@/lib/enrollment/fee-view";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
@@ -126,7 +128,7 @@ export default async function PendaftaranTokenPage({
                 token={token}
                 childName={application.childName}
                 fee={fee}
-                closed={application.status === "REJECTED"}
+                closed={isFeeClosed(application)}
               />
             </div>
           )}
@@ -145,6 +147,10 @@ export default async function PendaftaranTokenPage({
       </Shell>
     );
   }
+
+  // Pay-first: while the fee is owed the parent sees the payment screen, never the
+  // form (its routes refuse writes anyway). The payment page owns the way back.
+  if (access === "PAYMENT_REQUIRED") redirect(`/pendaftaran/${encodeURIComponent(token)}/pembayaran`);
 
   const [programs, requiredDocuments] = await Promise.all([
     getActivePrograms(tenantId),

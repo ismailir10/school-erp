@@ -438,6 +438,21 @@ describe("GET /api/enrollments/[id] — pendaftaran fee", () => {
     expect(body.fee.status).toBe("UNPAID");
   });
 
+  it("pay-first: a formulir still INVITED with an unpaid fee gets a follow-up (the link opens 'Bayar dulu')", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(app({ status: "INVITED", childName: "" }));
+    const { followUp } = await (await get()).json();
+    expect(followUp).toEqual({ formUrl: "https://talib.example/pendaftaran/SECRET-TOKEN", canRemind: true });
+  });
+
+  it("a CANCELLED lead gets no follow-up even with an unpaid fee (its pay link is closed)", async () => {
+    getSession.mockResolvedValue(editor);
+    findUnique.mockResolvedValue(
+      app({ status: "INVITED", admission: { id: "a-1", status: "CANCELLED", parentName: "Siti", parentPhone: null, parentWhatsapp: "0812-3456-7890", parentRelationship: "IBU" } }),
+    );
+    expect((await (await get()).json()).followUp).toBeNull();
+  });
+
   it("a read-only viewer sees the fee but never the form link or the token", async () => {
     getSession.mockResolvedValue(viewer);
     findUnique.mockResolvedValue(app());

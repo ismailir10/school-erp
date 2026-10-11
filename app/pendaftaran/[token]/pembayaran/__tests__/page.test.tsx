@@ -125,6 +125,12 @@ describe("/pendaftaran/[token]/pembayaran", () => {
     expect(screen.getByText(/Pendaftaran ini tidak dilanjutkan/)).toBeInTheDocument();
   });
 
+  it("a cancelled lead shows the fee but offers no payment", async () => {
+    resolveToken.mockResolvedValue({ access: "SUBMITTED", tenantId: "t-1", application: app({ admission: { status: "CANCELLED" } }) });
+    await renderPage();
+    expect(screen.queryByRole("button", { name: /Bayar|Lanjutkan/ })).not.toBeInTheDocument();
+  });
+
   it("an application with no fee says so instead of an empty page", async () => {
     getFee.mockResolvedValue(null);
     await renderPage();
@@ -153,6 +159,19 @@ describe("/pendaftaran/[token]/pembayaran — dead ends", () => {
 
   it("a form that was never sent goes back to the form (nothing to pay yet)", async () => {
     resolveToken.mockResolvedValue({ access: "OK", tenantId: "t-1", application: app({ status: "INVITED" }) });
+    await expect(renderPage()).rejects.toThrow(`REDIRECT:/pendaftaran/${TOKEN}`);
+  });
+
+  it("pay-first: an INVITED form whose fee is owed shows the payment panel (it is the destination, not a redirect)", async () => {
+    resolveToken.mockResolvedValue({ access: "PAYMENT_REQUIRED", tenantId: "t-1", application: app({ status: "INVITED", childName: "" }) });
+    getFee.mockResolvedValue(fee({ started: false }));
+    await renderPage();
+    expect(screen.getByRole("button", { name: "Bayar sekarang" })).toBeEnabled();
+  });
+
+  it("pay-first: once the fee is settled the form is open again and this page hands back to it", async () => {
+    resolveToken.mockResolvedValue({ access: "OK", tenantId: "t-1", application: app({ status: "INVITED" }) });
+    getFee.mockResolvedValue(fee({ status: "PAID", paidAt: "2026-10-10T03:05:00.000Z" }));
     await expect(renderPage()).rejects.toThrow(`REDIRECT:/pendaftaran/${TOKEN}`);
   });
 

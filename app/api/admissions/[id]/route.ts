@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/permissions";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { programInTenant, PROGRAM_NOT_FOUND } from "@/lib/admission/program-scope";
 import { recordAudit } from "@/lib/audit";
+import { DROP_LINK } from "@/lib/enrollment/fee-snapshot";
 
 // Allowed status transitions for the Admission state machine.
 // Terminal state CANCELLED has no outgoing transitions. ADMITTED is terminal
@@ -134,12 +135,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Update + audit commit together (recordAudit re-throws inside a transaction).
   // The audit row names the fields that changed, never their values (PII).
+  const cancelling = statusChanged && body.status === "CANCELLED";
   let admission = await prisma.$transaction(async (tx) => {
     const updated = await tx.admission.update({
       // tenantId in the unique filter: a write can never land on another school's row.
       where: { id, tenantId },
       data: { ...data, ...(body.status ? { status: body.status } : {}) },
     });
+    // Pay-first: a cancelled lead's open payment link is no longer handed out. The
+    // gateway session id stays, so reconcile can still see an order that was already
+    // opened; `getOrCreateFeePaymentLink` refuses to mint a new link for a cancelled
+    // lead. Only an UNPAID fee has a link worth dropping.
+    const closedLinks = cancelling
+      ? await tx.enrollmentFee.updateMany({
+          where: { tenantId, status: "UNPAID", application: { admissionId: id, tenantId } },
+          data: DROP_LINK,
+        })
+      : null;
     await recordAudit(
       {
         tenantId,
@@ -148,7 +160,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         entityId: id,
         action: "update",
         ...(statusChanged ? { before: { status: existing.status } } : {}),
-        after: { changedFields, ...(statusChanged ? { status: body.status } : {}) },
+        after: {
+          changedFields,
+          ...(statusChanged ? { status: body.status } : {}),
+          ...(closedLinks && closedLinks.count > 0 ? { paymentLinkClosed: true } : {}),
+        },
       },
       tx,
     );

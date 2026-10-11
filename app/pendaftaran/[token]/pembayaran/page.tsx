@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { schoolContactPhone } from "@/lib/contact";
 import { getPublicFeeView } from "@/lib/enrollment/fee-view";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { isTokenShape } from "@/lib/enrollment/token";
 import { prisma } from "@/lib/db";
 import { reconcileEnrollmentFee } from "@/lib/payments/reconcile";
@@ -99,7 +100,7 @@ export default async function PembayaranPage({
             childName={application.childName}
             fee={fee}
             mode={mode}
-            closed={application.status === "REJECTED"}
+            closed={isFeeClosed(application)}
           />
         </div>
         <p className="mt-5 text-sm text-muted-foreground">

@@ -7,13 +7,14 @@ import { toAdminDocuments } from "@/lib/enrollment/documents";
 import { mergeJsonKey } from "@/lib/enrollment/json-merge";
 import { ADMIN_FEE_SELECT, feeAttentionFrom, toAdminFeeView, type AdminFeeView } from "@/lib/enrollment/fee-admin-view";
 import { getProgramFees } from "@/lib/enrollment/fee-config";
-import { repriceUnpaidFee, type FeeNote } from "@/lib/enrollment/fee-snapshot";
+import { REPRICE_FORBIDDEN, repriceUnpaidFee, type FeeNote } from "@/lib/enrollment/fee-snapshot";
 import { changedKeys, isPlainObject, mergeSection } from "@/lib/enrollment/staff-edit";
 import { parseEnrollmentEdit } from "@/lib/validations/enrollment-edit";
 import { rateLimit } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { canRemind, parentFormUrl } from "@/lib/enrollment/follow-up";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { resolveAppOrigin } from "@/lib/payments/session";
 
 // Admin status workflow. INVITED is owned by the parent (pre-submit) and is
@@ -38,7 +39,6 @@ class PatchError extends Error {
   }
 }
 
-const REPRICE_FORBIDDEN = "Mengubah program mengubah biaya pendaftaran; butuh izin keuangan.";
 const CONVERTED = "Pendaftaran ini sudah dikonversi menjadi siswa dan tidak bisa diubah.";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       documents: true,
       program: { select: { id: true, name: true } },
       admission: {
-        select: { id: true, parentName: true, parentPhone: true, parentWhatsapp: true, parentRelationship: true },
+        select: { id: true, status: true, parentName: true, parentPhone: true, parentWhatsapp: true, parentRelationship: true },
       },
       fee: { select: { ...ADMIN_FEE_SELECT, id: true } },
     },
@@ -85,9 +85,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // opened through the reminder endpoint, so this is the ONLY place a token is
   // returned — for one application, to staff who can act on it.
   let followUp: { formUrl: string; canRemind: boolean } | null = null;
-  // Not for a REJECTED application: the parent's pay link is closed (409
-  // APPLICATION_CLOSED), so a reminder would send them to a dead end.
-  if (canEdit && feeView?.status === "UNPAID" && rest.status !== "REJECTED") {
+  // Pay-first: this includes a formulir still INVITED, whose unpaid fee gates the
+  // form — the link leads the parent to the "Bayar dulu" screen.
+  // Not for a REJECTED application or a CANCELLED lead: the parent's pay link is
+  // closed (409 APPLICATION_CLOSED), so a reminder would send them to a dead end.
+  if (canEdit && feeView?.status === "UNPAID" && !isFeeClosed(rest)) {
     followUp = {
       formUrl: parentFormUrl(resolveAppOrigin(new URL(req.url).origin), accessToken),
       canRemind: canRemind({ admission: rest.admission, ayahData: rest.ayahData, ibuData: rest.ibuData }),

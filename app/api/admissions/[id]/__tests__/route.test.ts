@@ -42,6 +42,8 @@ const state = {
   updates: [] as Array<Record<string, unknown>>,
   updateWheres: [] as Array<{ id: string; tenantId?: string }>,
   programs: ["prog-1"] as string[],
+  feeLinkDrops: [] as Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>,
+  droppedLinkCount: 0,
 };
 
 const detect = vi.hoisted(() => ({ detectSibling: vi.fn() }));
@@ -79,7 +81,17 @@ vi.mock("@/lib/db", () => {
         state.programs.includes(where.id) ? { id: where.id } : null,
       ),
     },
-    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({ admission })),
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        admission,
+        enrollmentFee: {
+          updateMany: vi.fn(async (arg: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+            state.feeLinkDrops.push(arg);
+            return { count: state.droppedLinkCount };
+          }),
+        },
+      }),
+    ),
   };
   return { prisma };
 });
@@ -148,6 +160,8 @@ beforeEach(() => {
   state.updates = [];
   state.updateWheres = [];
   state.programs = ["prog-1"];
+  state.feeLinkDrops = [];
+  state.droppedLinkCount = 0;
   detect.detectSibling.mockReset();
   detect.detectSibling.mockResolvedValue(null);
   audit.recordAudit.mockClear();
@@ -257,6 +271,42 @@ describe("PUT /api/admissions/[id] — the merged row keeps a contact", () => {
     state.admission = freshAdmission();
     expect((await PUT(putReq({ status: "CANCELLED" }) as never, { params })).status).toBe(200);
     expect((await PUT(putReq({ notes: "Telepon dulu" }) as never, { params })).status).toBe(200);
+  });
+});
+
+describe("PUT /api/admissions/[id] — cancelling closes an open payment link (pay-first)", () => {
+  it("drops the stored unpaid link of this lead's fee, tenant-scoped, keeping the gateway session id", async () => {
+    state.droppedLinkCount = 1;
+    const res = await PUT(putReq({ status: "CANCELLED" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.feeLinkDrops).toHaveLength(1);
+    const { where, data } = state.feeLinkDrops[0];
+    expect(where).toEqual({ tenantId: "t1", status: "UNPAID", application: { admissionId: "a1", tenantId: "t1" } });
+    expect(data).toEqual({ paymentUrl: null, sessionExpiresAt: null, linkError: null });
+    expect(data).not.toHaveProperty("gatewaySessionId");
+  });
+
+  it("says so in the audit row only when a link was actually dropped", async () => {
+    state.droppedLinkCount = 1;
+    await PUT(putReq({ status: "CANCELLED" }) as never, { params });
+    expect((audit.recordAudit.mock.calls[0] as unknown as [Record<string, unknown>])[0]).toMatchObject({
+      after: { status: "CANCELLED", paymentLinkClosed: true },
+    });
+    audit.recordAudit.mockClear();
+    state.admission = freshAdmission();
+    state.droppedLinkCount = 0;
+    await PUT(putReq({ status: "CANCELLED" }) as never, { params });
+    const [entry] = audit.recordAudit.mock.calls[0] as unknown as [{ after: Record<string, unknown> }];
+    expect(entry.after).not.toHaveProperty("paymentLinkClosed");
+  });
+
+  it("touches no fee when the lead is only edited, or the status does not change", async () => {
+    state.admission = freshAdmission({ parentPhone: "0811" });
+    await PUT(putReq({ notes: "Telepon dulu" }) as never, { params });
+    expect(state.feeLinkDrops).toHaveLength(0);
+    state.admission = freshAdmission({ status: "CANCELLED", parentPhone: "0811" });
+    await PUT(putReq({ status: "CANCELLED", notes: "lagi" }) as never, { params });
+    expect(state.feeLinkDrops).toHaveLength(0);
   });
 });
 

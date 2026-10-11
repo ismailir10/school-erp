@@ -70,6 +70,12 @@ describe("feeReminderText", () => {
     expect(feeReminderText(base)).not.toContain("Kami dari");
   });
 
+  it("pay-first: speaks of 'ananda' in general when the child is not named yet", () => {
+    const t = feeReminderText({ ...base, childName: "  " });
+    expect(t).toContain("Biaya pendaftaran ananda sebesar Rp 300.000 belum kami terima.");
+    expect(t).not.toMatch(/ananda\s{2,}/);
+  });
+
   it("still greets politely without a parent name", () => {
     expect(feeReminderText({ ...base, parentName: null })).toContain("Assalamu'alaikum Bapak/Ibu.");
     expect(feeReminderText({ ...base, parentName: "  " })).toContain("Assalamu'alaikum Bapak/Ibu.");

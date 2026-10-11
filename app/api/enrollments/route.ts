@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { canRemind } from "@/lib/enrollment/follow-up";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 
 /**
  * GET /api/enrollments — admin list of enrollment applications. Tenant-scoped,
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
           ? {
               ayahData: true,
               ibuData: true,
-              admission: { select: { parentPhone: true, parentWhatsapp: true } },
+              admission: { select: { status: true, parentPhone: true, parentWhatsapp: true } },
             }
           : {}),
       },
@@ -88,10 +89,12 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { ayahData, ibuData, admission, fee, ...lean } = row as any;
     const amount = fee ? Math.round(Number(fee.amount)) : 0;
-    // Whether the WhatsApp reminder can be sent, only where there is something to chase
-    // (a REJECTED application's pay link is closed, so there is nothing to chase).
+    // Whether the WhatsApp reminder can be sent, only where there is something to chase:
+    // any unpaid fee, including a formulir still INVITED (pay-first, the link leads to
+    // the "Bayar dulu" screen). A REJECTED application or a CANCELLED lead has its pay
+    // link closed, so there is nothing to chase.
     const followUp =
-      canEdit && fee?.status === "UNPAID" && lean.status !== "REJECTED"
+      canEdit && fee?.status === "UNPAID" && !isFeeClosed({ status: lean.status, admission })
         ? { canRemind: canRemind({ admission, ayahData, ibuData }) }
         : null;
     return { ...lean, fee: fee ? { status: fee.status, amount } : null, followUp };

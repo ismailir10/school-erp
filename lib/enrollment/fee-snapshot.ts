@@ -6,7 +6,11 @@
  * it, so the two can never price differently. The client never sends an amount.
  *
  * `repriceUnpaidFee` is the one place an existing fee is re-priced after the
- * program or Day Care add-on changed. Shaped to be reused by the pay-first send.
+ * program or Day Care add-on changed (staff edit, and a resend of the formulir).
+ *
+ * `createFeeSnapshot` does NOT check for an existing row (the `applicationId`
+ * unique would reject a second one): every caller reads the fee first, under the
+ * application's row lock.
  */
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { recordAudit } from "@/lib/audit";
@@ -27,6 +31,9 @@ export const DROP_LINK = { paymentUrl: null, sessionExpiresAt: null, linkError: 
  * paid program may reopen it; a staff waive never carries it and is never reopened.
  */
 export const AUTO_WAIVE_NOTE = "Program tanpa biaya pendaftaran";
+
+/** Staff 403 when program / Day Care would move an UNPAID fee without the finance key. */
+export const REPRICE_FORBIDDEN = "Mengubah program mengubah biaya pendaftaran; butuh izin keuangan.";
 
 export type FeeSnapshot = { baseAmount: number; amount: number; status: "UNPAID" };
 

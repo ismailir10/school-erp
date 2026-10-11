@@ -97,6 +97,30 @@ describe("GET /api/enrollments — pendaftaran fee", () => {
     expect(row.followUp).toBeNull();
   });
 
+  it("pay-first: a formulir still INVITED with an unpaid fee can be chased by WhatsApp", async () => {
+    getSession.mockResolvedValue(editor);
+    findMany.mockResolvedValue([unpaidRow({ status: "INVITED", childName: "" })]);
+    const row = (await (await GET(reqWith("page=1"))).json()).data[0];
+    expect(row.fee).toEqual({ status: "UNPAID", amount: 300_000 });
+    expect(row.followUp).toEqual({ canRemind: true });
+  });
+
+  it("pay-first: an INVITED formulir with no number WhatsApp can open has canRemind false, not null", async () => {
+    getSession.mockResolvedValue(editor);
+    findMany.mockResolvedValue([
+      unpaidRow({ status: "INVITED", ayahData: {}, admission: { status: "INQUIRY", parentPhone: null, parentWhatsapp: null } }),
+    ]);
+    expect((await (await GET(reqWith("page=1"))).json()).data[0].followUp).toEqual({ canRemind: false });
+  });
+
+  it("a CANCELLED lead with an unpaid fee has no follow-up: its pay link is closed", async () => {
+    getSession.mockResolvedValue(editor);
+    findMany.mockResolvedValue([
+      unpaidRow({ status: "INVITED", admission: { status: "CANCELLED", parentName: "Siti", parentPhone: null, parentWhatsapp: "0812-3456-7890" } }),
+    ]);
+    expect((await (await GET(reqWith("page=1"))).json()).data[0].followUp).toBeNull();
+  });
+
   it("ignores an unknown payment value (no filter, no injection)", async () => {
     getSession.mockResolvedValue(editor);
     await GET(reqWith("payment=%7B%22is%22%3Anull%7D"));
@@ -120,7 +144,7 @@ describe("GET /api/enrollments — pendaftaran fee", () => {
     await GET(reqWith("page=1"));
     const select = findMany.mock.calls[0][0].select;
     expect(select.accessToken).toBeUndefined();
-    expect(select.admission).toEqual({ select: { parentPhone: true, parentWhatsapp: true } });
+    expect(select.admission).toEqual({ select: { status: true, parentPhone: true, parentWhatsapp: true } });
   });
 
   it("canRemind is false for a row with no number WhatsApp can open, so the UI disables the button", async () => {

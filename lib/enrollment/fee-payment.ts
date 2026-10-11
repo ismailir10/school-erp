@@ -7,7 +7,8 @@
  * shared webhook processor resolves after Invoice (see webhook-processor.ts).
  *
  * Server-only. Called from the public `/pay` route and (re-issuing a link)
- * from staff actions.
+ * from staff actions. Pay-first: the fee exists from the moment staff send the
+ * formulir, so a link can be minted while the application is still INVITED.
  */
 
 import { prisma } from "@/lib/db";
@@ -16,6 +17,7 @@ import { defaultExpiresAt } from "@/lib/payments/expiry";
 import { getGateway } from "@/lib/payments/registry";
 import { resolveAppOrigin } from "@/lib/payments/session";
 import { withRetry } from "@/lib/payments/with-retry";
+import { isFeeClosed } from "./fee-closed";
 
 /** A stored link with less than this left is replaced, not handed to a parent about to pay. */
 const REUSE_MARGIN_MS = 10 * 60 * 1000;
@@ -23,7 +25,7 @@ const REUSE_MARGIN_MS = 10 * 60 * 1000;
 export type FeePaymentLink =
   | { kind: "LINK"; paymentUrl: string; reused: boolean }
   | { kind: "SETTLED"; status: "PAID" | "WAIVED" }
-  /** Staff rejected the application: the fee is no longer collected online. */
+  /** Staff rejected the application or cancelled the lead: the fee is no longer collected online. */
   | { kind: "CLOSED" }
   | { kind: "NO_FEE" }
   | { kind: "FAILED" };
@@ -69,14 +71,16 @@ async function resolveLink(
           status: true,
           childName: true,
           parentEmail: true,
-          admission: { select: { parentName: true, parentEmail: true, parentPhone: true, parentWhatsapp: true } },
+          admission: { select: { status: true, parentName: true, parentEmail: true, parentPhone: true, parentWhatsapp: true } },
         },
       },
     },
   });
   if (!fee || fee.tenantId !== opts.tenantId) return { kind: "NO_FEE" };
   if (fee.status === "PAID" || fee.status === "WAIVED") return { kind: "SETTLED", status: fee.status };
-  if (fee.application.status === "REJECTED") return { kind: "CLOSED" };
+  // Works while the form is still INVITED (pay-first) as well as after submit.
+  // A rejected application or a cancelled lead is closed: no link is handed out.
+  if (isFeeClosed(fee.application)) return { kind: "CLOSED" };
 
   const amount = Number(fee.amount);
   if (!(amount > 0)) return { kind: "NO_FEE" };
@@ -101,7 +105,8 @@ async function resolveLink(
         getGateway().createSession({
           referenceId: fee.id,
           amount,
-          description: `Biaya pendaftaran — ${fee.application.childName}`,
+          // Pay-first: the fee is paid before the child is named, so the name may be blank.
+          description: fee.application.childName.trim() ? `Biaya pendaftaran — ${fee.application.childName}` : "Biaya pendaftaran",
           customerName: admission?.parentName || fee.application.childName,
           customerEmail: admission?.parentEmail ?? fee.application.parentEmail ?? undefined,
           customerPhone: admission?.parentWhatsapp ?? admission?.parentPhone ?? undefined,
@@ -118,7 +123,15 @@ async function resolveLink(
     );
 
     const stored = await prisma.enrollmentFee.updateMany({
-      where: { id: fee.id, status: "UNPAID", amount: fee.amount, ...noUsableLink },
+      where: {
+        id: fee.id,
+        status: "UNPAID",
+        amount: fee.amount,
+        ...noUsableLink,
+        // A reject or cancel landing between the CLOSED check above and this write
+        // must not leave a payable link stored (the same rule as `isFeeClosed`).
+        application: { status: { not: "REJECTED" }, admission: { status: { not: "CANCELLED" } } },
+      },
       data: {
         gatewaySessionId: session.id,
         paymentUrl: session.paymentUrl,

@@ -63,9 +63,11 @@ export function feeReminderText(input: {
 }): string {
   const who = input.parentName?.trim() ? `Bapak/Ibu ${input.parentName.trim()}` : "Bapak/Ibu";
   const school = input.schoolName?.trim();
+  // Pay-first: the fee can be chased before the child has been named.
+  const child = input.childName.trim();
   return [
     school ? `Assalamu'alaikum ${who}. Kami dari ${school}.` : `Assalamu'alaikum ${who}.`,
-    `Biaya pendaftaran ananda ${input.childName} sebesar ${formatRupiah(input.amount)} belum kami terima.`,
+    `Biaya pendaftaran ananda${child ? ` ${child}` : ""} sebesar ${formatRupiah(input.amount)} belum kami terima.`,
     `Bapak/Ibu bisa membayarnya lewat tautan berikut: ${input.formUrl}`,
     "Jika sudah membayar, mohon abaikan pesan ini. Jazakumullah khairan.",
   ].join("\n\n");

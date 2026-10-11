@@ -353,3 +353,37 @@ describe("DELETE /api/enrollments/token/[token]/documents", () => {
     expect((await DELETE(delReq("kk"), ctx)).status).toBe(200);
   });
 });
+
+describe("documents — pay-first gate", () => {
+  const withFee = (status: string | null) =>
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
+      arg.where.accessToken
+        ? { id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: status ? { status } : null }
+        : { documents: null },
+    );
+
+  it("POST: 409 PAYMENT_REQUIRED while the fee is UNPAID; the file is not even stored", async () => {
+    withFee("UNPAID");
+    const res = await POST(postReq("akta"), ctx);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." });
+    expect(saveFile).not.toHaveBeenCalled();
+    expect(mergeJsonKey).not.toHaveBeenCalled();
+  });
+
+  it("DELETE: 409 PAYMENT_REQUIRED while the fee is UNPAID; nothing is removed", async () => {
+    withFee("UNPAID");
+    const res = await DELETE(delReq("akta"), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("PAYMENT_REQUIRED");
+    expect(removeJsonFields).not.toHaveBeenCalled();
+  });
+
+  it.each([["PAID"], ["WAIVED"], [null]])("POST is allowed with fee %s", async (status) => {
+    withFee(status);
+    saveFile.mockResolvedValue({ token: NEW_TOKEN });
+    mergeJsonKey.mockResolvedValue(true);
+    expect((await POST(postReq("akta"), ctx)).status).toBe(200);
+    expect(saveFile).toHaveBeenCalledTimes(1);
+  });
+});
