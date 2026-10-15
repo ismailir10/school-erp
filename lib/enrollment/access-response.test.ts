@@ -6,7 +6,6 @@ describe("denyTokenAccess: the public token routes' refusal ladder", () => {
     ["NOT_FOUND", 404, { error: "Not found" }],
     ["EXPIRED", 410, { error: "EXPIRED" }],
     ["SUBMITTED", 409, { error: "ALREADY_SUBMITTED" }],
-    ["PAYMENT_REQUIRED", 409, { error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." }],
   ] as const)("%s → %i", async (access, status, body) => {
     const res = denyTokenAccess(access);
     expect(res?.status).toBe(status);

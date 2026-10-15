@@ -146,7 +146,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       where: { id, tenantId },
       data: { ...data, ...(statusChanged && requestedStatus ? { status: requestedStatus } : {}) },
     });
-    // Pay-first: a cancelled lead's open payment link is no longer handed out. The
+    // A cancelled lead's open payment link is no longer handed out. The
     // gateway session id stays, so reconcile can still see an order that was already
     // opened; `getOrCreateFeePaymentLink` refuses to mint a new link for a cancelled
     // lead. Only an UNPAID fee has a link worth dropping.

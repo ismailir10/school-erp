@@ -58,6 +58,20 @@ describe("AdmissionsPage — one list", () => {
     expect(screen.getAllByText("Belum dipilih")).toHaveLength(1);
   });
 
+  it("shows the child named on the formulir when the lead has no name, and keeps the lead's own name otherwise", async () => {
+    serveList([
+      leadRow({ id: "a1", childName: "", stage: "FORMULIR_MASUK", application: formulir({ childName: "Aisyah Putri" }) }),
+      leadRow({ id: "a2", childName: "Bima", application: formulir({ id: "ea-2", childName: "Bima Saputra" }) }),
+      leadRow({ id: "a3", childName: "  ", application: formulir({ id: "ea-3", childName: "" }) }),
+    ]);
+    render(<AdmissionsPage />);
+    expect(await screen.findByText("Aisyah Putri")).toBeInTheDocument();
+    expect(screen.getByText("Bima")).toBeInTheDocument();
+    expect(screen.queryByText("Bima Saputra")).not.toBeInTheDocument();
+    // Only the row with no name anywhere falls back to the placeholder.
+    expect(screen.getAllByText("Belum diisi")).toHaveLength(1);
+  });
+
   it("shows a dash instead of a count until the stats are here", async () => {
     serveList([leadRow()], { stats: null });
     render(<AdmissionsPage />);
@@ -380,7 +394,7 @@ describe("AdmissionsPage — ?edit= deep link (Data kontak on the formulir page)
 describe("AdmissionsPage — stats shape", () => {
   it("is the documented set (guards the fixture against drifting from the contract)", () => {
     expect(Object.keys(STATS).sort()).toEqual(
-      ["baru", "belumBayar", "diterima", "formulirDikirim", "formulirMasuk", "menungguBayar", "siswa", "total"],
+      ["baru", "belumBayar", "diterima", "formulirDikirim", "formulirMasuk", "siswa", "total"],
     );
   });
 });

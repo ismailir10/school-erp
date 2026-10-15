@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { submitEnrollmentSchema, flattenSubmitErrors } from "./submit-validation";
+import { submitEnrollmentSchema, flattenSubmitErrors, STAFF_EDITABLE_KEYS } from "./submit-validation";
 import { CONSENT_VERSION } from "./consent-clauses";
 
 const PROGRAM_ID = "c" + "a".repeat(24); // valid cuid shape
@@ -165,6 +165,55 @@ describe("submitEnrollmentSchema", () => {
     if (result.success) {
       expect(result.data.programId).toBe("program_ab57fd0432e25d5b3013");
     }
+  });
+
+  describe("address keys", () => {
+    const full = {
+      perumahan: "Jl. Citarum 5", blokCluster: "B", rtRw: "01/02", kelurahan: "Citarum",
+      kecamatan: "Bandung Wetan", kotaKab: "Kota Bandung", provinsi: "Jawa Barat", kodePos: "40115",
+    };
+    const withAddress = (address: Record<string, unknown>) => {
+      const p = validPayload() as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      p.studentData.address = address;
+      p.ayahData.address = address;
+      return submitEnrollmentSchema.safeParse(p);
+    };
+
+    it("accepts and keeps kelurahan, kotaKab and provinsi for the child and a parent", () => {
+      const r = withAddress(full);
+      expect(r.success).toBe(true);
+      if (r.success) {
+        expect(r.data.studentData.address).toEqual(full);
+        expect(r.data.ayahData?.address).toEqual(full);
+      }
+    });
+
+    it("still accepts an old five-key address", () => {
+      const r = withAddress({ perumahan: "Taman Aster", blokCluster: "A3", rtRw: "02/05", kecamatan: "Cikarang", kodePos: "17530" });
+      expect(r.success).toBe(true);
+    });
+
+    it("strips unknown address keys", () => {
+      const r = withAddress({ ...full, negara: "ID", tenantId: "evil" });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.studentData.address).toEqual(full);
+    });
+
+    it("stays lenient on kode pos so an old draft never blocks submit (the form enforces 5 digits)", () => {
+      expect(withAddress({ kodePos: "4011" }).success).toBe(true);
+      expect(withAddress({ kodePos: "x".repeat(11) }).success).toBe(false);
+    });
+
+    it("caps the new keys", () => {
+      expect(withAddress({ kelurahan: "k".repeat(81) }).success).toBe(false);
+      expect(withAddress({ kotaKab: "k".repeat(81) }).success).toBe(false);
+      expect(withAddress({ provinsi: "p".repeat(61) }).success).toBe(false);
+      expect(withAddress({ kelurahan: "k".repeat(80), kotaKab: "k".repeat(80), provinsi: "p".repeat(60) }).success).toBe(true);
+    });
+
+    it("makes them staff-editable", () => {
+      expect(STAFF_EDITABLE_KEYS.address).toEqual(expect.arrayContaining(["kelurahan", "kotaKab", "provinsi"]));
+    });
   });
 
   it("strips unknown server-owned keys (status, tenantId)", () => {

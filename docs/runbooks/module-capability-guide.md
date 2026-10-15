@@ -40,7 +40,7 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 - Withdraw (reason required, flags unpaid invoices), Graduate (requires active enrollment), Promote to next class (capacity-checked).
 - Enroll directly from student profile.
 - Admission lead status is only Baru / Batal (Cancel); the Tahap is derived from the lead, its formulir and the student link.
-- Send online enrollment form (Kirim Formulir: program + Day Care, no email needed; the fee is paid first) via secure link by WhatsApp, copy, email or fill together; staff can edit any field (Ubah data) or submit on the parent's behalf.
+- Send online enrollment form (Kirim Formulir: one tap, no email needed; the parent picks Program + Day Care in the form and pays the fee after submitting) via secure link by WhatsApp, copy, email or fill together; the parent's address fills from the kode pos; staff can edit any field (Ubah data), settle the fee from the formulir, or submit on the parent's behalf.
 - Terima & Jadikan Siswa: one confirmed action creates the student and Ayah/Ibu wali links; a possible duplicate student or wali name mismatch is asked before merging. Reject (Tolak) stays in the row menu.
 - Download student list to spreadsheet.
 

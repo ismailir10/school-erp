@@ -39,3 +39,29 @@ describe("EnrollmentApplicationView birth dates", () => {
     expect(rowValue("Tempat, tanggal lahir", 1)).toBe("awal 1990-an");
   });
 });
+
+describe("EnrollmentApplicationView address", () => {
+  const full = {
+    perumahan: "Jl. Citarum 5", blokCluster: "B", rtRw: "01/02", kelurahan: "Citarum",
+    kecamatan: "Bandung Wetan", kotaKab: "Kota Bandung", provinsi: "Jawa Barat", kodePos: "40115",
+  };
+  const joined = "Jl. Citarum 5, B, 01/02, Citarum, Bandung Wetan, Kota Bandung, Jawa Barat, 40115";
+
+  it("shows the full address for the child and both parents", () => {
+    renderView({ childName: "Aisyah", address: full }, { name: "Budi", address: full }, { name: "Siti", address: full });
+    expect(rowValue("Alamat", 0)).toBe(joined);
+    expect(rowValue("Alamat", 1)).toBe(joined);
+    expect(rowValue("Alamat", 2)).toBe(joined);
+  });
+
+  it("shows an old five-key address as stored and an em dash when there is none", () => {
+    renderView(
+      { childName: "Aisyah", address: { perumahan: "Taman Aster", kecamatan: "Cikarang", kodePos: "17530" } },
+      { name: "Budi", address: { rtRw: "02/05", kodePos: "17530" } },
+      { name: "Siti" },
+    );
+    expect(rowValue("Alamat", 0)).toBe("Taman Aster, Cikarang, 17530");
+    expect(rowValue("Alamat", 1)).toBe("02/05, 17530");
+    expect(rowValue("Alamat", 2)).toBe("—");
+  });
+});

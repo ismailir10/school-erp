@@ -1,28 +1,34 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import {
-  CONSENT_VERSION,
   createInvite,
+  fillAndSubmit,
   newAdminContext,
   newIpBlock,
   postSignature,
   prefillDraft,
+  priceTwoPrograms,
+  type ProgramFee,
 } from "./helpers/enrollment";
 import { storeLegacyLeadStatus } from "./helpers/legacy-lead";
 
 /**
- * The one Pendaftaran pipeline, lead to student (cycle 2026-10-11-pendaftaran-simplify).
+ * The one Pendaftaran pipeline, lead to student (cycles 2026-10-11-pendaftaran-simplify and
+ * 2026-10-15-pendaftaran-pay-after-form).
  *
- * Replaces admin-admission-convert-parity: there is a single list (/admin/admissions), a single
- * convert ("Terima & Jadikan Siswa" on the formulir), and the stage of a family is derived.
+ * There is a single list (/admin/admissions), a single convert ("Terima & Jadikan Siswa" on the
+ * formulir), and the stage of a family is derived. The pendaftaran fee is paid AFTER the form:
+ * "Kirim Formulir" is one tap that picks no program and creates no fee; the parent chooses
+ * Program + Day Care in the form, and submit creates the fee.
  *
- *  (a) WALK-IN, no email: Catat Pertanyaan with parent name + phone only → Kirim Formulir with a
- *      priced program → the result card shows the amount → "Tandai lunas (tunai)" → the form link
- *      ("Isi bersama orang tua") opens the real form → the form is filled and submitted →
- *      row "Formulir masuk" + "Lunas" → Ubah data fixes a field → Terima & Jadikan Siswa →
- *      the student and both wali exist, row "Siswa".
- *  (b) PAY FIRST, parent side: with an unpaid fee the link leads to the "Bayar dulu" screen and an
- *      autosave and a submit are refused 409 PAYMENT_REQUIRED; once staff settle it the form opens
- *      with the Program step read-only.
+ *  (a) WALK-IN, no email: Catat Pertanyaan with parent name + phone only → Kirim Formulir (one
+ *      tap, no fee on the result card) → "Isi bersama orang tua" opens the real form, unpaid, and
+ *      kode pos 12950 fills the region → the form is submitted → row "Formulir masuk" + "Belum
+ *      bayar" → the formulir's fee card settles it in cash → Ubah data fixes a field → Terima &
+ *      Jadikan Siswa → the student and both wali exist, the student's address reads the full
+ *      joined address, row "Siswa".
+ *  (b) PAY AFTER, parent side: the link opens the form with an unpaid (not yet existing) fee,
+ *      autosave works, the parent picks Program in the form, submits, and the thank-you card
+ *      offers "Bayar sekarang".
  *  (c) LEGACY: a lead stored as VISITED reads as "Baru" and can be sent a formulir.
  *  (d) CANCEL: cancelling a lead closes its unpaid payment link (409 APPLICATION_CLOSED).
  *
@@ -38,61 +44,22 @@ const nextIp = newIpBlock(91);
 
 test.describe.configure({ mode: "serial", timeout: 120_000 });
 
-function formBody(programId: string, child: string) {
-  return {
-    programId,
-    dcareAddon: false,
-    studentData: {
-      childName: child,
-      childGender: "P",
-      birthPlace: "Bekasi",
-      dateOfBirth: "2021-03-15",
-      agama: "ISLAM",
-      kewarganegaraan: "WNI",
-    },
-    ayahData: { name: "E2E Ayah" },
-    ibuData: { name: "E2E Ibu" },
-    consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
-  };
-}
-
-type Program = { id: string; name: string; enrollmentFee: number };
+type WilayahEntry = { kodePos: string; kelurahan: string; kecamatan: string; kotaKab: string; provinsi: string };
 
 test.describe("Pendaftaran pipeline — lead to student", () => {
   let admin: BrowserContext;
-  let priced: Program;
-  let free: Program;
-  let original: Program[] = [];
-  let requiredDocuments: string[] = [];
+  let priced: ProgramFee;
+  let free: ProgramFee;
+  let restoreFees: () => Promise<void> = async () => {};
 
   test.beforeAll(async ({ browser }) => {
     admin = await newAdminContext(browser);
-    const res = await admin.request.get("/api/config/enrollment");
-    expect(res.status()).toBe(200);
-    const cfg = await res.json();
-    requiredDocuments = cfg.requiredDocuments as string[];
-    expect(cfg.programs.length).toBeGreaterThan(1);
-    priced = cfg.programs[0] as Program;
-    free = cfg.programs[1] as Program;
-    original = [priced, free].map((p) => ({ ...p }));
-
-    const put = await admin.request.put("/api/config/enrollment", {
-      data: {
-        requiredDocuments,
-        programFees: [
-          { programId: priced.id, fee: FEE },
-          { programId: free.id, fee: 0 },
-        ],
-      },
-    });
-    expect(put.status()).toBe(200);
+    ({ priced, free, restore: restoreFees } = await priceTwoPrograms(admin.request, FEE));
   });
 
   test.afterAll(async () => {
     try {
-      await admin?.request.put("/api/config/enrollment", {
-        data: { requiredDocuments, programFees: original.map((p) => ({ programId: p.id, fee: p.enrollmentFee })) },
-      });
+      await restoreFees();
     } finally {
       await admin?.close();
     }
@@ -104,7 +71,7 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
     return page.getByRole("row").filter({ hasText: text });
   }
 
-  test("(a) walk-in without email: lead → paid in cash → form filled → Ubah data → Terima & Jadikan Siswa", async () => {
+  test("(a) walk-in without email: lead → one-tap formulir → form filled → paid in cash → Ubah data → Terima & Jadikan Siswa", async () => {
     const PARENT = `E2E Walkin ${STAMP}`;
     const CHILD = `E2E Walkin Anak ${STAMP}`;
     const page = await admin.newPage();
@@ -127,73 +94,100 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
       const row = page.getByRole("row").filter({ hasText: PARENT });
       await expect(row).toContainText("Baru");
       await expect(row).toContainText("Belum diisi");
-      await row.getByRole("button", { name: `Kirim Formulir: ${PARENT}` }).click();
 
-      // 3. Kirim Formulir asks for Program (+ Day Care) first and shows the fee as it will be charged.
-      const sendDialog = page.locator('[data-slot="dialog-content"]').first();
-      await expect(sendDialog.locator('[data-slot="dialog-title"]')).toHaveText("Kirim formulir");
-      await sendDialog.locator("#kirim-formulir-program").click();
-      await page.getByRole("option", { name: priced.name, exact: true }).click();
-      await expect(sendDialog.getByTestId("kirim-formulir-fee")).toContainText("275.000");
-      await expect(sendDialog).toContainText("Tidak ada email");
+      // 3. Kirim Formulir is ONE tap: no Program / Day Care question, no fee, straight to the result card.
       const invited = page.waitForResponse(
         (res) => new URL(res.url()).pathname === "/api/enrollments/invite" && res.request().method() === "POST",
       );
-      await sendDialog.getByRole("button", { name: "Kirim formulir" }).click();
+      await row.getByRole("button", { name: `Kirim Formulir: ${PARENT}` }).click();
       const inviteRes = await invited;
       expect(inviteRes.status()).toBe(200);
+      expect(inviteRes.request().postDataJSON()).toEqual({ admissionId: expect.any(String) });
       const inviteBody = await inviteRes.json();
-      expect(inviteBody).toMatchObject({ hasEmail: false, emailed: false, created: true });
-      expect(inviteBody.fee).toMatchObject({ status: "UNPAID", amount: FEE });
+      expect(inviteBody).toMatchObject({ hasEmail: false, emailed: false });
+      expect(inviteBody).not.toHaveProperty("fee");
 
-      // 4. The result card: amount, unpaid; settle it in cash right here.
+      // 4. The result card: link and ways to share it; no fee block, nothing to settle yet.
       const card = page.locator('[data-slot="dialog-content"]').first();
       await expect(card.locator('[data-slot="dialog-title"]')).toHaveText("Formulir siap dikirim");
-      const feeLine = card.getByTestId("formulir-fee");
-      await expect(feeLine).toContainText("275.000");
-      await expect(feeLine).toContainText("Belum bayar");
-      await card.getByRole("button", { name: "Tandai lunas (tunai)" }).click();
-      await card.getByRole("button", { name: "Tandai lunas", exact: true }).click();
-      await expect(feeLine).toContainText("Lunas");
-      await expect(feeLine).toContainText("Sudah lunas");
+      await expect(card).toContainText("Tidak ada email");
+      await expect(card).toContainText("dibayar orang tua setelah mengisi dan mengirim formulir");
+      await expect(card.getByTestId("formulir-fee")).toHaveCount(0);
+      await expect(card.getByRole("button", { name: /Tandai lunas|Bebaskan/ })).toHaveCount(0);
+      await expect(page.locator("#kirim-formulir-program")).toHaveCount(0);
+      await expect(card.getByRole("button", { name: "Salin tautan" })).toBeVisible();
 
-      // 5. "Isi bersama orang tua" is the real parent form, open now that the fee is settled.
+      // 5. "Isi bersama orang tua" is the real parent form, open at once (nothing was paid).
       const together = card.getByRole("link", { name: /Isi bersama orang tua/ });
       const formUrl = (await together.getAttribute("href")) ?? "";
       expect(formUrl).toContain("/pendaftaran/");
       const token = formUrl.split("/pendaftaran/")[1];
-      const parentCtx = await page.context().browser()!.newContext();
+      const ip = nextIp();
+      const parentCtx = await page.context().browser()!.newContext({ extraHTTPHeaders: { "X-Forwarded-For": ip } });
       try {
         const parentPage = await parentCtx.newPage();
         await parentPage.goto(formUrl);
         await expect(parentPage.getByRole("heading", { name: "Formulir Pendaftaran Murid Baru" })).toBeVisible();
+        await expect(parentPage.getByText("Bayar dulu")).toHaveCount(0);
+        await expect(parentPage).not.toHaveURL(/pembayaran/);
+
+        // Kode pos 12950 fills the kelurahan in the form itself.
+        const toDataAnak = parentPage.getByRole("button", { name: "1. Data Anak" });
+        if (await toDataAnak.isVisible()) await toDataAnak.click();
+        const childAddress = parentPage.getByRole("group", { name: "Alamat anak" });
+        await childAddress.getByLabel("Kode pos").fill("12950");
+        await expect(childAddress.getByLabel("Kelurahan / Desa")).toHaveValue("Kuningan Timur");
+        await expect(childAddress.getByLabel("Kecamatan")).toHaveValue("Setiabudi");
+        await expect(childAddress.getByLabel("Provinsi")).toHaveValue(/Jakarta/);
       } finally {
         await parentCtx.close();
       }
       await card.getByRole("button", { name: "Selesai" }).click();
       await expect(card).toBeHidden();
 
-      // 6. The form is filled and submitted (token API: the wizard has its own specs).
-      const ip = nextIp();
-      await prefillDraft(admin.request, { token, ip, child: CHILD, programId: priced.id });
-      for (const which of ["ayah", "ibu"] as const) {
-        expect((await postSignature(admin.request, { token, ip, which })).status()).toBe(200);
-      }
-      const submit = await admin.request.post(`/api/enrollments/token/${token}/submit`, {
+      // 6. The same form is filled and submitted (token API: the wizard has its own specs). The
+      //    address is what the lookup route answers for 12950, the way the form's own lookup got it.
+      const lookup = await admin.request.get(`/api/enrollments/token/${token}/wilayah?kodepos=12950`, {
         headers: { "X-Forwarded-For": ip },
-        data: formBody(priced.id, CHILD),
+      });
+      expect(lookup.status()).toBe(200);
+      const results = (await lookup.json()).results as WilayahEntry[];
+      const address = results.find((r) => r.kelurahan === "Kuningan Timur")!;
+      expect(address).toBeTruthy();
+      const submit = await fillAndSubmit(admin.request, {
+        token,
+        ip,
+        child: CHILD,
+        programId: priced.id,
+        address: { perumahan: "Jl. Walk-in 1", blokCluster: "A2", rtRw: "003/004", ...address },
       });
       expect(submit.status()).toBe(201);
+      // Pay-after: the fee is created by this submit, priced from the program the parent chose.
+      expect((await submit.json()).fee).toMatchObject({ baseAmount: FEE, amount: FEE, status: "UNPAID" });
 
-      // 7. Same list, same row: "Formulir masuk", paid.
+      // 7. Same list, same row: "Formulir masuk", still owed.
       const submittedRow = await searchList(page, PARENT);
       await expect(submittedRow).toContainText("Formulir masuk");
-      await expect(submittedRow).toContainText("Lunas");
+      await expect(submittedRow).toContainText("Belum bayar");
       await submittedRow.getByRole("link", { name: /^Buka formulir: / }).click();
       await page.waitForURL(/\/admin\/enrollments\/[^/]+$/);
       const appId = new URL(page.url()).pathname.split("/").pop()!;
 
-      // 8. Ubah data: fix one field, nothing else changes.
+      // 8. The formulir's fee card settles it in cash.
+      const feeCard = page.getByRole("region", { name: "Pembayaran pendaftaran" });
+      await expect(feeCard).toContainText("275.000");
+      await feeCard.getByRole("button", { name: "Tandai sudah bayar" }).click();
+      const payDialog = page.getByRole("dialog", { name: "Tandai sudah bayar" });
+      await payDialog.locator("#enrollment-fee-method").click();
+      await page.getByRole("option", { name: "Tunai", exact: true }).click();
+      const settled = page.waitForResponse(
+        (res) => new URL(res.url()).pathname === `/api/enrollments/${appId}/fee` && res.request().method() === "PATCH",
+      );
+      await payDialog.getByRole("button", { name: /^Catat / }).click();
+      expect((await settled).status()).toBe(200);
+      await expect(feeCard).toContainText("Lunas");
+
+      // 9. Ubah data: fix one field, nothing else changes.
       await page.getByRole("button", { name: "Aksi lainnya" }).click();
       await page.getByRole("menuitem", { name: "Ubah data" }).click();
       await expect(page.getByRole("heading", { name: "Ubah data formulir" })).toBeVisible();
@@ -206,8 +200,9 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
       await expect(page.getByRole("heading", { name: "Ubah data formulir" })).toBeHidden();
       const detail = await (await admin.request.get(`/api/enrollments/${appId}`)).json();
       expect(detail.studentData).toMatchObject({ childName: CHILD, birthPlace: "Jakarta", dateOfBirth: "2021-03-15" });
+      expect(detail.fee).toMatchObject({ status: "PAID", method: "CASH", amount: FEE });
 
-      // 9. One convert, one confirm.
+      // 10. One convert, one confirm.
       await page.getByRole("button", { name: "Terima & Jadikan Siswa" }).click();
       const converted = page.waitForResponse(
         (res) => new URL(res.url()).pathname === `/api/enrollments/${appId}/convert` && res.request().method() === "POST",
@@ -223,10 +218,13 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
       expect(Array.isArray(convertBody.reusedGuardians)).toBe(true);
       await expect(page.getByText("sudah dikonversi menjadi data siswa")).toBeVisible();
 
-      // 10. The student exists with both wali; the list row now reads "Siswa".
+      // 11. The student exists with both wali and the full joined address; the list row now reads "Siswa".
       const student = await (await admin.request.get(`/api/students/${convertBody.student.id}`)).json();
       const relationships = (student.guardians as { relationship: string }[]).map((g) => g.relationship).sort();
       expect(relationships).toEqual(["AYAH", "IBU"]);
+      expect(student.address).toContain("Jl. Walk-in 1");
+      expect(student.address).toContain("Kuningan Timur");
+      expect(student.address).toContain("12950");
 
       const studentRow = await searchList(page, PARENT);
       await expect(studentRow).toContainText("Siswa");
@@ -236,71 +234,87 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
     }
   });
 
-  test("(b) pay first: the parent meets Bayar dulu, writes are refused, settling opens the form with Program read-only", async ({
+  test("(b) pay after: the link opens the form unpaid, autosave and submit work, the thank-you card offers Bayar sekarang", async ({
     browser,
   }) => {
     const ip = nextIp();
-    const child = `E2E Bayar Dulu ${STAMP}`;
-    const invite = await createInvite(admin.request, {
-      ip,
-      child,
-      email: `e2e-bayar-dulu-${STAMP}@example.com`,
-      programId: priced.id,
-      settle: false,
-    });
-    expect(invite.fee).toMatchObject({ status: "UNPAID", amount: FEE });
-    const { token } = invite;
+    const child = `E2E Bayar Nanti ${STAMP}`;
+    const invite = await createInvite(admin.request, { ip, child, email: `e2e-bayar-nanti-${STAMP}@example.com` });
+    const { token, applicationId } = invite;
+
+    // Nothing was created at send: no fee row yet, so nothing to pay.
+    expect((await (await admin.request.get(`/api/enrollments/${applicationId}`)).json()).fee).toBeNull();
+    const early = await admin.request.post(`/api/enrollments/token/${token}/pay`, { headers: { "X-Forwarded-For": ip } });
+    expect(early.status()).toBe(404);
+    expect((await early.json()).error).toBe("NO_FEE");
 
     const parent = await browser.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { "X-Forwarded-For": ip } });
     try {
       const page = await parent.newPage();
 
-      // The token page leads to the pay screen, not to the form.
+      // The token page is the form, not a pay screen.
       await page.goto(`/pendaftaran/${token}`);
-      await expect(page).toHaveURL(new RegExp(`/pendaftaran/${token}/pembayaran`));
-      await expect(page.getByRole("heading", { name: "Bayar biaya formulir untuk mulai mengisi" })).toBeVisible();
-      await expect(page.getByText("275.000").first()).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Formulir Pendaftaran Murid Baru" })).toHaveCount(0);
-
-      // Every write is refused with the same code.
-      const autosave = await parent.request.patch(`/api/enrollments/token/${token}`, {
-        data: { studentData: { childName: child } },
-      });
-      expect(autosave.status()).toBe(409);
-      expect((await autosave.json()).error).toBe("PAYMENT_REQUIRED");
-      const submit = await parent.request.post(`/api/enrollments/token/${token}/submit`, { data: formBody(priced.id, child) });
-      expect(submit.status()).toBe(409);
-      expect((await submit.json()).error).toBe("PAYMENT_REQUIRED");
-
-      // Staff settle the fee (the parent paying through the gateway ends the same way).
-      const paid = await admin.request.patch(`/api/enrollments/${invite.applicationId}/fee`, {
-        data: { action: "MARK_PAID", method: "BANK_TRANSFER", note: "e2e" },
-      });
-      expect(paid.status()).toBe(200);
-
-      // The open pay screen now leads to the form, and the Program step is read-only.
-      await prefillDraft(parent.request, { token, ip, child, programId: free.id });
-      await page.goto(`/pendaftaran/${token}`);
+      await expect(page).not.toHaveURL(/pembayaran/);
+      await expect(page.getByRole("heading", { name: "Formulir Pendaftaran Murid Baru" })).toBeVisible();
       await expect(page.getByRole("list", { name: "Langkah formulir" })).toBeVisible();
+      await expect(page.getByText("Bayar dulu")).toHaveCount(0);
+
+      // Every write works unpaid: autosave (with the free program first), signatures, then the browser walks on.
+      await prefillDraft(parent.request, { token, ip, child, programId: free.id });
+      for (const which of ["ayah", "ibu"] as const) {
+        expect((await postSignature(parent.request, { token, ip, which })).status()).toBe(200);
+      }
+      await page.goto(`/pendaftaran/${token}`);
       const toDataAnak = page.getByRole("button", { name: "1. Data Anak" });
       if (await toDataAnak.isVisible()) await toDataAnak.click();
       for (const heading of ["Data Anak", "Data Ayah", "Data Ibu", "Pilihan Program"]) {
         if (heading !== "Data Anak") await page.getByRole("button", { name: "Lanjut" }).click();
         await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
       }
-      await expect(page.getByText("Dipilih saat formulir dikirim.")).toBeVisible();
-      await expect(page.getByText(priced.name, { exact: true }).first()).toBeVisible();
-      await expect(page.locator('[role="combobox"]')).toHaveCount(0);
 
-      // The draft cannot move the locked program (the save is accepted, the choice is not applied).
-      const detail = await (await admin.request.get(`/api/enrollments/${invite.applicationId}`)).json();
+      // The Program step is the parent's to choose again (it was locked under pay-first).
+      const program = page.getByLabel(/^Program/);
+      await expect(program).toBeEnabled();
+      await expect(program).toHaveValue(free.id);
+      await program.selectOption(priced.id);
+
+      // Tinjau shows the address block's heading data and the price, paid after sending.
+      await page.getByRole("button", { name: "Lanjut" }).click(); // Berkas
+      await page.getByRole("button", { name: "Lanjut" }).click(); // Persetujuan
+      await page.getByRole("button", { name: "Lanjut" }).click(); // Tinjau
+      await expect(page.getByRole("heading", { name: /Tinjau/ })).toBeVisible();
+      const feeSection = page.getByRole("region", { name: "Biaya pendaftaran" });
+      await expect(feeSection).toContainText("275.000");
+      await expect(feeSection).toContainText("dibayar setelah formulir dikirim");
+
+      const submitted = page.waitForResponse(
+        (res) => new URL(res.url()).pathname === `/api/enrollments/token/${token}/submit` && res.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Kirim Formulir" }).click();
+      const submitRes = await submitted;
+      expect(submitRes.status()).toBe(201);
+      expect((await submitRes.json()).fee).toMatchObject({ baseAmount: FEE, amount: FEE, status: "UNPAID" });
+
+      // Thank-you card: the one payment step.
+      await expect(page.getByRole("heading", { name: /Jazakumullah khairan/ })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Bayar sekarang" })).toBeVisible();
+      await expect(page.getByText("275.000").first()).toBeVisible();
+
+      // One UNPAID fee for the program the parent chose in the form.
+      const detail = await (await admin.request.get(`/api/enrollments/${applicationId}`)).json();
       expect(detail.program?.id).toBe(priced.id);
+      expect(detail.fee).toMatchObject({ status: "UNPAID", baseAmount: FEE, amount: FEE });
+
+      // Reopening the unpaid link shows the payment card, not the form.
+      await page.goto(`/pendaftaran/${token}`);
+      await expect(page.getByRole("button", { name: "Bayar sekarang" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Pilihan Program", exact: true })).toHaveCount(0);
     } finally {
       await parent.close();
     }
   });
 
-  test("(c) legacy: a lead stored as VISITED shows Baru and can be sent a formulir", async () => {
+  test("(c) legacy: a lead stored as VISITED shows Baru and can be sent a formulir in one tap", async () => {
     const PARENT = `E2E Lama ${STAMP}`;
     const create = await admin.request.post("/api/admissions", {
       data: { parentName: PARENT, parentPhone: "081233334444", parentRelationship: "IBU", childName: `E2E Lama Anak ${STAMP}` },
@@ -319,42 +333,38 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
       const row = await searchList(page, PARENT);
       await expect(row).toContainText("Baru");
       await expect(row).not.toContainText("Kunjungan");
-      // The primary action is the Baru one, so the family can continue.
-      await row.getByRole("button", { name: /^Kirim Formulir: / }).click();
-      const dialog = page.locator('[data-slot="dialog-content"]').first();
-      await dialog.locator("#kirim-formulir-program").click();
-      await page.getByRole("option", { name: free.name, exact: true }).click();
+      // The primary action is the Baru one, so the family can continue: one tap, no questions.
       const invited = page.waitForResponse(
         (res) => new URL(res.url()).pathname === "/api/enrollments/invite" && res.request().method() === "POST",
       );
-      await dialog.getByRole("button", { name: "Kirim formulir" }).click();
+      await row.getByRole("button", { name: /^Kirim Formulir: / }).click();
       const res = await invited;
       expect(res.status()).toBe(200);
-      expect((await res.json()).fee).toBeNull(); // free program: nothing to pay
+      expect(await res.json()).not.toHaveProperty("fee");
       await expect(page.locator('[data-slot="dialog-title"]').first()).toHaveText("Formulir siap dikirim");
-      await expect(page.getByTestId("formulir-fee")).toContainText("Tanpa biaya");
+      await expect(page.getByTestId("formulir-fee")).toHaveCount(0);
       await page.getByRole("button", { name: "Selesai" }).click();
 
       const sentRow = await searchList(page, PARENT);
       await expect(sentRow).toContainText("Formulir dikirim");
+      // No fee yet, so nothing is owed.
+      await expect(sentRow).not.toContainText("Belum bayar");
     } finally {
       await page.close();
     }
     // Continuing never rewrote the stored status.
     const after = await admin.request.get(`/api/admissions?search=${encodeURIComponent(PARENT)}`);
     const afterRow = (await after.json()).data.find((r: { id: string }) => r.id === lead.id);
-    expect(afterRow).toMatchObject({ status: "VISITED", stage: "FORMULIR_DIKIRIM" });
+    expect(afterRow).toMatchObject({ status: "VISITED", stage: "FORMULIR_DIKIRIM", payment: "NONE" });
   });
 
   test("(d) cancelling a lead closes its unpaid payment link", async () => {
     const ip = nextIp();
-    const invite = await createInvite(admin.request, {
-      ip,
-      child: `E2E Batal ${STAMP}`,
-      email: `e2e-batal-${STAMP}@example.com`,
-      programId: priced.id,
-      settle: false,
-    });
+    const child = `E2E Batal ${STAMP}`;
+    const invite = await createInvite(admin.request, { ip, child, email: `e2e-batal-${STAMP}@example.com` });
+    // The fee exists only once the form is submitted.
+    const submit = await fillAndSubmit(admin.request, { token: invite.token, ip, child, programId: priced.id });
+    expect(submit.status()).toBe(201);
 
     // The link works while the lead is open...
     const pay = await admin.request.post(`/api/enrollments/token/${invite.token}/pay`, { headers: { "X-Forwarded-For": ip } });
@@ -369,7 +379,7 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
     expect((await again.json()).error).toBe("APPLICATION_CLOSED");
 
     // The chase list does not carry a dead row.
-    const list = await admin.request.get(`/api/admissions?payment=unpaid&search=${encodeURIComponent(`E2E Batal ${STAMP}`)}`);
+    const list = await admin.request.get(`/api/admissions?payment=unpaid&search=${encodeURIComponent(child)}`);
     expect((await list.json()).data.some((r: { id: string }) => r.id === invite.admissionId)).toBe(false);
   });
 });

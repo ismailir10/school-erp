@@ -187,6 +187,37 @@ describe("PendaftaranClient", () => {
     expect(JSON.stringify(body)).not.toMatch(/signatureToken/);
   });
 
+  it("Program and Day Care are the parent's to choose (the fee never locks them), and autosave sends both", async () => {
+    const user = userEvent.setup();
+    render(
+      <PendaftaranClient
+        initialStep={3}
+        token="tok"
+        programs={[...programs, { id: "p-2", name: "TK B" }]}
+        prefill={{ ...filled, programId: "" }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Pilihan Program" })).toBeInTheDocument();
+    const select = screen.getByLabelText(/^Program/);
+    expect(select).toBeEnabled();
+    // Required: Lanjut stops here until one is picked.
+    await user.click(screen.getByRole("button", { name: "Lanjut" }));
+    expect(screen.getAllByText("Program wajib dipilih.").length).toBeGreaterThan(0);
+
+    await user.selectOptions(select, "p-2");
+    await user.click(screen.getByRole("checkbox"));
+
+    await waitFor(() => {
+      const patches = vi.mocked(fetch).mock.calls.filter(([, init]) => (init as RequestInit)?.method === "PATCH");
+      expect(patches).toHaveLength(1);
+    });
+    const patch = vi.mocked(fetch).mock.calls.find(([, init]) => (init as RequestInit)?.method === "PATCH")!;
+    const body = JSON.parse((patch[1] as RequestInit).body as string);
+    expect(body.programId).toBe("p-2");
+    expect(body.dcareAddon).toBe(true);
+  });
+
   it("flushes a pending autosave with keepalive when the page is hidden", async () => {
     const user = userEvent.setup();
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);

@@ -1,10 +1,10 @@
 import { Art, Avatar, Bar, Card, INK, Label } from "./kit";
 
-/** Slide 3 — catat pertanyaan → Kirim Formulir (pay first) → formulir masuk → student. Numbers match the list beside it. */
+/** Slide 3 — catat pertanyaan → Kirim Formulir (one tap) → formulir masuk (parent pays after sending) → student. Numbers match the list beside it. */
 const NODES = [
   { cx: 84, cy: 296, title: "Pertanyaan", sub: "dicatat admin" },
-  { cx: 214, cy: 148, title: "Kirim Formulir", sub: "program, biaya, bayar dulu" },
-  { cx: 346, cy: 296, title: "Formulir masuk", sub: "7 langkah, tanda tangan" },
+  { cx: 214, cy: 148, title: "Kirim Formulir", sub: "satu ketukan, tautan" },
+  { cx: 346, cy: 296, title: "Formulir masuk", sub: "7 langkah, lalu bayar" },
   { cx: 478, cy: 148, title: "Siswa", sub: "Terima & Jadikan Siswa" },
 ] as const;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { stageWhere, UNPAID_WHERE, MENUNGGU_BAYAR_WHERE, STAGES } from "@/lib/admission/stage";
+import { stageWhere, UNPAID_WHERE, STAGES } from "@/lib/admission/stage";
 
 /**
  * GET /api/admissions — the unified Pendaftaran list (cycle 2026-10-11-pendaftaran-simplify, T8a).
@@ -65,9 +65,8 @@ const lead = (over: Row = {}): Row => ({
 const application = (over: Row = {}): Row => ({
   id: "e1",
   status: "INVITED",
-  programId: "p1",
+  childName: "Aisyah Putri",
   program: { name: "Day Care" },
-  dcareAddon: false,
   studentId: null,
   submittedAt: null,
   fee: null,
@@ -104,7 +103,7 @@ describe("GET /api/admissions — access", () => {
       const body = await res.json();
       expect(body.data).toEqual([]);
       expect(body.pagination).toEqual({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
-      expect(body.stats).toEqual({ total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 });
+      expect(body.stats).toEqual({ total: 0, baru: 0, formulirDikirim: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 });
     }
     expect(db.findMany).not.toHaveBeenCalled();
     expect(db.count).not.toHaveBeenCalled();
@@ -124,7 +123,6 @@ describe("GET /api/admissions — item shape", () => {
       lead({
         enrollmentApplication: application({
           status: "SUBMITTED",
-          dcareAddon: true,
           submittedAt,
           fee: { status: "UNPAID", amount: "1500000.00" },
         }),
@@ -135,9 +133,8 @@ describe("GET /api/admissions — item shape", () => {
     expect(item.application).toEqual({
       id: "e1",
       status: "SUBMITTED",
-      programId: "p1",
       programName: "Day Care",
-      dcareAddon: true,
+      childName: "Aisyah Putri",
       studentId: null,
       submittedAt: submittedAt.toISOString(),
       fee: { status: "UNPAID", amount: 1500000, canRemind: true },
@@ -163,14 +160,14 @@ describe("GET /api/admissions — item shape", () => {
     expect(json).not.toContain("081111111111");
     expect(json).not.toContain("ayahData");
     expect(Object.keys(item.application as object).sort()).toEqual(
-      ["dcareAddon", "fee", "id", "programId", "programName", "status", "studentId", "submittedAt"],
+      ["childName", "fee", "id", "programName", "status", "studentId", "submittedAt"],
     );
   });
 
   it("never selects the access token or the form blocks in the list query", async () => {
     await get();
     const select = db.findMany.mock.calls[0][0].include.enrollmentApplication.select;
-    expect(Object.keys(select).sort()).toEqual(["dcareAddon", "fee", "id", "program", "programId", "status", "studentId", "submittedAt"]);
+    expect(Object.keys(select).sort()).toEqual(["childName", "fee", "id", "program", "status", "studentId", "submittedAt"]);
   });
 
   it.each([
@@ -324,7 +321,6 @@ describe("GET /api/admissions — stats", () => {
       [JSON.stringify({ tenantId: "t1" }), 40],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("BARU")] }), 12],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("FORMULIR_DIKIRIM")] }), 9],
-      [JSON.stringify({ tenantId: "t1", AND: [MENUNGGU_BAYAR_WHERE] }), 4],
       [JSON.stringify({ tenantId: "t1", AND: [UNPAID_WHERE] }), 5],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("FORMULIR_MASUK")] }), 6],
       [JSON.stringify({ tenantId: "t1", AND: [stageWhere("DITERIMA")] }), 2],
@@ -334,7 +330,7 @@ describe("GET /api/admissions — stats", () => {
 
     const body = await (await get("tahap=BATAL&payment=unpaid&search=zzz")).json();
 
-    expect(body.stats).toEqual({ total: 40, baru: 12, formulirDikirim: 9, menungguBayar: 4, belumBayar: 5, formulirMasuk: 6, diterima: 2, siswa: 7 });
+    expect(body.stats).toEqual({ total: 40, baru: 12, formulirDikirim: 9, belumBayar: 5, formulirMasuk: 6, diterima: 2, siswa: 7 });
     // None of the stat queries saw the search or the filters.
     for (const [{ where }] of db.count.mock.calls.slice(1)) {
       expect(JSON.stringify(where)).not.toContain("zzz");
@@ -345,12 +341,12 @@ describe("GET /api/admissions — stats", () => {
     db.count.mockResolvedValue(5);
     const body = await (await get()).json();
     expect(body.stats.total).toBe(5);
-    expect(db.count).toHaveBeenCalledTimes(8); // list total + six stage counts + belum bayar
+    expect(db.count).toHaveBeenCalledTimes(7); // list total + five stage counts + belum bayar
   });
 
   it("with a filter the tenant total is counted separately", async () => {
     await get("search=abc");
-    expect(db.count).toHaveBeenCalledTimes(9);
+    expect(db.count).toHaveBeenCalledTimes(8);
     expect(db.count).toHaveBeenCalledWith({ where: { tenantId: "t1" } });
   });
 

@@ -50,13 +50,13 @@ export function leadRow(over: Record<string, unknown> = {}) {
 
 export function formulir(over: Record<string, unknown> = {}) {
   return {
-    id: "ea-1", status: "INVITED", programId: "prog-1", programName: "KB", dcareAddon: false, studentId: null,
+    id: "ea-1", status: "INVITED", programName: "KB", childName: "", studentId: null,
     submittedAt: null, fee: null,
     ...over,
   };
 }
 
-export const STATS = { total: 12, baru: 5, formulirDikirim: 3, menungguBayar: 2, belumBayar: 4, formulirMasuk: 1, diterima: 0, siswa: 1 };
+export const STATS = { total: 12, baru: 5, formulirDikirim: 3, belumBayar: 4, formulirMasuk: 1, diterima: 0, siswa: 1 };
 
 export const reply = (body: unknown, status = 200) =>
   ({ ok: status < 400, status, json: async () => body }) as Response;

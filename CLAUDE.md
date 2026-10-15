@@ -269,6 +269,7 @@ app/{admin,teacher,parent}/   portal pages
 app/api/                      route handlers, organised by domain
 components/ui/                Shadcn components (+ __tests__)
 lib/{api,validations,payroll,email}/   business logic, retry, integrations
+lib/wilayah/                  vendored kode pos data (cahyadsn/wilayah, MIT) + lookup
 lib/payments/                 PaymentGateway port + registry, with xendit/ and doku/ adapters
                               behind it; lib/xendit/* are thin re-export shims kept for
                               import-path compatibility
@@ -281,21 +282,21 @@ docs/{adrs,archive,cycles,runbooks,uat,workflow}/
 scripts/                      audit-docs, setup-worktree, install-hooks, link-agent-skills,
                               sync-staging, cleanup-merged, check-role, test-hooks, reseed-staging,
                               flake-hunt, verify-{rls-coverage,api-auth,curriculum-readiness},
-                              backup-prod, keepalive-probe, alert-issue, check-workflow-gh-repo,
+                              backup-prod, keepalive-probe, alert-issue, check-workflow-gh-repo, vendor-wilayah,
                               sync-agent-workflow + pr-screenshots (vendored from agent-workflow)
 ```
 
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 208 |
+| `app/api/**/route.ts` | 209 |
 | `app/admin` pages | 44 |
 | `app/teacher` pages | 14 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 69 |
 | `e2e/*.spec.ts` | 40 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 96 / 233 |
+| `docs/cycles` active / archived | 97 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

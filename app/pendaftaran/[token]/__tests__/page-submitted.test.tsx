@@ -8,12 +8,7 @@ import { render, screen } from "@testing-library/react";
 
 const { resolveToken, getFee } = vi.hoisted(() => ({ resolveToken: vi.fn(), getFee: vi.fn() }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
-  redirect: (to: string) => {
-    throw new Error(`REDIRECT:${to}`);
-  },
-}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 vi.mock("@/lib/enrollment/resolve-token", () => ({ resolveEnrollmentToken: resolveToken }));
 vi.mock("@/lib/enrollment/fee-view", () => ({ getPublicFeeView: getFee }));
@@ -23,7 +18,9 @@ vi.mock("@/lib/contact", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/contact")>()),
   schoolContactPhone: () => null,
 }));
-vi.mock("@/app/pendaftaran/[token]/client", () => ({ default: () => null }));
+vi.mock("@/app/pendaftaran/[token]/client", () => ({
+  default: (props: Record<string, unknown>) => <div data-testid="form" data-props={Object.keys(props).sort().join(",")} />,
+}));
 vi.mock("@/components/brand/talib-wordmark", () => ({ TalibWordmark: () => null }));
 vi.mock("@/components/brand/school-photos", () => ({ SchoolHero: () => null }));
 
@@ -107,9 +104,19 @@ describe("form link after submit", () => {
   });
 });
 
-describe("form link while the pendaftaran fee is owed (pay-first)", () => {
-  it("sends the parent to the payment screen instead of rendering the form", async () => {
-    resolveToken.mockResolvedValue({ access: "PAYMENT_REQUIRED", tenantId: "t-1", application: app({ status: "INVITED" }) });
-    await expect(renderPage()).rejects.toThrow("REDIRECT:/pendaftaran/tok/pembayaran");
+describe("form link while the form is open (pay after submit)", () => {
+  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])("opens the form straight away whatever the fee (%s)", async (status) => {
+    // A fee row on an open form only exists for a formulir sent under pay-first (staging).
+    resolveToken.mockResolvedValue({
+      access: "OK",
+      tenantId: "t-1",
+      application: app({ status: "INVITED", programId: null, dcareAddon: false, studentData: {}, ayahData: {}, ibuData: {} }),
+    });
+    getFee.mockResolvedValue(status ? fee({ status }) : null);
+    await renderPage();
+    expect(screen.getByTestId("form")).toBeInTheDocument();
+    // No locked-program prop any more: Program and Day Care are always the parent's to choose.
+    expect(screen.getByTestId("form").dataset.props).toBe("prefill,programs,requiredDocuments,token");
+    expect(screen.queryByRole("button", { name: /Bayar/ })).not.toBeInTheDocument();
   });
 });

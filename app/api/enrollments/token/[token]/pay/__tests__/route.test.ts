@@ -59,8 +59,8 @@ describe("POST /api/enrollments/token/[token]/pay", () => {
     expect(getLink).not.toHaveBeenCalled();
   });
 
-  it("pay-first: works while the form is still INVITED and the fee is owed (PAYMENT_REQUIRED)", async () => {
-    resolveAccess.mockResolvedValue({ access: "PAYMENT_REQUIRED", id: "app-1", tenantId: "t-1", hasFee: true });
+  it("a still-open form that already holds an owed fee (sent under pay-first) is served a link", async () => {
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1" });
     const res = await POST(req(), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ paymentUrl: "https://doku.example/pay/1" });
@@ -68,15 +68,15 @@ describe("POST /api/enrollments/token/[token]/pay", () => {
   });
 
   it.each(["PAID", "WAIVED"])("an INVITED form whose fee is %s answers { status } instead of a link", async (status) => {
-    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1", hasFee: true });
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1" });
     getLink.mockResolvedValue({ kind: "SETTLED", status });
     const res = await POST(req(), ctx());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status });
   });
 
-  it("404 NO_FEE for an INVITED form that has no fee row (sent before pay-first, or a free program): nothing to pay", async () => {
-    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1", hasFee: false });
+  it("404 NO_FEE for an INVITED form that has no fee row yet (it is priced at submit): nothing to pay", async () => {
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1" });
     getLink.mockResolvedValue({ kind: "NO_FEE" });
     const res = await POST(req(), ctx());
     expect(res.status).toBe(404);
@@ -84,7 +84,7 @@ describe("POST /api/enrollments/token/[token]/pay", () => {
   });
 
   it("409 APPLICATION_CLOSED for an INVITED form whose lead was cancelled: no new link", async () => {
-    resolveAccess.mockResolvedValue({ access: "PAYMENT_REQUIRED", id: "app-1", tenantId: "t-1", hasFee: true });
+    resolveAccess.mockResolvedValue({ access: "OK", id: "app-1", tenantId: "t-1" });
     getLink.mockResolvedValue({ kind: "CLOSED" });
     const res = await POST(req(), ctx());
     expect(res.status).toBe(409);

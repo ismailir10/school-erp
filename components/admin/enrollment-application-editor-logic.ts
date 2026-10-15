@@ -12,7 +12,8 @@ import { z } from "zod";
 import { MAX_PRIOR_FAMILY_ATTENDEES } from "@/lib/enrollment/constants";
 import { staffConsentSchema, staffParentSchema, staffStudentSchema } from "@/lib/enrollment/submit-validation";
 
-export const ADDRESS_KEYS = ["perumahan", "blokCluster", "rtRw", "kecamatan", "kodePos"] as const;
+/** Form order (kode pos before the region boxes it fills), not the join order of `lib/enrollment/address.ts`. */
+export const ADDRESS_KEYS = ["perumahan", "blokCluster", "rtRw", "kodePos", "kelurahan", "kecamatan", "kotaKab", "provinsi"] as const;
 export const STUDENT_KEYS = [
   "childName",
   "nickname",

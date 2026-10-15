@@ -39,7 +39,7 @@ Copy `.env.example` to `.env`. Names only below — values live in Vercel and in
 
 ³ **Per-environment, throws if missing.** It is the origin for payment-gateway return URLs when there is no request scope (reseed, cron). There is deliberately no silent production fallback.
 
-⁴ **Public school number, not a secret.** Read server-side by `lib/contact.ts` (`schoolContactPhone()`); shown to parents on the pendaftaran pay screen, the message card and the parent portal (invoice sheet, profile) as a WhatsApp/tel contact. Tenant and campus carry no phone column, so this env var is the single source.
+⁴ **Public school number, not a secret.** Read server-side by `lib/contact.ts` (`schoolContactPhone()`); shown to parents on the pendaftaran payment page, the pendaftaran message cards and the parent portal (invoice sheet, profile) as a WhatsApp/tel contact. Tenant and campus carry no phone column, so this env var is the single source.
 
 ## Related runbooks
 

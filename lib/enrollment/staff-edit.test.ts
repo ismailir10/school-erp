@@ -17,6 +17,13 @@ describe("splitClears", () => {
     expect(splitClears("studentData", { priorFamilyAttendees: [] }).clears).toEqual(["priorFamilyAttendees"]);
   });
 
+  it("treats the new region keys as known: cleared by name, other address keys still stripped", () => {
+    expect(splitClears("ayahData", { address: { kelurahan: "", kotaKab: " ", provinsi: "Jawa Barat", negara: "" } })).toEqual({
+      value: { address: { provinsi: "Jawa Barat" } },
+      clears: ["address.kelurahan", "address.kotaKab"],
+    });
+  });
+
   it("never lets an unknown key, blank or not, through or into clears", () => {
     const { value, clears } = splitClears("consentData", { onlyParent: "ayah", signatureToken: "", agreed: true });
     expect(value).toEqual({ onlyParent: "ayah" });
@@ -34,6 +41,16 @@ describe("mergeSection", () => {
     const next = mergeSection(stored, { phone: "2", address: { kodePos: "9" } }, []);
     expect(next).toEqual({ name: "A", phone: "2", address: { perumahan: "P", kodePos: "9" } });
     expect(stored.phone).toBe("1"); // input untouched
+  });
+
+  it("merges a new region key into an old address and clears one by name", () => {
+    const stored = { address: { perumahan: "P", kodePos: "40115" } };
+    expect(mergeSection(stored, { address: { kelurahan: "Citarum" } }, [])).toEqual({
+      address: { perumahan: "P", kodePos: "40115", kelurahan: "Citarum" },
+    });
+    expect(mergeSection({ address: { kelurahan: "Citarum", kodePos: "40115" } }, {}, ["address.kelurahan"])).toEqual({
+      address: { kodePos: "40115" },
+    });
   });
 
   it("applies clears, dropping an address that ends up empty", () => {

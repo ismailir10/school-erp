@@ -17,16 +17,16 @@ export type AdmissionStage =
   | "DITOLAK"
   | "BATAL";
 
-/** NONE = no pendaftaran fee row (no formulir yet, free program, or a formulir sent before pay-first). */
+/** NONE = no pendaftaran fee row (no formulir yet, a formulir not yet submitted, or a free program). */
 export type AdmissionPayment = "UNPAID" | "PAID" | "WAIVED" | "NONE";
 
 /** The lead's formulir (EnrollmentApplication), when one was sent. */
 export type AdmissionApplication = {
   id: string;
   status: string;
-  programId: string | null;
   programName: string | null;
-  dcareAddon: boolean;
+  /** The name written on the formulir ("" when blank); the list prefers it when the lead has none. */
+  childName: string;
   studentId: string | null;
   submittedAt: string | null;
   /** null = no fee row. `canRemind`: a WhatsApp number exists and the fee is still unpaid. */
@@ -71,8 +71,6 @@ export type AdmissionStats = {
   total: number;
   baru: number;
   formulirDikirim: number;
-  /** A sent formulir whose fee is unpaid. */
-  menungguBayar: number;
   /** Every lead with an open unpaid fee: exactly what the `payment=unpaid` filter lists. */
   belumBayar: number;
   formulirMasuk: number;

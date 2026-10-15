@@ -36,26 +36,22 @@ describe("classifyEnrollmentAccess", () => {
   });
 });
 
-describe("classifyEnrollmentAccess — pay-first (PAYMENT_REQUIRED)", () => {
+describe("classifyEnrollmentAccess — the fee never gates the form (pay after submit)", () => {
   const future = new Date(NOW.getTime() + 86_400_000);
   const past = new Date(NOW.getTime() - 1000);
   const row = (over: Record<string, unknown> = {}) => ({ id: "a", status: "INVITED", tokenExpiresAt: future as Date | null, ...over });
 
-  it("an INVITED row whose fee is UNPAID must pay first", () => {
-    expect(classifyEnrollmentAccess(row({ fee: { status: "UNPAID" } }), NOW)).toBe("PAYMENT_REQUIRED");
-    expect(classifyEnrollmentAccess(row({ fee: { status: "UNPAID" }, tokenExpiresAt: null }), NOW)).toBe("PAYMENT_REQUIRED");
-  });
-
-  it.each(["PAID", "WAIVED"])("a %s fee opens the form", (status) => {
+  it.each(["UNPAID", "PAID", "WAIVED"])("an INVITED row with a %s fee opens the form", (status) => {
     expect(classifyEnrollmentAccess(row({ fee: { status } }), NOW)).toBe("OK");
+    expect(classifyEnrollmentAccess(row({ fee: { status }, tokenExpiresAt: null }), NOW)).toBe("OK");
   });
 
-  it("no fee row (a formulir sent before pay-first, or a free program) opens the form", () => {
+  it("no fee row opens the form", () => {
     expect(classifyEnrollmentAccess(row({ fee: null }), NOW)).toBe("OK");
     expect(classifyEnrollmentAccess(row(), NOW)).toBe("OK");
   });
 
-  it("an expired token is EXPIRED even when a fee is owed (staff resend a fresh link)", () => {
+  it("an expired token is EXPIRED whatever the fee says (staff resend a fresh link)", () => {
     expect(classifyEnrollmentAccess(row({ fee: { status: "UNPAID" }, tokenExpiresAt: past }), NOW)).toBe("EXPIRED");
   });
 
@@ -69,41 +65,33 @@ describe("classifyEnrollmentAccess — pay-first (PAYMENT_REQUIRED)", () => {
   });
 });
 
-describe("resolveEnrollmentAccess / resolveEnrollmentToken read the fee status in the same query", () => {
+describe("resolveEnrollmentAccess / resolveEnrollmentToken", () => {
   const future = new Date(Date.now() + 86_400_000);
 
-  it("access: selects the fee status and reports PAYMENT_REQUIRED + hasFee for an unpaid fee", async () => {
+  it("access: an INVITED row with an UNPAID fee (sent under pay-first) is OK, and the fee is not even read", async () => {
     findUnique.mockResolvedValue({ id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } });
-    expect(await resolveEnrollmentAccess("tok", new Date())).toEqual({ access: "PAYMENT_REQUIRED", id: "a", tenantId: "t-1", hasFee: true });
-    expect(findUnique.mock.calls[0][0].select.fee).toEqual({ select: { status: true } });
+    expect(await resolveEnrollmentAccess("tok", new Date())).toEqual({ access: "OK", id: "a", tenantId: "t-1" });
+    expect(findUnique.mock.calls[0][0].select).toEqual({ id: true, status: true, tokenExpiresAt: true, tenantId: true });
   });
 
-  it("access: a settled fee is OK and still hasFee (program stays locked)", async () => {
-    findUnique.mockResolvedValue({ id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: { status: "PAID" } });
-    expect(await resolveEnrollmentAccess("tok", new Date())).toMatchObject({ access: "OK", hasFee: true });
-  });
-
-  it("access: no fee row is OK with hasFee false; a miss is NOT_FOUND", async () => {
-    findUnique.mockResolvedValue({ id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: null });
-    expect(await resolveEnrollmentAccess("tok", new Date())).toMatchObject({ access: "OK", hasFee: false });
+  it("access: a miss is NOT_FOUND", async () => {
     findUnique.mockResolvedValue(null);
-    expect(await resolveEnrollmentAccess("nope", new Date())).toEqual({ access: "NOT_FOUND", id: null, tenantId: null, hasFee: false });
+    expect(await resolveEnrollmentAccess("nope", new Date())).toEqual({ access: "NOT_FOUND", id: null, tenantId: null });
   });
 
-  it("token: the same classification, and the fee never reaches `application` (it goes to the client component)", async () => {
+  it("token: an UNPAID fee still opens the form, and neither fee nor tenantId reaches `application`", async () => {
     findUnique.mockResolvedValue({
       id: "a", tenantId: "t-1", status: "INVITED", childName: "", parentEmail: null, programId: "p", dcareAddon: false,
       tokenExpiresAt: future, studentData: {}, ayahData: {}, ibuData: {}, consentData: {}, documents: {}, fee: { status: "UNPAID" },
       admission: { status: "CANCELLED" },
     });
     const out = await resolveEnrollmentToken("tok", new Date());
-    expect(out.access).toBe("PAYMENT_REQUIRED");
+    expect(out.access).toBe("OK");
     expect(out.tenantId).toBe("t-1");
-    expect(out.application).not.toHaveProperty("fee");
     expect(out.application).not.toHaveProperty("tenantId");
     // Only the lead's status rides along (for isFeeClosed), nothing of its contact data.
     expect(out.application?.admission).toEqual({ status: "CANCELLED" });
     expect(findUnique.mock.calls[0][0].select.admission).toEqual({ select: { status: true } });
-    expect(findUnique.mock.calls[0][0].select.fee).toEqual({ select: { status: true } });
+    expect(findUnique.mock.calls[0][0].select).not.toHaveProperty("fee");
   });
 });

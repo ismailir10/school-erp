@@ -5,12 +5,12 @@ import { PNG_1X1, firstProgramId, tinyPdf } from "./helpers/enrollment";
  * Cycle A — enrollment application end-to-end smoke.
  *
  * Walks the full funnel against the deployed build:
- *   admission inquiry → admin "Kirim Formulir" (invite + token, program chosen) →
+ *   admission inquiry → admin "Kirim Formulir" (one tap: invite + token, no fee) →
  *   tokenized public submit → admin "Terima & Jadikan Siswa" (the ONE convert) →
  *   student exists.
  *
- * Pay-first is covered by enrollment-fee-payment and admin-walkin-pipeline; this
- * spec invites on a FREE program, so the link opens straight to the form.
+ * Pay-after is covered by enrollment-fee-payment and admin-walkin-pipeline; this
+ * spec adds the form-side address lookup (kode pos) to the funnel.
  *
  * The parent side is driven through the real public API rather than the
  * wizard (the canvas wizard is exercised by enrollment-signature-handover and
@@ -63,13 +63,14 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     expect(adm.ok()).toBeTruthy();
     const admissionId = (await adm.json()).id as string;
 
-    // 2. Admin invite → returns the tokenized form URL. Program is chosen here (it
-    //    sets the price); a free program creates no fee, so the form is open at once.
+    // 2. Admin invite → returns the tokenized form URL. One tap: the invite takes only the
+    //    lead, picks no program and creates no fee (the parent chooses Program in the form and
+    //    the fee is priced at submit), so the form is open at once.
     const programId = await firstProgramId(page.request);
-    const inv = await page.request.post("/api/enrollments/invite", { data: { admissionId, programId } });
+    const inv = await page.request.post("/api/enrollments/invite", { data: { admissionId } });
     expect(inv.ok()).toBeTruthy();
     const invited = await inv.json();
-    expect(invited.fee).toBeNull();
+    expect(invited).not.toHaveProperty("fee");
     const formUrl = invited.formUrl as string;
     expect(formUrl).toContain("/pendaftaran/");
     const token = formUrl.split("/pendaftaran/")[1];
@@ -78,6 +79,58 @@ test.describe("Cycle A — Enrollment application funnel", () => {
     // 3. The public form page renders for a valid token.
     await page.goto(`/pendaftaran/${token}`);
     await expect(page.getByRole("heading", { name: "Formulir Pendaftaran Murid Baru" })).toBeVisible();
+
+    // 4. Address lookup by kode pos (child's address, step "Data Anak"): the region comes from the
+    //    server-side dataset through the token-gated wilayah route, and every box stays editable.
+    const toDataAnak = page.getByRole("button", { name: "1. Data Anak" });
+    if (await toDataAnak.isVisible()) await toDataAnak.click();
+    const address = page.getByRole("group", { name: "Alamat anak" });
+    const kodePos = address.getByLabel("Kode pos");
+
+    // One match fills all four region boxes.
+    await kodePos.fill("40115");
+    await expect(address.getByLabel("Kelurahan / Desa")).toHaveValue("Citarum");
+    await expect(address.getByLabel("Kecamatan")).toHaveValue("Bandung Wetan");
+    await expect(address.getByLabel("Kota / Kabupaten")).toHaveValue("Kota Bandung");
+    await expect(address.getByLabel("Provinsi")).toHaveValue("Jawa Barat");
+
+    // Several kelurahan share a code: a dropdown, and picking one fills the rest.
+    await kodePos.fill("99351");
+    const kelurahan = address.getByLabel("Kelurahan / Desa");
+    await expect(kelurahan).toHaveJSProperty("tagName", "SELECT");
+    await expect(kelurahan.locator("option")).toContainText(["Atabar", "Ebungfa", "Khameyoka"]);
+    await kelurahan.selectOption({ label: "Atabar" });
+    await expect(address.getByLabel("Kecamatan")).toHaveValue("Ebungfao");
+    await expect(address.getByLabel("Kota / Kabupaten")).toHaveValue("Kabupaten Jayapura");
+    await expect(address.getByLabel("Provinsi")).toHaveValue("Papua");
+
+    // An unknown code says so and leaves every box typeable.
+    await kodePos.fill("00000");
+    await expect(address.getByText("tidak ditemukan")).toBeVisible();
+    await address.getByLabel("Kelurahan / Desa").fill("Ketik sendiri");
+    await expect(address.getByLabel("Kelurahan / Desa")).toHaveValue("Ketik sendiri");
+
+    // "Tidak tahu kode pos?": search by name, pick a result, the kode pos is filled too.
+    await address.getByRole("button", { name: "Tidak tahu kode pos?" }).click();
+    await address.getByLabel("Cari kelurahan atau kecamatan").fill("citarum");
+    await address.getByRole("button", { name: /\(40115\)/ }).first().click();
+    await expect(kodePos).toHaveValue("40115");
+    await expect(address.getByLabel("Kelurahan / Desa")).toHaveValue("Citarum");
+    await expect(address.getByLabel("Provinsi")).toHaveValue("Jawa Barat");
+
+    // Digits only, and a partial code is an inline error on Lanjut.
+    await kodePos.fill("ab40cd");
+    await expect(kodePos).toHaveValue("40");
+    await kodePos.fill("4011");
+    await page.getByRole("button", { name: "Lanjut" }).click();
+    await expect(page.getByText("Kode pos harus 5 angka.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Data Anak", exact: true })).toBeVisible();
+    await kodePos.fill("40115");
+    await expect(page.getByText("Kode pos harus 5 angka.")).toHaveCount(0);
+
+    // A bad token never gets region data.
+    const wrongToken = await page.request.get("/api/enrollments/token/not-a-real-token-at-all-0123456789/wilayah?kodepos=40115");
+    expect(wrongToken.status()).toBe(404);
 
     // 5. Submit the full form via the public token API. Signatures live on the
     //    row (the signature route persists them the moment they are drawn) and

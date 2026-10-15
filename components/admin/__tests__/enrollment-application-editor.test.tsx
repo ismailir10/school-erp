@@ -108,7 +108,7 @@ describe("EnrollmentApplicationEditor — seeded values", () => {
     expect(screen.getByLabelText("Jenis kelamin")).toHaveValue("P");
     expect(region("Data anak").getByLabelText("Tanggal lahir")).toHaveValue("2021-03-15");
     expect(screen.getByLabelText("Berat badan (kg)")).toHaveValue(14.5);
-    expect(region("Data anak").getByLabelText("Perumahan")).toHaveValue("Griya Asri");
+    expect(region("Data anak").getByLabelText("Perumahan / Jalan")).toHaveValue("Griya Asri");
     expect(region("Data Ayah").getByLabelText("No. HP")).toHaveValue("081234567890");
     expect(region("Data Ibu").getByLabelText("No. HP")).toHaveValue("081200000000");
     expect(region("Data Ayah").getByLabelText("Email")).toHaveValue("budi@example.com");
@@ -178,6 +178,36 @@ describe("EnrollmentApplicationEditor — save", () => {
     await waitFor(() => expect(patchBodies()).toHaveLength(1));
     expect(patchBodies()[0]).toEqual({
       studentData: { priorFamilyAttendees: [{ name: "Kakak Rani", yearEntered: "2019" }] },
+    });
+  });
+});
+
+describe("EnrollmentApplicationEditor — address", () => {
+  it("shows the eight address boxes in order for each person and seeds the region keys", () => {
+    setup({ studentData: { ...(application.studentData as object), address: { kodePos: "40115", kelurahan: "Citarum", kotaKab: "Kota Bandung", provinsi: "Jawa Barat" } } });
+    const anak = region("Data anak");
+    expect(anak.getByLabelText("Kelurahan / Desa")).toHaveValue("Citarum");
+    expect(anak.getByLabelText("Kota / Kabupaten")).toHaveValue("Kota Bandung");
+    expect(anak.getByLabelText("Provinsi")).toHaveValue("Jawa Barat");
+    const labels = ["Perumahan / Jalan", "Blok / Cluster", "RT / RW", "Kode pos", "Kelurahan / Desa", "Kecamatan", "Kota / Kabupaten", "Provinsi"];
+    const inputs = labels.map((l) => anak.getByLabelText(l));
+    for (let i = 1; i < inputs.length; i++) {
+      expect(inputs[i - 1].compareDocumentPosition(inputs[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    for (const section of ["Data Ayah", "Data Ibu"]) {
+      for (const l of labels) expect(region(section).getByLabelText(l)).toBeInTheDocument();
+    }
+  });
+
+  it("sends an edited region key under address", async () => {
+    const { user } = setup();
+    await user.type(region("Data Ayah").getByLabelText("Kota / Kabupaten"), "Kota Bekasi");
+    await user.type(region("Data Ibu").getByLabelText("Provinsi"), "Jawa Barat");
+    await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(patchBodies()).toHaveLength(1));
+    expect(patchBodies()[0]).toEqual({
+      ayahData: { address: { kotaKab: "Kota Bekasi" } },
+      ibuData: { address: { provinsi: "Jawa Barat" } },
     });
   });
 });
