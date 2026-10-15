@@ -74,22 +74,22 @@ decided by the driver from the code and prior cycles; each can be revisited.
 
 ## Acceptance criteria
 
-- [ ] *Kirim Formulir* sends in one tap without asking Program / Day Care; no fee row exists after sending; the result card shows no fee block and no *Tandai lunas* / *Bebaskan*.
-- [ ] A freshly sent link opens straight on the form (never a *Bayar dulu* screen); autosave, upload, signature and submit all work before any payment.
-- [ ] The parent chooses Program and Day Care in the form; Tinjau shows the price and says it is paid after sending.
-- [ ] Submitting a priced program creates one UNPAID fee and the thank-you card shows *Bayar sekarang*; a free program creates no fee and no payment step.
-- [ ] Reopening a submitted, unpaid link shows the payment card; the DOKU return page still shows Lunas / Menunggu / gagal.
-- [ ] A staging form whose fee was created at send opens without a gate, its unpaid fee is repriced at submit to the chosen program (no second fee), and a paid or waived one is untouched.
-- [ ] *Tandai formulir masuk* creates the fee; the formulir fee card can *Tandai lunas* / *Bebaskan* afterwards.
-- [ ] The admissions list no longer shows a *Menunggu pembayaran* count; *Belum bayar* counts and filters unpaid fees.
-- [ ] Typing a 5-digit kode pos with one kelurahan fills Kelurahan, Kecamatan, Kota / Kabupaten and Provinsi.
-- [ ] A kode pos shared by several kelurahan offers them in a dropdown; picking one fills the rest.
-- [ ] An unknown kode pos says it was not found and leaves every box typeable; a lookup error does not block the step.
-- [ ] "Tidak tahu kode pos?" finds a kelurahan by name and fills all five region boxes including the kode pos.
-- [ ] Kode pos accepts digits only, at most 5; a partial code gets an inline error on Lanjut.
-- [ ] The new address boxes autosave, reload, survive submit, show on Tinjau and in the staff formulir view, are editable in *Ubah data*, and appear in the Student / Parent address after convert.
-- [ ] The lookup route answers only for an open form link, is rate limited, and never returns anything but region data.
-- [ ] README, UAT jobs, ADR row, `/panduan` slide, runbooks and glossary describe pay-after; `audit-docs.sh` exits 0.
+- [x] *Kirim Formulir* sends in one tap without asking Program / Day Care; no fee row exists after sending; the result card shows no fee block and no *Tandai lunas* / *Bebaskan*.
+- [x] A freshly sent link opens straight on the form (never a *Bayar dulu* screen); autosave, upload, signature and submit all work before any payment.
+- [x] The parent chooses Program and Day Care in the form; Tinjau shows the price and says it is paid after sending.
+- [x] Submitting a priced program creates one UNPAID fee and the thank-you card shows *Bayar sekarang*; a free program creates no fee and no payment step.
+- [x] Reopening a submitted, unpaid link shows the payment card; the DOKU return page still shows Lunas / Menunggu / gagal.
+- [x] A staging form whose fee was created at send opens without a gate, its unpaid fee is repriced at submit to the chosen program (no second fee), and a paid or waived one is untouched.
+- [x] *Tandai formulir masuk* creates the fee; the formulir fee card can *Tandai lunas* / *Bebaskan* afterwards.
+- [x] The admissions list no longer shows a *Menunggu pembayaran* count; *Belum bayar* counts and filters unpaid fees.
+- [x] Typing a 5-digit kode pos with one kelurahan fills Kelurahan, Kecamatan, Kota / Kabupaten and Provinsi.
+- [x] A kode pos shared by several kelurahan offers them in a dropdown; picking one fills the rest.
+- [x] An unknown kode pos says it was not found and leaves every box typeable; a lookup error does not block the step.
+- [x] "Tidak tahu kode pos?" finds a kelurahan by name and fills all five region boxes including the kode pos.
+- [x] Kode pos accepts digits only, at most 5; a partial code gets an inline error on Lanjut.
+- [x] The new address boxes autosave, reload, survive submit, show on Tinjau and in the staff formulir view, are editable in *Ubah data*, and appear in the Student / Parent address after convert.
+- [x] The lookup route answers only for an open form link, is rate limited, and never returns anything but region data.
+- [x] README, UAT jobs, ADR row, `/panduan` slide, runbooks and glossary describe pay-after; `audit-docs.sh` exits 0.
 
 ## Verify flows
 
@@ -183,4 +183,22 @@ Data: demo auth, disposable local Postgres, seeded super admin (`u_super_admin`)
 
 ## Verification
 
+### Verified locally — ae69628, 2026-10-15
+- Compared `origin/staging...ae69628` (102 files). Route: **other code** — public token routes and admin UI; no session, cookie, OAuth or auth-guard change, so verify-local only (no `needs-staging-verify`).
+- Gate: `npm run lint` → exit 0 (after deleting a stale, gitignored `playwright-report/` that lint had picked up); `npx tsc --noEmit --incremental false -p .` → exit 0; `npx vitest run` → "Test Files 620 passed | 2 skipped (622) · Tests 7221 passed | 42 todo (7263)"; `verify-rls-coverage.sh` → "43 / 43"; `verify-api-auth.sh` → "209 / 209"; `audit-docs.sh` → "13 ok, 1 warn, 0 fail" (the warn is old ADR rows past 60 days, not this cycle's); `DEMO_MODE=true npm run build` → exit 0, `/api/enrollments/token/[token]/wilayah` built as a dynamic route; `npx playwright test` on a freshly recreated disposable Postgres → "189 passed (4.2m)", no retries. Soft-skip delta vs staging: 26 → 26.
+- Bundle: "Bandung Wetan" appears in no `.next/static` chunk; the kode pos data is in one server chunk only.
+- App: production build with `DEMO_MODE=true`, disposable local Postgres 16 on :54329 (no Docker daemon here, so a local `initdb` cluster), demo cookies; Playwright ran through a scratchpad wrapper config that only points `executablePath` at the installed Chromium 1194 (Playwright 1.62.1 pins 1234) and makes paths absolute.
+- Walked (scripted, screenshots, 1440×900 and 390×844): super admin priced a program → lead with no email → *Kirim Formulir* one tap (result card: link, WhatsApp, Salin tautan, Isi bersama, "dibayar orang tua setelah mengisi dan mengirim formulir"; no fee block) → parent link opens the form, not a pay screen → kode pos 99351 → dropdown "3 kelurahan untuk 99351 — pilih satu" → Atabar fills Ebungfao / Kabupaten Jayapura / Papua → 40115 fills Citarum / Bandung Wetan / Kota Bandung / Jawa Barat → *Tidak tahu kode pos?* "kuningan timur" → fills 12950 and the region → Ayah, Ibu, Program (Day Care), Berkas, Persetujuan with both signatures through the UI → Tinjau shows the joined address and "Biaya dibayar setelah formulir dikirim" → submit 201 with an UNPAID Rp 275.000 fee → thank-you card *Bayar sekarang* → admin list row *Formulir masuk*, *Belum bayar Rp 275.000*, child named → detail shows the full address and the fee card with *Tandai sudah bayar* / *Bebaskan biaya*. E2E additionally covers the walk-in (12950 → Tandai sudah bayar tunai → Terima & Jadikan Siswa → student address contains the kelurahan and kode pos), free program, Tandai formulir masuk creating the fee, cancel closing a post-submit link, unknown kode pos, digits-only, partial code blocked on Lanjut, bad token → 404.
+- Timings: wilayah lookup TTFB 6–44 ms (name search 29–87 ms); parent form load ~0.3 s; submit ~0.1 s; admin list ~1 s.
+- Console/network: only `/_vercel/insights` and `/_vercel/speed-insights` 404s (Vercel analytics scripts absent on localhost), not from this diff.
+- Highlight screenshots: `05-kodepos-single.png` (kode pos filled the region at 390 px), `03-kodepos-dropdown.png` (several kelurahan), `08-thank-you-pay.png` (pay after submit), `01-admin-sent-card.png` (one-tap result card).
+- Rounds: 2 — round 1 walk found the search toggle splitting the region boxes, the "Dcare" label, and "Belum diisi" in the list after submit; fixed in `ae69628` and re-walked. Earlier review rounds are in Implementation.
+- Not checked / left: the phone-width admin list still clips the row under the sticky action column (shared DataTable pattern, pre-existing); Verify flow 4's staging-era fee row is covered by route tests only (the API can no longer create one); a fully maxed address could join past the Parent dialog's 500-char cap.
+
 ## Ship Notes
+
+- Migrations: none. Env vars: none. New dependency: none (data vendored under `lib/wilayah/data/`, MIT notices in `NOTICE.txt`; refresh with `node scripts/vendor-wilayah.mjs`, pinned SHAs at its top).
+- Staging data: formulirs sent under pay-first keep their fee row; they are no longer gated and an unpaid one is repriced at submit. Nothing to run.
+- Production: neither pay-first nor this cycle is on `main` yet; promotion carries #643, #650 and this together.
+- Post-merge: Vercel staging deploy READY for the merge SHA; open a formulir link on staging and type a kode pos (checks the bundled JSON on Vercel).
+- Rollback: revert the merge commit; no data shape changes beyond three optional keys inside the formulir JSON.
