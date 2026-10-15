@@ -115,12 +115,11 @@ export default function PayrollDetailPage() {
       }
     } catch { /* no comparison available */ }
     setLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const payrollItems = data?.items ?? [];
+  const payrollItems = useMemo(() => data?.items ?? [], [data]);
   const filteredItems = useMemo(() => {
     const q = employeeSearch.trim().toLowerCase();
     return payrollItems.filter((item) => {

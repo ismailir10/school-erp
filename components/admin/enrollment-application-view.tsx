@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import {
   AGAMA_OPTIONS,
   KEWARGANEGARAAN_OPTIONS,
@@ -13,6 +14,7 @@ import {
   type Option,
 } from "@/lib/enrollment/constants";
 import { formatDateShort } from "@/lib/format";
+import { formatAddress } from "@/lib/enrollment/address";
 
 /**
  * Read-only rendering of a submitted pendaftaran form.
@@ -81,9 +83,13 @@ export function ApplicationSection({
   title: string;
   children: React.ReactNode;
 }) {
+  const headingId = useId();
   return (
-    <section className="rounded-xl border bg-card p-4">
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
+    // Named region: Anak / Ayah / Ibu can be told apart by a screen reader (and by a test).
+    <section aria-labelledby={headingId} className="rounded-xl border bg-card p-4">
+      <h3 id={headingId} className="mb-2 text-sm font-semibold">
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -92,7 +98,6 @@ export function ApplicationSection({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ParentSection({ title, p }: { title: string; p: any }) {
   const d = p ?? {};
-  const a = d.address ?? {};
   return (
     <ApplicationSection title={title}>
       <ApplicationRow label="Nama" value={v(d.name)} />
@@ -104,7 +109,7 @@ function ParentSection({ title, p }: { title: string; p: any }) {
       <ApplicationRow label="Pekerjaan" value={labelOf(OCCUPATION_OPTIONS, d.occupation)} />
       <ApplicationRow label="Penghasilan" value={labelOf(INCOME_OPTIONS, d.income)} />
       <ApplicationRow label="Nama kantor" value={v(d.employerName)} />
-      <ApplicationRow label="Alamat" value={join([v(a.perumahan), v(a.kecamatan)])} />
+      <ApplicationRow label="Alamat" value={formatAddress(d.address) ?? "—"} />
     </ApplicationSection>
   );
 }
@@ -122,7 +127,6 @@ export function EnrollmentApplicationView({
   columns?: 1 | 2;
 }) {
   const s = application.studentData ?? {};
-  const addr = s.address ?? {};
   const consent = application.consentData ?? {};
 
   return (
@@ -139,10 +143,7 @@ export function EnrollmentApplicationView({
         <ApplicationRow label="Kewarganegaraan" value={labelOf(KEWARGANEGARAAN_OPTIONS, s.kewarganegaraan)} />
         <ApplicationRow label="Tinggal bersama" value={labelOf(LIVING_WITH_OPTIONS, s.livingWith)} />
         <ApplicationRow label="Bahasa di rumah" value={v(s.homeLanguage)} />
-        <ApplicationRow
-          label="Alamat"
-          value={join([v(addr.perumahan), v(addr.blokCluster), v(addr.kecamatan), v(addr.kodePos)])}
-        />
+        <ApplicationRow label="Alamat" value={formatAddress(s.address) ?? "—"} />
       </ApplicationSection>
 
       <ApplicationSection title="Kelahiran & Kesehatan">

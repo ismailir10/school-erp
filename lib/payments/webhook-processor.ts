@@ -216,6 +216,11 @@ async function handleSessionCompleted(
   // T5c — try reference_id first, then fall back to xenditSessionId.
   const invoice = await resolveInvoiceByReferenceOrSession(event, logPrefix);
   if (!invoice) {
+    // Not an invoice: a pendaftaran fee shares the gateway reference space
+    // (its id is the reference). Checked second, so every existing invoice
+    // path is untouched.
+    const feeId = await resolveEnrollmentFeeId(event);
+    if (feeId) return creditEnrollmentFee(event, feeId, logPrefix);
     console.warn(
       `${logPrefix} Invoice not found eventId=${eventId} refId=${event.referenceId ?? ""} sessionId=${event.sessionId ?? ""}`,
     );
@@ -361,6 +366,8 @@ async function handleSessionExpired(
     }
   }
   if (!resolved) {
+    const feeId = await resolveEnrollmentFeeId(event);
+    if (feeId) return expireEnrollmentFee(event, feeId);
     await markError(
       eventId,
       `INVOICE_NOT_FOUND:ref=${event.referenceId ?? ""};session=${event.sessionId ?? ""}`,
@@ -428,12 +435,158 @@ async function handleSessionExpired(
   return { ok: true, status: "REVERTED", eventId, invoiceId };
 }
 
-async function markProcessed(eventId: string, invoiceId: string): Promise<void> {
+// ─── Pendaftaran fee (EnrollmentFee) ─────────────────────────────────
+// cycle 2026-10-10-pendaftaran-fee-payment. These events carry the FEE id in
+// WebhookEvent.invoiceId. The column is a plain string (no FK) and cuids do not
+// collide with invoice ids, so it works as "the payable this event is about":
+// the staff fee card reads its ERROR rows (a payment that did not match the
+// fee, a second payment, money on a waived fee) to show "perlu dicek".
+
+async function resolveEnrollmentFeeId(event: NormalizedPaymentEvent): Promise<string | null> {
+  if (event.referenceId) {
+    const byRef = await prisma.enrollmentFee.findUnique({
+      where: { id: event.referenceId },
+      select: { id: true },
+    });
+    if (byRef) return byRef.id;
+  }
+  if (!event.sessionId) return null;
+  const bySession = await prisma.enrollmentFee.findFirst({
+    where: { gatewaySessionId: event.sessionId },
+    select: { id: true },
+  });
+  return bySession?.id ?? null;
+}
+
+/**
+ * Credit a settled gateway payment to a pendaftaran fee. Same two-phase
+ * contract as the invoice path (the receipt row already exists; this records
+ * the outcome) and the same guards — advisory lock, idempotent on
+ * `EnrollmentFee.paymentId`, PAID short-circuit — with ONE deliberate
+ * difference: the paid amount must equal the fee (+/- 1 IDR for gateway
+ * rounding). An invoice tolerates part payments and flags overpayment; a fixed
+ * one-off fee has no such notion, so any other amount is left UNPAID and
+ * surfaced to staff as an ERROR instead of being guessed at.
+ */
+async function creditEnrollmentFee(
+  event: NormalizedPaymentEvent,
+  feeId: string,
+  logPrefix: string,
+): Promise<{ ok: true; status: string; eventId: string }> {
+  const eventId = event.eventId;
+  // Both are non-null: handleSessionCompleted guards them before dispatching here.
+  const paymentAmount = event.amount as number;
+  const paymentId = event.paymentId as string;
+  const method = event.provider === "xendit" ? "XENDIT" : "DOKU";
+
+  const outcome = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${feeId}))`;
+    const fresh = await tx.enrollmentFee.findUnique({ where: { id: feeId } });
+    if (!fresh) return { type: "MISSING" } as const;
+    // The same gateway payment seen again (webhook retry, manual poll after the
+    // webhook) is a redelivery. A DIFFERENT payment landing on a fee that is
+    // already settled — two live orders under one reference, or the parent paid
+    // online after staff took cash — is money the school must refund, so it is
+    // surfaced instead of being swallowed as "already paid".
+    if (fresh.status === "PAID") {
+      return { type: "ALREADY_PAID", redelivery: fresh.paymentId === paymentId } as const;
+    }
+    if (fresh.status === "WAIVED") return { type: "WAIVED" } as const;
+
+    const expected = Number(fresh.amount);
+    if (Math.abs(paymentAmount - expected) > 1) {
+      return { type: "MISMATCH", expected } as const;
+    }
+
+    // The gateway's own payment id is the idempotency key; it can credit one fee once.
+    const taken = await tx.enrollmentFee.findUnique({ where: { paymentId }, select: { id: true } });
+    if (taken) return { type: "DUPLICATE_PAYMENT" } as const;
+
+    await tx.enrollmentFee.update({
+      where: { id: feeId },
+      data: { status: "PAID", method, paymentId, paidAt: new Date(), linkError: null },
+    });
+    return { type: "PAID" } as const;
+  });
+
+  switch (outcome.type) {
+    case "PAID":
+      await markProcessed(eventId, feeId);
+      console.info(`${logPrefix} PROCESSED enrollment fee`, { feeId, eventId });
+      return { ok: true, status: "PAID", eventId };
+    case "ALREADY_PAID":
+      if (!outcome.redelivery) {
+        await markError(eventId, "DUPLICATE_PAYMENT_AFTER_PAID", feeId);
+        console.warn(`${logPrefix} Second payment on an already-settled enrollment fee`, { feeId, eventId });
+        return { ok: true, status: "ERROR:duplicate_payment_after_paid", eventId };
+      }
+      await markProcessed(eventId, feeId);
+      return { ok: true, status: "PAID:already", eventId };
+    case "WAIVED":
+      // Money arrived for a fee staff waived: nothing to credit, but it needs a refund.
+      await markError(eventId, "PAID_ON_WAIVED_FEE", feeId);
+      console.warn(`${logPrefix} Payment on a WAIVED enrollment fee`, { feeId, eventId });
+      return { ok: true, status: "ERROR:paid_on_waived_fee", eventId };
+    case "MISMATCH":
+      await markError(eventId, `AMOUNT_MISMATCH:expected=${outcome.expected};got=${paymentAmount}`, feeId);
+      console.warn(`${logPrefix} Enrollment fee amount mismatch`, { feeId, eventId });
+      return { ok: true, status: "ERROR:amount_mismatch", eventId };
+    case "DUPLICATE_PAYMENT":
+      await markError(eventId, "DUPLICATE_PAYMENT_ID", feeId);
+      return { ok: true, status: "ERROR:duplicate_payment_id", eventId };
+    case "MISSING":
+    default:
+      await markError(eventId, "ENROLLMENT_FEE_NOT_FOUND", feeId);
+      return { ok: true, status: "ERROR:enrollment_fee_not_found", eventId };
+  }
+}
+
+/**
+ * The gateway session lapsed. Clear the stored link so the next visit mints a
+ * new one; the fee stays UNPAID. A fee already settled is left alone.
+ */
+async function expireEnrollmentFee(
+  event: NormalizedPaymentEvent,
+  feeId: string,
+): Promise<{ ok: true; status: string; eventId: string }> {
+  const eventId = event.eventId;
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${feeId}))`;
+    const fresh = await tx.enrollmentFee.findUnique({
+      where: { id: feeId },
+      select: { status: true, gatewaySessionId: true },
+    });
+    if (!fresh || fresh.status !== "UNPAID") return "NOT_UNPAID" as const;
+    // An expiry that names a session the fee no longer holds is about an OLDER,
+    // replaced order; it must not wipe the newer, live link. (DOKU
+    // notifications carry no session id — then there is nothing to compare.)
+    if (event.sessionId && fresh.gatewaySessionId && event.sessionId !== fresh.gatewaySessionId) {
+      return "STALE_SESSION" as const;
+    }
+    await tx.enrollmentFee.update({
+      where: { id: feeId },
+      data: { gatewaySessionId: null, paymentUrl: null, sessionExpiresAt: null },
+    });
+    return "REVERTED" as const;
+  });
+  if (result === "NOT_UNPAID") {
+    await markIgnored(eventId, "enrollment fee not unpaid", feeId);
+    return { ok: true, status: "IGNORED:fee_not_unpaid", eventId };
+  }
+  if (result === "STALE_SESSION") {
+    await markIgnored(eventId, "expiry of a replaced session", feeId);
+    return { ok: true, status: "IGNORED:stale_session", eventId };
+  }
+  await markProcessed(eventId, feeId);
+  return { ok: true, status: "REVERTED", eventId };
+}
+
+async function markProcessed(eventId: string, invoiceId?: string): Promise<void> {
   await prisma.webhookEvent.update({
     where: { eventId },
     data: {
       status: "PROCESSED",
-      invoiceId,
+      invoiceId: invoiceId ?? null,
       processedAt: new Date(),
     },
   });

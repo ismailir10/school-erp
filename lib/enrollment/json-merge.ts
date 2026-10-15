@@ -33,8 +33,11 @@ function column(name: JsonColumn): Prisma.Sql {
   return col;
 }
 
-function statusGuard(opts: { requireInvited: boolean }): Prisma.Sql {
-  return opts.requireInvited ? Prisma.sql` AND status = 'INVITED'` : Prisma.empty;
+function statusGuard(opts: { requireInvited: boolean; tenantId?: string }): Prisma.Sql {
+  const invited = opts.requireInvited ? Prisma.sql` AND status = 'INVITED'` : Prisma.empty;
+  // Defence in depth for staff callers: the row must also belong to their tenant.
+  const tenant = opts.tenantId ? Prisma.sql` AND "tenantId" = ${opts.tenantId}` : Prisma.empty;
+  return Prisma.sql`${invited}${tenant}`;
 }
 
 /**
@@ -48,7 +51,7 @@ export async function mergeJsonKey(
   col: JsonColumn,
   key: string,
   patch: Record<string, unknown>,
-  opts: { requireInvited: boolean },
+  opts: { requireInvited: boolean; tenantId?: string },
 ): Promise<boolean> {
   const c = column(col);
   const count = await prisma.$executeRaw(Prisma.sql`

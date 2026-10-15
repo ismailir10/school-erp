@@ -6,9 +6,10 @@
  * No React in here so each rule is unit-testable on its own.
  */
 import { parentSchema, isSideWaived } from "@/lib/enrollment/submit-validation";
+import { ENROLLMENT_FORM_STEPS } from "@/lib/enrollment/steps";
 import { missingUploads, type DocumentKey, type PublicDocuments } from "@/lib/enrollment/documents";
 
-export const STEPS = ["Data Anak", "Data Ayah", "Data Ibu", "Program", "Berkas", "Persetujuan", "Tinjau"] as const;
+export const STEPS = ENROLLMENT_FORM_STEPS;
 export const STEP_CONSENT = 5;
 
 // ── Contact fields (phone / email) ──────────────────────────────────────────

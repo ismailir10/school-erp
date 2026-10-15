@@ -74,6 +74,7 @@ vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 
 const student = {
   id: "s1",
+    canEdit: true,
   name: "Aisyah Putri",
   nickname: null,
   dateOfBirth: "2023-01-15",
@@ -420,5 +421,34 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     render(<StudentDetailPage />);
 
     expect(await screen.findByText("Belum terdaftar di kelas")).toBeInTheDocument();
+  });
+});
+
+describe("Student initial load recovery", () => {
+  it.each([500, "offline"])("offers retry instead of claiming a missing student after %s", async (failure) => {
+    const user = userEvent.setup();
+    let fail = true;
+    const fallback = stubFetch([]);
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/students/s1" && fail) {
+        return failure === "offline" ? Promise.reject(new Error("offline")) : Promise.resolve({ ok: false, status: failure } as Response);
+      }
+      return fallback(input, init);
+    }));
+    render(<StudentDetailPage />);
+    expect(await screen.findByText("Data siswa belum bisa dimuat")).toBeInTheDocument();
+    expect(screen.queryByText("Siswa tidak ditemukan")).not.toBeInTheDocument();
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Coba Lagi" }));
+    expect(await screen.findByRole("heading", { name: "Aisyah Putri" })).toBeInTheDocument();
+  });
+
+  it.each([[404, "Siswa tidak ditemukan"], [403, "Data siswa tidak bisa diakses"]])("distinguishes HTTP %s", async (status, message) => {
+    const fallback = stubFetch([]);
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => String(input) === "/api/students/s1"
+      ? Promise.resolve({ ok: false, status } as Response) : fallback(input, init)));
+    render(<StudentDetailPage />);
+    expect(await screen.findByText(String(message))).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Kembali ke Daftar Siswa" })).toHaveAttribute("href", "/admin/students");
   });
 });

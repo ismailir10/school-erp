@@ -7,11 +7,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
-import {
-  CONSENT_CLAUSES,
-  CONSENT_VERSION,
-  PHOTO_CLAUSE_TITLE,
-} from "@/lib/enrollment/consent-clauses";
+import { CONSENT_CLAUSES, CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
 vi.mock("@/components/enrollment/signature-pad", () => ({
   SignaturePad: ({ label, saved }: { label: string; saved: boolean }) => (
@@ -53,7 +49,7 @@ beforeEach(() => {
 });
 
 describe("photo/video clause on the consent step", () => {
-  it("renders as the 17th list item with its heading and the wali kelas path", () => {
+  it("renders as the 17th list item, plain like the other 16, with the wali kelas path", () => {
     render(<PendaftaranClient initialStep={5} token="tok" programs={programs} prefill={current} />);
 
     const list = screen.getByRole("heading", { name: "Surat Persetujuan Orang Tua" }).parentElement!.querySelector("ol")!;
@@ -61,13 +57,14 @@ describe("photo/video clause on the consent step", () => {
     expect(items).toHaveLength(17);
 
     const photo = items[16];
-    expect(photo).toBe(screen.getByTestId("photo-consent-clause"));
-    expect(photo).toHaveAttribute("data-photo-clause");
-    expect(within(photo).getByText(PHOTO_CLAUSE_TITLE).tagName).toBe("STRONG");
-    expect(photo).toHaveTextContent("Wali Kelas");
+    expect(photo.tagName).toBe("LI");
     expect(photo).toHaveTextContent(CONSENT_CLAUSES[16]);
-    // The other 16 stay plain.
-    expect(items.filter((li) => li.hasAttribute("data-photo-clause"))).toHaveLength(1);
+    expect(photo).toHaveTextContent("kepada Wali Kelas kapan saja.");
+    // Looks exactly like clause 16: same classes, no heading, no icon, no extra attributes.
+    expect(photo.className).toBe(items[15].className);
+    expect(photo.getAttributeNames().sort()).toEqual(items[15].getAttributeNames().sort());
+    expect(photo.querySelector("strong, svg")).toBeNull();
+    expect(photo.textContent).toBe(CONSENT_CLAUSES[16]);
   });
 
   it("adds no checkbox: the one agreement box still gates Lanjut", async () => {

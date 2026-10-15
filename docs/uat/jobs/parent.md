@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Last audited: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
@@ -311,6 +311,51 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Error scenarios to verify:**
   - File over 4 MB that cannot be compressed (e.g. a large PDF) → "Ukuran berkas terlalu besar (maks. 4 MB)…"
   - A `.txt`/`.docx` renamed to `.jpg` → "Format tidak didukung…" in Indonesian
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-PARENT-ENROL-03 — Pay the pendaftaran fee right after sending the form, or come back to it later
+- **Persona:** Ibu Nur
+- **Role:** public token holder (no login; the link is the credential)
+- **Preconditions:** An `INVITED` application (a freshly sent link: no fee exists yet) whose parent can choose a program with a pendaftaran fee (e.g. Rp300.000; Rp675.000 with the Day Care add-on); a phone; DOKU reachable. A second link for a free program (fee 0).
+- **Steps:**
+  1. Open the link: the form opens straight on the first step with no payment screen. Choose the Program and Day Care in the form and fill the steps.
+  2. At Tinjau, read the "Biaya pendaftaran" block and see what will be charged and when (after sending the form).
+  3. Send the form and read the thank-you card; find "Langkah terakhir: Bayar biaya pendaftaran". On the free-program link confirm there is no payment step at all.
+  4. Tap "Bayar sekarang", land on the DOKU page, pay by Virtual Account (or stop and come back).
+  5. Return to the school's page and see the payment status without doing anything technical.
+  6. Later, open the same form link again and find the fee (still to pay, or paid).
+- **Done when:** The amount at Tinjau, on the thank-you card, on DOKU and on the receipt are the same number, and a discount (if staff set one) is shown as normal fee, discount % and total. The pay button is one clear full-width action. Back from DOKU, the page says "Menunggu pembayaran" (with "Periksa lagi") until the payment is actually confirmed, then "Pembayaran diterima · Alhamdulillah" with amount and time in WIB. Reopening the form link after sending shows the fee state instead of a dead end, and nothing is asked for payment before the form is sent. A free program never shows a payment step. Nothing needs sideways scrolling at phone width.
+- **Why this job matters:** The fee is the first money a family hands the school. A payment step that is vague about the amount, or that says "paid" before it is, costs trust at the very first contact.
+- **Expected perf:** form submit click-to-thank-you <2s; "Bayar sekarang" click-to-DOKU <3s; return page <2s.
+- **Error scenarios to verify:**
+  - DOKU cannot issue a link → "Tautan pembayaran belum bisa dibuat. Coba lagi sebentar." and the button stays usable.
+  - Connection drops on tap → "Koneksi terputus. Coba lagi sebentar ya."
+  - Back from DOKU after cancelling → "Pembayaran belum selesai", nothing charged, the button still works.
+  - Paid by Virtual Account hours later → the return page or the form link shows paid once DOKU confirms.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-PARENT-ENROL-04 — Fill the address by typing the kode pos
+- **Persona:** Ibu Nur
+- **Role:** public token holder (no login; the link is the credential)
+- **Preconditions:** An `INVITED` application; a phone; kode pos `40115` (one kelurahan), `99351` (several kelurahan) and `00000` (unknown) to try, plus a family that does not know its kode pos.
+- **Steps:**
+  1. On the address of the child, Ayah or Ibu, fill Perumahan / Jalan, Blok / Cluster and RT / RW, then type the kode pos `40115`.
+  2. See Kelurahan / Desa, Kecamatan, Kota / Kabupaten and Provinsi fill in by themselves; change one of them by hand.
+  3. Type `99351`; pick the right kelurahan from the dropdown and see the other three fill in.
+  4. Type `00000`; read that the kode pos was not found and fill the boxes by hand.
+  5. Tap "Tidak tahu kode pos?", type part of a kelurahan or kecamatan name (for example "citarum"), pick the result and see the kode pos filled in as well.
+  6. Type letters into Kode pos, then `4011` and tap Lanjut; read the error.
+  7. Reach Tinjau and send the form; find the full address at Tinjau.
+- **Done when:** A full 5-digit kode pos fills the region boxes (one match) or offers a kelurahan dropdown (several matches); an unknown code says "tidak ditemukan" and leaves every box free to type. Every filled box stays editable. The name search fills the kode pos too. Kode pos accepts only digits, at most five, and a partial code shows an inline error on Lanjut. A lookup that fails never blocks the form. The address autosaves, survives a reload and shows in full at Tinjau. The live messages ("Mencari…", "3 kelurahan untuk 99351 — pilih satu") are in plain Indonesian.
+- **Why this job matters:** Parents type addresses on a phone, often without knowing the kelurahan or kecamatan. A kode pos that fills the rest saves typing and mistakes, and it must never trap a family whose address the dataset does not know.
+- **Expected perf:** kode pos lookup click-to-filled <1s on mobile 4G; name search results <1s.
+- **Error scenarios to verify:**
+  - Lookup request fails (offline) → the boxes stay typeable and the step still continues
+  - Name search with fewer than 3 letters → no results listed, no error
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

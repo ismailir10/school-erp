@@ -112,22 +112,24 @@ done < <(awk '/^\| Skill \| Covers/{f=1;next} /^$/{f=0} f && /^\|/' CLAUDE.md |
 # ------------------------------------------------------------- relative links
 
 BROKEN=""
-for doc in README.md CLAUDE.md; do
+for doc in README.md CLAUDE.md docs/workflow/*.md; do
+  [ -f "$doc" ] || continue
+  dir=$(dirname "$doc")
   while IFS= read -r target; do
     [ -z "$target" ] && continue
     case "$target" in http*|\#*|mailto:*) continue ;; esac
     clean=${target%%#*}
     clean=${clean#./}
     [ -z "$clean" ] && continue
-    [ -e "$clean" ] || BROKEN="$BROKEN $doc→$clean"
+    [ -e "$dir/$clean" ] || BROKEN="$BROKEN $doc→$clean"
   done < <(grep -oE '\]\([^)]+\)' "$doc" 2>/dev/null | sed -E 's/^\]\(//; s/\)$//')
 done
-[ -z "$BROKEN" ] && row ok "Relative links" "every link in README + CLAUDE resolves" ||
+[ -z "$BROKEN" ] && row ok "Relative links" "every link in README, CLAUDE and docs/workflow resolves" ||
   row fail "Relative links" "broken:$BROKEN"
 
 # --------------------------------------------------------------- docs/ shape
 
-ALLOWED="adrs archive cycles runbooks uat"
+ALLOWED="adrs archive cycles runbooks uat workflow"
 STRAY=""
 for d in docs/*/; do
   n=$(basename "$d")
@@ -187,7 +189,7 @@ for key, enabled in data.get("enabledPlugins", {}).items():
 fi
 
 # The only non-skill colon token is a CSS utility in the vendored accessibility skill.
-SKILL_TOKENS=$(grep -hoE '`[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*`' .claude/skills/*/SKILL.md CLAUDE.md 2>/dev/null | tr -d '`' | grep -v '^focus:outline-none$' | sort -u)
+SKILL_TOKENS=$(grep -hoE '`[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*`' .claude/skills/*/SKILL.md CLAUDE.md docs/workflow/*.md 2>/dev/null | tr -d '`' | grep -v '^focus:outline-none$' | sort -u)
 BROKEN=""
 while IFS= read -r tok; do
   [ -z "$tok" ] && continue
@@ -223,7 +225,7 @@ done <<< "$SKILL_TOKENS"
 
 # --------------------------------------------------- standards-table paths exist
 
-# Converts a staged-file glob from build/SKILL.md's routing tables into a tracked-file
+# Converts a staged-file glob from docs/workflow/build.md's routing tables into a tracked-file
 # test. Source docs should resolve against committed paths, not generated artifacts,
 # ignored caches, or sibling worktrees that happen to sit under the checkout.
 path_glob_exists() {
@@ -251,6 +253,7 @@ path_glob_exists() {
 }
 
 MISSING=""
+CHECKED=0
 while IFS= read -r tok; do
   [ -z "$tok" ] && continue
   case "$tok" in
@@ -258,16 +261,23 @@ while IFS= read -r tok; do
     *.ts|*.tsx|*.css) ;;        # or a bare file with a real source extension
     *) continue ;;              # otherwise it's prose (`bg-status-*`, `text-wrap`, …) — skip
   esac
+  CHECKED=$((CHECKED + 1))
   path_glob_exists "$tok" || MISSING="$MISSING $tok"
 done < <(awk '
   /^\| Staged file glob \| Load \|/ { f=1; next }
   /^\| Frontend task touches \| Also invoke \|/ { f=1; next }
   /^$/ { f=0 }
   f && /^\|/ { print }
-' .claude/skills/build/SKILL.md | awk -F'|' '{print $2}' | grep -oE '`[^`]+`' | tr -d '`' | sort -u)
+' docs/workflow/build.md | awk -F'|' '{print $2}' | grep -oE '`[^`]+`' | tr -d '`' | sort -u)
 
-[ -z "$MISSING" ] && row ok "Standards-table paths exist" "every staged-file glob in build/SKILL.md matches tracked source" ||
+# An empty table would pass vacuously, which is how this check went blind once the tables moved.
+if [ "$CHECKED" = "0" ]; then
+  row fail "Standards-table paths exist" "no load-on-demand table found in docs/workflow/build.md"
+elif [ -z "$MISSING" ]; then
+  row ok "Standards-table paths exist" "every staged-file glob in docs/workflow/build.md matches tracked source ($CHECKED)"
+else
   row fail "Standards-table paths exist" "no match on disk:$MISSING"
+fi
 
 # ------------------------------------- SessionStart hook messages reach the assistant
 

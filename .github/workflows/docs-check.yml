@@ -18,6 +18,7 @@ jobs:
   docs-check:
     name: Docs sync
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
@@ -73,3 +74,8 @@ jobs:
         run: |
           bash scripts/test-audit-docs.sh
           bash scripts/test-hooks.sh
+
+      # The shared spec/build/verify-local/ship skills are vendored from agent-workflow. Offline checksum check:
+      # fails when a vendored file was edited here instead of upstream.
+      - name: Vendored agent-workflow skills unchanged
+        run: bash scripts/sync-agent-workflow.sh --check

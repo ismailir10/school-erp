@@ -95,7 +95,7 @@ describe("Stagger enabled / forwarded props", () => {
     stubMatchMedia(false);
     const { container } = render(
       <Stagger as="ol" count={1} data-reveal="true" aria-label="Butir">
-        <StaggerItem as="li" id="photo" data-testid="x" data-photo-clause aria-describedby="d" className="row">
+        <StaggerItem as="li" id="photo" data-testid="x" data-extra aria-describedby="d" className="row">
           satu
         </StaggerItem>
       </Stagger>,
@@ -106,7 +106,7 @@ describe("Stagger enabled / forwarded props", () => {
     const li = screen.getByTestId("x");
     expect(li.style.opacity).toBe("0");
     expect(li).toHaveAttribute("id", "photo");
-    expect(li).toHaveAttribute("data-photo-clause");
+    expect(li).toHaveAttribute("data-extra");
     expect(li).toHaveAttribute("aria-describedby", "d");
     expect(li).toHaveClass("row");
   });
@@ -115,13 +115,13 @@ describe("Stagger enabled / forwarded props", () => {
     stubMatchMedia(true);
     render(
       <Stagger as="ol" count={1}>
-        <StaggerItem as="li" data-testid="y" data-photo-clause>
+        <StaggerItem as="li" data-testid="y" data-extra>
           satu
         </StaggerItem>
       </Stagger>,
     );
     const li = screen.getByTestId("y");
-    expect(li).toHaveAttribute("data-photo-clause");
+    expect(li).toHaveAttribute("data-extra");
     expect(li.getAttribute("style")).toBeNull();
   });
 });

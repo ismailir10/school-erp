@@ -7,9 +7,15 @@ import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollmen
 import { submitEnrollmentSchema, flattenSubmitErrors, isSideWaived } from "@/lib/enrollment/submit-validation";
 import { DOCUMENT_ITEMS, missingUploads } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
+import { getProgramFees } from "@/lib/enrollment/fee-config";
+import { createFeeSnapshot, repriceUnpaidFee, type FeeSnapshot } from "@/lib/enrollment/fee-snapshot";
+import { denyTokenAccess } from "@/lib/enrollment/access-response";
 
 const RATE_LIMIT_PER_MIN = 10;
 const RATE_WINDOW_MS = 60_000;
+
+/** Audit/`markedBy` actor when the parent's own submit moves a fee: a token holder has no user id. */
+const PARENT_ACTOR = "parent-form";
 
 function asObject(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -24,10 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const { token } = await params;
   const now = new Date();
   const { access, id, tenantId } = await resolveEnrollmentAccess(token, now);
-  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  if (access === "SUBMITTED")
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  const denied = denyTokenAccess(access);
+  if (denied) return denied;
   if (!id || !tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let body: unknown;
@@ -56,8 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // file that was stored before the form closed.
     const stored = await tx.enrollmentApplication.findUnique({
       where: { id },
-      select: { consentData: true, documents: true },
+      select: { consentData: true, documents: true, fee: { select: { id: true } } },
     });
+    // Normally no fee row exists yet: the fee is priced below, once the form is
+    // in. A formulir sent under the short-lived pay-first order already holds one
+    // (staging only); it is repriced to what the parent chose, never doubled.
+    const hasFee = Boolean(stored?.fee);
     // Signatures live on the row (the signature route persists them the moment
     // they are drawn), so the parent who submits may never have seen the other
     // parent's pad. Overlay the stored tokens onto the body BEFORE validation and
@@ -119,6 +127,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       );
     }
 
+    // The fee is priced from the tenant's ACTIVE programs. `programBelongsToTenant`
+    // does not look at status, so a program retired after the invite would price at
+    // 0 and quietly skip the fee — refuse it here, BEFORE the flip below (a response
+    // returned after the flip would not roll it back).
+    const programs = await getProgramFees(tenantId, tx);
+    if (!programs.some((p) => p.id === data.programId)) {
+      return NextResponse.json(
+        { error: "validation_failed", fields: { programId: "Program tidak valid" } },
+        { status: 422 },
+      );
+    }
+
     const nowIso = now.toISOString();
 
     // Server-stamp the signing time — client-supplied signedAt is not trusted.
@@ -156,6 +176,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
     }
 
-    return NextResponse.json({ ok: true, id }, { status: 201 });
+    // Pay after the form: the pendaftaran fee is priced HERE from the stored program
+    // fees — the client never sends an amount. Snapshotted on the row (later fee
+    // edits do not rewrite it). Created only after the INVITED→SUBMITTED flip won,
+    // so a lost race cannot leave a fee behind; no gateway call under this row lock
+    // — the payment session is created lazily by the /pay route.
+    let fee: FeeSnapshot | null;
+    if (hasFee) {
+      // A fee sent under pay-first: an UNPAID one follows the program / Day Care the
+      // parent chose (the one reprice staff's "Ubah data" uses, which also leaves a
+      // PAID or staff-waived fee alone); a second row would hit the unique constraint.
+      const { fee: repriced } = await repriceUnpaidFee(tx, {
+        tenantId,
+        applicationId: id,
+        programId: data.programId,
+        dcareAddon: data.dcareAddon,
+        actorId: PARENT_ACTOR,
+        now,
+      });
+      // Same body as a fresh fee: only a fee still owed leads to the pay panel.
+      fee =
+        repriced && repriced.status === "UNPAID" && repriced.amount > 0
+          ? { baseAmount: repriced.baseAmount, amount: repriced.amount, status: "UNPAID" }
+          : null;
+    } else {
+      fee = await createFeeSnapshot(tx, {
+        tenantId,
+        applicationId: id,
+        programs,
+        programId: data.programId,
+        dcareAddon: data.dcareAddon,
+      });
+    }
+
+    return NextResponse.json({ ok: true, id, fee }, { status: 201 });
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { pickDefaultYear } from "./pick-default-year";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -12,6 +12,7 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select,
@@ -77,6 +78,23 @@ const EMPTY_CLASS_FORM = {
   ageGroup: "" as unknown as "A" | "B",
 };
 
+function DiscardClassFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { keepRef.current?.focus(); }, []);
+  return (
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div role="alert" className="text-sm">
+        <p className="font-medium">Buang perubahan?</p>
+        <p className="text-muted-foreground">Data yang belum disimpan akan hilang.</p>
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Button type="button" ref={keepRef} variant="ghost" onClick={onKeep}>Lanjut mengisi</Button>
+        <Button type="button" variant="destructive" onClick={onDiscard}>Buang perubahan</Button>
+      </div>
+    </div>
+  );
+}
+
 export function ClassesClient({
   canWrite,
   initialYearId,
@@ -97,11 +115,41 @@ export function ClassesClient({
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize] = useState(10);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequestId = useRef(0);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const formId = useId();
   const form = useZodForm(classFormSchema, { defaultValues: EMPTY_CLASS_FORM });
+  const dirty = form.formState.isDirty;
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const draftFocus = useRef<HTMLElement | null>(null);
+
+  function keepDraft() {
+    setDiscardOpen(false);
+    // Restore after the popup's focus manager handles the removed footer.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (draftFocus.current?.isConnected) draftFocus.current.focus();
+      else document.getElementById(formId)?.querySelector<HTMLElement>("input, textarea, button")?.focus();
+    }));
+  }
+
+  function closeForm() {
+    setDiscardOpen(false);
+    setDialogOpen(false);
+    resetForm();
+  }
+
+  function requestFormClose() {
+    if (form.formState.isSubmitting) return;
+    if (discardOpen) { keepDraft(); return; }
+    if (dirty) {
+      const active = document.activeElement;
+      draftFocus.current = active instanceof HTMLElement && document.getElementById(formId)?.contains(active) ? active : null;
+      setDiscardOpen(true);
+    } else closeForm();
+  }
 
   const [deactivateTarget, setDeactivateTarget] = useState<ClassRow | null>(
     null,
@@ -145,9 +193,11 @@ export function ClassesClient({
     }
   }
 
-  async function fetchRows() {
+  const fetchRows = useCallback(async () => {
     if (!yearId) return;
+    const requestId = ++listRequestId.current;
     setLoading(true);
+    setLoadError(false);
     const params = new URLSearchParams({
       pageSize: "100",
       yearId,
@@ -156,12 +206,18 @@ export function ClassesClient({
     if (campusFilter !== "all") params.set("campusId", campusFilter);
     if (programFilter !== "all") params.set("programId", programFilter);
     if (query.trim()) params.set("q", query.trim());
-    const res = await fetch(`/api/admin/classes?${params.toString()}`);
-    const j = res.ok ? await res.json().catch(() => null) : null;
-    setRows(Array.isArray(j?.data) ? j.data : []);
-    if (!res.ok) toast.error("Gagal memuat daftar kelas");
-    setLoading(false);
-  }
+    try {
+      const res = await fetch(`/api/admin/classes?${params.toString()}`);
+      if (!res.ok) throw new Error("Classes read failed");
+      const j = await res.json();
+      if (requestId !== listRequestId.current) return;
+      setRows(Array.isArray(j?.data) ? j.data : []);
+    } catch {
+      if (requestId === listRequestId.current) setLoadError(true);
+    } finally {
+      if (requestId === listRequestId.current) setLoading(false);
+    }
+  }, [yearId, statusFilter, campusFilter, programFilter, query]);
 
   useEffect(() => {
     fetchReference();
@@ -169,9 +225,11 @@ export function ClassesClient({
   }, []);
 
   useEffect(() => {
-    fetchRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearId, statusFilter, campusFilter, programFilter]);
+    // Cancel both the pending search timer and any older response when the
+    // selected search/year/filter context changes.
+    const timer = setTimeout(() => void fetchRows(), 300);
+    return () => { clearTimeout(timer); listRequestId.current += 1; };
+  }, [fetchRows]);
 
   // Keep the selected year in the URL so reload / share lands on the same year.
   useEffect(() => {
@@ -187,12 +245,6 @@ export function ClassesClient({
   }, [yearId]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchRows(), 300);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
-
-  useEffect(() => {
     setTablePage(1);
   }, [yearId, statusFilter, campusFilter, programFilter, query]);
 
@@ -203,12 +255,14 @@ export function ClassesClient({
   }, []);
 
   const openCreate = useCallback(() => {
+    setDiscardOpen(false);
     resetForm();
     setDialogOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openEdit = useCallback((row: ClassRow) => {
+    setDiscardOpen(false);
     setEditing(row);
     form.reset({
       campusId: row.campusId,
@@ -223,6 +277,7 @@ export function ClassesClient({
   }, []);
 
   const save = form.handleSubmit(async (values) => {
+    if (discardOpen) return;
     const url = editing
       ? `/api/admin/classes/${editing.id}`
       : `/api/admin/classes`;
@@ -246,8 +301,7 @@ export function ClassesClient({
     try {
       await sendJson(url, { method, body }, "Gagal menyimpan");
       toast.success(editing ? "Kelas diperbarui" : "Kelas ditambahkan");
-      setDialogOpen(false);
-      resetForm();
+      closeForm();
       fetchRows();
     } catch (err) {
       applyServerErrors(form, err, "Gagal menyimpan");
@@ -484,14 +538,24 @@ export function ClassesClient({
         </div>
       )}
 
-      <DataTable
+      {loadError && (
+        <Alert variant="destructive">
+          <AlertDescription>
+          <p>Gagal memuat daftar kelas. Coba lagi.</p>
+          {rows.length > 0 && <p className="mt-1 text-muted-foreground">Daftar terakhir masih ditampilkan dan belum diperbarui.</p>}
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void fetchRows()}>Coba lagi</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {(!loadError || rows.length > 0) && <DataTable
         columns={columns}
         data={rows}
         loading={loading}
+        isFiltered={!!query.trim() || campusFilter !== "all" || programFilter !== "all" || statusFilter === "INACTIVE"}
         pagination={tablePagination}
         emptyTitle="Belum ada kelas"
         emptyDescription="Kelas yang dibuat akan tampil di sini."
-      />
+      />}
       </div>
 
       <BulkPromoteDialog
@@ -504,10 +568,7 @@ export function ClassesClient({
 
       <ResponsiveFormDialog
         open={dialogOpen}
-        onOpenChange={(v) => {
-          setDialogOpen(v);
-          if (!v) resetForm();
-        }}
+        onOpenChange={(v) => { if (!v) requestFormClose(); }}
         title={editing ? "Ubah Kelas" : "Tambah Kelas"}
         description={
           editing
@@ -515,10 +576,10 @@ export function ClassesClient({
             : "Pilih kampus dan program, beri nama, lalu tentukan kapasitas."
         }
         footer={
-          <FormDialogFooter
+          discardOpen ? <DiscardClassFooter onKeep={keepDraft} onDiscard={closeForm} /> : <FormDialogFooter
             formId={formId}
             pending={form.formState.isSubmitting}
-            onCancel={() => setDialogOpen(false)}
+            onCancel={requestFormClose}
             submitLabel={editing ? "Simpan Perubahan" : "Tambah Kelas"}
           />
         }

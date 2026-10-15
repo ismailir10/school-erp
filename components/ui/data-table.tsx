@@ -30,7 +30,7 @@ import { Inbox, SearchX } from "lucide-react";
  *
  * - `priority: "low"` marks a column secondary (created/updated-at, ids, …):
  *   hidden below `md`, back on `md+`.
- * - `sticky: "right"` pins a column to the right edge below `md` — the
+ * - `sticky: "right"` pins a column to the right edge when a table overflows — the
  *   row-actions column gets this automatically by `id === "actions"`, but a
  *   column can opt in explicitly if a page names its actions column
  *   differently.
@@ -40,6 +40,9 @@ import { Inbox, SearchX } from "lucide-react";
 // the module TypeScript's declaration merging actually needs named here, not
 // the re-exporting package.
 declare module "@tanstack/table-core" {
+  // Declaration merging: these generics must match upstream's ColumnMeta exactly,
+  // even though our two added fields do not use them.
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   interface ColumnMeta<
     in out TFeatures extends TableFeatures,
     in out TData extends RowData,
@@ -48,6 +51,7 @@ declare module "@tanstack/table-core" {
     priority?: "low";
     sticky?: "right";
   }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
 function isStickyRight<TData extends RowData>(column: LegacyColumn<TData>) {
@@ -62,7 +66,7 @@ function isLowPriority<TData extends RowData>(column: LegacyColumn<TData>) {
 // `bg-background`) so the sticky action column reads as one opaque strip
 // instead of the header seam showing through under it while scrolled.
 const STICKY_RIGHT_CLASS =
-  "sticky right-0 z-[1] shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)] md:static md:shadow-none";
+  "sticky right-0 z-[1] shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)]";
 
 /**
  * Tracks whether the table's horizontal scroll container overflows to the
@@ -232,7 +236,7 @@ export function DataTable<TData extends RowData>({
                   className={cn(
                     column.meta?.priority === "low" && "hidden md:table-cell",
                     (column.id === "actions" || column.meta?.sticky === "right") &&
-                      cn(STICKY_RIGHT_CLASS, "bg-muted md:bg-transparent")
+                      cn(STICKY_RIGHT_CLASS, "bg-muted")
                   )}
                 >
                   <Skeleton className="h-4 w-20" />
@@ -292,7 +296,7 @@ export function DataTable<TData extends RowData>({
                       "text-xs font-semibold text-muted-foreground tracking-wider",
                       isLowPriority(header.column) && "hidden md:table-cell",
                       isStickyRight(header.column) &&
-                        cn(STICKY_RIGHT_CLASS, "bg-muted md:bg-transparent")
+                        cn(STICKY_RIGHT_CLASS, "bg-muted")
                     )}
                   >
                     {header.isPlaceholder

@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
 export default function TeacherError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };

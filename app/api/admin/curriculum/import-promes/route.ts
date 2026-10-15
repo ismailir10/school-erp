@@ -44,7 +44,6 @@ import {
   promesImportRequestSchema,
   objectiveCreateSchema,
   indicatorCreateSchema,
-  type AgeGroupInput,
   type CurriculumElementInput,
   type ObjectiveCreateInput,
   type IndicatorCreateInput,

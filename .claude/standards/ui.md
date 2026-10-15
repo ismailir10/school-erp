@@ -42,7 +42,6 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Data list | `<DataTable>` | Custom card loops |
 | Wide matrix / grid (not a sortable/paginated entity list) | ui/table primitives (`<Table>`, `<TableHeader>`, `<TableBody>`, ...) | raw `<table>` |
 | Admin tabs (panels within one page) | `<AdminTabs>` | raw `<Tabs>` import in `app/admin/**` |
-| Sibling routes sharing one nav entry | `<AdminLinkTabs>` (see `patterns.md` Recipe 1) | a second `<AdminTabs>` strip pointing at separate pages |
 | Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
 | Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
 | Empty list | `<EmptyState>` | Plain `<p>` |
@@ -66,13 +65,12 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
 
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
-- **Confirms go through `<ConfirmDialog>`, always.** Delete, void, cancel, hard-deactivate, restore, approve — all through `<ConfirmDialog>` (it wraps `<AlertDialog>`; pass `destructive` for the irreversible ones). Never import `<AlertDialog>` directly outside `confirm-dialog.tsx`. Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
+- **Confirms go through `<ConfirmDialog>`, always.** Delete, void, cancel, hard-deactivate, restore, approve — all through `<ConfirmDialog>` (it wraps `<AlertDialog>`; pass `destructive` for the irreversible ones). Never import `<AlertDialog>` directly outside `confirm-dialog.tsx`. A "which one?" question that has only two answers is still a two-way `<ConfirmDialog>` (e.g. the convert flow's possible-duplicate-student and wali-name-mismatch questions: confirm or Batal, one open at a time, focus on Batal). Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
 - **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
 - **Toasts stack, overlays don't.** Multiple toasts allowed; they auto-dismiss. Sonner's default 3–5s timing is correct for success; errors should stay longer (or be persistent via `toast.error(..., { duration: Infinity })` for critical failures).
 - **Body copy states the consequence.** "Data akan hilang selamanya" for hard delete; "Bisa diaktifkan kembali kapan saja" for soft delete. See `voice.md` for audience-matched copy.
 
 **Named exceptions** (raw overlay outside `confirm-dialog.tsx` / `ResponsiveFormDialog`, deliberately not "fixed"):
-- **Admissions "Konversi ke Siswa"** — a genuine three-way decision (merge / new / cancel); forcing it into `ConfirmDialog` would hide a choice.
 - **Payroll payslip Sheet** — read-only detail view, not a form.
 - **Billing-run wizard shell** — multi-step; a follow-up to migrate onto the shared primitives.
 
@@ -119,7 +117,7 @@ Every admin create/edit form is built the same way (cycle `2026-09-27-admin-form
 3. **Blank numbers are not zero.** `z.coerce.number()` turns `""` into `0`. Preprocess `""` → `undefined`/`null` and give a required number its own "wajib diisi" message, unless the old behaviour genuinely defaulted to 0.
 4. **String→value preprocessing lives only in the form-derived schema, never the wire schema it's derived from.** Blank-to-null, the `childOrder` null-vs-keep split, and similar coercions belong in the same `lib/validations/*` file's form schema; `lib/validations/__tests__/form-api-roundtrip.test.ts` is the one place that pins both ends of the round trip.
 
-**Named exceptions** (grid/wizard editors, not field forms — stay hand-rolled): billing-run wizard *steps* (the shell is `ResponsiveFormDialog`), raport editor, report-card narrative templates, assessments score grid, Tarif per Program table, themes/subtema/pekan hierarchy, bulk-promote mapping, filter bars. The admissions convert dialog is a documented three-way exception (see Overlays Rule) rather than a field form.
+**Named exceptions** (grid/wizard editors, not field forms — stay hand-rolled): billing-run wizard *steps* (the shell is `ResponsiveFormDialog`), raport editor, report-card narrative templates, assessments score grid, Tarif per Program table, themes/subtema/pekan hierarchy, bulk-promote mapping, filter bars.
 
 ## Required-field indicator
 
@@ -144,7 +142,7 @@ One rule, no detached button rows:
 
 ## AdminTabs Layout
 
-`AdminTabsList` (`components/admin/admin-tabs.tsx`) owns tab-strip layout: a single row that scrolls horizontally on narrow screens instead of wrapping. Pages must not pass a `className` that overrides this (`flex-wrap`, `w-full`, etc.) — a wrapped strip drops a tab onto its own centred row where it reads as a heading, not a tab. `AdminLinkTabs` (for sibling routes sharing one nav entry, see `patterns.md` Recipe 1) matches the same layout.
+`AdminTabsList` (`components/admin/admin-tabs.tsx`) owns tab-strip layout: a single row that scrolls horizontally on narrow screens instead of wrapping. Pages must not pass a `className` that overrides this (`flex-wrap`, `w-full`, etc.) — a wrapped strip drops a tab onto its own centred row where it reads as a heading, not a tab.
 
 ## Toolbar Reset
 
@@ -214,7 +212,7 @@ Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx
 - **Primary:** the identity cell is the link (`DataTableLinkCell`, see above) — do not also pass `onView` for the same destination. Reserve `onView` for a row with no link target of its own.
 - **Dropdown (⋮):** `onEdit` + one terminal prop (`onDeactivate` | `onCancel` | `onVoid`).
 - Never hard delete. Never use `extraActions` for "Batalkan" / "Nonaktifkan" — use the dedicated prop so menu labels and icons stay consistent.
-- `extraActions` is reserved for **domain-specific** actions (e.g. "Konversi ke Siswa" on Admission, "Setujui" / "Tolak" on LeaveRequest approval queue).
+- `extraActions` is reserved for **domain-specific** actions (e.g. "Setujui" / "Tolak" on the LeaveRequest approval queue; "Terima & Jadikan Siswa" is the formulir detail's primary action, not an `extraActions` entry).
 
 ```tsx
 // identity cell (Category A — binary):

@@ -192,3 +192,18 @@ describe("InvoicesClient — Catat Pembayaran row action and ?status= (R2-ADMIN-
     });
   });
 });
+
+
+it("offers continuation for an interrupted run without offering to discard issued invoices", async () => {
+  const usual = stubFetch();
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const url = input.toString();
+    if (url.includes("/api/billing-runs?unfinished=true")) return Promise.resolve({
+      ok: true, json: async () => ({ data: [{ id: "run-1", status: "COMMITTING", periodLabel: "Oktober 2026" }] }),
+    });
+    return usual(input);
+  }));
+  render(<InvoicesClient gatewayId="xendit" capabilities={{ create: true, recordPayment: true, void: true }} />);
+  expect(await screen.findByRole("button", { name: "Lanjutkan pembuatan tagihan" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Buang draf" })).not.toBeInTheDocument();
+});

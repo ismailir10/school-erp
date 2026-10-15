@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SessionUser } from "@/lib/auth";
 
 const db = vi.hoisted(() => ({
-  admission: { findUnique: vi.fn(), update: vi.fn() },
+  admission: { findFirst: vi.fn(), update: vi.fn() },
   studentJournalCategory: { findUnique: vi.fn(), update: vi.fn() },
   studentJournalIndicator: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   employee: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
@@ -61,7 +61,13 @@ beforeEach(() => {
 });
 
 describe("PUT /api/admissions/[id]", () => {
-  it("status-only body leaves source untouched (CORE-1 / X-2)", async () => {
+  beforeEach(() => {
+    db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({ admission: db.admission, enrollmentFee: { updateMany: vi.fn(async () => ({ count: 0 })) }, auditLog: { create: vi.fn() } }),
+    );
+  });
+
+  it("status-only body writes only the status (source and contacts untouched; CORE-1 / X-2)", async () => {
     const existing = {
       id: "id-1",
       tenantId: "t-1",
@@ -70,22 +76,20 @@ describe("PUT /api/admissions/[id]", () => {
       childName: "Aisyah",
       parentName: "Ibu",
     };
-    db.admission.findUnique.mockResolvedValue(existing);
+    db.admission.findFirst.mockResolvedValue(existing);
     db.admission.update.mockImplementation(async ({ data }) => ({ ...existing, ...data }));
 
-    const res = await admissionPut(put({ status: "VISIT_SCHEDULED" }), params);
+    const res = await admissionPut(put({ status: "CANCELLED" }), params);
     expect(res.status).toBe(200);
-    const data = db.admission.update.mock.calls[0][0].data;
-    expect(data.source).toBe("WHATSAPP");
-    expect(data.status).toBe("VISIT_SCHEDULED");
+    expect(db.admission.update.mock.calls[0][0].data).toEqual({ status: "CANCELLED" });
   });
 
-  it("an explicit source is still written", async () => {
+  it("source is not client-writable: a source in the body is ignored and nothing is written", async () => {
     const existing = { id: "id-1", tenantId: "t-1", status: "INQUIRY", source: "WHATSAPP" };
-    db.admission.findUnique.mockResolvedValue(existing);
-    db.admission.update.mockResolvedValue(existing);
-    await admissionPut(put({ source: "REFERRAL" }), params);
-    expect(db.admission.update.mock.calls[0][0].data.source).toBe("REFERRAL");
+    db.admission.findFirst.mockResolvedValue(existing);
+    const res = await admissionPut(put({ source: "REFERRAL" }), params);
+    expect(res.status).toBe(200);
+    expect(db.admission.update).not.toHaveBeenCalled();
   });
 });
 

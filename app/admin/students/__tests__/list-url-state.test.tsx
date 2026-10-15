@@ -31,7 +31,7 @@ function stubFetch() {
       return Promise.resolve({
         ok: true,
         json: async () => ({
-          data: [],
+          capabilities: { canCreate: true, canEdit: true }, data: [],
           pagination: { page, pageSize: 20, total: 100, totalPages: 5 },
         }),
       } as Response);

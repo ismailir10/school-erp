@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // AttendanceRecord.date is stored as text (YYYY-MM-DD) per prisma schema.
 // Validate the shape AND that the value is a real calendar date — `2024-02-31`
@@ -59,8 +60,9 @@ export const attendanceOverrideSchema = z
       if (v.status === "LEAVE" || v.status === "SICK" || v.status === "PERMISSION") {
         return true;
       }
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+      // The school's calendar day, not the server's: Vercel runs in UTC, so
+      // between 00:00 and 06:59 WIB the UTC date is still yesterday.
+      const today = new Date(`${getTodayInTimezone("Asia/Jakarta")}T00:00:00Z`);
       const target = new Date(`${v.date}T00:00:00Z`);
       const diffDays = (target.getTime() - today.getTime()) / 86_400_000;
       return diffDays <= 30;

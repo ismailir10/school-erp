@@ -42,12 +42,19 @@ const optNumber = (msg: string, max?: { value: number; msg: string }) =>
     ).optional(),
   );
 
+// Kode pos is deliberately lenient here (any text up to 10): drafts autosaved before the
+// parent form enforced 5 digits must still submit, and staff may fix an odd value in
+// "Ubah data". The parent form (`components/enrollment/address-fields.tsx`) takes digits
+// only and blocks Lanjut on a partial code; the server never rejects an old blob for it.
 const addressSchema = z
   .object({
     perumahan: optionalTrimmed(z.string().max(120)),
     blokCluster: optionalTrimmed(z.string().max(60)),
     rtRw: optionalTrimmed(z.string().max(20)),
+    kelurahan: optionalTrimmed(z.string().max(80)),
     kecamatan: optionalTrimmed(z.string().max(80)),
+    kotaKab: optionalTrimmed(z.string().max(80)),
+    provinsi: optionalTrimmed(z.string().max(60)),
     kodePos: optionalTrimmed(z.string().max(10)),
   })
   .optional();
@@ -149,31 +156,82 @@ const consentSchema = z.object({
  * trusts client-supplied `status`, `accessToken`, `tenantId`, or `studentId`
  * — those are server-owned; Zod strip mode drops any such extra keys.
  */
-export const submitEnrollmentSchema = z
-  .object({
-    programId: programIdSchema,
-    dcareAddon: z.boolean().optional().default(false),
-    studentData: studentSchema,
-    ayahData: parentSchema.optional(),
-    ibuData: parentSchema.optional(),
-    consentData: consentSchema,
-  })
-  .superRefine((v, ctx) => {
-    const only = v.consentData.onlyParent;
-    for (const side of ONLY_PARENT_VALUES) {
-      if (isSideWaived(only, side)) continue;
-      // Re-run the real schemas on `{}` so a missing block reports the same
-      // field-level messages ("ayahData.name": "Nama wajib diisi") a blank one does.
-      if (v[`${side}Data`] === undefined) {
-        const r = parentSchema.safeParse({});
-        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: [`${side}Data`, ...i.path] });
+/**
+ * A waived parent's data block is dropped BEFORE validation. The parent form
+ * always sends both blocks (`ayahData: { name: "", … }`), so a waived side
+ * arrives as a blank — or half-typed, possibly invalid — object, not as a missing
+ * key; validating it rejected every single-parent submit ("Nama wajib diisi" for
+ * a parent who was skipped on purpose). Only the shape of the flag is read here;
+ * an invalid flag is left for `consentSchema` to report.
+ */
+function dropWaivedParentData(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const body = input as Record<string, unknown>;
+  const consent = body.consentData;
+  const only = consent && typeof consent === "object" ? (consent as Record<string, unknown>).onlyParent : undefined;
+  if (only !== "ayah" && only !== "ibu") return input;
+  const out = { ...body };
+  for (const side of ONLY_PARENT_VALUES) {
+    if (isSideWaived(only, side)) delete out[`${side}Data`];
+  }
+  return out;
+}
+
+export const submitEnrollmentSchema = z.preprocess(
+  dropWaivedParentData,
+  z
+    .object({
+      programId: programIdSchema,
+      dcareAddon: z.boolean().optional().default(false),
+      studentData: studentSchema,
+      ayahData: parentSchema.optional(),
+      ibuData: parentSchema.optional(),
+      consentData: consentSchema,
+    })
+    .superRefine((v, ctx) => {
+      const only = v.consentData.onlyParent;
+      for (const side of ONLY_PARENT_VALUES) {
+        if (isSideWaived(only, side)) continue;
+        // Re-run the real schemas on `{}` so a missing block reports the same
+        // field-level messages ("ayahData.name": "Nama wajib diisi") a blank one does.
+        if (v[`${side}Data`] === undefined) {
+          const r = parentSchema.safeParse({});
+          if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: [`${side}Data`, ...i.path] });
+        }
+        if (v.consentData[side] === undefined) {
+          const r = consentSignerSchema.safeParse({});
+          if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: ["consentData", side, ...i.path] });
+        }
       }
-      if (v.consentData[side] === undefined) {
-        const r = consentSignerSchema.safeParse({});
-        if (!r.success) for (const i of r.error.issues) ctx.addIssue({ code: "custom", message: i.message, path: ["consentData", side, ...i.path] });
-      }
-    }
-  });
+    }),
+);
+
+/**
+ * Staff-edit variants (admin "Ubah data"). Derived from the SAME field schemas as
+ * the parent submit, so a value is format-checked identically (phone regex, email,
+ * YYYY-MM-DD, option sets, max lengths) — but every field is optional: staff may
+ * save a half-filled form, and completeness is the parent's submit gate, not
+ * theirs. A blank value is handled by the caller (it means "clear this field")
+ * before these run. Unknown keys are stripped by zod's default object mode.
+ */
+export const staffStudentSchema = studentSchema.partial();
+export const staffParentSchema = parentSchema.partial();
+
+/**
+ * Staff may only choose who fills the form. `agreed`, `version` and every
+ * signature field are evidence the parent writes — they are not editable here
+ * and are stripped from anything staff send.
+ */
+export const staffConsentSchema = z.object({ onlyParent: onlyParentSchema });
+
+/** The fields (top level, and inside `address`) a staff edit may touch. */
+export const STAFF_EDITABLE_KEYS = {
+  studentData: Object.keys(staffStudentSchema.shape),
+  ayahData: Object.keys(staffParentSchema.shape),
+  ibuData: Object.keys(staffParentSchema.shape),
+  consentData: Object.keys(staffConsentSchema.shape),
+  address: Object.keys(addressSchema.unwrap().shape),
+} as const;
 
 export type SubmitEnrollmentInput = z.infer<typeof submitEnrollmentSchema>;
 

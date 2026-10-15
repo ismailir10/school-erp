@@ -13,8 +13,21 @@ const RATE_WINDOW_MS = 60_000;
 // An identical submission inside this window is a double-tap / retry, not a
 // second child — answered with the existing row (PUBX-2).
 const DUPLICATE_WINDOW_MS = 10 * 60_000;
+// One confirmation email per recipient per day at most (max 2): the public
+// form must not be usable to mail-bomb an address.
+const EMAIL_LIMIT_PER_DAY = 2;
+const EMAIL_WINDOW_MS = 24 * 60 * 60_000;
 
 const digitsOnly = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+
+type RecentAdmission = {
+  id: string;
+  parentName: string;
+  childName: string;
+  parentPhone: string | null;
+  parentWhatsapp: string | null;
+  parentEmail: string | null;
+};
 
 /**
  * Public admission submit. NO auth, NO session check — see proxy.ts public
@@ -81,26 +94,45 @@ export async function POST(req: NextRequest) {
     programId = null;
   }
 
-  // Idempotency: same parent phone (digits only) + child name (trimmed,
-  // case-insensitive) + date of birth inside the last 10 minutes returns the
-  // existing inquiry. Phone formats vary ("0812-34…" vs "081234…"), so the
-  // phone is compared in JS after the indexed-ish DB narrowing. A failed
-  // lookup must never block a genuine submission — fall through to create.
+  // Idempotency: the same family submitting again inside the last 10 minutes
+  // (double-tap, retry) gets the existing inquiry back instead of a second row.
+  // "Same" = same parent name (case-insensitive) + a shared normalized contact
+  // (phone/WhatsApp digits, or email lowercased). A resubmit that names a child
+  // the existing row does not have is NOT a duplicate, so that data is kept.
+  // The DB only narrows by tenant, source and time: names and contacts are
+  // compared in JS, because a `parentName` filter would be an ILIKE where "%"
+  // and "_" act as wildcards. A failed lookup must never block a genuine
+  // submission — fall through to create.
   try {
     const recent = await prisma.admission.findMany({
       where: {
         tenantId,
         source: "WEBSITE",
-        dateOfBirth: data.dateOfBirth,
-        childName: { equals: data.childName, mode: "insensitive" },
         createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
       },
       orderBy: { createdAt: "desc" },
-      take: 20,
-      select: { id: true, parentPhone: true },
+      take: 50,
+      select: {
+        id: true,
+        parentName: true,
+        childName: true,
+        parentPhone: true,
+        parentWhatsapp: true,
+        parentEmail: true,
+      },
     });
-    const phone = digitsOnly(data.parentPhone);
-    const existing = recent.find((row: { parentPhone: string | null }) => digitsOnly(row.parentPhone) === phone);
+    const parentName = data.parentName.trim().toLowerCase();
+    const phones = [data.parentPhone, data.parentWhatsapp].map(digitsOnly).filter(Boolean);
+    const email = data.parentEmail?.toLowerCase();
+    const childName = data.childName?.trim().toLowerCase();
+    const existing = recent.find((row: RecentAdmission) => {
+      if (row.parentName.trim().toLowerCase() !== parentName) return false;
+      const sameContact =
+        (email !== undefined && row.parentEmail?.toLowerCase() === email) ||
+        [row.parentPhone, row.parentWhatsapp].map(digitsOnly).some((d) => d !== "" && phones.includes(d));
+      if (!sameContact) return false;
+      return !childName || row.childName.trim().toLowerCase() === childName;
+    });
     if (existing) {
       return NextResponse.json({ id: existing.id }, { status: 201 });
     }
@@ -113,11 +145,14 @@ export async function POST(req: NextRequest) {
     const admission = await prisma.admission.create({
       data: {
         tenantId,
-        childName: data.childName,
-        dateOfBirth: data.dateOfBirth,
-        childGender: data.childGender,
+        // Column is NOT NULL; a lead without a child yet stores "" (the admin
+        // list shows "Belum diisi").
+        childName: data.childName ?? "",
+        dateOfBirth: data.dateOfBirth ?? null,
+        childGender: data.childGender ?? null,
         parentName: data.parentName,
-        parentPhone: data.parentPhone,
+        parentRelationship: data.parentRelationship ?? null,
+        parentPhone: data.parentPhone ?? null,
         parentWhatsapp: data.parentWhatsapp ?? null,
         parentEmail: data.parentEmail ?? null,
         programId,
@@ -144,6 +179,7 @@ export async function POST(req: NextRequest) {
         tenantId,
         parentEmail: data.parentEmail,
         parentPhone: data.parentPhone,
+        parentWhatsapp: data.parentWhatsapp,
       },
       prisma,
     );
@@ -163,7 +199,10 @@ export async function POST(req: NextRequest) {
   // Best-effort confirmation email. Failure is swallowed (per plan §7 q4):
   // the user submitted successfully — they should see the confirmation page
   // even if Resend has a hiccup. Logged loudly for ops visibility.
-  if (data.parentEmail) {
+  if (
+    data.parentEmail &&
+    rateLimit(`admission-email:${data.parentEmail.toLowerCase()}`, EMAIL_LIMIT_PER_DAY, EMAIL_WINDOW_MS).success
+  ) {
     try {
       // requestOrigin (new URL(req.url).origin) is always present in a route
       // handler, so preview/staging/prod each get their own logo host —
@@ -172,7 +211,7 @@ export async function POST(req: NextRequest) {
       const result = await sendAdmissionSubmittedEmail({
         tenantId,
         to: data.parentEmail,
-        childName: data.childName,
+        childName: data.childName ?? "",
         parentName: data.parentName,
         appUrl,
       });

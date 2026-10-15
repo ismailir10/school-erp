@@ -94,7 +94,7 @@ export function ReportCardsList({ data, studentId, childName }: Props) {
                       <p className="text-sm font-semibold text-foreground">{item.period}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {item.publishedAt
-                          ? `Diterbitkan ${formatDate(item.publishedAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}`
+                          ? `Diterbitkan ${formatDate(item.publishedAt, { day: "numeric", month: "long", year: "numeric" })}`
                           : "Sudah terbit"}
                       </p>
                     </div>

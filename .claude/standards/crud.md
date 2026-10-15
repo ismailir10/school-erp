@@ -32,10 +32,11 @@ Status is a state machine, not a binary flag — `Deactivate` doesn't apply. The
 
 | Entity | States | Terminal action | UI label | API |
 |--------|--------|-----------------|----------|-----|
-| Admission | `INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED` · `CANCELLED` | Cancel | "Batalkan" | `PUT /api/admissions/[id]` with `{ status: "CANCELLED" }` |
+| Admission (lead) | `INQUIRY` (shown **Baru**) · `CANCELLED` (**Batal**); everything after is derived, see below | Cancel | "Batalkan" | `PUT /api/admissions/[id]` with `{ status: "CANCELLED" }` |
 | Invoice | `DRAFT → SENT → PARTIALLY_PAID → PAID` · `OVERDUE` · `CANCELLED` | Void | "Batalkan" | `POST /api/invoices/[id]/void` |
 | PayrollRun | `DRAFT → APPROVED → SLIPS_SENT` | (none — workflow-only) | — | `POST /api/payroll/[id]/{approve,send-slips,export/bsi}` |
 
+- **Admission Tahap is derived, never clicked.** The lead stores only Baru / Batal; the list shows a **Tahap** from the lead, its formulir (`EnrollmentApplication`) and the student link: *Baru* → *Formulir dikirim* → *Formulir masuk* → *Diterima* → *Siswa*, plus *Ditolak* and *Batal* (`lib/admission/stage.ts`, one map for the row chip and the filter). Legacy `VISIT_SCHEDULED` / `VISITED` read as *Baru* and `UNDER_REVIEW` as *Formulir masuk*; no screen offers them. The primary row action follows the Tahap (Kirim Formulir → Salin/Kirim ulang tautan → Terima & Jadikan Siswa → Lihat siswa); *Terima & Jadikan Siswa* is the formulir detail's primary action (one route, `POST /api/enrollments/[id]/convert`, two-way confirms for a possible duplicate student or wali), not an `extraActions` entry.
 - Row identity cell links to the detail page (`DataTableLinkCell` — see `ui.md` "Name is the link"); action column: `<DataTableRowActions>` with `onEdit` + `onCancel` **or** `onVoid` (domain-appropriate). Terminal action is **hidden or disabled** when the row is already in a terminal state (`CANCELLED` / `PAID` / `VOIDED`).
 - PayrollRun has no terminal "cancel" — its actions are workflow transitions handled on the detail page, not the list. Its list row is link-cell-only (no `⋯` menu at all — no `onEdit`, no terminal action); this is a **documented exception**.
 - All mutation endpoints still require Zod validation and `canViewSalary(session.role)` where relevant.

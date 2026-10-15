@@ -24,6 +24,20 @@ export function getTodayInTimezone(timezone: string): string {
 }
 
 /**
+ * The calendar month and year of `d` in `timezone`, as plain numbers
+ * (`{ month: 10, year: 2026 }`). Use this for a "current month" default on the
+ * server: `new Date().getMonth()` reads the server clock (UTC on Vercel), which
+ * is still last month for the first seven hours of the 1st in WIB.
+ */
+export function getMonthYearInTimezone(
+  d: Date = new Date(),
+  timezone: string,
+): { month: number; year: number } {
+  const [year, month] = getYmdInTimezone(d, timezone).split("-");
+  return { month: Number(month), year: Number(year) };
+}
+
+/**
  * Offset (ms) of `timezone` from UTC at the given instant: the zone's
  * wall-clock reading interpreted as UTC, minus the instant itself.
  */

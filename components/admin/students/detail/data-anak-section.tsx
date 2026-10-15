@@ -139,6 +139,7 @@ export function DataAnakSection({
       <div className="mb-4 flex items-center gap-4">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
           {student.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- same-origin, cookie-authenticated URL; next/image's server-side optimizer cannot send the session cookie
             <img
               src={`/api/students/${student.id}/photo?v=${photoVersion}`}
               alt={`Foto ${student.name}`}
@@ -149,7 +150,7 @@ export function DataAnakSection({
             <span className="text-xl font-bold text-primary">{student.name[0]}</span>
           )}
         </div>
-        <div className="flex gap-2">
+        {student.canEdit === true && <div className="flex gap-2">
           <input
             ref={photoInputRef}
             type="file"
@@ -165,7 +166,7 @@ export function DataAnakSection({
               Hapus
             </Button>
           )}
-        </div>
+        </div>}
       </div>
 
       {editing ? (

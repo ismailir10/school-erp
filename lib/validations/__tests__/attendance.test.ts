@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { attendanceOverrideSchema, attendanceOverrideUpdateSchema } from "@/lib/validations/attendance";
 
 describe("attendanceOverrideSchema", () => {
@@ -137,5 +137,47 @@ describe("attendanceOverrideUpdateSchema — checkInTime", () => {
   it("accepts blank or omitted", () => {
     expect(attendanceOverrideUpdateSchema.safeParse({ ...base, checkInTime: "" }).success).toBe(true);
     expect(attendanceOverrideUpdateSchema.safeParse(base).success).toBe(true);
+  });
+});
+
+/**
+ * "30 days ahead" is counted from the school's calendar day, not the server's.
+ * Vercel runs in UTC, so between 00:00 and 06:59 WIB the UTC date is still
+ * yesterday and the cap used to shrink by a day: an admin entering a PRESENT
+ * record exactly 30 Jakarta days out was told it was too far ahead.
+ */
+describe("attendanceOverrideSchema — 30-day cap is counted in Jakarta days", () => {
+  const base = { status: "PRESENT" as const, reason: "Koreksi" };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("at 03:00 WIB (20:00Z the day before) allows exactly 30 Jakarta days ahead and rejects 31", () => {
+    vi.setSystemTime(new Date("2026-04-14T20:00:00.000Z")); // 15 Apr, 03:00 WIB
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-15" }).success).toBe(true);
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-16" }).success).toBe(false);
+  });
+
+  it("gives the same answer at 12:00 WIB the same Jakarta day", () => {
+    vi.setSystemTime(new Date("2026-04-15T05:00:00.000Z")); // 15 Apr, 12:00 WIB
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-15" }).success).toBe(true);
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-16" }).success).toBe(false);
+  });
+
+  it("at 23:30 WIB still counts from that Jakarta day, not the next one", () => {
+    vi.setSystemTime(new Date("2026-04-15T16:30:00.000Z")); // 15 Apr, 23:30 WIB
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-15" }).success).toBe(true);
+    expect(attendanceOverrideSchema.safeParse({ ...base, date: "2026-05-16" }).success).toBe(false);
+  });
+
+  it("LEAVE / SICK / PERMISSION still bypass the cap at 03:00 WIB", () => {
+    vi.setSystemTime(new Date("2026-04-14T20:00:00.000Z"));
+    for (const status of ["LEAVE", "SICK", "PERMISSION"] as const) {
+      expect(attendanceOverrideSchema.safeParse({ ...base, status, date: "2026-12-31" }).success).toBe(true);
+    }
   });
 });

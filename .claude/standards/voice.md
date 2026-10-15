@@ -22,15 +22,15 @@ Every piece of user-facing copy lives in one of three portals. Voice shifts with
 | "Nonaktifkan" | "Matikan akun" |
 | Error: "Gagal menyimpan. Periksa kolom yang ditandai." | "Aduh ada masalah nih" |
 
-### Teacher — Ustadzah Sari (collegial, warm-professional)
+### Teacher — Bu Guru Sari (collegial, warm-professional)
 
-**Persona:** mobile PWA, arm's-length use during class, respectful honorifics (*Ustadz/Ustadzah*), action-forward copy.
+**Persona:** mobile PWA, arm's-length use during class, respectful honorifics (*Bu Guru / Pak Guru*), action-forward copy.
 
 **Voice:** collegial, uses honorifics, action-oriented imperative, Islamic school context acknowledged but not over-performed.
 
 | Do | Don't |
 |---|---|
-| "Selamat pagi, Ustadzah Sari" | "Hai Sari" |
+| "Selamat pagi, Bu Guru Sari" | "Hai Sari" |
 | "Ketuk untuk mulai absensi" | "Klik tombol di bawah ini untuk memulai" |
 | "Clock-in berhasil · MASUK 07:12" | "Anda telah berhasil melakukan clock-in pada pukul 07:12" |
 | "Hadir 25 · Alpa 1 · Sakit 2" | "Status kehadiran hari ini menunjukkan..." |
@@ -56,19 +56,19 @@ The school is Islamic PAUD/TKIT. Arabic greetings and honorifics are first-class
 
 **Use:**
 - *Assalamu'alaikum* — parent greeting on home landing, parent email subject lines, home-note opening.
-- *Ustadz/Ustadzah* — addressing teachers (header greeting, notification copy, parent→teacher messages).
+- *Bu Guru / Pak Guru* — addressing and referring to teachers (header greeting, notification copy, parent→teacher messages). This school does not use *Ustadz/Ustadzah*; never write it in new copy.
 - *InsyaAllah* — schedule-dependent promises ("InsyaAllah rapor terbit 30 April").
 - *Barakallah* — celebration copy (birthday, achievement, graduation).
 
 **Avoid:**
 - Arabic greetings in admin UI (Pak Budi doesn't need *Assalamu'alaikum* on every admin page — it's ops context, not pastoral).
-- Honorifics stacked on error toasts ("Ustadzah Sari, maaf sekali, terjadi kesalahan..."). Errors are errors — keep them terse.
+- Honorifics stacked on error toasts ("Bu Guru Sari, maaf sekali, terjadi kesalahan..."). Errors are errors — keep them terse.
 - Performative religiosity — don't sprinkle Arabic across every label. Use it where it lands culturally (greetings, gratitude, schedule promises), not as decoration.
 
 **Capitalization — sentence case everywhere.** Buttons, tabs, filter options, select options, status chips, section labels, menu items: capitalise the first word and proper nouns only. "Atur ulang", not "Atur Ulang". "Belum dibayar", not "Belum Dibayar". "Di rumah", not "Di Rumah".
 
 Two carve-outs, and only two:
-- **Proper nouns** — Ustadzah, Rapor as a product surface name, campus and class names, a person's name.
+- **Proper nouns** — Bu Guru / Pak Guru, Rapor as a product surface name, campus and class names, a person's name.
 - **Data echoed from the database** — `Invoice.line.labelSnapshot` ("SPP Bulanan"), class names, template titles. Those are values, not UI copy; do not rewrite them on render.
 
 **The rule is portal-agnostic.** It was written during the parent-portal pass and then read as a parent-portal rule — the teacher portal shipped roughly forty Title Case strings on the strength of "staff surfaces are different". They are not. A teacher reads the same Indonesian as a parent. `Buku Penghubung` and `Rapor` stay capitalised because they are product surface names (the first carve-out), not because staff copy gets a looser rule.
@@ -95,9 +95,24 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
 | Kelas | Class, Classroom |
 | Ketuk (tap an on-screen control) | Tap ("Tap Masuk" shipped on the session roster for a year — the rest of the app has always said Ketuk) |
-| Ustadz / Ustadzah | Pak Guru / Bu Guru (Islamic-school context uses Ustadz/ah) |
+| Bu Guru / Pak Guru | Ustadz / Ustadzah (not used at this school, even though it is an Islamic school; the teachers are *Bu Guru*, and *Pak Guru* is the male form should one join) |
 | Catatan (data row, log entry, journal note) | Record |
-| Pertanyaan (admission lifecycle: first contact) | Inquiry (StatusBadge already maps `INQUIRY → "Pertanyaan"` — keep button labels consistent) |
+| Pertanyaan (admission lifecycle: first contact; the thing staff *catat* — button "Catat Pertanyaan", dashboard tile "Pertanyaan pendaftaran baru") | Inquiry (the lead's stage chip itself reads **Baru**, see the Tahap rows below) |
+| Tahap (the derived stage column and filter on the Pendaftaran list) | Status, Stage (the lead only stores Baru / Batal; Tahap is read from the lead, its formulir and the student link, never clicked) |
+| Baru (Tahap: a lead with no formulir sent yet) | Pertanyaan as a stage chip, Inquiry, Kunjungan dijadwalkan, Sudah berkunjung (the visit steps are retired) |
+| Formulir dikirim (Tahap: the link is out, the parent has not submitted) | Undangan terkirim, Invited |
+| Formulir masuk (Tahap: the parent, or staff on their behalf, submitted the formulir) | Sedang ditinjau, Dalam tinjauan, Under review (there is no review step to click) |
+| Diterima (Tahap: accepted, student not created yet — normally brief, convert accepts and creates in one step) | Admitted, Disetujui |
+| Siswa (Tahap: converted, the student exists; row action "Lihat siswa") | Terdaftar, Registered, Enrolled |
+| Belum bayar (the Pendaftaran Pembayaran filter and count: a formulir fee that exists and is not settled) | Tertunda, Pending, Unpaid |
+| Menunggu pembayaran (parent payment page only: back from DOKU, payment not confirmed yet; the Pendaftaran list has no such card) | Tertunda, Pending |
+| Tandai lunas (staff settle the formulir fee in cash or transfer, from the fee card after the parent submitted; asks once more because it cannot be undone) | Bayar manual, Mark paid |
+| Bebaskan biaya (staff waive the formulir fee from the fee card after the parent submitted; the parent's link then shows no payment due) | Gratiskan, Hapus biaya |
+| Kode pos (address box: 5 digits, typing it fills Kelurahan / Desa, Kecamatan, Kota / Kabupaten and Provinsi; the helper link reads "Tidak tahu kode pos?") | Zip code, Postal code, Kodepos |
+| Kelurahan / Desa (address box; a dropdown when a kode pos covers several) | Kelurahan, Desa as two separate boxes, Village, Sub-district |
+| Ubah data (staff edit any field of a formulir before the student exists) | Edit formulir, Koreksi (Edit stays the generic word for ordinary forms) |
+| Tandai formulir masuk (staff submit on the parent's behalf; consent is noted as "disetujui langsung di sekolah", never a drawn signature) | Submit atas nama, Paksa kirim |
+| Terima & Jadikan Siswa (the one convert action: accept the formulir and create the student and wali links, one confirm) | Konversi ke Siswa, Mulai Tinjau + Terima + Konversi (the three old clicks) |
 | Perencanaan (academic-year status pre-launch) | Planning |
 | Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
 | Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |

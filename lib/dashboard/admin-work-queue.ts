@@ -1,5 +1,6 @@
 import { hasPermission } from "@/lib/permissions";
 import { formatDateShort } from "@/lib/format";
+import { admissionChildLabel } from "@/lib/admission/child-label";
 
 export type AdminWorkKind = "inquiry" | "enrollment" | "leave" | "invoice" | "payroll";
 
@@ -66,7 +67,7 @@ export function buildAdminWorkQueue(sources: AdminQueueSources): AdminWorkItem[]
     items.push(...sources.inquiries.records.map((row) => ({
       id: `inquiry:${row.id}`,
       kind: "inquiry" as const,
-      title: `Tindak lanjuti pertanyaan ${row.childName}`,
+      title: `Tindak lanjuti pertanyaan ${admissionChildLabel(row.childName)}`,
       description: `Dari ${row.parentName} · masuk ${formatDateShort(row.createdAt)}`,
       href: "/admin/admissions",
       state: "INQUIRY",

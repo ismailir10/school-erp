@@ -3,8 +3,8 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, LogOut } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, LogOut, Presentation } from "lucide-react";
 
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -104,6 +105,15 @@ function CollapsibleNavGroup({
 
 export function AppSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
+  const previousPathname = useRef(pathname);
+
+  // Close after navigation commits, so a cancelled dirty-form prompt does
+  // not hide the menu or change the current page. Query-only updates keep it.
+  useEffect(() => {
+    if (pathname !== previousPathname.current) setOpenMobile(false);
+    previousPathname.current = pathname;
+  }, [pathname, setOpenMobile]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
   );
@@ -225,9 +235,18 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         )}
       </SidebarContent>
 
-      {/* Footer — Logout only */}
+      {/* Footer — product guide, then logout */}
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<GuardedLink href="/panduan" />}
+              tooltip="Panduan Talib"
+            >
+              <Presentation />
+              <span>Panduan Talib</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
               <LogOut />

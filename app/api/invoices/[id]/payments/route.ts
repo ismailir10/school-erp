@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
@@ -40,6 +41,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       400,
     );
   }
+  const idempotencyKey = parsed.data.idempotencyKey;
+  const requestHash = createHash("sha256").update(JSON.stringify({
+    amount: parsed.data.amount,
+    method: parsed.data.method,
+    reference: parsed.data.reference?.trim() || null,
+    notes: parsed.data.notes?.trim() || null,
+    paidAt: parsed.data.paidAt ?? null,
+  })).digest("hex");
   const amountDec = new Prisma.Decimal(parsed.data.amount.toString());
   // FINX-9: a back-dated payment is stored at 00:00 Asia/Jakarta of the chosen
   // day. Today (or no date) keeps the default `now`, so same-day payments retain
@@ -61,11 +70,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // recompute. Same lock the Xendit webhook uses so a manual payment tab and
   // a webhook cannot both pass the overpayment guard concurrently.
   try {
-    const payment = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
 
       const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
       if (!fresh) throw new Error("NOT_FOUND");
+      // Check under the existing invoice lock, before balance/status guards:
+      // a successful first request may already have settled this invoice.
+      if (idempotencyKey) {
+        const existing = await tx.payment.findFirst({ where: { invoiceId, idempotencyKey } });
+        if (existing) {
+          if (existing.requestHash !== requestHash) throw new Error("RETRY_MISMATCH");
+          return { payment: existing, replayed: true };
+        }
+      }
       if (fresh.status === "CANCELLED") throw new Error("CANCELLED");
       if (fresh.status === "PAID") throw new Error("PAID");
 
@@ -81,6 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const p = await tx.payment.create({
         data: {
           invoiceId,
+          ...(idempotencyKey ? { idempotencyKey, requestHash } : {}),
           amount: amountDec,
           method: parsed.data.method,
           reference: parsed.data.reference?.trim() || null,
@@ -119,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tx,
       );
 
-      return p;
+      return { payment: p, replayed: false };
     });
 
     // Manual payment writes Invoice.status + Invoice.totalPaid; bust the
@@ -127,9 +146,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // pick up the new state immediately (UAT-2026-05-03 INV-01 vector).
     revalidateTag("parent-invoice-list", { expire: 0 });
     revalidateTag("student-invoices", { expire: 0 });
-    return NextResponse.json(payment, { status: 201 });
+    return NextResponse.json(result.payment, { status: result.replayed ? 200 : 201 });
   } catch (e) {
     if (e instanceof Error) {
+      if (e.message === "RETRY_MISMATCH") return NextResponse.json({ error: "Pembayaran ini sudah dicatat dengan rincian berbeda. Periksa riwayat pembayaran sebelum mencatat pembayaran baru." }, { status: 409 });
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
       if (e.message === "CANCELLED") return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
       if (e.message === "PAID") return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });

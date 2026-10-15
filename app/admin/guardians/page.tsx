@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -17,7 +17,9 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Users, UserCheck, UserX } from "lucide-react";
 import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
@@ -25,6 +27,23 @@ import { parentFormSchema } from "@/lib/validations/parent";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+
+function DiscardGuardianFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { keepRef.current?.focus(); }, []);
+  return (
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div role="alert" className="text-sm">
+        <p className="font-medium">Buang perubahan?</p>
+        <p className="text-muted-foreground">Data yang belum disimpan akan hilang.</p>
+      </div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Button type="button" ref={keepRef} variant="ghost" onClick={onKeep}>Lanjut mengisi</Button>
+        <Button type="button" variant="destructive" onClick={onDiscard}>Buang perubahan</Button>
+      </div>
+    </div>
+  );
+}
 
 type ParentFormValues = z4.input<typeof parentFormSchema>;
 
@@ -129,7 +148,9 @@ const columns: ColumnDef<Guardian>[] = [
 // ------------------------------------------------------------------
 
 export default function GuardiansPage() {
+  const listRequest = useRef(0);
   const [data, setData] = useState<Guardian[]>([]);
+  const [canEdit, setCanEdit] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -138,11 +159,15 @@ export default function GuardiansPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
 
+  const editRequest = useRef(0);
+  const [editLoad, setEditLoad] = useState<"loading" | "ready" | "error">("loading");
   const [editTarget, setEditTarget] = useState<Guardian | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Guardian | null>(null);
   const editFormId = useId();
   const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
-  const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
+  const editDirty = editForm.formState.isDirty;
+  const [discardEdit, setDiscardEdit] = useState(false);
+  const draftFocus = useRef<HTMLElement | null>(null);
 
   // Stats — re-fetched after any mutation (edit / status toggle) so the
   // cards don't go stale.
@@ -163,24 +188,32 @@ export default function GuardiansPage() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const fetchGuardians = useCallback(async () => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(pagination.page), pageSize: String(pagination.pageSize), sortBy, sortOrder });
       if (search) params.set("search", search);
       if (status !== "all") params.set("status", status);
       const res = await fetch(`/api/guardians?${params}`);
+      if (request !== listRequest.current) return;
       if (!res.ok) { toast.error("Gagal memuat data wali"); return; }
       const json = await res.json();
+      if (request !== listRequest.current) return;
       setData(json.data ?? []);
+      setCanEdit(json.capabilities?.canEdit === true);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data wali");
+      if (request === listRequest.current) toast.error("Gagal memuat data wali");
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
-  useEffect(() => { fetchGuardians(); }, [fetchGuardians]);
+  useEffect(() => {
+    const requests = listRequest;
+    fetchGuardians();
+    return () => { ++requests.current; };
+  }, [fetchGuardians]);
 
   const handleSearchChange = useCallback((value: string) => { setSearch(value); setPagination(p => ({ ...p, page: 1 })); }, []);
   const handleStatusChange = useCallback((value: string) => { setStatus(value); setPagination(p => ({ ...p, page: 1 })); }, []);
@@ -189,51 +222,77 @@ export default function GuardiansPage() {
   const handleSortChange = useCallback((field: string, order: "asc" | "desc") => { setSortBy(field); setSortOrder(order); setPagination(p => ({ ...p, page: 1 })); }, []);
 
   async function openEditDialog(g: Guardian) {
+    const request = ++editRequest.current;
+    setDiscardEdit(false);
     setEditTarget(g);
-    editForm.reset({
-      ...EMPTY_PARENT_FORM,
-      name: g.name,
-      email: g.email || "",
-      phone: g.phone || "",
-      whatsapp: g.whatsapp || "",
-    });
-    setEditGuardianId(null);
+    setEditLoad("loading");
     try {
       const res = await fetch(`/api/parents/${g.id}`);
-      if (res.ok) {
-        const parent = await res.json();
-        editForm.reset({
-          ...EMPTY_PARENT_FORM,
-          name: parent.name || g.name,
-          email: parent.email || "",
-          phone: parent.phone || "",
-          whatsapp: parent.whatsapp || "",
-          address: parent.address || "",
-          parentNik: parent.nik || "",
-          education: parent.education || "",
-          occupation: parent.occupation || "",
-          employer: parent.employer || "",
-          employerAddress: parent.employerAddress || "",
-          employerCity: parent.employerCity || "",
-          incomeRange: parent.incomeRange || "",
-          childrenTotal: parent.childrenTotal != null ? String(parent.childrenTotal) : "",
-        });
-        if (parent.guardians?.length > 0) {
-          setEditGuardianId(parent.guardians[0].id);
-        }
-      }
-    } catch { /* use basic fields from list */ }
+      if (!res.ok) throw new Error("Gagal memuat data wali");
+      const parent = await res.json();
+      if (request !== editRequest.current) return;
+      editForm.reset({
+        ...EMPTY_PARENT_FORM,
+        name: parent.name || g.name,
+        email: parent.email || "",
+        phone: parent.phone || "",
+        whatsapp: parent.whatsapp || "",
+        address: parent.address || "",
+        parentNik: parent.nik || "",
+        education: parent.education || "",
+        occupation: parent.occupation || "",
+        employer: parent.employer || "",
+        employerAddress: parent.employerAddress || "",
+        employerCity: parent.employerCity || "",
+        incomeRange: parent.incomeRange || "",
+        childrenTotal: parent.childrenTotal != null ? String(parent.childrenTotal) : "",
+      });
+      setEditLoad("ready");
+    } catch {
+      if (request === editRequest.current) setEditLoad("error");
+    }
   }
+
+  function closeEditDialog() {
+    ++editRequest.current;
+    setDiscardEdit(false);
+    setEditTarget(null);
+    editForm.reset(EMPTY_PARENT_FORM);
+  }
+
+  function keepDraft() {
+    setDiscardEdit(false);
+    // Restore focus after the dialog handles removal of its focused footer button.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const target = draftFocus.current;
+      if (target?.isConnected) target.focus();
+      else document.getElementById(editFormId)?.querySelector<HTMLElement>("input, textarea, button")?.focus();
+    }));
+  }
+
+  function requestEditClose() {
+    if (editForm.formState.isSubmitting) return;
+    if (discardEdit) { keepDraft(); return; }
+    if (editLoad === "ready" && editDirty) {
+      const active = document.activeElement;
+      draftFocus.current = active instanceof HTMLElement && document.getElementById(editFormId)?.contains(active) ? active : null;
+      setDiscardEdit(true);
+      return;
+    }
+    closeEditDialog();
+  }
+
+  useEffect(() => () => { ++editRequest.current; }, []);
 
   // /admin/guardians is a Parent-list page despite its URL; mutations go to
   // /api/parents/[id]. The /api/guardians/[id] tree edits StudentGuardian
   // junction rows (used from the Student detail page).
   const handleEditSave = editForm.handleSubmit(async (values) => {
-    if (!editTarget) return;
+    if (!editTarget || editLoad !== "ready" || discardEdit) return;
     try {
       await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
       toast.success("Data wali diperbarui");
-      setEditTarget(null);
+      closeEditDialog();
       fetchGuardians();
       fetchStats();
     } catch (err) {
@@ -276,16 +335,20 @@ export default function GuardiansPage() {
           return (
             <DataTableRowActions
               rowLabel={g.name}
-              onEdit={() => openEditDialog(g)}
-              onDeactivate={g.status !== "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
-              onActivate={g.status === "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
+              onEdit={canEdit ? () => openEditDialog(g) : undefined}
+              onDeactivate={canEdit && g.status !== "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
+              onActivate={canEdit && g.status === "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
               isActive={g.status !== "INACTIVE"}
             />
           );
         },
       },
     ],
-    [],
+    // Permission changes update controls; editor state keeps columns stable.
+    // remounts and closes its open action menu. openEditDialog only calls state setters,
+    // `editForm.reset` and `toast`, all stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canEdit],
   );
 
   if (loading && data.length === 0) return <Skeleton className="h-96 rounded-xl" />;
@@ -323,6 +386,7 @@ export default function GuardiansPage() {
         onSortChange={handleSortChange}
         defaultSort={{ field: "name", order: "asc" }}
         loading={loading}
+        isFiltered={!!search.trim() || status !== "all"}
         emptyTitle="Belum ada wali terdaftar"
         emptyDescription="Wali murid akan otomatis muncul saat mendaftarkan siswa."
       />
@@ -330,19 +394,26 @@ export default function GuardiansPage() {
       {/* Edit */}
       <ResponsiveFormDialog
         open={!!editTarget}
-        onOpenChange={(o) => { if (!editForm.formState.isSubmitting && !o) setEditTarget(null); }}
+        onOpenChange={(o) => { if (!o) requestEditClose(); }}
         title="Edit Wali"
         size="xl"
         footer={
-          <FormDialogFooter
+          discardEdit ? <DiscardGuardianFooter onKeep={keepDraft} onDiscard={closeEditDialog} /> : <FormDialogFooter
             formId={editFormId}
             pending={editForm.formState.isSubmitting}
-            onCancel={() => setEditTarget(null)}
+            disabled={editLoad !== "ready"}
+            onCancel={requestEditClose}
             submitLabel="Simpan Perubahan"
           />
         }
       >
-        <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
+        {editLoad === "loading" ? (
+          <p role="status" className="py-8 text-center text-muted-foreground">Memuat data wali...</p>
+        ) : editLoad === "error" ? (
+          <div role="alert">
+            <EmptyState title="Data wali belum bisa dimuat" description="Coba lagi untuk membuka data lengkap sebelum mengedit." actionLabel="Coba Lagi" onAction={() => editTarget && openEditDialog(editTarget)} />
+          </div>
+        ) : <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
           <FormRootError formState={editForm.formState} />
           {/* Boundary cast: `parentFormSchema`'s parsed values don't line up
               1:1 with `GuardianFieldValues` field-by-field (e.g. its
@@ -353,7 +424,7 @@ export default function GuardiansPage() {
             control={editForm.control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>}
             showRelationship={false}
           />
-        </form>
+        </form>}
       </ResponsiveFormDialog>
 
       {/* Confirm Dialog */}

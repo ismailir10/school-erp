@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <>
       <h1>Kebijakan Privasi</h1>
       <p className="text-sm text-muted-foreground">
-        Berlaku sejak: 8 Oktober 2026 · Tunduk pada UU No. 27 Tahun 2022 tentang
+        Berlaku sejak: 9 Oktober 2026 · Tunduk pada UU No. 27 Tahun 2022 tentang
         Pelindungan Data Pribadi.
       </p>
 
@@ -39,11 +39,11 @@ export default function PrivacyPage() {
         penyedia hanya menerima data minimum yang diperlukan untuk fungsinya:
       </p>
       <ul>
-        <li><strong>Supabase</strong> — basis data &amp; autentikasi (host: Singapura)</li>
-        <li><strong>Vercel</strong> — hosting aplikasi (host: Singapura)</li>
+        <li><strong>Penyedia basis data</strong> — penyimpanan data dan autentikasi pengguna (host: Singapura)</li>
+        <li><strong>Penyedia hosting</strong> — hosting aplikasi (host: Singapura)</li>
         <li><strong>DOKU (PT Nusa Satu Inti Artha)</strong> — pemrosesan pembayaran (host: Indonesia)</li>
-        <li><strong>Resend</strong> — pengiriman email transaksional</li>
-        <li><strong>Cloudflare R2</strong> — penyimpanan cadangan terenkripsi</li>
+        <li><strong>Penyedia layanan email</strong> — pengiriman email transaksional</li>
+        <li><strong>Penyedia penyimpanan cadangan</strong> — penyimpanan cadangan terenkripsi</li>
       </ul>
 
       <h2>5. Hak Pengguna (UU PDP)</h2>
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
 
       <h2>7. Keamanan</h2>
       <p>
-        Data dienkripsi saat dikirim (TLS) dan saat disimpan (Supabase + R2).
+        Data dienkripsi saat dikirim (TLS) dan saat disimpan.
         Akses internal dibatasi pada staf yang diberi wewenang.
       </p>
 

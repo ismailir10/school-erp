@@ -14,7 +14,7 @@ const parent = (id: string, name: string) => ({
 
 function student(guardians: Student["guardians"]): Student {
   return {
-    id: "s1", name: "Anak", nickname: null, dateOfBirth: null, gender: null, address: null, notes: null,
+    id: "s1", canEdit: true, name: "Anak", nickname: null, dateOfBirth: null, gender: null, address: null, notes: null,
     metadata: null, status: "ACTIVE", nis: null, nisn: null, birthPlace: null, nik: null, kkNumber: null,
     livingWith: null, photoUrl: null, createdAt: null, withdrawalReason: null, withdrawalDate: null,
     graduationDate: null, guardians, enrollments: [],

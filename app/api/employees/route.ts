@@ -64,7 +64,6 @@ export async function GET(req: NextRequest) {
   const safeEmployees = canSeeSalary
     ? employees
     : employees.map((e) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { bankAccountNo, bankName, bpjsEnrolled, ...rest } = e;
         return rest;
       });

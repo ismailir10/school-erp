@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-10-06 in cycle `enrollment-docs-followups` (new JTBD-ADMIN-ADM-03: required-berkas setting, KK/KTP copied to guardians on convert, documents on the student page). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new JTBD-ADMIN-ADM-02: Kelengkapan Berkas card on `/admin/enrollments/[id]`, staff can open parent-uploaded files and tick papers received physically). Prior: 2026-09-29 in cycles `finance-safety` (payment review step, reversal of manual payments, cancel overdue invoices, Rupiah KPIs on `/admin/invoices`) and `journal-ux` (new admission inquiries — status Pertanyaan, last 14 days — join the Dasbor tiles and `/admin/work-queue?kind=inquiry`). Prior: 2026-09-26 in cycle `admin-dmmt-overhaul` (sidebar cut to daily work + `/admin/settings` hub; one-screen Dasbor replaces the full home queue, with the full list moved to `/admin/work-queue?kind=`; `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`; job steps updated accordingly — engineering review, representative-user UAT remains pending).
+> Last audited: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the pendaftaran fee is paid after the parent submits the formulir, not before: Kirim Formulir is one tap with no Program / Day Care or fee, the result card has no fee block, the "Menunggu pembayaran" count is gone, staff settle the fee from the formulir after submit; the parent form's kode pos address lookup, with three new address boxes in Ubah data; JTBD-ADMIN-ADM-01, -04, -05 and -06 updated). Prior: 2026-10-11 in cycle `pendaftaran-simplify` (one Pendaftaran list with a derived Tahap and Pembayaran per row, replacing the separate Formulir list; pay-first formulir fee; walk-ins need no email; staff edit and submit a formulir on the parent's behalf; one *Terima & Jadikan Siswa* convert with duplicate and wali confirmation; JTBD-ADMIN-ADM-01 to -04 rewritten, new JTBD-ADMIN-ADM-05 and -06; HOME-01 precondition updated). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (Pengaturan → Pengaturan Pendaftaran now also holds the per-program pendaftaran fee, JTBD-ADMIN-ADM-03 step 1; new JTBD-ADMIN-ADM-04: payment column, filter, WhatsApp reminder and the Pembayaran pendaftaran card on `/admin/enrollments`; JTBD-ADMIN-INV-02 step 4: Chat WhatsApp reminder on the invoice detail). Prior: 2026-10-06 in cycle `enrollment-docs-followups` (new JTBD-ADMIN-ADM-03: required-berkas setting, KK/KTP copied to guardians on convert, documents on the student page). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new JTBD-ADMIN-ADM-02: Kelengkapan Berkas card on `/admin/enrollments/[id]`, staff can open parent-uploaded files and tick papers received physically). Prior: 2026-09-29 in cycles `finance-safety` (payment review step, reversal of manual payments, cancel overdue invoices, Rupiah KPIs on `/admin/invoices`) and `journal-ux` (new admission inquiries — status Pertanyaan, last 14 days — join the Dasbor tiles and `/admin/work-queue?kind=inquiry`). Prior: 2026-09-26 in cycle `admin-dmmt-overhaul` (sidebar cut to daily work + `/admin/settings` hub; one-screen Dasbor replaces the full home queue, with the full list moved to `/admin/work-queue?kind=`; `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`; job steps updated accordingly — engineering review, representative-user UAT remains pending).
 
 > Prior reviews: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-09-25 in cycle `intuitive-ui-foundation` (manual invoice scroll/keyboard/reflow acceptance added to JTBD-ADMIN-INV-01; engineering regression verification). Prior: 2026-09-24 in cycle `guardian-primary-fix` (guardian card gained a one-click **Jadikan wali utama** action, confirm-gated, replacing the buried Edit Wali switch as the only way to promote; new JTBD-ADMIN-GUARD-04). Prior: 2026-08-21 in cycle `siswa-wali-linking` (one Parent record is shared across siblings — Tambah Wali opens on a search and links an existing wali, retyping an existing one raises an overridable duplicate warning; siswa ↔ wali navigation is bidirectional and a Saudara row lists siblings; wali bio saves through the parent route so an unlinked wali is editable; new JTBD-ADMIN-GUARD-02 and -03, GUARD-01 updated). Prior: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
@@ -25,7 +25,7 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 
 ### JTBD-ADMIN-HOME-01 — Act on an authorized pending record
 - **Persona:** School administrator, repeated with restricted finance, HR, and admissions roles
-- **Preconditions:** Unconverted submitted/under-review enrollment forms, pending leave, an invoice awaiting a payment link, and draft payroll. Include authorized records outside the list's initial page/filter.
+- **Preconditions:** Unconverted submitted (Formulir masuk) enrollment forms, pending leave, an invoice awaiting a payment link, and draft payroll. Include authorized records outside the list's initial page/filter.
 - **Steps:** Open the Dasbor (`/admin`); read the top-5 urgent list (or a queue count tile); for anything beyond the top 5, follow a tile or "Lihat semua" to the full queue at `/admin/work-queue?kind=<kind>`; open a named record; confirm its identity and permitted actions; dismiss or return; complete the original domain workflow when authorized; return to the queue.
 - **Done when:** A new public `/daftar` inquiry appears as a **Pertanyaan pendaftaran baru** tile/row (until its status moves on or 14 days pass) and links to Pendaftaran. Dasbor, `/admin/work-queue`, navigation, and endpoints agree on access. A leave dialog stays closed after Cancel/Escape and Back behaves predictably. Only authoritative domain-state changes remove work. No generic completion control exists. Real zero, unavailable data, and loading are distinguishable, with a working retry for unavailable sources.
 - **Permission checks:** Read-only accounts have no mutation affordances or working mutation endpoints. Recording money follows `payments.record`, creating invoices follows `invoices.create`, and voiding follows `invoices.void`. HR links also satisfy the HR destination guard. Foreign-tenant records never appear or open.
@@ -153,7 +153,8 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   1. Open the invoices list
   2. Click "Lihat" on an invoice
   3. See: line items, subtotal, payments applied, outstanding balance, status history
-- **Done when:** Detail page shows line items + payment trail + outstanding balance. All Rupiah amounts formatted via `formatRupiah()`. Status transitions (PENDING → SENT → PAID / OVERDUE) visible with timestamps.
+  4. On an unpaid invoice, tap Chat WhatsApp in the Kontak Wali card
+- **Done when:** Detail page shows line items + payment trail + outstanding balance. All Rupiah amounts formatted via `formatRupiah()`. Status transitions (PENDING → SENT → PAID / OVERDUE) visible with timestamps. For a billed invoice with money left, Chat WhatsApp opens WhatsApp in a new tab on the wali's number with a courteous reminder naming the child, the invoice and what is left, plus the payment link (or the parent portal); with no usable number the card says so, and a paid, cancelled or draft invoice offers no reminder.
 - **Why this job matters:** When a parent disputes a charge, Ibu Nur needs the full story in one place — not three queries. If payment history is hidden, she defaults to WhatsApp.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
@@ -329,20 +330,21 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 
 ## Area: admissions
 
-### JTBD-ADMIN-ADM-01 — Process an admissions inquiry through the pipeline
+### JTBD-ADMIN-ADM-01 — Take an inquiry from Pertanyaan to student on one list
 - **Persona:** Ibu Nur
 - **Role:** either
-- **Expected perf:** status-change click-to-confirm <800ms; no full-page reload
-- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 Admission in `INQUIRY` status in seed
+- **Expected perf:** list full load <1.5s (stats arrive in the same request); Catat Pertanyaan and Kirim Formulir click-to-confirm <1s; convert click-to-toast <3s; no full-page reload between steps
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 lead in Tahap *Baru* in seed (from `/daftar` or staff-created); one lead stored as `VISITED` or `UNDER_REVIEW` from before this change, if the data has one.
 - **Steps:**
-  1. Open the admissions list
-  2. Find a new INQUIRY entry
-  3. Open the detail view
-  4. Update status to VISIT_SCHEDULED and set a follow-up date
-  5. Save and confirm the status changed in the list
-  6. Move an applicant to `ADMITTED`, confirm the conversion action appears, then convert the applicant to a student
-- **Done when:** Admission shows `VISIT_SCHEDULED` with the correct follow-up date in the list. The status pipeline (INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → CANCELLED) is visible and accessible. Status change does not require a full page reload. The student-conversion action is hidden until the applicant reaches `ADMITTED`; after conversion, the linked `studentId` prevents a duplicate conversion and the UI returns an actionable Indonesian success or error message.
-- **Why this job matters:** Admissions season is high-volume. Ibu Nur tracks 20+ leads simultaneously. Pipeline clarity is the whole point.
+  1. Open Pendaftaran (`/admin/admissions`). Read the stat cards (there is no "Menunggu pembayaran" card; "Belum bayar" is the one payment count) and the Tahap and Pembayaran columns; filter Tahap to *Baru*.
+  2. Catat Pertanyaan with only Nama orang tua and a No. HP/WhatsApp; expand "Data anak" and confirm it is optional. Save and find the new *Baru* row.
+  3. On a *Baru* row tap Kirim Formulir. Confirm it sends in one tap without asking for Program or Day Care and shows no fee, and that the result card says the parent pays the fee after sending the form. Confirm the row becomes *Formulir dikirim*. Tap Kirim Formulir again on the same row and confirm the card says the old link no longer works.
+  4. After the parent submits, confirm the row shows *Formulir masuk* with a Pembayaran state (Belum bayar for a priced program, none for a free one); open the formulir from the row (Buka formulir).
+  5. Tap *Terima & Jadikan Siswa*, read the single confirmation, and confirm. Confirm the row becomes *Siswa* and "Lihat siswa" opens the new student.
+  6. Edit a lead and clear its email; reopen it and confirm it stayed cleared. Batalkan another *Baru* lead and confirm it shows *Batal*.
+  7. Open `/admin/enrollments` and confirm it lands on this list; a bookmarked `/admin/enrollments/[id]` still opens.
+- **Done when:** One list shows every family with its Tahap (Baru, Formulir dikirim, Formulir masuk, Diterima, Siswa, Ditolak or Batal) and Pembayaran; there are no visit steps and no second Formulir list. A lead needs only a parent name and one contact. Sending a formulir needs no Program, Day Care or fee: no fee exists until the parent submits. The primary row action follows the stage. A legacy `VISITED` lead reads *Baru* and an `UNDER_REVIEW` one reads *Formulir masuk*, and both continue normally. After convert the linked student prevents a second conversion, and every error is an actionable Indonesian message.
+- **Why this job matters:** Admissions season is high-volume. Ibu Nur tracks 20+ leads at once; the stage on the row and one obvious next click are the whole point.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -351,9 +353,9 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Persona:** Ibu Nur
 - **Role:** either
 - **Expected perf:** page full load <1.5s; "Diterima fisik" tick click-to-confirm <800ms with no full-page reload; "Lihat" opens the file in a new tab
-- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 enrollment application (`/admin/enrollments/[id]`) where the parent uploaded at least one berkas (e.g. Kartu Keluarga) and others are missing.
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥1 formulir (a Pendaftaran row in *Formulir dikirim* or *Formulir masuk*, opened with Buka formulir at `/admin/enrollments/[id]`) where the parent uploaded at least one berkas (e.g. Kartu Keluarga) and others are missing.
 - **Steps:**
-  1. Open the application's detail page and find the Kelengkapan Berkas card
+  1. From the Pendaftaran list open the formulir's detail page and find the Kelengkapan Berkas card
   2. Read how many of the required papers are complete and which are missing
   3. Open an uploaded file (Lihat) and confirm it is the right document
   4. A parent hands over a paper copy of the akta kelahiran at the front desk; tick it as received and confirm the count goes up
@@ -366,18 +368,66 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Persona:** Ibu Nur
 - **Role:** either
 - **Expected perf:** settings page full load <1.5s; save click-to-confirm <800ms; convert click-to-toast <3s
-- **Preconditions:** Logged in as SUPER_ADMIN; an ACCEPTED enrollment application whose parent uploaded KTP Ayah, KTP Ibu and KK, and whose guardians have no KTP/KK on file yet.
+- **Preconditions:** Logged in as SUPER_ADMIN; a submitted formulir (*Formulir masuk*) whose parent uploaded KTP Ayah, KTP Ibu and KK, and whose guardians have no KTP/KK on file yet.
 - **Steps:**
-  1. Open Pengaturan → Berkas Wajib Pendaftaran. Mark KK and Akta as required and save.
-  2. Convert the accepted application to a student and read the confirmation.
+  1. Open Pengaturan → Pengaturan Pendaftaran. Enter the pendaftaran fee for each program (0 = no payment step), mark KK and Akta as required, and save.
+  2. Open that formulir and tap *Terima & Jadikan Siswa*; confirm once and read the result. If it asks about a possible duplicate student or an existing wali with another name, read the question and answer it.
   3. Open the new student, find the Pendaftaran section and the rail, and check the berkas status.
   4. Open the Ayah's guardian page and confirm the KTP and KK are there.
 - **Done when:**
   - The setting saves with a clear confirmation, and a read-only user sees it but cannot change it.
-  - The convert toast says which files were copied to the guardian.
+  - One confirmation converts the formulir; a possible duplicate student or a wali name mismatch is asked first and nothing is merged silently. The convert toast says which files were copied to the guardian.
   - The student page shows the Kelengkapan Berkas card, and the rail shows "Berkas pendaftaran (x / 9)", updating after a tick.
   - The guardian's KTP/KK open from the guardian page, and any KTP/KK the guardian already had were not overwritten.
 - **Why this job matters:** Without this, staff re-upload documents the parent already sent and hunt for them on the application page after the child is a student.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ADM-04 — Chase an unpaid pendaftaran fee and record how it was settled
+- **Persona:** Ibu Nur
+- **Role:** either (finance actions need the payments/fees permissions)
+- **Expected perf:** list full load <1.5s; WhatsApp opens in a new tab <1s after the tap; "Perbarui pembayaran" click-to-toast <3s
+- **Preconditions:** Logged in as SUPER_ADMIN; ≥2 *Formulir dikirim* rows whose program has a fee — one unpaid with a WhatsApp number, one whose parent says they paid by bank transfer. The fee exists only after the parent submits the formulir (or staff use Tandai formulir masuk), so these rows are *Formulir masuk*; a *Formulir dikirim* row has no fee yet.
+- **Steps:**
+  1. Open Pendaftaran. Filter Pembayaran to "Belum bayar" and read the "Belum bayar" count; confirm there is no "Menunggu pembayaran" card.
+  2. On the unpaid row open the menu and tap "Ingatkan bayar (WhatsApp)"; confirm WhatsApp opens on the parent's number with the reminder and the link that leads to payment already written.
+  3. Open the formulir. In "Pembayaran pendaftaran" read the normal fee, the discount and what is owed; give a sibling discount with a reason and confirm the new amount.
+  4. On the one that paid by transfer tap "Tandai sudah bayar", choose Transfer bank, add a note, and record it.
+  5. Tap "Perbarui pembayaran" on one the parent says they paid through DOKU and read the result.
+  6. Open a *Formulir masuk* formulir whose parent pays cash at the desk, and in "Pembayaran pendaftaran" tap *Tandai lunas (tunai)* then confirm; on another formulir tap *Bebaskan biaya* and confirm. Confirm each fee card shows Lunas or Dibebaskan with who and how, and that the parent's link now shows the payment as settled.
+  7. Convert a *Formulir masuk* row whose fee is still unpaid and read the warning.
+- **Done when:** The filter, count and badges agree. WhatsApp opens in a new tab with the parent's number, the amount and the link, and a row with no number says so instead of offering a dead button. A discount needs a reason and shows what the parent will owe; if the parent already holds a payment link the dialog says it will be cancelled. Marking paid needs a chosen method and shows Lunas with who/how; Tandai lunas and Bebaskan biaya ask once more because they cannot be undone. A payment the gateway took but Talib could not credit shows "Perlu dicek" with what to do. Convert warns about the unpaid fee without blocking. A user without finance permissions sees the facts and the WhatsApp/copy actions but no money buttons. The Kirim Formulir result card never offers Tandai lunas or Bebaskan, because there is no fee before submit.
+- **Why this job matters:** Registration fees are the first money a family pays. An unpaid fee nobody chases is lost revenue, and a wrongly recorded one is a ledger error.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ADM-05 — Walk-in family: catat, Kirim Formulir without email, fill together, Terima & Jadikan Siswa
+- **Persona:** Ibu Nur
+- **Role:** either (settling the fee needs the payments/fees permissions)
+- **Expected perf:** Kirim Formulir click-to-result <1s; "Isi bersama orang tua" opens the form in a new tab <2s; convert click-to-toast <3s
+- **Preconditions:** Logged in as SUPER_ADMIN; a parent standing at the front desk with a phone number and no email, and the child's papers (KK, akta) to hand.
+- **Steps:**
+  1. Catat Pertanyaan with Nama orang tua and the phone number only. Confirm the row is *Baru* and the source was set automatically (walk-in).
+  2. Tap Kirim Formulir (one tap, no Program or Day Care question, no fee shown). Confirm no email is required and the result card offers Kirim lewat WhatsApp, Salin tautan and Isi bersama orang tua, and says the parent pays the fee after sending the form.
+  3. Tap *Isi bersama orang tua*; on the parent form choose the Program (prefilled from the lead if set) and Day Care with the parent, fill the seven steps (type the kode pos and confirm kelurahan, kecamatan, kota and provinsi fill in), read the price at Tinjau, and let the parent sign on the screen. Submit.
+  4. Back on the list, confirm the row is *Formulir masuk* and *Belum bayar*. Open the formulir and, because the parent pays at the desk, tap *Tandai lunas (tunai)* in the fee card and confirm.
+  5. Tap *Terima & Jadikan Siswa* and confirm.
+- **Done when:** The whole flow works without an email address; the form opens straight on the first step with no payment screen, and the fee is created only when the form is submitted and settled afterwards from the formulir; the signature is the parent's own. The row ends *Siswa* with the student, an Ayah and an Ibu wali created and linked, and their address reads the full joined address. Every message is actionable Indonesian.
+- **Why this job matters:** Most walk-ins have no email. Before this, they could not receive a formulir at all, and the school lost the family at the desk.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-ADM-06 — Correct a formulir with Ubah data, or submit it with Tandai formulir masuk
+- **Persona:** Ibu Nur
+- **Role:** either (needs `admissions.edit`; repricing needs `fees.edit`)
+- **Expected perf:** Ubah data save click-to-toast <1.5s; Tandai formulir masuk click-to-toast <2s
+- **Preconditions:** Logged in as SUPER_ADMIN; one *Formulir masuk* formulir with a wrong parent phone number, and one *Formulir dikirim* formulir the parent has not finished while standing in the office. An unpaid fee on one of them; a second login with a viewer role.
+- **Steps:**
+  1. Open the first formulir (Buka formulir) and tap *Ubah data*. Type a malformed phone, save, and read the inline error; confirm nothing was saved.
+  2. Fix the phone, change Day Care, read the live fee, and save. Confirm the unpaid fee was recomputed; on a Lunas or Dibebaskan fee confirm the screen says the fee was left alone. In the address, confirm Kelurahan / Desa, Kota / Kabupaten and Provinsi are plain boxes (no kode pos lookup for staff), edit one, and confirm it saves.
+  3. Clear an optional field (for example Ibu's email) and save; confirm it stays cleared.
+  4. Open the second formulir, tap *Tandai formulir masuk*, read the confirmation (consent "disetujui langsung di sekolah"), and confirm. If something required is missing, read what the message lists. Confirm the formulir now has a fee (unless the program is free).
+  5. Confirm the row is *Formulir masuk* with no signature drawn by staff, then convert it.
+  6. Sign in as the viewer role and confirm *Ubah data*, *Tandai formulir masuk* and *Terima & Jadikan Siswa* are absent; after conversion confirm *Ubah data* is gone for everyone.
+- **Done when:** Every formulir section can be corrected; malformed phone, email or date shows an inline error and changes nothing. Clearing a field works. An unpaid fee reprices with the program or Day Care; a paid or waived one never does. The three address boxes (Kelurahan / Desa, Kota / Kabupaten, Provinsi) can be corrected like the rest. *Tandai formulir masuk* creates the fee like a parent submit, records who and when with the consent note and never fabricates a signature. Viewers and converted formulirs have no edit controls.
+- **Why this job matters:** Parents mistype on phones and some never finish. Staff must be able to fix the record without re-asking the family or leaving the form half-done, and without forging their consent.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -565,7 +615,7 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 
 - **Bulk invoice generation** — `POST /api/invoices/generate`; needs a dedicated JTBD once the flow is stabilised
 - **Student detail inline edit** (`/admin/students/[id]`) — edit-toggle pattern exists; add JTBD once field coverage is final
-- **Admission → enrolled student conversion** — flow exists but the handoff UX is still evolving
+- **Admission → enrolled student conversion** — covered by `JTBD-ADMIN-ADM-01`, `-03`, `-05` and `-06`
 - **Teacher-portal leave request submission** — teacher-side form not yet shipped (see teacher.md Appendix)
 - **Penilaian monitor** (`/admin/assessments`) — covered by `JTBD-ADMIN-PENILAIAN-01`. The legacy assessment-template authoring surface (`/admin/assessment-templates`) was retired in the `penilaian-consolidation` cycle and now redirects to `/admin/assessments`; the route itself was renamed from `/admin/penilaian` to `/admin/assessments` (English-only slugs) in the `admin-dmmt-overhaul` cycle, with a 308 redirect from the old path. The new IKTP penilaian is authored via Kurikulum (Semester → IKTP) + entered by teachers.
 - **Settings: campuses, roles & permissions, salary components, work hours** — low-frequency configuration; add JTBD only when a cycle touches them

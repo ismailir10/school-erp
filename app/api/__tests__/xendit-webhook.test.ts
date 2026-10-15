@@ -81,6 +81,9 @@ vi.mock("@/lib/db", () => ({
       delete: vi.fn(),
     },
     invoice: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    // The processor falls back to a pendaftaran fee when no invoice matches
+    // (cycle 2026-10-10-pendaftaran-fee-payment); none exists in these tests.
+    enrollmentFee: { findUnique: vi.fn(), findFirst: vi.fn() },
     payment: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn() },
     $queryRaw: vi.fn(),
     $transaction: vi.fn(),

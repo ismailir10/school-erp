@@ -122,26 +122,23 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     expect(Object.keys(body)).toEqual(["id"]);
 
     // ----- UX-shape assertion (no submit; no rate-limit interaction) -----
-    // /daftar must not surface any sibling-related copy at any step. This
-    // assertion exercises the static UX shape without a second POST.
+    // /daftar must not surface any sibling-related copy. This assertion
+    // exercises the static UX shape without a second POST.
     await page.goto("/daftar");
     await expect(
       page.getByRole("heading", { name: "Pendaftaran Siswa Baru" }),
     ).toBeVisible();
 
-    await page.getByTestId("field-child-name").fill(`E2E UX ${Date.now()}`);
-    await page.getByTestId("field-date-of-birth").fill("2020-03-15");
-    await page.getByText("Perempuan", { exact: true }).click();
-    await page.getByTestId("daftar-next").click();
-    await expect(page.getByTestId("daftar-step-2")).toBeVisible();
+    // Fill the whole (single-page) form, child block included, without sending.
     await page.getByTestId("field-parent-name").fill("E2E UX Applicant");
     await page
       .getByTestId("field-parent-phone")
       .fill(applicantParentPhoneInput);
-    await page.getByTestId("daftar-next").click();
-    await expect(page.getByTestId("daftar-step-3")).toBeVisible();
+    await page.getByTestId("daftar-child-toggle").click();
+    await page.getByTestId("field-child-name").fill(`E2E UX ${Date.now()}`);
+    await expect(page.getByTestId("daftar-submit")).toBeVisible();
 
-    // The /daftar page (across all 3 steps) must never carry sibling copy.
+    // The /daftar page (form filled in, child block open) must never carry sibling copy.
     const pageText = (await page.textContent("body")) ?? "";
     expect(pageText.toLowerCase()).not.toContain("saudara");
     expect(pageText.toLowerCase()).not.toContain("sibling");
@@ -207,14 +204,7 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     await expect(page.getByText(matchedParentName)).toBeVisible();
   });
 
-  // CI-only flake: the row-action dropdown trigger click on the matched
-  // row never opens the menu in CI (dropdown-menu-item waitFor times out
-  // at 180s test budget). Passes locally. Suspected: serial-mode accumulates
-  // E2E admissions across reruns; matchedRow scrolls into view but the
-  // trigger button is intercepted by a sticky header overlay at the resolved
-  // scroll position. Marked fixme to unblock /ship of an unrelated UI-blockers
-  // cycle; follow-up: capture CI trace + fix trigger interaction.
-  test.fixme("edit-sheet banner renders matched parent context", async ({
+  test("edit-sheet banner renders matched parent context", async ({
     page,
     context,
   }) => {
@@ -238,13 +228,13 @@ test.describe("Phase 1.2 — Sibling auto-detect", () => {
     // off-screen and Playwright's click auto-scroll occasionally times out
     // on cold CI. Force scroll-into-view first, then click.
     await matchedRow.scrollIntoViewIfNeeded();
-    await matchedRow.getByRole("button", { name: /buka menu/i }).click();
+    await matchedRow.getByRole("button", { name: /^Aksi untuk / }).click();
     // Base UI DropdownMenu re-mounts items on focus / row re-render in CI,
     // detaching the menuitem mid-click ("element was detached from the DOM").
     // Anchor on the data-slot the wrapper guarantees + force:true to skip
     // the stability re-check that loses the race.
     const editItem = page.locator('[data-slot="dropdown-menu-item"]', {
-      hasText: /edit/i,
+      hasText: "Ubah data pertanyaan",
     });
     await editItem.waitFor({ state: "visible" });
     await editItem.click({ force: true });

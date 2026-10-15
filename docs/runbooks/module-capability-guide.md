@@ -20,9 +20,9 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 **2. View / list / search / filter**
 - Students list: searchable by name, filterable by status (Active/Inactive/Graduated/Withdrawn), sortable, paginated, with total/active/graduated summary cards. Exportable to spreadsheet.
 - Student detail: full profile, official IDs, family documents, class history, monthly attendance history, all linked guardians.
-- Admissions list: searchable/filterable by status, funnel counters (total/in-inquiry/admitted), flags "sibling detected" when a new inquiry matches an existing family.
+- Pendaftaran (admissions) list: one list for every family, searchable, with a derived Tahap (Baru, Formulir dikirim, Formulir masuk, Diterima, Siswa, Ditolak, Batal) and Pembayaran per row, filters for Tahap and Belum bayar, stat cards in one request, flags "sibling detected" when a new inquiry matches an existing family.
 - Guardians list: searchable, filterable by active/inactive, shows child count per guardian.
-- Enrollment Application list: online applications parents submit via a shared link, filterable by status (submitted/under review/accepted/rejected/invited).
+- Formulir (enrollment application): sent from a Pendaftaran row and opened at `/admin/enrollments/[id]`; the old `/admin/enrollments` list redirects to Pendaftaran.
 
 **3. Edit / update**
 - Student, guardian, and admission records all editable via their creation forms.
@@ -39,9 +39,9 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 **5. Special actions**
 - Withdraw (reason required, flags unpaid invoices), Graduate (requires active enrollment), Promote to next class (capacity-checked).
 - Enroll directly from student profile.
-- Advance admission pipeline: Inquiry → Visit Scheduled → Visited → Admitted (Cancel available anywhere).
-- Convert admission → full student record in one step; sibling-merge conflict handling if the parent looks like an existing family.
-- Send online enrollment form to a parent via secure link; review/approve/reject or convert their submission.
+- Admission lead status is only Baru / Batal (Cancel); the Tahap is derived from the lead, its formulir and the student link.
+- Send online enrollment form (Kirim Formulir: one tap, no email needed; the parent picks Program + Day Care in the form and pays the fee after submitting) via secure link by WhatsApp, copy, email or fill together; the parent's address fills from the kode pos; staff can edit any field (Ubah data), settle the fee from the formulir, or submit on the parent's behalf.
+- Terima & Jadikan Siswa: one confirmed action creates the student and Ayah/Ibu wali links; a possible duplicate student or wali name mismatch is asked before merging. Reject (Tolak) stays in the row menu.
 - Download student list to spreadsheet.
 
 **6. Business rules**

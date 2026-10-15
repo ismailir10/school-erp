@@ -353,3 +353,28 @@ describe("DELETE /api/enrollments/token/[token]/documents", () => {
     expect((await DELETE(delReq("kk"), ctx)).status).toBe(200);
   });
 });
+
+describe("documents — the fee never gates uploads (pay after submit)", () => {
+  // A fee row on an open form only exists for a formulir sent under pay-first (staging).
+  const withFee = (status: string | null) =>
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
+      arg.where.accessToken
+        ? { id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: status ? { status } : null }
+        : { documents: null },
+    );
+
+  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])("POST is allowed with fee %s", async (status) => {
+    withFee(status);
+    saveFile.mockResolvedValue({ token: NEW_TOKEN });
+    mergeJsonKey.mockResolvedValue(true);
+    expect((await POST(postReq("akta"), ctx)).status).toBe(200);
+    expect(saveFile).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["UNPAID"], ["PAID"], [null]])("DELETE is allowed with fee %s", async (status) => {
+    withFee(status);
+    removeJsonFields.mockResolvedValue(true);
+    expect((await DELETE(delReq("akta"), ctx)).status).toBe(200);
+    expect(removeJsonFields).toHaveBeenCalledTimes(1);
+  });
+});

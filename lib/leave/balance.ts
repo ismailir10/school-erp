@@ -1,4 +1,5 @@
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { getYmdInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * Leave-balance arithmetic shared by `GET /api/leave/balance`, submit and
@@ -19,8 +20,13 @@ export function leaveTypeLabel(t: BalancedLeaveType): string {
   return t === "ANNUAL" ? "tahunan" : "sakit";
 }
 
+/**
+ * First day of the balance period: 1 January of the current **Jakarta** year.
+ * Not `now.getFullYear()` — that reads the server clock (UTC on Vercel), which
+ * is still last year for the first seven hours of New Year in WIB.
+ */
 export function balancePeriodStart(now: Date = new Date()): string {
-  return `${now.getFullYear()}-01-01`;
+  return `${getYmdInTimezone(now, "Asia/Jakarta").slice(0, 4)}-01-01`;
 }
 
 /** Sum of `days` for one employee + leave type in the balance period, for the given statuses. */

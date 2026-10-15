@@ -65,6 +65,33 @@ describe("StatusBadge", () => {
   );
 });
 
+describe("Pendaftaran Tahap", () => {
+  // The derived stage of the unified Pendaftaran list; StatusBadge owns the label and tone.
+  it.each([
+    ["BARU", "Baru", "bg-status-leave-subtle"],
+    ["FORMULIR_DIKIRIM", "Formulir dikirim", "bg-muted"],
+    ["FORMULIR_MASUK", "Formulir masuk", "bg-status-late-subtle"],
+    ["DITERIMA", "Diterima", "bg-status-present-subtle"],
+    ["SISWA", "Siswa", "bg-status-present-subtle"],
+    ["DITOLAK", "Ditolak", "bg-status-absent-subtle"],
+    ["BATAL", "Batal", "bg-muted"],
+  ])("maps %s to the label %s and its tone, never the raw code", (stage, label, tone) => {
+    render(<StatusBadge status={stage} />);
+    expect(screen.getByText(label)).toHaveClass(tone);
+    expect(screen.queryByText(stage)).toBeNull();
+  });
+
+  it("gives every stage its own icon in the intent variant (not the fallback circle)", () => {
+    for (const stage of ["BARU", "FORMULIR_DIKIRIM", "FORMULIR_MASUK", "DITERIMA", "SISWA", "DITOLAK", "BATAL"]) {
+      const { container, unmount } = render(<StatusBadge status={stage} variant="intent" />);
+      expect(container.querySelector("svg")?.getAttribute("class") ?? "").not.toMatch(/lucide-circle(\s|$)/);
+      unmount();
+    }
+    const { container } = render(<StatusBadge status="FORMULIR_MASUK" variant="intent" />);
+    expect(container.firstElementChild?.className).toContain("border-l-status-late");
+  });
+});
+
 describe("STATUS_MAP enum coverage", () => {
   // A missing entry is not a type error — StatusBadge falls back to rendering
   // the raw status string, so an unmapped enum silently ships an English code
@@ -127,6 +154,22 @@ describe("STATUS_MAP enum coverage", () => {
     const badge = screen.getByText("Diarsipkan");
     expect(badge.className).toContain("bg-muted");
     expect(screen.queryByText("ARCHIVED")).not.toBeInTheDocument();
+  });
+
+  it("renders the pendaftaran fee statuses: UNPAID is amber 'Belum bayar', WAIVED is neutral 'Dibebaskan'", () => {
+    const { unmount } = render(<StatusBadge status="UNPAID" />);
+    expect(screen.getByText("Belum bayar").className).toContain("bg-status-late-subtle");
+    unmount();
+    render(<StatusBadge status="WAIVED" />);
+    const waived = screen.getByText("Dibebaskan");
+    expect(waived.className).toContain("bg-muted");
+    expect(screen.queryByText("WAIVED")).not.toBeInTheDocument();
+  });
+
+  it("gives UNPAID the pending icon and amber border in the intent variant", () => {
+    const { container } = render(<StatusBadge status="UNPAID" variant="intent" />);
+    expect(container.querySelector("svg")?.getAttribute("class") ?? "").toMatch(/lucide-circle-dot/i);
+    expect(container.firstElementChild?.className).toContain("border-l-status-late");
   });
 
   it("gives ARCHIVED the neutral icon and left border in the intent variant", () => {

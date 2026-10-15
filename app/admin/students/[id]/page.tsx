@@ -97,6 +97,7 @@ export default function StudentDetailPage() {
   const isMobile = useIsMobile();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<"failed" | "not-found" | "denied" | null>(null);
 
   // --- Data Anak edit toggle ---
   // Owned here, not by `DataAnakSection`: the trigger is the "Edit" button in
@@ -165,7 +166,7 @@ export default function StudentDetailPage() {
   // a tile that only fills once the admin opens a section below the fold is a
   // tile that always reads as zero.
   const [invoices, setInvoices] = useState<StudentInvoiceRow[] | null>(null);
-  const [invoicesError, setInvoicesError] = useState(false);
+  const [invoicesError, setInvoicesError] = useState<"denied" | "failed" | null>(null);
 
   // --- Lazy sections (increment 2) ---
   // One-way latches: opening the section pays for the fetch, closing it again
@@ -217,7 +218,12 @@ export default function StudentDetailPage() {
   const fetchStudent = useCallback(async () => {
     try {
       const res = await fetch(`/api/students/${id}`);
-      if (!res.ok) { toast.error("Gagal memuat data siswa"); return; }
+      if (!res.ok) {
+        toast.error("Gagal memuat data siswa");
+        setLoadError(res.status === 404 ? "not-found" : res.status === 401 || res.status === 403 ? "denied" : "failed");
+        return;
+      }
+      setLoadError(null);
       const data = (await res.json()) as Student;
       setStudent(data);
 
@@ -229,7 +235,7 @@ export default function StudentDetailPage() {
       setMetaSystem(split.system);
       setMetaExtra(split.extra);
       tambahanRef.current = { dirty: false, rows: split.extra };
-    } catch { toast.error("Terjadi kesalahan"); }
+    } catch { toast.error("Terjadi kesalahan jaringan"); setLoadError("failed"); }
     finally { setLoading(false); }
   }, [id]);
 
@@ -245,14 +251,14 @@ export default function StudentDetailPage() {
    * side-panel fetch on page load would fire on every offline hiccup.
    */
   const fetchInvoices = useCallback(async () => {
-    setInvoicesError(false);
+    setInvoicesError(null);
     try {
       const res = await fetch(`/api/invoices?studentId=${encodeURIComponent(id)}&pageSize=100`);
-      if (!res.ok) { setInvoicesError(true); return; }
+      if (!res.ok) { setInvoicesError(res.status === 403 ? "denied" : "failed"); return; }
       const json = await res.json();
       setInvoices(Array.isArray(json?.data) ? json.data : []);
     } catch {
-      setInvoicesError(true);
+      setInvoicesError("failed");
     }
   }, [id]);
 
@@ -332,6 +338,23 @@ export default function StudentDetailPage() {
     hashHandled.current = true;
     jumpToSection(target);
   }, [loading, jumpToSection, overview]);
+
+  /**
+   * `?aksi=daftarkan-kelas` opens "Daftarkan ke Kelas" — the pendaftaran convert toast links
+   * here so staff can place the new student without hunting for the button. Read once after
+   * the student loads, then dropped from the URL so a refresh does not reopen the dialog.
+   */
+  const enrollIntentHandled = useRef(false);
+  useEffect(() => {
+    if (loading || !student || enrollIntentHandled.current) return;
+    enrollIntentHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("aksi") !== "daftarkan-kelas") return;
+    params.delete("aksi");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    if (student.canEdit && student.status === "ACTIVE") setEnrollDialog(true);
+  }, [loading, student]);
 
   // --- Data Anak edit toggle ---
   function startEditingDataAnak() {
@@ -427,7 +450,11 @@ export default function StudentDetailPage() {
   }
 
   if (loading) return <DetailPageSkeleton />;
-  if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
+  if (!student) {
+    if (loadError === "not-found") return <EmptyState title="Siswa tidak ditemukan" description="Periksa kembali tautan siswa atau pilih siswa dari daftar." actionLabel="Kembali ke Daftar Siswa" actionHref={listHref} />;
+    if (loadError === "denied") return <EmptyState title="Data siswa tidak bisa diakses" description="Sesi Anda berakhir atau akun Anda tidak memiliki akses." actionLabel="Kembali ke Daftar Siswa" actionHref={listHref} />;
+    return <div role="alert"><EmptyState title="Data siswa belum bisa dimuat" description="Periksa koneksi Anda, lalu coba lagi." actionLabel="Coba Lagi" onAction={() => { setLoading(true); fetchStudent(); }} /></div>;
+  }
 
   // A student can hold a school (SEMESTER) and a day-care (YEAR_ROUND)
   // enrollment at once, and many carry a stale ACTIVE row in an archived
@@ -638,20 +665,20 @@ export default function StudentDetailPage() {
   // destructive Keluarkan) live in its `⋯` overflow menu, on every viewport,
   // so there is one action layout instead of a separate mobile one.
   const primaryHeaderActions: DetailPageHeaderAction[] = [
-    ...(!isEditingDataAnak
+    ...(student.canEdit && !isEditingDataAnak
       ? [{ label: "Edit", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditingDataAnak }]
       : []),
     // Only an ACTIVE student can be enrolled (the API refuses anyone else with
     // STUDENT_NOT_ACTIVE). A WITHDRAWN or GRADUATED student gets the way back
     // instead (R2-ADMIN-8: a mistaken Luluskan used to be a dead end).
-    ...(student.status === "ACTIVE"
+    ...(student.canEdit && student.status === "ACTIVE"
       ? [{
           label: "Daftarkan ke Kelas",
           icon: <Plus size={14} aria-hidden="true" />,
           onClick: () => setEnrollDialog(true),
         }]
       : []),
-    ...(student.status === "WITHDRAWN" || student.status === "GRADUATED"
+    ...(student.canEdit && (student.status === "WITHDRAWN" || student.status === "GRADUATED")
       ? [{
           label: "Aktifkan kembali",
           icon: <RotateCcw size={14} aria-hidden="true" />,
@@ -661,16 +688,16 @@ export default function StudentDetailPage() {
   ];
 
   const menuHeaderActions: DetailPageHeaderAction[] = [
-    ...(student.status === "ACTIVE" && activeEnrollment
+    ...(student.canEdit && student.status === "ACTIVE" && activeEnrollment
       ? [{ label: "Naik Kelas", onClick: openPromoteDialog }]
       : []),
     // Graduating ends the active enrolments — with none there is nothing to
     // graduate from (the API answers 409 "kelas aktif"). Any ACTIVE row counts,
     // including a stale one in an archived year, matching the server's check.
-    ...(student.status === "ACTIVE" && hasActiveEnrollment
+    ...(student.canEdit && student.status === "ACTIVE" && hasActiveEnrollment
       ? [{ label: "Luluskan", onClick: () => setGraduateOpen(true) }]
       : []),
-    ...(student.status === "ACTIVE"
+    ...(student.canEdit && student.status === "ACTIVE"
       ? [{ label: "Keluarkan", onClick: () => setWithdrawDialogOpen(true), destructive: true }]
       : []),
   ];
@@ -748,6 +775,7 @@ export default function StudentDetailPage() {
           />
 
           <KesehatanSection
+            canEdit={student.canEdit === true}
             known={metaKnown}
             system={metaSystem}
             hasAllergy={!!flags.allergy}
@@ -767,6 +795,7 @@ export default function StudentDetailPage() {
           />
 
           <RiwayatKelasSection
+            canEdit={student.canEdit === true}
             enrollments={student.enrollments}
             open={openSections[SECTION_RIWAYAT_KELAS] ?? true}
             onOpenChange={(o) => handleSectionOpenChange(SECTION_RIWAYAT_KELAS, o)}
@@ -800,7 +829,8 @@ export default function StudentDetailPage() {
               summary={invoiceSummary}
               statusGroups={overview?.finance?.byStatus ?? null}
               loading={invoicesLoading}
-              error={invoicesError}
+              error={invoicesError !== null}
+              forbidden={invoicesError === "denied"}
               onRetry={fetchInvoices}
             />
           </DossierSection>
@@ -891,6 +921,7 @@ export default function StudentDetailPage() {
           )}
 
           <DokumenSection
+            canEdit={student.canEdit === true}
             kkGuardian={kkGuardian}
             hasKk={hasKk}
             open={openSections[SECTION_DOKUMEN] ?? true}
@@ -907,6 +938,7 @@ export default function StudentDetailPage() {
           )}
 
           <InformasiTambahanSection
+            canEdit={student.canEdit === true}
             extra={metaExtra}
             known={metaKnown}
             open={openSections[SECTION_TAMBAHAN] ?? true}

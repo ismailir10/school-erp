@@ -22,6 +22,16 @@ describe("admin work queue", () => {
     ]);
   });
 
+  it("titles an inquiry by the child's name, or 'Belum diisi' when the lead has none", () => {
+    const withName = buildAdminWorkQueue(fullSources).find((i) => i.kind === "inquiry");
+    expect(withName?.title).toBe("Tindak lanjuti pertanyaan Zahra");
+    const blank: AdminQueueSources = {
+      ...fullSources,
+      inquiries: { status: "ready", count: 1, records: [{ id: "aq-2", childName: "", parentName: "Ibu Nur", createdAt: "2026-09-27T03:00:00.000Z" }] },
+    };
+    expect(buildAdminWorkQueue(blank).find((i) => i.kind === "inquiry")?.title).toBe("Tindak lanjuti pertanyaan Belum diisi");
+  });
+
   it("does not invent zeroes for unavailable or unauthorized modules", () => {
     const sources: AdminQueueSources = {
       inquiries: { status: "unavailable" },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type DependencyList } from "react";
+import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ArrowLeft, ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
@@ -44,26 +45,37 @@ function toYmd(iso: string) {
 function useList<T extends { id: string }>(
   fetcher: () => Promise<T[]>,
   deps: DependencyList,
-): [T[], boolean, () => Promise<void>] {
+): [T[], boolean, () => Promise<void>, boolean] {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const requestVersion = useRef(0);
   const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
+    setLoadError(false);
     try {
-      setRows(await fetcher());
+      const nextRows = await fetcher();
+      if (version === requestVersion.current) setRows(nextRows);
+    } catch {
+      if (version !== requestVersion.current) return;
+      setRows([]);
+      setLoadError(true);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    refresh();
+    void refresh();
+    const requests = requestVersion;
+    return () => { requests.current++; };
   }, [refresh]);
-  return [rows, loading, refresh];
+  return [rows, loading, refresh, loadError];
 }
 
 async function fetchJson<T>(url: string): Promise<T[]> {
   const r = await fetch(url);
+  if (!r.ok) throw new Error("Curriculum list unavailable");
   const j = await r.json();
   return Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
 }
@@ -82,18 +94,18 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [selectedSubThemeId, setSelectedSubThemeId] = useState<string | null>(null);
 
-  const [themes, themesLoading, refreshThemes] = useList<Theme>(
+  const [themes, themesLoading, refreshThemes, themesError] = useList<Theme>(
     () => fetchJson<Theme>(`/api/admin/curriculum/themes?semesterId=${semester.id}&status=all&pageSize=100`),
     [semester.id],
   );
-  const [subThemes, subThemesLoading, refreshSubThemes] = useList<SubTheme>(
+  const [subThemes, subThemesLoading, refreshSubThemes, subThemesError] = useList<SubTheme>(
     () =>
       selectedThemeId
         ? fetchJson<SubTheme>(`/api/admin/curriculum/subthemes?themeId=${selectedThemeId}&status=all&pageSize=100`)
         : Promise.resolve([]),
     [selectedThemeId],
   );
-  const [weeks, weeksLoading, refreshWeeks] = useList<Week>(
+  const [weeks, weeksLoading, refreshWeeks, weeksError] = useList<Week>(
     () =>
       selectedSubThemeId
         ? fetchJson<Week>(`/api/admin/curriculum/weeks?subThemeId=${selectedSubThemeId}&status=all&pageSize=100`)
@@ -137,6 +149,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
         <ThemeCard
           themes={themes}
           loading={themesLoading}
+          loadError={themesError}
           canWrite={canWrite}
           selectedId={selectedThemeId}
           onSelect={(id) => {
@@ -150,6 +163,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
         <SubThemeCard
           subThemes={subThemes}
           loading={subThemesLoading}
+          loadError={subThemesError}
           canWrite={canWrite}
           parentTheme={activeTheme}
           selectedId={selectedSubThemeId}
@@ -160,6 +174,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
         <WeekCard
           weeks={weeks}
           loading={weeksLoading}
+          loadError={weeksError}
           canWrite={canWrite}
           parentSubTheme={activeSubTheme}
           refresh={refreshWeeks}
@@ -172,6 +187,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
 export function ThemeCard({
   themes,
   loading,
+  loadError = false,
   canWrite,
   selectedId,
   onSelect,
@@ -180,6 +196,7 @@ export function ThemeCard({
 }: {
   themes: Theme[];
   loading: boolean;
+  loadError?: boolean;
   canWrite: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -210,17 +227,22 @@ export function ThemeCard({
       return;
     }
     setSaving(true);
-    const body = { name: form.name.trim(), order: Number(form.order) || 0 };
-    const url = editing ? `/api/admin/curriculum/themes/${editing.id}` : `/api/admin/curriculum/themes`;
-    const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, semesterId });
-    if (r.ok) {
-      toast.success(editing ? "Tema diperbarui" : "Tema ditambahkan");
-      setOpen(false);
-      refresh();
-    } else {
-      toast.error(r.error ?? "Gagal");
+    try {
+      const body = { name: form.name.trim(), order: Number(form.order) || 0 };
+      const url = editing ? `/api/admin/curriculum/themes/${editing.id}` : `/api/admin/curriculum/themes`;
+      const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, semesterId });
+      if (r.ok) {
+        toast.success(editing ? "Tema diperbarui" : "Tema ditambahkan");
+        setOpen(false);
+        refresh();
+      } else {
+        toast.error(r.error ?? "Gagal");
+      }
+    } catch {
+      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function flipStatus(t: Theme, status: "ACTIVE" | "INACTIVE") {
@@ -238,7 +260,7 @@ export function ThemeCard({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-h2">Tema</CardTitle>
         {canWrite ? (
-          <Button size="sm" onClick={openCreate} className="gap-1">
+          <Button size="sm" onClick={openCreate} disabled={loading || loadError} className="gap-1">
             <Plus className="size-4" /> Tambah
           </Button>
         ) : null}
@@ -250,6 +272,13 @@ export function ThemeCard({
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-3/4" />
           </div>
+        ) : loadError ? (
+          <EmptyState
+            title="Gagal memuat tema"
+            description="Periksa koneksi lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={() => { void refresh(); }}
+          />
         ) : themes.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada tema. Tambahkan untuk mulai mengisi subtema dan pekan.</p>
         ) : (
@@ -400,6 +429,7 @@ export function ThemeCard({
 export function SubThemeCard({
   subThemes,
   loading,
+  loadError = false,
   canWrite,
   parentTheme,
   selectedId,
@@ -408,6 +438,7 @@ export function SubThemeCard({
 }: {
   subThemes: SubTheme[];
   loading: boolean;
+  loadError?: boolean;
   canWrite: boolean;
   parentTheme: Theme | null;
   selectedId: string | null;
@@ -442,17 +473,22 @@ export function SubThemeCard({
       return;
     }
     setSaving(true);
-    const body = { name: form.name.trim(), order: Number(form.order) || 0 };
-    const url = editing ? `/api/admin/curriculum/subthemes/${editing.id}` : `/api/admin/curriculum/subthemes`;
-    const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, themeId: parentTheme!.id });
-    if (r.ok) {
-      toast.success(editing ? "Subtema diperbarui" : "Subtema ditambahkan");
-      setOpen(false);
-      refresh();
-    } else {
-      toast.error(r.error ?? "Gagal");
+    try {
+      const body = { name: form.name.trim(), order: Number(form.order) || 0 };
+      const url = editing ? `/api/admin/curriculum/subthemes/${editing.id}` : `/api/admin/curriculum/subthemes`;
+      const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, themeId: parentTheme!.id });
+      if (r.ok) {
+        toast.success(editing ? "Subtema diperbarui" : "Subtema ditambahkan");
+        setOpen(false);
+        refresh();
+      } else {
+        toast.error(r.error ?? "Gagal");
+      }
+    } catch {
+      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function flipStatus(s: SubTheme, status: "ACTIVE" | "INACTIVE") {
@@ -473,20 +509,27 @@ export function SubThemeCard({
           {parentTheme ? <span className="text-small text-muted-foreground"> · {parentTheme.name}</span> : null}
         </CardTitle>
         {canWrite && parentTheme ? (
-          <Button size="sm" onClick={openCreate} className="gap-1">
+          <Button size="sm" onClick={openCreate} disabled={loading || loadError} className="gap-1">
             <Plus className="size-4" /> Tambah
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-2">
         {!parentTheme ? (
-          <p className="text-small text-muted-foreground">Pilih tema di kolom kiri untuk melihat dan menambah subtema.</p>
+          <p className="text-small text-muted-foreground">Pilih tema untuk melihat dan menambah subtema.</p>
         ) : loading ? (
           <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-3/4" />
           </div>
+        ) : loadError ? (
+          <EmptyState
+            title="Gagal memuat subtema"
+            description="Periksa koneksi lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={() => { void refresh(); }}
+          />
         ) : subThemes.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada subtema. Tambahkan untuk mulai mengisi pekan.</p>
         ) : (
@@ -637,12 +680,14 @@ export function SubThemeCard({
 function WeekCard({
   weeks,
   loading,
+  loadError = false,
   canWrite,
   parentSubTheme,
   refresh,
 }: {
   weeks: Week[];
   loading: boolean;
+  loadError?: boolean;
   canWrite: boolean;
   parentSubTheme: SubTheme | null;
   refresh: () => Promise<void>;
@@ -678,24 +723,29 @@ function WeekCard({
       return;
     }
     setSaving(true);
-    setFieldError(null);
-    const body = {
-      number: Number(form.number),
-      startDate: form.startDate,
-      endDate: form.endDate,
-    };
-    const url = editing ? `/api/admin/curriculum/weeks/${editing.id}` : `/api/admin/curriculum/weeks`;
-    const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, subThemeId: parentSubTheme!.id });
-    if (r.ok) {
-      toast.success(editing ? "Pekan diperbarui" : "Pekan ditambahkan");
-      setOpen(false);
-      refresh();
-    } else if (r.conflictingWeekId) {
-      setFieldError(r.error ?? "Pekan bertumpang tindih dengan pekan lain.");
-    } else {
-      toast.error(r.error ?? "Gagal");
+    try {
+      setFieldError(null);
+      const body = {
+        number: Number(form.number),
+        startDate: form.startDate,
+        endDate: form.endDate,
+      };
+      const url = editing ? `/api/admin/curriculum/weeks/${editing.id}` : `/api/admin/curriculum/weeks`;
+      const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, subThemeId: parentSubTheme!.id });
+      if (r.ok) {
+        toast.success(editing ? "Pekan diperbarui" : "Pekan ditambahkan");
+        setOpen(false);
+        refresh();
+      } else if (r.conflictingWeekId) {
+        setFieldError(r.error ?? "Pekan bertumpang tindih dengan pekan lain.");
+      } else {
+        toast.error(r.error ?? "Gagal");
+      }
+    } catch {
+      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function flipStatus(w: Week, status: "ACTIVE" | "INACTIVE") {
@@ -716,20 +766,27 @@ function WeekCard({
           {parentSubTheme ? <span className="text-small text-muted-foreground"> · {parentSubTheme.name}</span> : null}
         </CardTitle>
         {canWrite && parentSubTheme ? (
-          <Button size="sm" onClick={openCreate} className="gap-1">
+          <Button size="sm" onClick={openCreate} disabled={loading || loadError} className="gap-1">
             <Plus className="size-4" /> Tambah
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-2">
         {!parentSubTheme ? (
-          <p className="text-small text-muted-foreground">Pilih subtema di kolom tengah untuk melihat dan menambah pekan.</p>
+          <p className="text-small text-muted-foreground">Pilih subtema untuk melihat dan menambah pekan.</p>
         ) : loading ? (
           <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-9 w-3/4" />
           </div>
+        ) : loadError ? (
+          <EmptyState
+            title="Gagal memuat pekan"
+            description="Periksa koneksi lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={() => { void refresh(); }}
+          />
         ) : weeks.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada pekan. Tambahkan Senin–Jumat pada subtema ini.</p>
         ) : (

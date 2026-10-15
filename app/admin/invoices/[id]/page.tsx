@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
@@ -15,14 +14,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
+import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -41,6 +40,7 @@ type PaymentFormControl = ReturnType<typeof useZodForm<typeof invoicePaymentForm
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = {
   id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string;
+  idempotencyKey?: string | null;
   status: string; xenditPaymentId?: string | null; createdBy: string | null; createdByName: string | null;
 };
 type InvoiceDetail = {
@@ -200,6 +200,8 @@ export default function InvoiceDetailPage() {
   // POSTed until the admin has read the review and pressed the confirm button.
   const [payStep, setPayStep] = useState<"form" | "review">("form");
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const paymentSubmittingRef = useRef(false);
+  const paymentAttemptRef = useRef<string | null>(null);
   const [reverseTarget, setReverseTarget] = useState<Payment | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseError, setReverseError] = useState<string | null>(null);
@@ -225,12 +227,22 @@ export default function InvoiceDetailPage() {
       const res = await fetch(`/api/invoices/${id}`);
       if (res.status === 404 || res.status === 403) { setInvoice(null); return; }
       if (!res.ok) throw new Error("invoice unavailable");
-      setInvoice(await res.json());
+      const loaded: InvoiceDetail = await res.json();
+      setInvoice(loaded);
+      // A reload can resolve an earlier unknown response from recorded history.
+      // Only release its key when the server confirms that exact attempt exists.
+      try {
+        const storageKey = `manual-payment-attempt:${id}`;
+        const key = sessionStorage.getItem(storageKey);
+        if (key && loaded.payments.some((p) => p.idempotencyKey === key)) {
+          sessionStorage.removeItem(storageKey);
+          paymentAttemptRef.current = null;
+        }
+      } catch { /* storage can be unavailable */ }
     } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, [id]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
 
   // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so
@@ -275,10 +287,23 @@ export default function InvoiceDetailPage() {
 
   // Step 2: the only place the POST happens.
   async function handleConfirmPayment() {
-    if (submittingPayment) return;
+    if (paymentSubmittingRef.current) return;
+    paymentSubmittingRef.current = true;
     setSubmittingPayment(true);
     try {
-      await sendJson(`/api/invoices/${id}/payments`, { method: "POST", body: payForm.getValues() }, "Gagal mencatat pembayaran");
+      // Keep the same attempt through a lost response, closing the dialog,
+      // and a reload in this tab. Store only an opaque key, never pupil data.
+      const storageKey = `manual-payment-attempt:${id}`;
+      if (!paymentAttemptRef.current) {
+        try { paymentAttemptRef.current = sessionStorage.getItem(storageKey); } catch { /* storage can be unavailable */ }
+        paymentAttemptRef.current ??= crypto.randomUUID();
+      }
+      try { sessionStorage.setItem(storageKey, paymentAttemptRef.current); } catch { /* in-memory retries still work */ }
+      await sendJson(`/api/invoices/${id}/payments`, {
+        method: "POST", body: { ...payForm.getValues(), idempotencyKey: paymentAttemptRef.current },
+      }, "Hasil pencatatan belum dapat dipastikan. Coba lagi dengan rincian yang sama agar pembayaran tidak tercatat dua kali.");
+      paymentAttemptRef.current = null;
+      try { sessionStorage.removeItem(storageKey); } catch { /* storage can be unavailable */ }
       toast.success("Pembayaran dicatat");
       closePaymentDialog();
       fetchInvoice();
@@ -286,8 +311,9 @@ export default function InvoiceDetailPage() {
       // Back to the form so the server's field error (e.g. overpayment) is
       // shown next to the field it belongs to.
       setPayStep("form");
-      applyServerErrors(payForm, err, "Gagal mencatat pembayaran");
+      applyServerErrors(payForm, err, "Hasil pencatatan belum dapat dipastikan. Coba lagi dengan rincian yang sama agar pembayaran tidak tercatat dua kali.");
     } finally {
+      paymentSubmittingRef.current = false;
       setSubmittingPayment(false);
     }
   }
@@ -437,6 +463,20 @@ export default function InvoiceDetailPage() {
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
+  // Chasing an unpaid invoice: one tap opens WhatsApp on the wali's number with the
+  // reminder written. The DOKU link goes in when there is one; otherwise the portal,
+  // where the wali can pay. Only for a billed invoice with money left.
+  const canRemind = canRemindInvoice({ status: invoice.status, remaining });
+  const reminderUrl = canRemind
+    ? invoiceReminderWaUrl({
+        guardian,
+        studentName: invoice.student.name,
+        invoiceNumber: invoice.invoiceNumber,
+        periodLabel: invoice.periodLabel,
+        remaining,
+        payUrl: invoice.xenditPaymentUrl ?? `${window.location.origin}/parent/invoices`,
+      })
+    : null;
   // Money already on the invoice blocks a cancel (the API enforces it too): the
   // menu item stays visible so the admin gets the reason instead of a missing
   // action, but it opens an explanation rather than the confirm (FIN-9).
@@ -670,6 +710,31 @@ export default function InvoiceDetailPage() {
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
               {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}
+              {canRemind &&
+                (reminderUrl ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    nativeButton={false}
+                    // Base UI would otherwise mark the anchor role="button"; it navigates.
+                    role="link"
+                    data-testid="invoice-whatsapp-reminder"
+                    render={
+                      <a
+                        href={reminderUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Chat WhatsApp: ingatkan ${guardian.name} soal tagihan ini`}
+                      />
+                    }
+                  >
+                    <MessageCircle aria-hidden="true" />
+                    Chat WhatsApp
+                  </Button>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Belum ada nomor WhatsApp wali untuk mengingatkan tagihan ini.</p>
+                ))}
             </Card>
           )}
 

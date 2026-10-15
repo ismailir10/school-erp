@@ -1,13 +1,14 @@
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { UserPlus, ArrowRight, Send, Users2 } from "lucide-react";
-import { formatDateShort } from "@/lib/format";
+import { Users2 } from "lucide-react";
+import { formatDateShort, formatRupiah } from "@/lib/format";
 import { formatAgeFromDob } from "@/lib/admission/age";
-import { canConvertAdmissionToStudent } from "@/app/admin/admissions/conversion";
-import { SOURCE_LABELS, NEXT_STATUS, TERMINAL_STATUSES } from "./constants";
+import { admissionChildLabel } from "@/lib/admission/child-label";
+import { AdmissionRowActions, isLeadEditable } from "./row-actions";
 import type { Admission } from "./types";
 
 // ------------------------------------------------------------------
@@ -15,123 +16,118 @@ import type { Admission } from "./types";
 // cells and close open row-action menus). The page memoises its call with
 // `useMemo` + stable `useCallback` handlers so `columns` itself only
 // changes identity when a handler or `canEdit` actually changes.
-//
-// Split out of `app/admin/admissions/page.tsx` (T5, cycle
-// 2026-09-27-admin-finish-standard). No behaviour change — moved verbatim.
 // ------------------------------------------------------------------
 
 export type AdmissionColumnHandlers = {
   canEdit: boolean;
+  /** Opens the lead dialog pre-filled (row click without a formulir, and the "Ubah data pertanyaan" item). */
   onEdit: (a: Admission) => void;
   onCancelRequest: (a: Admission) => void;
-  onAdvanceStatus: (a: Admission) => void;
-  onConvertToStudent: (a: Admission) => void;
-  onSendEnrollmentForm: (a: Admission) => void;
+  /** "Kirim Formulir" is one tap: sends the invite (first send, or a resend while the stage is FORMULIR_DIKIRIM). */
+  onSend: (a: Admission) => void;
+  /** The leads whose formulir is being sent right now; their send buttons show a pending state. */
+  sendingIds?: readonly string[];
 };
 
-/**
- * One chip for the list and the mobile name cell. An ADMITTED row keeps the
- * "Diterima" label whether or not it has been converted — the stat card counts
- * it as "Diterima", and R2-ADMIN-14 found the row saying "Terdaftar" for the
- * same record. Conversion is already shown in the actions cell ("Sudah jadi
- * siswa").
- */
-function AdmissionStatusChip({ admission }: { admission: Admission }) {
-  return <StatusBadge status={admission.status} />;
+/** Pembayaran: the fee's status; "—" when there is no fee row. */
+function PaymentCell({ admission: a }: { admission: Admission }) {
+  if (a.payment === "NONE") {
+    return (
+      <>
+        <span aria-hidden="true" className="text-muted-foreground">—</span>
+        <span className="sr-only">Tanpa biaya</span>
+      </>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <StatusBadge status={a.payment} />
+      {a.payment === "UNPAID" && a.application?.fee && (
+        <span className="text-xs tabular-nums text-muted-foreground">{formatRupiah(a.application.fee.amount)}</span>
+      )}
+    </div>
+  );
 }
 
-export function createAdmissionColumns({
-  canEdit,
-  onEdit,
-  onCancelRequest,
-  onAdvanceStatus,
-  onConvertToStudent,
-  onSendEnrollmentForm,
-}: AdmissionColumnHandlers): ColumnDef<Admission>[] {
+/**
+ * The row's identity cell is also its way in ("name is the link"): the formulir's
+ * detail page when there is one, otherwise the lead dialog. A converted or cancelled
+ * lead without a formulir has nowhere to go, and a viewer cannot open the dialog.
+ */
+function IdentityCell({ admission: a, canEdit, onEdit }: { admission: Admission; canEdit: boolean; onEdit: (a: Admission) => void }) {
+  // The lead's own name wins; a lead without one shows the child the parent named on the formulir.
+  const label = admissionChildLabel(a.childName.trim() ? a.childName : a.application?.childName);
+  // Prefer derived age from dateOfBirth; fall back to the legacy childAge free text.
+  const age = formatAgeFromDob(a.dateOfBirth) ?? a.childAge;
+  const contact = a.parentPhone ? ` · ${a.parentPhone}` : a.parentWhatsapp ? ` · WA ${a.parentWhatsapp}` : "";
+
+  let name: React.ReactNode;
+  if (a.application) {
+    name = <DataTableLinkCell href={`/admin/enrollments/${a.application.id}`}>{label}</DataTableLinkCell>;
+  } else if (a.stage === "SISWA" && a.studentId) {
+    name = <DataTableLinkCell href={`/admin/students/${a.studentId}`}>{label}</DataTableLinkCell>;
+  } else if (canEdit && isLeadEditable(a)) {
+    name = <DataTableLinkCell onClick={() => onEdit(a)}>{label}</DataTableLinkCell>;
+  } else {
+    name = <span className="text-sm font-medium">{label}</span>;
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2">
+        {name}
+        {age && <span className="text-xs text-muted-foreground">{age}</span>}
+      </div>
+      <p className="text-xs text-muted-foreground break-words">
+        {a.parentName}
+        {/* A WhatsApp-only lead still shows a way to reach the family. */}
+        {contact}
+      </p>
+      {/* Tahap and Pembayaran are hidden below md: repeat them under the name for a phone. */}
+      <DataTableMobileMeta className="mt-1">
+        <StatusBadge status={a.stage} />
+        {a.payment !== "NONE" && <StatusBadge status={a.payment} />}
+      </DataTableMobileMeta>
+    </div>
+  );
+}
+
+export function createAdmissionColumns({ canEdit, onEdit, onCancelRequest, onSend, sendingIds = [] }: AdmissionColumnHandlers): ColumnDef<Admission>[] {
   return [
     {
       accessorKey: "childName",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Anak" />
-      ),
-      cell: ({ row }) => {
-        const a = row.original;
-        return (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{a.childName}</span>
-              {(() => {
-                // Prefer derived age from dateOfBirth (new rows); fall back to
-                // the legacy childAge free-text column for rows created before
-                // the DOB-only switch (cycle 2026-05-11).
-                const derived = formatAgeFromDob(a.dateOfBirth);
-                const display = derived ?? a.childAge;
-                return display ? (
-                  <span className="text-xs text-muted-foreground">{display}</span>
-                ) : null;
-              })()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {a.parentName}
-              {/* R2-ADMIN-14: a WhatsApp-only inquiry still shows a way to reach the family. */}
-              {a.parentPhone
-                ? ` · ${a.parentPhone}`
-                : a.parentWhatsapp
-                  ? ` · WA ${a.parentWhatsapp}`
-                  : ""}
-            </p>
-            {/* R2-ADMIN-16: the Status column is hidden below md, so a phone list of
-                inquiries would be indistinguishable — show the chip under the name. */}
-            <div className="mt-1 md:hidden">
-              <AdmissionStatusChip admission={a} />
-            </div>
-          </div>
-        );
-      },
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Anak" />,
+      cell: ({ row }) => <IdentityCell admission={row.original} canEdit={canEdit} onEdit={onEdit} />,
     },
     {
       id: "program",
       header: "Program",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.program?.name ?? (
-            <span className="text-muted-foreground italic">Belum dipilih</span>
-          )}
+          {row.original.application?.programName ?? row.original.program?.name ?? <span className="text-muted-foreground italic">Belum dipilih</span>}
         </span>
       ),
     },
     {
-      id: "source",
-      header: "Sumber",
+      id: "stage",
+      header: "Tahap",
       meta: { priority: "low" },
-      cell: ({ row }) => (
-        <div className="text-xs">
-          <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
-          <p className="text-muted-foreground">
-            {formatDateShort(row.original.createdAt)}
-          </p>
-        </div>
-      ),
+      cell: ({ row }) => <StatusBadge status={row.original.stage} />,
+    },
+    {
+      id: "payment",
+      header: "Pembayaran",
+      meta: { priority: "low" },
+      cell: ({ row }) => <PaymentCell admission={row.original} />,
     },
     {
       accessorKey: "createdAt",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Tanggal" />
-      ),
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Dibuat" />,
       meta: { priority: "low" },
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {formatDateShort(row.original.createdAt)}
-        </span>
+        <span className="text-xs text-muted-foreground">{formatDateShort(row.original.createdAt)}</span>
       ),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      meta: { priority: "low" },
-      cell: ({ row }) => <AdmissionStatusChip admission={row.original} />,
     },
     {
       id: "sibling",
@@ -140,9 +136,7 @@ export function createAdmissionColumns({
       cell: ({ row }) => {
         const dp = row.original.detectedParent;
         if (!dp) return <span className="text-xs text-muted-foreground">—</span>;
-        const studentNames = dp.guardians
-          .map((g) => g.student.name)
-          .filter((n): n is string => Boolean(n));
+        const studentNames = dp.guardians.map((g) => g.student.name).filter((n): n is string => Boolean(n));
         return (
           <HoverCard>
             <HoverCardTrigger
@@ -167,9 +161,7 @@ export function createAdmissionColumns({
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-muted-foreground italic">
-                  Tidak ada siswa tertaut
-                </p>
+                <p className="mt-1 text-muted-foreground italic">Tidak ada siswa tertaut</p>
               )}
             </HoverCardContent>
           </HoverCard>
@@ -178,43 +170,16 @@ export function createAdmissionColumns({
     },
     {
       id: "actions",
-      cell: ({ row }) => {
-        const a = row.original;
-        if (!canEdit) {
-          return <span className="text-xs text-muted-foreground">Hanya lihat</span>;
-        }
-        if (a.studentId) {
-          return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
-        }
-        const next = NEXT_STATUS[a.status];
-        const extras: { label: string; icon?: React.ReactNode; onClick: () => void }[] = [];
-        if (next) {
-          extras.push({
-            label: next.label,
-            icon: <ArrowRight size={14} />,
-            onClick: () => onAdvanceStatus(a),
-          });
-        }
-        if (canConvertAdmissionToStudent(a.status)) {
-          extras.push({
-            label: "Konversi ke Siswa",
-            icon: <UserPlus size={14} />,
-            onClick: () => onConvertToStudent(a),
-          });
-        }
-        extras.push({
-          label: "Kirim Formulir",
-          icon: <Send size={14} />,
-          onClick: () => onSendEnrollmentForm(a),
-        });
-        return (
-          <DataTableRowActions
-            onEdit={() => onEdit(a)}
-            onCancel={!TERMINAL_STATUSES.has(a.status) ? () => onCancelRequest(a) : undefined}
-            extraActions={extras.length ? extras : undefined}
-          />
-        );
-      },
+      cell: ({ row }) => (
+        <AdmissionRowActions
+          admission={row.original}
+          canEdit={canEdit}
+          onSend={onSend}
+          sending={sendingIds.includes(row.original.id)}
+          onEdit={onEdit}
+          onCancelRequest={onCancelRequest}
+        />
+      ),
     },
   ];
 }

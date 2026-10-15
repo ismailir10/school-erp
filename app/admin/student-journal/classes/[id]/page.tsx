@@ -201,7 +201,7 @@ export default function ClassWeekPage({
     [ws],
   );
 
-  const students = rollUp?.students ?? [];
+  const students = useMemo(() => rollUp?.students ?? [], [rollUp]);
   const filteredRows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return students;

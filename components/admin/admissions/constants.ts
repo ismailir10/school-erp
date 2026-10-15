@@ -1,42 +1,34 @@
+import { getStatusConfig } from "@/components/ui/status-badge";
+import type { AdmissionStage } from "./types";
+
 /**
- * Shared constants for the admissions module, split out of
- * `app/admin/admissions/page.tsx` (T5, cycle 2026-09-27-admin-finish-standard).
- * No behaviour change — moved verbatim.
+ * Filter vocabulary of the unified Pendaftaran list. The stage names themselves
+ * (labels and tones) live in `StatusBadge`, so the filter, the row chip and the
+ * stat cards cannot drift apart.
  */
 
-export const SOURCE_LABELS: Record<string, string> = {
-  WHATSAPP: "WhatsApp",
-  WALK_IN: "Datang Langsung",
-  WEBSITE: "Website",
-  REFERRAL: "Referensi",
-  OTHER: "Lainnya",
-};
+/** Stages in pipeline order, then the two exits. */
+const TAHAP_ORDER: AdmissionStage[] = [
+  "BARU",
+  "FORMULIR_DIKIRIM",
+  "FORMULIR_MASUK",
+  "DITERIMA",
+  "SISWA",
+  "DITOLAK",
+  "BATAL",
+];
 
-// One name per status, shared by the filter, the stat cards and the toasts.
-// Mirrors the StatusBadge labels so the row chip says the same thing
-// (R2-ADMIN-14: the stat card said "Diterima" while the row said "Terdaftar").
-export const ADMISSION_STATUS_LABELS: Record<string, string> = {
-  INQUIRY: "Pertanyaan",
-  VISIT_SCHEDULED: "Kunjungan",
-  VISITED: "Sudah Kunjungan",
-  ADMITTED: "Diterima",
-  CANCELLED: "Dibatalkan",
-};
+export const TAHAP_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "Semua tahap" },
+  ...TAHAP_ORDER.map((stage) => ({ value: stage, label: getStatusConfig(stage).label })),
+];
 
-// Happy-path transitions for the Admission state machine.
-// Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
-// Terminal state CANCELLED has no next step. ADMITTED is terminal in the
-// next-action surface (no entry below) but retains ADMITTED → CANCELLED via
-// VALID_TRANSITIONS. ADMITTED-with-studentId hides via the row-action
-// early-return (see actions column cell). Cycle 2026-05-12 dropped REGISTERED
-// — converted vs not is encoded by `studentId`.
-export const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
-  // `label` is the row-menu action (a verb phrase, sentence case) — not the
-  // status name; the target status's name lives in ADMISSION_STATUS_LABELS.
-  INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan kunjungan" },
-  VISIT_SCHEDULED: { status: "VISITED", label: "Tandai sudah berkunjung" },
-  VISITED: { status: "ADMITTED", label: "Terima" },
-};
+const TAHAP_SET = new Set<string>(TAHAP_ORDER);
 
-// Terminal states — hide "Batalkan" when already at one of these.
-export const TERMINAL_STATUSES = new Set(["CANCELLED"]);
+/** A `?tahap=` value from the URL, or "all" when it is missing or not a stage. */
+export function parseTahap(value: string | null | undefined): string {
+  return value && TAHAP_SET.has(value) ? value : "all";
+}
+
+/** The only `?payment=` value the list understands. */
+export const PAYMENT_UNPAID = "unpaid";

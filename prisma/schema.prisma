@@ -34,6 +34,7 @@ model Tenant {
   students               Student[]
   admissions             Admission[]
   enrollmentApplications EnrollmentApplication[]
+  enrollmentFees         EnrollmentFee[]
   feeDefs                FeeComponentDef[]
   feeStructures          ProgramFeeStructure[]
   invoices               Invoice[]
@@ -425,6 +426,10 @@ model Program {
   ageMin      Int? // Minimum age in months
   ageMax      Int? // Maximum age in months
   status      String  @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
+  // One-time pendaftaran fee in rupiah (cycle 2026-10-10-pendaftaran-fee-payment).
+  // 0 = no payment step. Snapshotted onto EnrollmentFee at submit; later edits
+  // never rewrite a past application.
+  enrollmentFee Decimal @default(0) @db.Decimal(15, 2)
 
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections       ClassSection[]
@@ -716,10 +721,47 @@ model EnrollmentApplication {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  admission Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
-  program   Program?  @relation(fields: [programId], references: [id], onDelete: SetNull)
-  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  admission Admission     @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  program   Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  student   Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  fee       EnrollmentFee?
+
+  @@index([tenantId, status])
+}
+
+// ── ENROLLMENT FEE (cycle 2026-10-10-pendaftaran-fee-payment) ─
+// One-time pendaftaran fee for an EnrollmentApplication, paid by the parent
+// right after submit (DOKU) or settled by staff (cash / transfer / waiver).
+// Separate from Invoice on purpose: Invoice.studentId is required and a Student
+// only exists after convert. The gateway `referenceId` is this row's id, so the
+// shared webhook processor resolves Invoice first, then EnrollmentFee.
+// Amount, base fee and discount are SNAPSHOTTED at submit. Tenant Restrict;
+// application Cascade (the fee dies with the in-progress application).
+model EnrollmentFee {
+  id               String    @id @default(cuid())
+  tenantId         String
+  applicationId    String    @unique
+  baseAmount       Decimal   @db.Decimal(15, 2) // program fee (+ Day Care add-on) before discount
+  discountPercent  Int       @default(0) // 0-100, staff-set while UNPAID
+  discountReason   String?
+  amount           Decimal   @db.Decimal(15, 2) // final amount due after discount
+  status           String    @default("UNPAID") // UNPAID | PAID | WAIVED
+  method           String? // DOKU | XENDIT (gateway) | CASH | BANK_TRANSFER | WAIVED (staff)
+  paymentId        String?   @unique // gateway idempotency key
+  gatewaySessionId String?
+  paymentUrl       String?
+  sessionExpiresAt DateTime? // when the stored paymentUrl stops working; reuse it until then
+  linkError        String?
+  lastCheckedAt    DateTime? // throttles public gateway polling
+  paidAt           DateTime?
+  markedBy         String? // staff user id for manual settle / waive
+  note             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  application EnrollmentApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
 }
@@ -958,11 +1000,14 @@ model Payment {
   status          String   @default("RECORDED") // RECORDED | APPROVED | REVERSED
   createdBy       String? // User ID who recorded
   xenditPaymentId String?  @unique // Idempotency key for Xendit webhooks
+  idempotencyKey  String? // Manual payment attempt, scoped to its invoice
+  requestHash     String? // Immutable original payload; reversal may change notes
   paidAt          DateTime @default(now())
   createdAt       DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
+  @@unique([invoiceId, idempotencyKey])
   @@index([invoiceId, status])
   @@index([createdAt])
 }

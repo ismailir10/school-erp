@@ -7,6 +7,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { writeConsentPreservingSignatures } from "@/lib/enrollment/json-merge";
 import { programIdSchema } from "@/lib/validations/program-id";
+import { denyTokenAccess } from "@/lib/enrollment/access-response";
 
 const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
 const RATE_WINDOW_MS = 60_000;
@@ -33,6 +34,9 @@ const draftSchema = z.object({
  */
 function normalizeConsentDraft(consent: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...consent };
+  // The staff-recorded marker is evidence staff write ("Tandai formulir masuk");
+  // a token holder must not be able to pre-seed it.
+  for (const key of ["staffRecorded", "note", "by", "at"]) delete out[key];
   for (const side of ["ayah", "ibu"] as const) {
     const v = out[side];
     const block: Record<string, unknown> =
@@ -52,10 +56,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
 
   const { token } = await params;
   const { access, id, tenantId } = await resolveEnrollmentAccess(token, new Date());
-  if (access === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  if (access === "SUBMITTED")
-    return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
+  const denied = denyTokenAccess(access);
+  if (denied) return denied;
   if (!id || !tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let body: unknown;

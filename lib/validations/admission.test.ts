@@ -8,9 +8,69 @@ import {
 } from "./admission";
 
 const VALID = {
-  childName: "Aisyah",
   parentName: "Ibu Fatimah",
+  parentPhone: "081234567890",
 };
+
+describe("createAdmissionSchema — lead = parent + one contact", () => {
+  it("accepts only a parent name and one contact (child fields are optional)", () => {
+    const result = createAdmissionSchema.safeParse(VALID);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.childName).toBeUndefined();
+  });
+
+  it.each([
+    ["parentPhone", "081234567890"],
+    ["parentWhatsapp", "081234567890"],
+    ["parentEmail", "ibu@example.com"],
+  ])("accepts %s as the only contact", (key, value) => {
+    expect(createAdmissionSchema.safeParse({ parentName: "Ibu Fatimah", [key]: value }).success).toBe(true);
+  });
+
+  it("rejects a parent with no contact, with the Indonesian message on the first contact field", () => {
+    const result = createAdmissionSchema.safeParse({ parentName: "Ibu Fatimah" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toHaveLength(1);
+      expect(result.error.issues[0].message).toBe("Isi minimal satu kontak: No. HP, WhatsApp atau Email");
+      expect(result.error.issues[0].path).toEqual(["parentPhone"]);
+    }
+  });
+
+  it("treats blank contacts as missing", () => {
+    const result = createAdmissionSchema.safeParse({
+      parentName: "Ibu Fatimah",
+      parentPhone: "  ",
+      parentWhatsapp: "",
+      parentEmail: "",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires the parent name", () => {
+    const result = createAdmissionSchema.safeParse({ parentName: "", parentPhone: "0812" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0].message).toBe("Nama orang tua wajib diisi");
+  });
+
+  it("strips fields the lead no longer carries instead of failing old clients", () => {
+    const result = createAdmissionSchema.safeParse({
+      ...VALID,
+      parentEducation: "S1",
+      parentOccupation: "Guru",
+      parentIncome: "5-10 juta",
+      campusPreference: "campus-1",
+      followUpDate: "2026-11-01",
+      source: "REFERRAL",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      for (const key of ["parentEducation", "parentOccupation", "parentIncome", "campusPreference", "followUpDate", "source"]) {
+        expect(result.data).not.toHaveProperty(key);
+      }
+    }
+  });
+});
 
 describe("createAdmissionSchema — optionalEnum on childGender", () => {
   it("accepts an empty-string childGender (form default) and coerces to undefined", () => {
@@ -63,6 +123,26 @@ describe("createAdmissionSchema — optionalTrimmed on string fields", () => {
   });
 });
 
+describe("createAdmissionSchema — dateOfBirth", () => {
+  it("accepts a real YYYY-MM-DD date, and blank (optional)", () => {
+    expect(createAdmissionSchema.safeParse({ ...VALID, dateOfBirth: "2021-02-28" }).success).toBe(true);
+    expect(createAdmissionSchema.safeParse({ ...VALID, dateOfBirth: "" }).success).toBe(true);
+  });
+
+  it("does not apply the public form's age range on the admin side", () => {
+    expect(createAdmissionSchema.safeParse({ ...VALID, dateOfBirth: "2000-01-01" }).success).toBe(true);
+  });
+
+  it.each(["2020-02-31", "2021-02-29", "2020-13-01", "15/03/2020", "20200315", "bukan tanggal"])(
+    "rejects %s",
+    (dateOfBirth) => {
+      const result = createAdmissionSchema.safeParse({ ...VALID, dateOfBirth });
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.issues[0].message).toBe("Tanggal lahir tidak valid");
+    },
+  );
+});
+
 describe("updateAdmissionSchema — partial + status enum", () => {
   it("accepts empty-string childGender on partial update", () => {
     const result = updateAdmissionSchema.safeParse({ childGender: "" });
@@ -70,10 +150,24 @@ describe("updateAdmissionSchema — partial + status enum", () => {
     if (result.success) expect(result.data.childGender).toBeUndefined();
   });
 
-  it("accepts a valid status transition target", () => {
-    const result = updateAdmissionSchema.safeParse({ status: "VISIT_SCHEDULED" });
+  it.each(["INQUIRY", "CANCELLED"])("accepts %s as a status", (status) => {
+    const result = updateAdmissionSchema.safeParse({ status });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.status).toBe("VISIT_SCHEDULED");
+    if (result.success) expect(result.data.status).toBe(status);
+  });
+
+  // The visit steps and ADMITTED are retired: rows may still hold them (read as Baru) but the API no longer accepts them.
+  it.each(["VISIT_SCHEDULED", "VISITED", "ADMITTED"])("rejects the retired status %s", (status) => {
+    expect(updateAdmissionSchema.safeParse({ status }).success).toBe(false);
+  });
+
+  it("does not demand a contact on a partial body (the route checks the merged row)", () => {
+    expect(updateAdmissionSchema.safeParse({ notes: "Telepon lagi besok" }).success).toBe(true);
+    expect(updateAdmissionSchema.safeParse({ parentEmail: "" }).success).toBe(true);
+  });
+
+  it("still rejects a blank parent name", () => {
+    expect(updateAdmissionSchema.safeParse({ parentName: "  " }).success).toBe(false);
   });
 
   it("rejects an unknown status", () => {

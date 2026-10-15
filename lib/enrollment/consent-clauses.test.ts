@@ -3,8 +3,6 @@ import {
   CONSENT_CLAUSES,
   CONSENT_CLAUSE_COUNT,
   CONSENT_VERSION,
-  PHOTO_CLAUSE_INDEX,
-  PHOTO_CLAUSE_TITLE,
 } from "./consent-clauses";
 
 describe("consent clauses (R2-P-15 proofreading)", () => {
@@ -26,18 +24,15 @@ describe("consent clauses (R2-P-15 proofreading)", () => {
 });
 
 describe("photo/video clause (v2)", () => {
-  it("is the last clause and PHOTO_CLAUSE_INDEX points at it", () => {
-    expect(PHOTO_CLAUSE_INDEX).toBe(16);
-    expect(PHOTO_CLAUSE_INDEX).toBe(CONSENT_CLAUSES.length - 1);
-    expect(CONSENT_CLAUSES[PHOTO_CLAUSE_INDEX]).toBe(
+  it("is the last (17th) clause with the agreed wording", () => {
+    expect(CONSENT_CLAUSES[16]).toBe(
       "Dengan mendaftar, kami mengizinkan sekolah menggunakan foto dan video ananda dari kegiatan sekolah untuk dokumentasi dan media sosial sekolah. Jika ingin membatasi, kami dapat menyampaikannya kepada Wali Kelas kapan saja.",
     );
-    expect(PHOTO_CLAUSE_TITLE).toBe("Foto & video kegiatan");
   });
 
-  it("is the only clause about photos, so the index cannot point at the wrong one", () => {
+  it("is the only clause about photos", () => {
     const hits = CONSENT_CLAUSES.map((c, i) => (/foto|video/i.test(c) ? i : -1)).filter((i) => i >= 0);
-    expect(hits).toEqual([PHOTO_CLAUSE_INDEX]);
+    expect(hits).toEqual([16]);
   });
 
   it("bumped the version because the letter's meaning changed", () => {

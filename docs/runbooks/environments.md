@@ -12,7 +12,7 @@ Moved out of README.md 2026-08-20. README is the repo's public front page; this 
 
 Vercel builds via [`scripts/vercel-build.sh`](../../scripts/vercel-build.sh). `prisma migrate deploy` runs on `staging` and `main`. Those are the only two branches Vercel builds: `vercel.json` `ignoreCommand` ([`scripts/vercel-ignore.sh`](../../scripts/vercel-ignore.sh)) skips every other branch, so PRs get no preview deployment. The staging deployment still uses Vercel's *Preview* environment for its env vars.
 
-CI runs four required checks per PR: `Docs sync` (includes `scripts/audit-docs.sh`), `Lint, Typecheck & Test` (includes the RLS and API-auth coverage guards), `Build`, `Playwright E2E`.
+CI on every ready (non-draft) PR: `Docs sync` (includes `scripts/audit-docs.sh`), `Lint, Typecheck & Test` (includes the RLS and API-auth coverage guards), `Build`, `Keepalive & Alert Self-Test`. `Playwright E2E` and `Backup Pipeline Self-Test` ([`e2e.yml`](../../.github/workflows/e2e.yml)) run on pushes to `staging`/`main`, manual dispatch, or a PR labelled `e2e`; e2e is run locally before every PR that touches a user flow ([`docs/workflow/verify.md`](../workflow/verify.md)).
 
 ## Environment variables
 
@@ -31,12 +31,15 @@ Copy `.env.example` to `.env`. Names only below — values live in Vercel and in
 | `DOKU_CHECKOUT_VERSION` (`v1` \| `v2`; unset → `v1`) | — | `v1`² | `v1`² |
 | `NEXT_PUBLIC_APP_URL` | — | preview origin³ | production origin³ |
 | `CRON_SECRET` | — | `openssl rand -hex 32` | `openssl rand -hex 32` |
+| `SCHOOL_CONTACT_PHONE` (optional; omit → screens show a generic next step) | — | school number⁴ | school number⁴ |
 
 ¹ **`DIRECT_URL` is mandatory on Vercel.** The build runs `prisma migrate deploy`, which needs port 5432 — the 6543 pooler is PgBouncer transaction mode and does not support advisory locks.
 
 ² Stays `v1` until a DOKU notification is observed arriving — see [`payments-gateway.md`](payments-gateway.md).
 
 ³ **Per-environment, throws if missing.** It is the origin for payment-gateway return URLs when there is no request scope (reseed, cron). There is deliberately no silent production fallback.
+
+⁴ **Public school number, not a secret.** Read server-side by `lib/contact.ts` (`schoolContactPhone()`); shown to parents on the pendaftaran payment page, the pendaftaran message cards and the parent portal (invoice sheet, profile) as a WhatsApp/tel contact. Tenant and campus carry no phone column, so this env var is the single source.
 
 ## Related runbooks
 

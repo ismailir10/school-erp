@@ -69,6 +69,7 @@ describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
     expect(arg.data.childName).toBe("Aisyah");
     expect(arg.data.dcareAddon).toBe(true);
     expect("ayahData" in arg.data).toBe(false);
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes empty programId to null", async () => {
@@ -104,6 +105,15 @@ describe("PATCH — consentData and signatures", () => {
     expect(res.status).toBe(200);
     expect(writeConsent).toHaveBeenCalledWith("a", { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } });
     expect(update).not.toHaveBeenCalled(); // nothing else to write
+  });
+
+  it("strips the staff-recorded marker so a token holder cannot pre-seed it", async () => {
+    invited();
+    await PATCH(
+      req({ consentData: { agreed: true, staffRecorded: true, note: "Disetujui langsung di sekolah", by: "u-1", at: "2026-10-11T00:00:00.000Z" } }),
+      ctx,
+    );
+    expect(writeConsent.mock.calls[0][1]).toEqual({ agreed: true, ayah: {}, ibu: {} });
   });
 
   it("strips client-sent signatureToken/signedAt and forces ayah/ibu to objects", async () => {
@@ -183,5 +193,38 @@ describe("PATCH — consentData and signatures", () => {
     const res = await PATCH(req({ dcareAddon: true }), ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
+  });
+});
+
+describe("PATCH — the fee never gates or locks the draft (pay after submit)", () => {
+  const row = (fee: { status: string } | null) => ({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1", fee });
+
+  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])(
+    "a form whose fee is %s still saves the draft, program and Day Care included",
+    async (status) => {
+      // A fee row exists only for a formulir sent under the short-lived pay-first order (staging).
+      findUnique.mockResolvedValue(row(status ? { status } : null));
+      const res = await PATCH(
+        req({ programId: "c" + "a".repeat(24), dcareAddon: true, studentData: { childName: "Aisyah" }, ayahData: { name: "Ahmad" } }),
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(update.mock.calls[0][0].where).toEqual({ id: "a", status: "INVITED" });
+      expect(update.mock.calls[0][0].data).toMatchObject({
+        programId: "c" + "a".repeat(24),
+        dcareAddon: true,
+        studentData: { childName: "Aisyah" },
+        ayahData: { name: "Ahmad" },
+      });
+    },
+  );
+
+  it("an UNPAID fee does not stop the consent or a program change from being written", async () => {
+    findUnique.mockResolvedValue(row({ status: "UNPAID" }));
+    const res = await PATCH(req({ consentData: { agreed: true }, programId: "", dcareAddon: false }), ctx);
+    expect(res.status).toBe(200);
+    expect(writeConsent).toHaveBeenCalled();
+    expect(update.mock.calls[0][0].data).toEqual({ programId: null, dcareAddon: false });
   });
 });

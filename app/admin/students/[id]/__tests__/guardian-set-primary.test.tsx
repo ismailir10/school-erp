@@ -36,6 +36,7 @@ class ResizeObserverStub {
 function makeStudent(overrides: Record<string, unknown> = {}) {
   return {
     id: "s1",
+    canEdit: true,
     name: "Aisyah Putri",
     nickname: null,
     dateOfBirth: "2021-01-15",
@@ -142,6 +143,75 @@ describe("student dossier — Jadikan wali utama (T4)", () => {
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     toastError.mockClear();
     toastSuccess.mockClear();
+  });
+
+  it("keeps the dossier readable while hiding student and guardian mutations for a read-only admin", async () => {
+    const { fn, calls } = stubFetch(makeStudent({ canEdit: false }));
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(screen.getAllByText("Ibu Fatimah").length).toBeGreaterThan(0));
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ganti Foto" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tambah Field" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Jadikan .+ wali utama$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Unggah KK di halaman wali →" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Lihat data wali →" })).toBeInTheDocument();
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+  });
+
+  it.each([false, true])("empty sections give only permitted next steps (canEdit=%s)", async canEdit => {
+    const { fn } = stubFetch(makeStudent({ canEdit, guardians: [] }));
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+    await screen.findByRole("heading", { name: "Aisyah Putri" });
+    expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    expect(screen.getByText("Belum ada data wali")).toBeInTheDocument();
+    const instructions = [
+      /Klik “Ubah” untuk mengisi/,
+      /Klik “Tambah Field” untuk menambahkan/,
+      "Daftarkan siswa ke kelas melalui tombol di atas.",
+      "Tambahkan orang tua atau wali siswa.",
+      "Belum ada wali aktif — tambahkan wali untuk mengunggah KK.",
+    ];
+    for (const instruction of instructions) {
+      if (canEdit) expect(screen.getByText(instruction)).toBeInTheDocument();
+      else expect(screen.queryByText(instruction)).not.toBeInTheDocument();
+    }
+    if (!canEdit) {
+      expect(screen.getByText("Belum ada data kesehatan dan kelahiran.")).toBeInTheDocument();
+      expect(screen.getByText("Belum ada field tambahan.")).toBeInTheDocument();
+      expect(screen.getByText("Belum ada wali aktif.")).toBeInTheDocument();
+    }
+  });
+
+  it.each([403, 500])("shows the correct recovery for an invoice response of %s", async status => {
+    const user = userEvent.setup();
+    const { fn: fallback } = stubFetch(makeStudent());
+    let invoiceStatus = status;
+    let invoiceCalls = 0;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/invoices?")) {
+        invoiceCalls += 1;
+        return Promise.resolve({ ok: invoiceStatus === 200, status: invoiceStatus,
+          json: async () => invoiceStatus === 200 ? { data: [] } : { error: "Synthetic invoice response" },
+        } as Response);
+      }
+      return fallback(input, init);
+    }));
+    render(<StudentDetailPage />);
+    if (status === 403) {
+      expect(await screen.findByText("Anda tidak memiliki akses ke data tagihan.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Gagal memuat data tagihan.")).not.toBeInTheDocument();
+      expect(invoiceCalls).toBe(1);
+    } else {
+      expect(await screen.findByText("Gagal memuat data tagihan.")).toBeInTheDocument();
+      invoiceStatus = 200;
+      await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+      expect(await screen.findByText("Belum ada tagihan")).toBeInTheDocument();
+      expect(invoiceCalls).toBe(2);
+    }
   });
 
   it("confirms naming both guardians, then PUTs a bare isPrimary:true to the promoted guardian", async () => {

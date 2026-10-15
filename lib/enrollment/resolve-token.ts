@@ -9,6 +9,10 @@ import { isTokenExpired } from "./token";
  *   - NOT_FOUND  → bad/unknown token → render a generic non-leaking page
  *   - EXPIRED    → token past its 14d TTL → ask the parent to request a new link
  *   - SUBMITTED  → already filled (any status past INVITED) → thank-you page
+ *
+ * The pendaftaran fee never gates the form: it is paid after the parent submits,
+ * so an INVITED row is OK whether or not it already has a fee (a formulir sent
+ * under the short-lived pay-first order may hold an UNPAID one).
  */
 export type EnrollmentAccess = "OK" | "NOT_FOUND" | "EXPIRED" | "SUBMITTED";
 
@@ -47,6 +51,8 @@ export type ResolvedEnrollment = {
     ibuData: unknown;
     consentData: unknown;
     documents: unknown;
+    /** The lead behind it: only its status is read, for `isFeeClosed`. */
+    admission: { status: string } | null;
   } | null;
 };
 
@@ -106,6 +112,8 @@ export async function resolveEnrollmentToken(token: string, now: Date): Promise<
       ibuData: true,
       consentData: true,
       documents: true,
+      // Only so the pages can tell a cancelled lead (see `isFeeClosed`); one enum, no contact data.
+      admission: { select: { status: true } },
     },
   });
   if (!row) return { access: classifyEnrollmentAccess(null, now), tenantId: undefined, application: null };

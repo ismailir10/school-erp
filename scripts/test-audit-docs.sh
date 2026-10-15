@@ -23,7 +23,7 @@ for filename in files.decode().split('\0'):
         # Most audit checks need names/existence only. Copy content only for
         # documents, workflow scripts/config, and hooks the audit actually reads.
         if (filename in {"README.md", "CLAUDE.md", "docs/adrs/active.md"}
-                or filename.startswith((".claude/", ".githooks/", "scripts/"))):
+                or filename.startswith((".claude/", ".githooks/", "scripts/", "docs/workflow/"))):
             shutil.copy2(source, target)
         else:
             target.touch()
@@ -34,7 +34,7 @@ git init -q
 git add -f .
 # Model CI: no user plugin installation or configuration. Never change HOME.
 export AUDIT_SKILL_SETTINGS="$AUDIT_TEST_ROOT/no-user-settings.json"
-cp .claude/skills/build/SKILL.md build.original
+cp docs/workflow/build.md build.original
 cp .claude/skills/external-skill-registry.tsv registry.original
 expect_failure() {
   local name="$1" detail="$2"
@@ -48,14 +48,14 @@ expect_failure() {
     exit 1
   fi
   echo "ok: $name"
-  cp build.original .claude/skills/build/SKILL.md
+  cp build.original docs/workflow/build.md
   cp registry.original .claude/skills/external-skill-registry.tsv
 }
 bash scripts/audit-docs.sh > audit.out
 echo 'ok: clean tree validates declared references without host settings'
 python3 - <<'PY'
 from pathlib import Path
-p=Path('.claude/skills/build/SKILL.md')
+p=Path('docs/workflow/build.md')
 p.write_text(p.read_text().replace('superpowers:test-driven-development','suprpowers:test-driven-development'))
 PY
 expect_failure 'unknown plugin rejected in CI' 'suprpowers:test-driven-development(not-in-registry)'
@@ -67,11 +67,17 @@ PY
 expect_failure 'missing skill declaration rejected' 'superpowers:test-driven-development(not-in-registry)'
 python3 - <<'PY'
 from pathlib import Path
-p=Path('.claude/skills/build/SKILL.md')
+p=Path('docs/workflow/build.md')
 p.write_text(p.read_text().replace('`proxy.ts`','`untracked-proxy.ts`'))
 Path('untracked-proxy.ts').touch()
 PY
 expect_failure 'untracked artifact cannot satisfy standards path' 'no match on disk: untracked-proxy.ts'
+python3 - <<'PY2'
+from pathlib import Path
+p=Path('docs/workflow/build.md')
+p.write_text(p.read_text().replace('| Staged file glob | Load |','| Glob | Standard |').replace('| Frontend task touches | Also invoke |','| Touches | Invoke |'))
+PY2
+expect_failure 'missing load-on-demand table rejected' 'no load-on-demand table found in docs/workflow/build.md'
 printf '{invalid\n' > "$AUDIT_SKILL_SETTINGS"
 expect_failure 'invalid host settings rejected' '| Skill plugin settings | fail |'
 rm "$AUDIT_SKILL_SETTINGS"
@@ -87,4 +93,4 @@ for i,line in enumerate(lines):
 p.write_text(''.join(lines))
 PY
 expect_failure 'stderr guidance rejected' 'stderr-only assistant message in: scripts/check-role.sh'
-echo 'Summary: 6 audit regression checks passed'
+echo 'Summary: 7 audit regression checks passed'

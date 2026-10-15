@@ -238,3 +238,18 @@ describe("GET /api/enrollments/token/[token]/signature", () => {
     expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
   });
 });
+
+describe("signature — the fee never gates the pads (pay after submit)", () => {
+  // A fee row on an open form only exists for a formulir sent under pay-first (staging).
+  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])("POST is allowed with fee %s", async (status) => {
+    mockRow({ status: "INVITED", tokenExpiresAt: future, fee: status ? { status } : null } as never);
+    expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
+    expect(mergeJsonKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET reads the saved-signature status with an UNPAID fee", async () => {
+    mockRow({ status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } } as never);
+    expect((await GET(getReq(), ctx)).status).toBe(200);
+    expect(findUnique).toHaveBeenCalledTimes(2);
+  });
+});

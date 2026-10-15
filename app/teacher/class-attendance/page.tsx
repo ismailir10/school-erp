@@ -157,7 +157,6 @@ export default function ClassAttendancePage() {
     } finally { if (requestId === rosterRequestId.current) setLoadingRoster(false); }
   }, [selectedClass, date]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (selectedClass) loadStudents(); }, [selectedClass, date, loadStudents]);
 
   // Save feedback: one live status line for the page, plus an inline error on

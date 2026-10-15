@@ -43,7 +43,11 @@ const baseInvoice = {
   status: "PARTIALLY_PAID",
   xenditPaymentUrl: null as string | null,
   paymentLinkError: null,
-  student: { name: "Ahmad", nickname: null, guardians: [] },
+  student: {
+    name: "Ahmad",
+    nickname: null,
+    guardians: [] as Array<{ parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }>,
+  },
   lines: [],
   payments: [] as Array<Record<string, unknown>>,
 };
@@ -93,6 +97,7 @@ async function openDialog() {
 
 describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
   afterEach(() => {
+    sessionStorage.clear();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -135,6 +140,7 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
     const [, postInit] = posts(fetchMock)[0];
     expect(JSON.parse((postInit as RequestInit).body as string)).toEqual({
+      idempotencyKey: expect.any(String),
       amount: 600000, // totalDue (1,000,000) - totalPaid (400,000)
       method: "CASH",
       reference: "TRX-001",
@@ -142,6 +148,37 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
       paidAt: TODAY, // FINX-9: defaults to today (Asia/Jakarta)
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pembayaran dicatat"));
+  });
+
+  it("keeps the attempt key after a lost response and starts a fresh key after success", async () => {
+    const fetchMock = fixture();
+    const original = fetchMock.getMockImplementation()!;
+    let loseResponse = true;
+    fetchMock.mockImplementation((input: string, init?: RequestInit) => {
+      if (input.endsWith("/payments") && init?.method === "POST" && loseResponse) {
+        loseResponse = false;
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return original(input, init);
+    });
+    render(<InvoiceDetailPage />);
+    const dialog = await openDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Catat Rp 600.000" }));
+    await within(dialog).findByText(/Hasil pencatatan belum dapat dipastikan/);
+    const body = (index: number) => JSON.parse(posts(fetchMock)[index][1]!.body as string);
+    const firstKey = body(0).idempotencyKey;
+    expect(sessionStorage.getItem("manual-payment-attempt:inv-1")).toBe(firstKey);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Catat Rp 600.000" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(body(1).idempotencyKey).toBe(firstKey);
+    expect(sessionStorage.getItem("manual-payment-attempt:inv-1")).toBeNull();
+    const next = await openDialog();
+    fireEvent.click(within(next).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(next).findByRole("button", { name: "Catat Rp 600.000" }));
+    await waitFor(() => expect(posts(fetchMock)).toHaveLength(3));
+    expect(body(2).idempotencyKey).not.toBe(firstKey);
   });
 
   it("FINX-9: 'Tanggal bayar' defaults to today, caps at today, and a back-dated choice reaches the review and the POST", async () => {
@@ -429,5 +466,71 @@ describe("InvoiceDetailPage — ?bayar=1 auto-opens Catat Pembayaran (R2-ADMIN-1
     render(<InvoiceDetailPage />);
     await screen.findByText("Total Tagihan");
     expect(screen.queryByRole("dialog", { name: "Catat Pembayaran" })).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — WhatsApp reminder to the wali", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const withGuardian = (parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null }) => ({
+    student: { name: "Ahmad", nickname: null, guardians: [{ parent }] },
+  });
+  const ibu = { name: "Siti", phone: null, email: null, whatsapp: "0812-3456-7890" };
+
+  it("an outstanding invoice offers Chat WhatsApp on the wali's number with the reminder written", async () => {
+    fixture({ invoice: { status: "OVERDUE", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(wa).toHaveAttribute("target", "_blank");
+    expect(wa.getAttribute("rel")).toContain("noopener");
+    expect(wa).toHaveAccessibleName("Chat WhatsApp: ingatkan Siti soal tagihan ini");
+    const href = wa.getAttribute("href")!;
+    expect(href.startsWith("https://wa.me/6281234567890?text=")).toBe(true);
+    const text = decodeURIComponent(href.split("?text=")[1]);
+    expect(text).toContain("Bapak/Ibu Siti");
+    expect(text).toContain("ananda Ahmad");
+    expect(text).toContain("INV-2026-001");
+    // totalDue 1.000.000 − totalPaid 400.000: what is LEFT, not the total.
+    expect(text).toContain("600.000");
+  });
+
+  it("puts the DOKU payment link in the message when the invoice has one", async () => {
+    fixture({ invoice: { status: "SENT", totalPaid: 0, xenditPaymentUrl: "https://doku.example/pay/abc", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(decodeURIComponent(wa.getAttribute("href")!.split("?text=")[1])).toContain("https://doku.example/pay/abc");
+  });
+
+  it("without a payment link the message points to the parent portal", async () => {
+    fixture({ invoice: { status: "SENT", totalPaid: 0, xenditPaymentUrl: null, ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(decodeURIComponent(wa.getAttribute("href")!.split("?text=")[1])).toContain("/parent/invoices");
+  });
+
+  it("falls back to the wali's phone when there is no WhatsApp number", async () => {
+    fixture({ invoice: { status: "OVERDUE", ...withGuardian({ ...ibu, whatsapp: null, phone: "0813-9999-0000" }) } });
+    render(<InvoiceDetailPage />);
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(wa.getAttribute("href")).toContain("https://wa.me/6281399990000?text=");
+  });
+
+  it("with no usable number it says so instead of offering a dead button", async () => {
+    fixture({ invoice: { status: "OVERDUE", ...withGuardian({ ...ibu, whatsapp: null, phone: "123" }) } });
+    render(<InvoiceDetailPage />);
+    expect(await screen.findByText(/Belum ada nomor WhatsApp wali/)).toBeInTheDocument();
+    expect(screen.queryByTestId("invoice-whatsapp-reminder")).not.toBeInTheDocument();
+  });
+
+  it.each(["PAID", "CANCELLED", "DRAFT"])("a %s invoice has nothing to chase", async (status) => {
+    fixture({ invoice: { status, totalPaid: status === "PAID" ? 1000000 : 0, ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Kontak Wali");
+    expect(screen.queryByTestId("invoice-whatsapp-reminder")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Belum ada nomor WhatsApp wali/)).not.toBeInTheDocument();
   });
 });

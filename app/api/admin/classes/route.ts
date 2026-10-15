@@ -29,8 +29,7 @@ import {
 } from "./_helpers";
 
 const JAKARTA_TZ = "Asia/Jakarta";
-const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-type WeekdayCode = (typeof WEEKDAY_CODES)[number];
+type WeekdayCode = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
 
 function todayInJakarta(): { ymd: string; weekday: WeekdayCode } {
   const fmt = new Intl.DateTimeFormat("en-CA", {

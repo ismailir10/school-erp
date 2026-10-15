@@ -1,159 +1,67 @@
 ---
 name: build
-description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Use after /spec has created a cycle doc and the user has approved its Spec.
+description: Second stage of spec → build → verify-local → ship. Executes the approved work record one task at a time — plan the fan-out, implement a slice, test it, gate, two-axis review, simplify, update the record, commit — then runs verify-local until the work meets the proud bar. Use after the spec is approved.
 ---
 
-# /build — build + test + review, looping over tasks
+<!-- Vendored from agent-workflow@0775c1f by scripts/sync-agent-workflow.sh. Do not edit here: change it upstream and re-sync. Repo specifics belong in AGENTS.md § Repo profile and docs/workflow/. -->
 
-You are executing the tasks from the current cycle doc. This is a **per-task loop**, not a monolithic build. Each task produces its own commit, with per-task gate enforcement and per-task doc updates.
+# Build
 
-## Preflight
+Input: an approved work record. Output: a clean branch, one commit per task, that has passed `verify-local`.
+Nothing pushed (that is `ship`).
 
-1. **Session role set?** Check `.claude/session-role`. If missing, stop and ask the user.
-2. **Worktree isolation?** If `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` you are in the main checkout, not a worktree. Stop — you should have been in a worktree since `/spec`. See `/spec` preflight step 2 for the commands.
-3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
-4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
-5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
-6. **Base branch fresh?** Run `git fetch origin staging` and `git rev-list --count $(git merge-base HEAD origin/staging)..origin/staging`. If the count is >5, stop and tell the user: *"This cycle branch is behind origin/staging by <N> commits. Rebase before building: `git fetch origin staging && git rebase origin/staging`."* Do not proceed until the user resolves. This prevents shipping a PR built on a stale base that will conflict at merge time.
+Read `working-principles` first if you have not this session. Then read `docs/workflow/build.md` if it exists: its
+sections extend the matching steps below.
 
-## Planning — model-tiered subagent dispatch
+## 1. Preflight
 
-**The expensive-tier driver never does cheap work.** As the driver you reason — decompose, review, synthesize, decide. Dirty work (file reads, grep/glob sweeps, per-module audits, mechanical edits, scaffolding, fixtures, single pre-specced slices) is delegated to a dirty-work-tier subagent.
+1. The record is approved and has unchecked tasks. If not → `spec`.
+2. You are in the work's own worktree and branch, the tree is clean, and the branch is at most 5 commits behind the
+   freshly fetched base (otherwise rebase first).
+3. The repo profile's **Setup** has run (deps installed, local database migrated and seeded).
 
-Which model is the driver and which is the dirty-work tier for your harness lives in **CLAUDE.md § Harness Roster & Model Tiering** — read it there. This file used to restate that table and had drifted a full model generation out of date, so it no longer keeps a copy.
+## 2. Plan the fan-out
 
-**Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:
+Classify the tasks: independent (no shared files, no ordering) → parallel workers, one each; sequential → still one
+worker per slice, the driver sequences and reviews. Do a task inline only when a worker would need the whole plan as
+context or the fan-out costs more than it saves, and say why.
 
-- **Independent tasks** (no shared files, no sequential deps) → dispatch in **parallel** via dirty-work-tier subagents, one per independent unit. A per-module audit = one subagent per module.
-- **Sequential tasks** (shared state, ordering matters) → still delegate the *implementation* of each slice to a dirty-work-tier subagent; the driver only sequences + reviews.
+Record the plan before starting, as the first Implementation bullet (cycle doc) or a comment on the issue:
+`- Plan: T[..] parallel, T[..] sequential, T[..] inline (why).` Add the driver and worker tiers if the repo profile asks for them.
 
-The driver reads the subagents' distilled output, not the raw files — that is the token-efficiency contract. Implementing a fully specced slice yourself on the reasoning tier is a rule violation.
+## 3. For each task
 
-Record the plan as a bullet in the cycle doc's `## Implementation` before starting:
-`- Subagent plan: driver=<model>, dirty-work=<model>; tasks [N,M] parallel, tasks [X,Y,Z] sequential.`
+1. **Load context.** Only the files the task needs, plus every rule file the profile's **Load on demand** table maps
+   to those files. Load the union of matches and re-check per task.
+2. **Check docs** for any library or framework API you are not sure of, before writing against it.
+3. **Implement** one vertical slice. No drive-by refactors.
+4. **Test it** at the seams the record names: one failing test → minimal code → green, then refactor. For UI with no
+   automated seam, drive the real page in a browser and look at a screenshot.
+5. **Task gate** (profile → **Task gate**). Red → find the root cause, fix, re-run. Never move on red.
+6. **Review on two axes, in parallel** (two reviewer workers on the task's diff, reports kept separate):
+   - **Standards** — `working-principles`, the repo's rules for the files touched, and baseline smells (duplication,
+     dead code, long functions, leaky abstractions, needless complexity). Repo rules win over the baseline.
+   - **Spec** — the diff against the record: missing acceptance criteria, scope creep, contradicted decisions. Each
+     finding quotes the record line.
+   Add a **security** reviewer when the diff touches the profile's **Sensitive paths**. Fix real findings, re-run the
+   gate, re-review. Note low-confidence nits; they don't block.
+7. **Simplify** the diff without changing behavior: remove accidental complexity, collapse duplication, reuse helpers.
+8. **Update the record:** tick the task; add `- T<n>: <files> — <summary>` to Implementation (cycle doc) or the PR
+   notes you are collecting (issue).
+9. **Commit** one commit for the task, in the profile's commit style, referencing the record.
 
-If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), or the tasks are interlocking prose edits where a subagent would need the whole plan as context, note that explicitly in the bullet **with the reason** and proceed inline — but that is the exception, not the default. `/ship` preflight rejects a cycle doc with no `Subagent plan:` bullet at all.
+## 4. After the last task
 
-## The task loop
-
-For each unchecked task in the cycle doc's `## Tasks` section, in order:
-
-### 1. Load context
-Read only the files this task needs — nothing "while you're in there". Check prior cycles in `docs/cycles/` if the area was recently touched.
-
-**Domain standards — load on demand.** For each task, identify which `.claude/standards/*.md` files the task's file list matches and read them before implementing. Load the **union** of matches — not the most specific — and re-check on every task (a previous task's loads do not carry forward).
-
-| Staged file glob | Load |
-|---|---|
-| `components/**`, `app/*/page.tsx`, `lib/format.ts` | `.claude/standards/ui.md` |
-| `app/api/**`, `lib/validations/**`, `proxy.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
-| `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
-| `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
-| `app/globals.css` (the `@theme` block), className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
-| `lib/auth*`, `lib/supabase/**`, `proxy.ts` | **+** `.claude/standards/security.md` |
-
-If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
-
-**Interface-craft skills — same on-demand rule, frontend tasks only.** For any task with a frontend diff, invoke the matching vendored `better-*` skills alongside the standards above. See CLAUDE.md **§ Standards → Interface-craft skills** for what each owns.
-
-| Frontend task touches | Also invoke |
-|---|---|
-| `components/**`, `components/ui/**`, hover/focus/active/loading/empty states, transitions or keyframes | `better-ui` |
-| Any text styling — font config, type scale, headings, number/table cells, truncation, `text-wrap` | `better-typography` |
-| `app/globals.css` (the `@theme` block), arbitrary-color classNames | `better-colors` (with `colors.md`) |
-| `components/ui/**`, any Dialog/Sheet/Popover/Menu/custom widget, any form | `better-accessibility` |
-| `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — page/component structure | `better-layout` (with `patterns.md`) |
-| Any user-facing copy | `better-writing` (with `voice.md`) |
-
-**Conflict rule:** `.claude/standards/*` + `design-system.html` win over any `better-*` principle. Use the skill where the project standard is silent; never to contradict it. Do not edit `.claude/skills/better-*` — vendored, see `.claude/skills/VENDORED.md`.
-
-### 2. Verify against official docs (when relevant)
-If the task uses a framework, library, or API whose current behavior you're not 100% sure of:
-- Fetch the current docs through the **Context7 MCP** before writing against the API.
-- Never guess API shapes. Ground every non-trivial decision in a source.
-
-### 3. Implement the slice
-- One vertical slice, one test, one concern per task.
-- Touch only files the task requires. No orthogonal "cleanup".
-
-The domain rules for what you are touching are the `.claude/standards/*` files Step 1 already
-told you to load — `ui.md` + `patterns.md` for components and pages, `api.md` for route handlers,
-`security.md` for anything auth, tenant, or role. Read them there; do not re-derive them here.
-
-### 4. Test the slice
-Apply **`superpowers:test-driven-development`**:
-- Write a test that proves the slice works. Prefer failing-first when practical.
-- For UI, drive the real page through the **Playwright MCP** where a unit test cannot reach it.
-
-### 5. Run gates
-```bash
-npm run build && npx vitest run
-```
-If either fails, apply **`superpowers:systematic-debugging`**:
-- Read the error. Diagnose the root cause. Don't retry blindly.
-- Fix and re-run gates until they pass.
-
-Do **not** move to the next task until this task's gates pass.
-
-### 6. Review and simplify (mandatory agent pass)
-
-Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the task's staged diff. Prompt must include: task title, files touched, cycle doc path. Agent returns high-confidence issues only.
-
-- **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
-- **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
-
-Then do a simplification pass on the diff: remove accidental complexity, collapse duplicated branches, prefer existing helpers, and keep behavior unchanged. If this harness has an installed simplification skill, use it; otherwise perform the pass inline and record any simplification in the cycle doc.
-
-For security-sensitive diffs (`app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
-
-### 7. Update the cycle doc
-Edit the cycle doc:
-- Mark the task's checkbox complete.
-- Append a bullet to `## Implementation`: `- Task N: <title> — <files touched> — <one-line summary>`
-- Append a bullet to `## Verification`: `- Task N: gates passed (build + vitest run), <manual smoke notes if any>`
-
-Do not create any other markdown file.
-
-**JTBD library maintenance:** If this task added, removed, or materially changed a user-facing capability in admin/teacher/parent portal, update the relevant `docs/uat/jobs/<portal>.md`. Add, remove, or edit affected JTBD entries. Bump the "Last audited" date. This is manual discipline — no hook enforces it, but stale jobs make `/uat` produce stale reports.
-
-### 8. Commit
-Create **one commit for this task**. Subject starts with the task title. Body is brief — the cycle doc has the details. The `prepare-commit-msg` hook auto-appends `Model-Trailer`, `Role`, and `Co-Authored-By` — do NOT include them in the HEREDOC; duplicating them creates doubled trailers in the final commit:
-
-```bash
-git add <files-touched> docs/cycles/<current-cycle>.md
-git commit -m "$(cat <<'EOF'
-<type>(<scope>): <task title>
-
-<short body referencing the cycle doc if needed>
-
-Cycle: docs/cycles/<current-cycle>.md
-EOF
-)"
-```
-
-Then move to the next task.
-
-## After the last task
-
-1. Run the full gates one final time: `npm run build && npx vitest run`. Apply **`superpowers:verification-before-completion`**: paste the real tail of the output into `## Verification`, never a remembered or predicted result. This applies doubly to a subagent's report — a subagent has claimed "N pre-existing failures" that did not exist. Re-run anything a subagent says passed before you record it.
-1b. **Record Playwright status in `## Verification`** (`/ship` Step 1a requires it). Run `npx playwright test` if this harness can; record the pass. If the environment cannot run Playwright locally (no browsers, staging-only `DATABASE_URL`, Turbopack symlink issue, CI-only deps), record the deferral instead — the required CI `Playwright E2E` check gates the merge:
-   ```markdown
-   - Playwright: local run deferred to CI (env cannot execute it — <reason>).
-     Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
-   ```
-2. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
-   - Database migrations to run
-   - New env vars
-   - Signed-in flows the staging deployment must pass after merge (auth-impacting changes only — there are no PR previews)
-   - Rollback plan if the change is risky
-3. Commit the Ship Notes update as the final commit of the cycle.
-4. Hand off to `/ship`.
+1. Run **`verify-local`** in full. This is not optional and not deferrable to CI. Iterate until it passes the proud bar
+   or hits its stop rule.
+2. If a user-facing capability, route, env var or setup step changed, update the docs the profile names in the same
+   branch.
+3. Fill **Ship Notes**: migrations, env vars, manual steps, post-merge checks, rollback path. Commit.
+4. Continue straight into `ship`, carrying forward: record, branch, commits, the verify-local evidence block, and every
+   judgment call made (for **Decisions made**).
 
 ## Rules
 
-- **One commit per task.** Not one per cycle. Commits carry the task title.
-- **Gates must pass between tasks.** No "I'll fix it in the next task" — fix it now.
-- **Cycle doc is the only markdown you touch.** If you feel the urge to create `NOTES.md`, resist — the pre-commit hook will reject it anyway.
-- **Scope discipline.** Touch only what the tasks require. Don't refactor adjacent code.
-- **If the spec is wrong, stop.** Don't silently adjust the spec — ask the user or update `/spec`'s output.
-- **No commit without a code-reviewer pass.** Every task commit must be preceded by a `feature-dev:code-reviewer` agent pass on the staged diff. Security-sensitive diffs require `superpowers:code-reviewer` too. Unreviewed commits violate the workflow and must be amended.
+- One commit per task; gates pass between tasks; no "fix it in the next task".
+- If the spec turns out wrong, stop and say so. Don't silently re-scope.
+- A new dependency, unplanned migration or auth/PII change re-opens the gate.

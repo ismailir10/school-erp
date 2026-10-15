@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("TeacherMoreSheet", () => {
-  it("exposes the three lower-frequency teacher destinations", () => {
+  it("exposes the four lower-frequency teacher destinations", () => {
     navigation.pathname = "/teacher";
     render(<TeacherMoreSheet open onOpenChange={() => {}} />);
 
@@ -22,6 +22,17 @@ describe("TeacherMoreSheet", () => {
         item.href,
       );
     }
+  });
+
+  it("lists the product tour, which lives outside the teacher portal", () => {
+    navigation.pathname = "/teacher";
+    render(<TeacherMoreSheet open onOpenChange={() => {}} />);
+
+    const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
+    const tour = within(menu).getByRole("link", { name: /^Panduan Talib/ });
+    expect(tour).toHaveAttribute("href", "/panduan");
+    // /panduan is not under /teacher, so it never reads as the current page from a teacher route.
+    expect(tour).not.toHaveAttribute("aria-current");
   });
 
   it("marks the salary row current for a nested salary-slip route", () => {

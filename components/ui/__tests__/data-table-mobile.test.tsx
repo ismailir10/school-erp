@@ -8,7 +8,7 @@ type Row = { name: string; createdAt: string };
 
 // T1 (cycle 2026-09-26, admin-ui-standard-c1) — the DataTable mobile
 // contract: a `meta.priority: "low"` column hides below `md`, and the
-// row-actions column (id "actions") sticks to the right edge below `md`.
+// row-actions column (id "actions") sticks to the right edge when the table overflows.
 const columns: LegacyColumnDef<Row>[] = [
   {
     accessorKey: "name",
@@ -53,20 +53,23 @@ describe("DataTable mobile contract", () => {
     expect(namaHeader).not.toHaveClass("hidden");
   });
 
-  it("makes the actions column (id: \"actions\") sticky on the right below md", () => {
+  it("makes the actions column (id: \"actions\") sticky on the right at mobile, tablet and desktop widths", () => {
     render(<DataTable columns={columns} data={data} />);
 
     const headerRow = screen.getAllByRole("row")[0];
     const actionsHeader = headerRow.querySelectorAll("th")[2];
     expect(actionsHeader).toHaveClass("sticky");
     expect(actionsHeader).toHaveClass("right-0");
-    expect(actionsHeader).toHaveClass("md:static");
+    expect(actionsHeader).not.toHaveClass("md:static");
+    expect(actionsHeader).not.toHaveClass("lg:static");
+    expect(actionsHeader).toHaveClass("bg-muted");
 
     const bodyRow = screen.getAllByRole("row")[1];
     const actionsCell = bodyRow.querySelectorAll("td")[2];
     expect(actionsCell).toHaveClass("sticky");
     expect(actionsCell).toHaveClass("right-0");
-    expect(actionsCell).toHaveClass("md:static");
+    expect(actionsCell).not.toHaveClass("md:static");
+    expect(actionsCell).not.toHaveClass("lg:static");
   });
 
   it("also hides low-priority columns and stickies the actions column in the loading skeleton, so layout doesn't jump", () => {

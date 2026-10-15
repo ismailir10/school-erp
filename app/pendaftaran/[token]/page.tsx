@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/db";
+import { getProgramFees } from "@/lib/enrollment/fee-config";
+import { getPublicFeeView } from "@/lib/enrollment/fee-view";
 import { resolveEnrollmentToken } from "@/lib/enrollment/resolve-token";
+import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import { missingRequiredDocuments, toPublicDocuments, type DocumentKey } from "@/lib/enrollment/documents";
 import { getRequiredDocuments } from "@/lib/enrollment/required-documents";
 import { schoolContactPhone } from "@/lib/contact";
+import { SchoolHero } from "@/components/brand/school-photos";
 import PendaftaranClient from "./client";
 import { MessageCard } from "./message-card";
 import { BringList, withoutWaivedParentDocs } from "./bring-list";
+import { PaymentPanel } from "./payment-panel";
+import { Shell } from "./shell";
 
 export const metadata: Metadata = {
   title: "Formulir Pendaftaran Murid Baru", // root layout template appends " · Talib"
@@ -14,13 +19,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }, // tokenized — keep out of search
 };
 
-async function getActivePrograms() {
+/**
+ * ACTIVE programs of THIS application's tenant, with their pendaftaran fee for
+ * the Tinjau breakdown. Tenant-scoped (the lookup used to list every tenant's
+ * programs); the server re-prices on submit, so a stale number here is only a
+ * display matter.
+ */
+async function getActivePrograms(tenantId: string | undefined) {
+  if (!tenantId) return [];
   try {
-    return await prisma.program.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    });
+    return await getProgramFees(tenantId);
   } catch (err) {
     console.error("[pendaftaran/page] program lookup failed", err);
     return [];
@@ -48,26 +56,14 @@ function toPublicConsent(raw: unknown) {
   return { agreed: c.agreed === true, version, onlyParent, ayah: side(c.ayah), ibu: side(c.ibu) };
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="min-h-screen bg-[#f4f6f3]">
-      <header className="border-b border-emerald-900/10 bg-white">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-5 py-4">
-          <div
-            aria-hidden
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0C5C3F] text-base font-semibold text-white"
-          >
-            T
-          </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-base font-semibold text-[#0C5C3F]">Talib</span>
-            <span className="text-xs text-emerald-900/70">by An Nisaa&apos; Sekolahku</span>
-          </div>
-        </div>
-      </header>
-      <div className="mx-auto max-w-2xl px-5 py-8 sm:py-12">{children}</div>
-    </main>
-  );
+/** The application's fee for the thank-you card. A failed read must never hide the card itself. */
+async function loadFee(applicationId: string) {
+  try {
+    return await getPublicFeeView(applicationId);
+  } catch (err) {
+    console.error("[pendaftaran/page] fee lookup failed", err);
+    return null;
+  }
 }
 
 async function getRequired(tenantId: string | undefined): Promise<DocumentKey[]> {
@@ -117,12 +113,24 @@ export default async function PendaftaranTokenPage({
   }
 
   if (access === "SUBMITTED" || !application) {
+    const fee = application ? await loadFee(application.id) : null;
     return (
       <Shell>
         <MessageCard
           title="Formulir sudah diterima"
           body="Jazakumullah khairan. Formulir pendaftaran ananda sudah kami terima. Tim penerimaan akan menghubungi Bapak/Ibu untuk proses selanjutnya."
         >
+          {/* The pendaftaran fee, wherever it stands: unpaid parents land back on the way to pay. */}
+          {application && fee && (
+            <div className="mt-5">
+              <PaymentPanel
+                token={token}
+                childName={application.childName}
+                fee={fee}
+                closed={isFeeClosed(application)}
+              />
+            </div>
+          )}
           {/* Same checklist as the just-submitted card; it shrinks as staff mark documents received. */}
           <BringList
             keys={
@@ -140,17 +148,18 @@ export default async function PendaftaranTokenPage({
   }
 
   const [programs, requiredDocuments] = await Promise.all([
-    getActivePrograms(),
+    getActivePrograms(tenantId),
     getRequired(tenantId),
   ]);
 
   return (
     <Shell>
+      <SchoolHero variant="slim" />
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-semibold text-emerald-950 sm:text-3xl">
+        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
           Formulir Pendaftaran Murid Baru
         </h1>
-        <p className="mt-2 text-sm text-emerald-900/70 sm:text-base">
+        <p className="mt-2 text-sm text-muted-foreground sm:text-base">
           Assalamu&apos;alaikum, Bapak/Ibu. Mohon lengkapi data ananda, data orang tua, dan surat
           persetujuan di bawah ini. Data tersimpan otomatis — Bapak/Ibu dapat melanjutkan nanti
           melalui tautan yang sama.

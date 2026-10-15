@@ -46,12 +46,3 @@ export const CONSENT_CLAUSES: readonly string[] = [
 ] as const;
 
 export const CONSENT_CLAUSE_COUNT = CONSENT_CLAUSES.length; // 17
-
-/**
- * 0-based index of the photo/video clause. It is the last clause, so it is
- * derived from the length (the form renders it distinct from the others).
- * The test pins the wording, so appending a later clause without moving this
- * fails loudly instead of highlighting the wrong item.
- */
-export const PHOTO_CLAUSE_INDEX = CONSENT_CLAUSES.length - 1; // 16
-export const PHOTO_CLAUSE_TITLE = "Foto & video kegiatan";
