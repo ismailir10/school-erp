@@ -23,8 +23,10 @@ export type AdmissionColumnHandlers = {
   /** Opens the lead dialog pre-filled (row click without a formulir, and the "Ubah data pertanyaan" item). */
   onEdit: (a: Admission) => void;
   onCancelRequest: (a: Admission) => void;
-  /** Opens "Kirim formulir" (first send, or a resend while the stage is FORMULIR_DIKIRIM). */
+  /** "Kirim Formulir" is one tap: sends the invite (first send, or a resend while the stage is FORMULIR_DIKIRIM). */
   onSend: (a: Admission) => void;
+  /** The leads whose formulir is being sent right now; their send buttons show a pending state. */
+  sendingIds?: readonly string[];
 };
 
 /** Pembayaran: the fee's status; "—" when there is no fee row. */
@@ -89,7 +91,7 @@ function IdentityCell({ admission: a, canEdit, onEdit }: { admission: Admission;
   );
 }
 
-export function createAdmissionColumns({ canEdit, onEdit, onCancelRequest, onSend }: AdmissionColumnHandlers): ColumnDef<Admission>[] {
+export function createAdmissionColumns({ canEdit, onEdit, onCancelRequest, onSend, sendingIds = [] }: AdmissionColumnHandlers): ColumnDef<Admission>[] {
   return [
     {
       accessorKey: "childName",
@@ -172,6 +174,7 @@ export function createAdmissionColumns({ canEdit, onEdit, onCancelRequest, onSen
           admission={row.original}
           canEdit={canEdit}
           onSend={onSend}
+          sending={sendingIds.includes(row.original.id)}
           onEdit={onEdit}
           onCancelRequest={onCancelRequest}
         />

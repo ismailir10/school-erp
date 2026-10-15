@@ -120,8 +120,3 @@ export const UNPAID_WHERE: Prisma.AdmissionWhereInput = {
     { enrollmentApplication: { is: { status: { not: "REJECTED" }, fee: { is: { status: "UNPAID" } } } } },
   ],
 };
-
-/** "Menunggu bayar" stat: a formulir that was sent and whose fee is still UNPAID. */
-export const MENUNGGU_BAYAR_WHERE: Prisma.AdmissionWhereInput = {
-  AND: [stageWhere("FORMULIR_DIKIRIM"), { enrollmentApplication: { is: { fee: { is: { status: "UNPAID" } } } } }],
-};

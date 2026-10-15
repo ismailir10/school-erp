@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveStage, stageWhere, UNPAID_WHERE, MENUNGGU_BAYAR_WHERE, FORMULIR_STAGE, STAGES, type Stage } from "./stage";
+import { deriveStage, stageWhere, UNPAID_WHERE, FORMULIR_STAGE, STAGES, type Stage } from "./stage";
 
 type Fixture = {
   name: string;
@@ -121,35 +121,6 @@ describe("FORMULIR_STAGE (the single status -> stage map)", () => {
   it("an inherited property name is not a status", () => {
     expect(deriveStage(lead("INQUIRY"), app("constructor"))).toBe("BARU");
     expect(deriveStage(lead("INQUIRY"), app("toString"))).toBe("BARU");
-  });
-});
-
-describe("MENUNGGU_BAYAR_WHERE (stat: sent formulir, fee unpaid)", () => {
-  const menunggu = (appStatus: string, fee: string | null, leadStatus = "INQUIRY") =>
-    matches(
-      toRow({ name: "x", admission: lead(leadStatus), application: app(appStatus, { fee: fee ? { status: fee } : null }), stage: "BARU" }),
-      MENUNGGU_BAYAR_WHERE as Record<string, unknown>,
-    );
-
-  it.each([
-    ["INVITED", "UNPAID", true],
-    ["INVITED", "PAID", false],
-    ["INVITED", "WAIVED", false],
-    ["INVITED", null, false],
-    ["SUBMITTED", "UNPAID", false],
-    ["SUBMITTED", "PAID", false],
-    ["SUBMITTED", null, false],
-    ["REJECTED", "UNPAID", false],
-  ])("%s with fee %s -> %s", (appStatus, fee, expected) => {
-    expect(menunggu(appStatus, fee)).toBe(expected);
-  });
-
-  it("a cancelled lead is not waiting for payment", () => {
-    expect(menunggu("INVITED", "UNPAID", "CANCELLED")).toBe(false);
-  });
-
-  it("a lead without a formulir is not waiting for payment", () => {
-    expect(matches(toRow({ name: "x", admission: lead("INQUIRY"), application: null, stage: "BARU" }), MENUNGGU_BAYAR_WHERE as Record<string, unknown>)).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageCircle, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { Loader2, MessageCircle, MoreHorizontal, Pencil, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import type { Admission } from "./types";
  * 2026-10-11-pendaftaran-simplify): one visible primary action that moves the family
  * forward, and an overflow menu for the rest.
  *
- *   BARU              Kirim Formulir
+ *   BARU              Kirim Formulir            (one tap: posts the invite, opens the link card)
  *   FORMULIR_DIKIRIM  Kirim ulang tautan        (menu: Ingatkan bayar when it can be sent)
  *   FORMULIR_MASUK    Buka formulir             (the detail page holds Terima & Jadikan Siswa)
  *   DITERIMA, DITOLAK Buka formulir
@@ -86,13 +86,15 @@ export function rowLabel(a: Pick<Admission, "childName" | "parentName">): string
 export type AdmissionRowActionsProps = {
   admission: Admission;
   canEdit: boolean;
-  /** Opens "Kirim formulir" (first send, or a resend for FORMULIR_DIKIRIM). */
+  /** Sends the formulir in one tap (first send, or a resend for FORMULIR_DIKIRIM). */
   onSend: (a: Admission) => void;
+  /** This row's invite is in flight: the button shows a spinner (label unchanged; the page announces it) and ignores taps. */
+  sending?: boolean;
   onEdit: (a: Admission) => void;
   onCancelRequest: (a: Admission) => void;
 };
 
-export function AdmissionRowActions({ admission: a, canEdit, onSend, onEdit, onCancelRequest }: AdmissionRowActionsProps) {
+export function AdmissionRowActions({ admission: a, canEdit, onSend, sending = false, onEdit, onCancelRequest }: AdmissionRowActionsProps) {
   const plan = planRowActions(a, canEdit);
   const label = rowLabel(a);
   const hasMenu = plan.canEditLead || plan.reminderHref !== null;
@@ -108,11 +110,17 @@ export function AdmissionRowActions({ admission: a, canEdit, onSend, onEdit, onC
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 px-2.5 text-xs [@media(pointer:coarse)]:min-h-11"
+          className="h-8 px-2.5 text-xs aria-disabled:cursor-not-allowed aria-disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
           aria-label={`${plan.primary.label}: ${label}`}
           data-admission-primary={a.id}
-          onClick={() => onSend(a)}
+          // aria-disabled, not disabled: the button keeps focus while the invite is sent.
+          aria-disabled={sending || undefined}
+          aria-busy={sending || undefined}
+          onClick={() => {
+            if (!sending) onSend(a);
+          }}
         >
+          {sending ? <Loader2 aria-hidden className="motion-safe:animate-spin" /> : null}
           {plan.primary.label}
         </Button>
       )}

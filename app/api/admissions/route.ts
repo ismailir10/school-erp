@@ -9,12 +9,12 @@ import { hasPermission } from "@/lib/permissions";
 import { detectSibling } from "@/lib/admission/sibling-detect";
 import { recordAudit } from "@/lib/audit";
 import { programInTenant, PROGRAM_NOT_FOUND } from "@/lib/admission/program-scope";
-import { deriveStage, isStage, stageWhere, UNPAID_WHERE, MENUNGGU_BAYAR_WHERE } from "@/lib/admission/stage";
+import { deriveStage, isStage, stageWhere, UNPAID_WHERE } from "@/lib/admission/stage";
 import { canRemind } from "@/lib/enrollment/follow-up";
 import { isFeeClosed } from "@/lib/enrollment/fee-closed";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
-const EMPTY_STATS = { total: 0, baru: 0, formulirDikirim: 0, menungguBayar: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 };
+const EMPTY_STATS = { total: 0, baru: 0, formulirDikirim: 0, belumBayar: 0, formulirMasuk: 0, diterima: 0, siswa: 0 };
 
 /**
  * GET /api/admissions — the unified Pendaftaran list (cycle 2026-10-11-pendaftaran-simplify).
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
   // The stats total is the whole tenant; with no filter that is exactly `total`, so it is not counted twice.
   const filtered = and.length > 0;
 
-  const [admissions, total, tenantTotal, baru, formulirDikirim, menungguBayar, belumBayar, formulirMasuk, diterima, siswa] =
+  const [admissions, total, tenantTotal, baru, formulirDikirim, belumBayar, formulirMasuk, diterima, siswa] =
     await Promise.all([
       prisma.admission.findMany({
         where,
@@ -94,9 +94,7 @@ export async function GET(req: NextRequest) {
             select: {
               id: true,
               status: true,
-              programId: true,
               program: { select: { name: true } },
-              dcareAddon: true,
               studentId: true,
               submittedAt: true,
               fee: { select: { status: true, amount: true } },
@@ -110,7 +108,6 @@ export async function GET(req: NextRequest) {
       filtered ? prisma.admission.count({ where: { tenantId } }) : Promise.resolve(null),
       prisma.admission.count({ where: scoped(stageWhere("BARU")) }),
       prisma.admission.count({ where: scoped(stageWhere("FORMULIR_DIKIRIM")) }),
-      prisma.admission.count({ where: scoped(MENUNGGU_BAYAR_WHERE) }),
       // The same predicate as the ?payment=unpaid filter, so the "Belum bayar" card and its filter agree.
       prisma.admission.count({ where: scoped(UNPAID_WHERE) }),
       prisma.admission.count({ where: scoped(stageWhere("FORMULIR_MASUK")) }),
@@ -150,18 +147,16 @@ export async function GET(req: NextRequest) {
       ? {
           id: app.id,
           status: app.status,
-          programId: app.programId,
           // The formulir's program is the one that counts once a formulir exists (the lead's own may be unset).
           programName: app.program?.name ?? null,
-          dcareAddon: app.dcareAddon,
           studentId: app.studentId,
           submittedAt: app.submittedAt,
           fee: fee
             ? {
                 status: fee.status,
                 amount: Math.round(Number(fee.amount)),
-                // Same rule as /api/enrollments: any unpaid fee whose link is still open, a formulir
-                // that was only sent included (pay-first).
+                // Same rule as /api/enrollments: any unpaid fee whose link is still open (a formulir
+                // sent under the old pay-first order can still hold one before it is submitted).
                 canRemind: remindable(row, app) && (canRemind({ admission: lead }) || formPhoneIds.has(app.id)),
               }
             : null,
@@ -172,7 +167,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ...paginatedResponse(data, total, page, pageSize),
-    stats: { total: tenantTotal ?? total, baru, formulirDikirim, menungguBayar, belumBayar, formulirMasuk, diterima, siswa },
+    stats: { total: tenantTotal ?? total, baru, formulirDikirim, belumBayar, formulirMasuk, diterima, siswa },
     canEdit,
   });
 }

@@ -1,7 +1,7 @@
 /**
  * What a Pendaftaran row offers, by stage: one visible primary action plus an overflow
- * menu, and the dialogs they open (Kirim formulir and its result card, the cancel
- * confirm). A lead stored with a retired status arrives as stage BARU and behaves as BARU.
+ * menu, what Kirim Formulir does in one tap (and its result card), and the cancel
+ * confirm. A lead stored with a retired status arrives as stage BARU and behaves as BARU.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -245,128 +245,168 @@ describe("editing a lead from the row", () => {
   });
 });
 
-describe("Kirim formulir", () => {
-  const PROGRAMS = [
-    { id: "prog-1", code: "TK", name: "TK A", enrollmentFee: 300000 },
-    { id: "prog-2", code: "DCARE", name: "Day Care", enrollmentFee: 150000 },
-  ];
-  /** The config list, plus the invite answered by `inviteReply`. */
-  const invite = (inviteReply: Response) => (url: string, init?: RequestInit) => {
-    if (url.endsWith("/api/config/enrollment")) return reply({ programs: PROGRAMS });
-    if (url.endsWith("/api/enrollments/invite") && init?.method === "POST") return inviteReply;
+describe("Kirim Formulir (one tap)", () => {
+  const URL_1 = "https://talib.example/pendaftaran/tok-1";
+  /** Answers the invite with `inviteReply` (a response, or a promise the test settles later). */
+  const invite = (inviteReply: Response | Promise<Response>) => (url: string, init?: RequestInit) => {
+    if (url.endsWith("/api/enrollments/invite") && init?.method === "POST") return inviteReply as Response;
     return undefined;
   };
-  const sent = (body: Record<string, unknown>) => reply({ id: "ea-1", created: true, fee: null, ...body });
+  const sent = (body: Record<string, unknown>) => reply({ id: "ea-1", ...body });
+  const inviteCalls = (fetchMock: ReturnType<typeof serveList>) =>
+    fetchMock.mock.calls.filter(([u, init]) => String(u).endsWith("/api/enrollments/invite") && (init as RequestInit)?.method === "POST");
 
-  async function openKirim(user: User, name = "Kirim Formulir: Aisyah") {
+  async function tapKirim(user: User, name = "Kirim Formulir: Aisyah") {
     await user.click(await screen.findByRole("button", { name }));
-    return screen.findByRole("dialog", { name: "Kirim formulir" });
-  }
-  async function clickKirim(user: User) {
-    const ask = await openKirim(user);
-    // The lead's program is prefilled once the prices are here.
-    await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Rp 300.000"));
-    await user.click(within(ask).getByRole("button", { name: "Kirim formulir" }));
   }
 
-  it("asks for the program first: the lead's program is prefilled and nothing is sent until Kirim formulir", async () => {
+  it("posts the invite once and opens the result card: no question first, no program, no price", async () => {
+    const fetchMock = serveList([leadRow({ programId: "prog-1", program: { name: "TK A" } })], {
+      extra: invite(sent({ formUrl: URL_1 })),
+    });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user);
+
+    const card = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(within(card).getByLabelText("Tautan formulir")).toHaveValue(URL_1);
+    expect(screen.queryByRole("dialog", { name: "Kirim formulir" })).not.toBeInTheDocument();
+
+    const calls = inviteCalls(fetchMock);
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse((calls[0][1] as RequestInit).body as string)).toEqual({ admissionId: "a1" });
+    // No program list is read for a price any more.
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/api/config/enrollment"))).toBe(false);
+  });
+
+  it("a double tap sends once; the button keeps its label, shows it is busy, and the progress is announced", async () => {
+    let release!: (r: Response) => void;
+    const gate = new Promise<Response>((resolve) => { release = resolve; });
+    const fetchMock = serveList([leadRow()], { extra: invite(gate) });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    const row = () => screen.getByRole("button", { name: "Kirim Formulir: Aisyah" });
+    await user.dblClick(await screen.findByRole("button", { name: "Kirim Formulir: Aisyah" }));
+
+    // Looked up again each time: the row's cell is rebuilt while the send is pending.
+    await waitFor(() => expect(row()).toHaveAttribute("aria-disabled", "true"));
+    // The visible label stays (label-in-name); the spinner is decoration only.
+    expect(row()).toHaveTextContent("Kirim Formulir");
+    expect(row()).toHaveAttribute("aria-busy", "true");
+    expect(row().querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Mengirim formulir untuk Aisyah…").closest("[aria-live=polite]")).not.toBeNull();
+    expect(inviteCalls(fetchMock)).toHaveLength(1);
+
+    release(sent({ formUrl: URL_1 }));
+    const card = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(inviteCalls(fetchMock)).toHaveLength(1);
+    // The page behind the card is hidden from the accessibility tree: close it to read the row.
+    await user.click(within(card).getByRole("button", { name: "Selesai" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(row()).not.toHaveAttribute("aria-disabled"));
+    expect(row().querySelector("svg")).toBeNull();
+    expect(screen.queryByText(/Mengirim formulir untuk/)).not.toBeInTheDocument();
+  });
+
+  it("tapping another row while one send is in flight sends that row too", async () => {
+    let releaseA!: (r: Response) => void;
+    const gateA = new Promise<Response>((resolve) => { releaseA = resolve; });
+    const byLead = (replies: Record<string, Response | Promise<Response>>) => (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/enrollments/invite") && init?.method === "POST") {
+        return replies[JSON.parse(init.body as string).admissionId] as Response;
+      }
+      return undefined;
+    };
     const fetchMock = serveList(
-      [leadRow({ programId: "prog-1", program: { name: "TK A" } })],
-      { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1" })) },
+      [leadRow({ id: "a1", childName: "Aisyah" }), leadRow({ id: "a2", childName: "Budi", parentName: "Sari" })],
+      { extra: byLead({ a1: gateA, a2: sent({ id: "ea-2", formUrl: "https://talib.example/pendaftaran/tok-b" }) }) },
     );
     const user = userEvent.setup();
     render(<AdmissionsPage />);
-    const ask = await openKirim(user);
-    await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Biaya formulir: Rp 300.000"));
-    expect(within(ask).getByRole("combobox", { name: /Program/ })).toHaveTextContent("TK A");
-    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/api/enrollments/invite"))).toBe(false);
+    await user.click(await screen.findByRole("button", { name: "Kirim Formulir: Aisyah" }));
+    await user.click(await screen.findByRole("button", { name: "Kirim Formulir: Budi" }));
+
+    const card = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(within(card).getByLabelText("Tautan formulir")).toHaveValue("https://talib.example/pendaftaran/tok-b");
+    const bodies = inviteCalls(fetchMock).map(([, init]) => JSON.parse((init as RequestInit).body as string).admissionId);
+    expect(bodies).toEqual(["a1", "a2"]);
+
+    releaseA(sent({ formUrl: URL_1 }));
+    await waitFor(() => expect(inviteCalls(fetchMock)).toHaveLength(2));
   });
 
   it("a walk-in with only a phone gets the card: link, WhatsApp and fill-together, no email wording", async () => {
-    const fetchMock = serveList(
-      [leadRow({ parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
-      { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: false, hasEmail: false })) },
-    );
+    serveList([leadRow({ parentPhone: "0812-3456-7890" })], {
+      extra: invite(sent({ formUrl: URL_1, emailed: false, hasEmail: false })),
+    });
     const user = userEvent.setup();
     render(<AdmissionsPage />);
-    await clickKirim(user);
+    await tapKirim(user);
 
     const dialog = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
     expect(within(dialog).getByText("Tidak ada email — bagikan lewat WhatsApp")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Tautan formulir")).toHaveValue("https://talib.example/pendaftaran/tok-1");
+    expect(within(dialog).getByLabelText("Tautan formulir")).toHaveValue(URL_1);
     expect(within(dialog).getByRole("link", { name: "Kirim lewat WhatsApp (tab baru)" })).toHaveAttribute(
       "href",
       expect.stringContaining("https://wa.me/6281234567890?text="),
     );
-    expect(within(dialog).getByRole("link", { name: "Isi bersama orang tua (tab baru)" })).toHaveAttribute(
-      "href",
-      "https://talib.example/pendaftaran/tok-1",
-    );
-    const call = fetchMock.mock.calls.find(([u]) => String(u).endsWith("/api/enrollments/invite"))!;
-    expect(JSON.parse((call[1] as RequestInit).body as string)).toEqual({ admissionId: "a1" });
+    expect(within(dialog).getByRole("link", { name: "Isi bersama orang tua (tab baru)" })).toHaveAttribute("href", URL_1);
+    // A first send has no old link to warn about.
+    expect(within(dialog).queryByText(/Tautan lama tidak berlaku lagi/)).not.toBeInTheDocument();
     const { toast } = await import("sonner");
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("reads the list again when the card closes, and returns focus to the row", async () => {
-    const fetchMock = serveList(
-      [leadRow({ parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
-      { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1" })) },
-    );
+  it("the result card has no fee block and no Tandai lunas / Bebaskan; it says the parent pays after the form", async () => {
+    const fetchMock = serveList([leadRow({ parentPhone: "0812-3456-7890" })], { extra: invite(sent({ formUrl: URL_1 })) });
     const user = userEvent.setup();
     render(<AdmissionsPage />);
-    await clickKirim(user);
+    await tapKirim(user);
+    const dialog = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+
+    expect(within(dialog).queryByTestId("formulir-fee")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Biaya formulir/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Tandai lunas/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Bebaskan/ })).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Biaya pendaftaran dibayar orang tua setelah mengisi dan mengirim formulir."),
+    ).toBeInTheDocument();
+    // The card never reads the formulir's fee permissions.
+    expect(fetchMock.mock.calls.some(([u]) => /\/api\/enrollments\/ea-1$/.test(String(u)))).toBe(false);
+  });
+
+  it("reads the list again when the card closes, and returns focus to the row", async () => {
+    const fetchMock = serveList([leadRow({ parentPhone: "0812-3456-7890" })], { extra: invite(sent({ formUrl: URL_1 })) });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user);
     const card = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
     await user.click(within(card).getByRole("button", { name: "Selesai" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    // Once after the send, once when the card closes (the fee may have been settled on it).
+    // Once after the send, once when the card closes.
     await waitFor(() => expect(listReads(fetchMock).length).toBeGreaterThanOrEqual(3));
     await waitFor(() => expect(screen.getByRole("button", { name: "Aksi untuk Aisyah" })).toHaveFocus());
   });
 
-  it("shows the amount and status from the invite on the card", async () => {
-    serveList(
-      [leadRow({ parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
-      {
-        extra: invite(
-          sent({
-            formUrl: "https://talib.example/pendaftaran/tok-1",
-            fee: { status: "UNPAID", amount: 300000, baseAmount: 300000, discountPercent: 0 },
-          }),
-        ),
-      },
-    );
-    const user = userEvent.setup();
-    render(<AdmissionsPage />);
-    await clickKirim(user);
-    const dialog = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
-    expect(within(dialog).getByTestId("formulir-fee")).toHaveTextContent("Biaya formulir: Rp 300.000");
-    expect(within(dialog).getByText("Belum bayar")).toBeInTheDocument();
-  });
-
   it("names the address when the email went out", async () => {
-    serveList(
-      [leadRow({ parentEmail: "dewi@test.com", parentPhone: "0812-3456-7890", programId: "prog-1", program: { name: "TK A" } })],
-      { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-1", emailed: true, hasEmail: true })) },
-    );
+    serveList([leadRow({ parentEmail: "dewi@test.com", parentPhone: "0812-3456-7890" })], {
+      extra: invite(sent({ formUrl: URL_1, emailed: true, hasEmail: true })),
+    });
     const user = userEvent.setup();
     render(<AdmissionsPage />);
-    await clickKirim(user);
+    await tapKirim(user);
     expect(await screen.findByText("Email terkirim ke dewi@test.com")).toBeInTheDocument();
   });
 
-  it("an error from the server still shows as a toast, with no card, and the list is read again", async () => {
-    const fetchMock = serveList(
-      [leadRow({ programId: "prog-1", program: { name: "TK A" } })],
-      {
-        extra: invite(
-          reply({ error: "ALREADY_IN_PROGRESS", message: "Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang." }, 409),
-        ),
-      },
-    );
+  it("a 409 shows the server's message as a toast, no card, and the list is read again", async () => {
+    const fetchMock = serveList([leadRow()], {
+      extra: invite(
+        reply({ error: "ALREADY_IN_PROGRESS", message: "Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang." }, 409),
+      ),
+    });
     const user = userEvent.setup();
     render(<AdmissionsPage />);
-    await clickKirim(user);
+    await tapKirim(user);
     const { toast } = await import("sonner");
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Formulir sudah diisi atau sedang diproses — tidak bisa dikirim ulang."),
@@ -376,36 +416,63 @@ describe("Kirim formulir", () => {
     await waitFor(() => expect(listReads(fetchMock)).toHaveLength(2));
   });
 
-  describe("resend (stage FORMULIR_DIKIRIM)", () => {
-    const resendRow = (over: Record<string, unknown> = {}) =>
-      leadRow({
-        stage: "FORMULIR_DIKIRIM", payment: "UNPAID", programId: "prog-1", program: { name: "TK A" },
-        // The formulir holds Day Care, a different program from the lead's own.
-        application: formulir({ id: "ea-4", programId: "prog-2", dcareAddon: false, fee: { status: "UNPAID", amount: 150000, canRemind: true } }),
-        ...over,
-      });
+  it("a 429 asks staff to wait, and the button works again afterwards", async () => {
+    const fetchMock = serveList([leadRow()], { extra: invite(reply({ error: "rate_limited" }, 429)) });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user);
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi."));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Kirim Formulir: Aisyah" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    await user.click(button);
+    await waitFor(() => expect(inviteCalls(fetchMock)).toHaveLength(2));
+  });
 
-    it("starts from what the formulir already holds, not from the lead", async () => {
-      serveList([resendRow()], { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-2", created: false })) });
-      const user = userEvent.setup();
-      render(<AdmissionsPage />);
-      const ask = await openKirim(user, "Kirim ulang tautan: Aisyah");
-      await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Rp 150.000"));
-      expect(within(ask).getByRole("combobox", { name: /Program/ })).toHaveTextContent("Day Care");
-      // Known choice, so the amount is a fact rather than an estimate.
-      expect(within(ask).getByTestId("kirim-formulir-fee")).not.toHaveTextContent("Perkiraan");
-    });
+  it("a server failure says so with a toast and leaves the row as it was", async () => {
+    serveList([leadRow()], { extra: invite(reply({ error: "boom" }, 500)) });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user);
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Terjadi kendala di server. Coba lagi sebentar lagi."));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 
-    it("sends only what staff changed: an untouched resend carries just the lead id", async () => {
-      const fetchMock = serveList([resendRow()], { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-2", created: false })) });
-      const user = userEvent.setup();
-      render(<AdmissionsPage />);
-      const ask = await openKirim(user, "Kirim ulang tautan: Aisyah");
-      await waitFor(() => expect(within(ask).getByTestId("kirim-formulir-fee")).toHaveTextContent("Rp 150.000"));
-      await user.click(within(ask).getByRole("button", { name: "Kirim formulir" }));
-      await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
-      const call = fetchMock.mock.calls.find(([u]) => String(u).endsWith("/api/enrollments/invite"))!;
-      expect(JSON.parse((call[1] as RequestInit).body as string)).toEqual({ admissionId: "a1" });
-    });
+  it("an answer without a link is not shown as a card", async () => {
+    serveList([leadRow()], { extra: invite(sent({})) });
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user);
+    const { toast } = await import("sonner");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Formulir disiapkan, tetapi tautannya tidak terbaca. Muat ulang lalu coba lagi."),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("a resend (Kirim ulang tautan) is also one tap with just the lead id", async () => {
+    const fetchMock = serveList(
+      [
+        leadRow({
+          stage: "FORMULIR_DIKIRIM", payment: "UNPAID", programId: "prog-1", program: { name: "TK A" },
+          application: formulir({ id: "ea-4", fee: { status: "UNPAID", amount: 150000, canRemind: true } }),
+        }),
+      ],
+      { extra: invite(sent({ formUrl: "https://talib.example/pendaftaran/tok-2" })) },
+    );
+    const user = userEvent.setup();
+    render(<AdmissionsPage />);
+    await tapKirim(user, "Kirim ulang tautan: Aisyah");
+    const card = await screen.findByRole("dialog", { name: "Formulir siap dikirim" });
+    expect(within(card).getByLabelText("Tautan formulir")).toHaveValue("https://talib.example/pendaftaran/tok-2");
+    // A resend swaps the token: the card says the old link is dead.
+    expect(
+      within(card).getByText("Tautan lama tidak berlaku lagi; kirim tautan baru ini ke orang tua."),
+    ).toBeInTheDocument();
+    const calls = inviteCalls(fetchMock);
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse((calls[0][1] as RequestInit).body as string)).toEqual({ admissionId: "a1" });
   });
 });

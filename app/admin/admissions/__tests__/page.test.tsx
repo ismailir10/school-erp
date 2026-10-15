@@ -380,7 +380,7 @@ describe("AdmissionsPage — ?edit= deep link (Data kontak on the formulir page)
 describe("AdmissionsPage — stats shape", () => {
   it("is the documented set (guards the fixture against drifting from the contract)", () => {
     expect(Object.keys(STATS).sort()).toEqual(
-      ["baru", "belumBayar", "diterima", "formulirDikirim", "formulirMasuk", "menungguBayar", "siswa", "total"],
+      ["baru", "belumBayar", "diterima", "formulirDikirim", "formulirMasuk", "siswa", "total"],
     );
   });
 });

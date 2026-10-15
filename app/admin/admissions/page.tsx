@@ -25,16 +25,13 @@ import {
 } from "@/components/admin/admissions/admission-form-body";
 import { SiblingDetectBanner } from "@/components/admin/admissions/sibling-detect-banner";
 import { createAdmissionColumns } from "@/components/admin/admissions/columns";
-import { isLeadEditable } from "@/components/admin/admissions/row-actions";
-import {
-  SendFormulirDialog,
-  type SendFormulirResult,
-} from "@/components/admin/admissions/send-formulir-dialog";
-import { KirimFormulirForm } from "@/components/admin/admissions/kirim-formulir-form";
+import { isLeadEditable, rowLabel } from "@/components/admin/admissions/row-actions";
+import { SendFormulirDialog } from "@/components/admin/admissions/send-formulir-dialog";
 import { PAYMENT_UNPAID, TAHAP_FILTER_OPTIONS } from "@/components/admin/admissions/constants";
 import { useUrlFilters } from "@/components/admin/admissions/use-url-filters";
 import { useRowFocus } from "@/components/admin/admissions/use-row-focus";
 import { useAdmissionList } from "@/components/admin/admissions/use-admission-list";
+import { useSendFormulir } from "@/components/admin/admissions/use-send-formulir";
 import { resolveFollowUpPhone } from "@/lib/enrollment/follow-up";
 import { admissionChildLabel } from "@/lib/admission/child-label";
 import type { Admission, Program } from "@/components/admin/admissions/types";
@@ -106,14 +103,13 @@ export default function AdmissionsPage() {
     onPageOutOfRange: (lastPage) => updateQuery({ page: lastPage > 1 ? String(lastPage) : null }),
   });
 
+  // "Kirim Formulir" is one tap; `sent` is the result card's content (the lead + the invite response).
+  const { send, sendingIds, sent: formulirSent, clearSent } = useSendFormulir({ onChanged: fetchAdmissions });
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAdmission, setEditingAdmission] = useState<Admission | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
-  // "Kirim formulir" question (program + Day Care) → the lead it is open for.
-  const [sendTarget, setSendTarget] = useState<Admission | null>(null);
-  // "Formulir siap dikirim" card: the lead the link was made for + the invite response.
-  const [formulirSent, setFormulirSent] = useState<{ admission: Admission; result: SendFormulirResult } | null>(null);
   const admissionFormId = useId();
   const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
   const dirty = form.formState.isDirty;
@@ -203,21 +199,10 @@ export default function AdmissionsPage() {
     else updateQuery({ ...clear, tahap: filter });
   }, [updateQuery]);
 
-  // "Kirim Formulir" / "Kirim ulang tautan" first ask for the Program + Day Care that set the
-  // price (KirimFormulirForm owns the invite request, which creates or reprices the fee). Its
-  // result card then hands staff the link to share, copy or fill together; no email needed.
-  const requestSend = useCallback((a: Admission) => setSendTarget(a), []);
-
-  function closeSend() {
-    const id = sendTarget?.id;
-    setSendTarget(null);
-    if (id) focusRow(id);
-  }
-
   function closeSentCard() {
     const id = formulirSent?.admission.id;
-    setFormulirSent(null);
-    // The fee may have been settled on the card: read the list again before focus returns.
+    clearSent();
+    // The parent may have opened the link meanwhile: read the list again before focus returns.
     if (id) focusWhenLoaded(id);
     void fetchAdmissions();
   }
@@ -336,9 +321,10 @@ export default function AdmissionsPage() {
         canEdit,
         onEdit: handleEditRow,
         onCancelRequest: handleCancelRequest,
-        onSend: requestSend,
+        onSend: send,
+        sendingIds,
       }),
-    [canEdit, handleEditRow, handleCancelRequest, requestSend],
+    [canEdit, handleEditRow, handleCancelRequest, send, sendingIds],
   );
 
   const isFiltered = !!search || tahap !== "all" || unpaidOnly;
@@ -401,6 +387,15 @@ export default function AdmissionsPage() {
         }
       />
 
+      {/* Progress of a one-tap send: the button keeps its label, so this is what a screen reader hears. */}
+      <p className="sr-only" aria-live="polite">
+        {sendingIds
+          .map((id) => data.find((row) => row.id === id))
+          .filter((row): row is Admission => row !== undefined)
+          .map((row) => `Mengirim formulir untuk ${rowLabel(row)}…`)
+          .join(" ")}
+      </p>
+
       {/* Heard after a filter or search changes; silent while the rows are loading. */}
       <p className="sr-only" role="status">
         {loading || loadError ? "" : `${pagination.total} pendaftaran`}
@@ -462,29 +457,12 @@ export default function AdmissionsPage() {
         onConfirm={handleCancel}
       />
 
-      <KirimFormulirForm
-        admission={sendTarget}
-        // A lead whose formulir is already out is a resend: start from what that formulir holds.
-        resend={sendTarget?.stage === "FORMULIR_DIKIRIM"}
-        current={
-          sendTarget?.stage === "FORMULIR_DIKIRIM" && sendTarget.application
-            ? { programId: sendTarget.application.programId, dcareAddon: sendTarget.application.dcareAddon }
-            : null
-        }
-        onClose={closeSend}
-        onSent={(admission, result) => {
-          setSendTarget(null);
-          setFormulirSent({ admission, result });
-          void fetchAdmissions();
-        }}
-        onStale={() => { void fetchAdmissions(); }}
-      />
-
       <SendFormulirDialog
         result={formulirSent?.result ?? null}
         email={formulirSent?.admission.parentEmail}
         parentName={formulirSent?.admission.parentName ?? ""}
         childName={formulirSent?.admission.childName}
+        resend={formulirSent?.resend ?? false}
         phone={formulirSent ? resolveFollowUpPhone({ admission: formulirSent.admission }) : null}
         onClose={closeSentCard}
       />
