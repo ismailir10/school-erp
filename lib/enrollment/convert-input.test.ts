@@ -41,6 +41,28 @@ describe("validateConvertInput", () => {
     expect(JSON.parse(f.metadata)).toMatchObject({ dcareAddon: false, fromEnrollmentApplication: "ea-1" });
   });
 
+  it("joins all eight address keys in reading order, for the child and a parent", () => {
+    const address = {
+      provinsi: "Jawa Barat", kodePos: "40115", kotaKab: "Kota Bandung", kecamatan: "Bandung Wetan", kelurahan: "Citarum",
+      rtRw: "01/02", blokCluster: "Blok B", perumahan: "Jl. Citarum 5",
+    };
+    const input = ok(src({ studentData: { address }, ayahData: { name: "Ahmad", address } }));
+    const want = "Jl. Citarum 5, Blok B, 01/02, Citarum, Bandung Wetan, Kota Bandung, Jawa Barat, 40115";
+    expect(studentFields(input, { dcareAddon: false, applicationId: "ea-1" }).address).toBe(want);
+    expect(input.ayah?.address).toBe(want);
+  });
+
+  it("keeps old blobs (no kelurahan / kotaKab / provinsi) reading exactly as before", () => {
+    const input = ok(src({ ayahData: { name: "Ahmad", address: { perumahan: "Taman Aster", blokCluster: "A3", rtRw: "02/05", kecamatan: "Cikarang", kodePos: "17530" } } }));
+    expect(input.ayah?.address).toBe("Taman Aster, A3, 02/05, Cikarang, 17530");
+  });
+
+  it("gives null for an empty, blank or junk address", () => {
+    expect(ok(src({ ayahData: { name: "Ahmad", address: { perumahan: "  ", kodePos: "" } } })).ayah?.address).toBeNull();
+    expect(ok(src({ ayahData: { name: "Ahmad", address: "Jl. A" } })).ayah?.address).toBeNull();
+    expect(ok(src({ ayahData: { name: "Ahmad" } })).ayah?.address).toBeNull();
+  });
+
   it("tolerates junk blobs", () => {
     const input = ok({ childName: "A", studentData: "x", ayahData: { name: "B" }, ibuData: 5 });
     expect(input.ibu).toBeNull();

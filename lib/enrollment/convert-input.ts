@@ -13,6 +13,7 @@
 
 import { z } from "zod";
 import { normaliseName } from "@/lib/parent/match";
+import { formatAddress } from "@/lib/enrollment/address";
 import {
   AGAMA_OPTIONS, KEWARGANEGARAAN_OPTIONS, LIVING_WITH_OPTIONS, BIRTH_DELIVERY_OPTIONS,
   BIRTH_TERM_OPTIONS, BLOOD_TYPE_OPTIONS, EDUCATION_OPTIONS, OCCUPATION_OPTIONS, INCOME_OPTIONS,
@@ -103,9 +104,8 @@ export type ConvertInput = {
 
 export type ConvertMissing = { field: string; message: string };
 
-function joinAddress(a: Json): string | null {
-  return [s(a.perumahan), s(a.blokCluster), s(a.rtRw), s(a.kecamatan), s(a.kodePos)].filter(Boolean).join(", ") || null;
-}
+/** All eight address keys in reading order (`formatAddress`); an old blob without the region keys reads as before. */
+const joinAddress = (a: Json): string | null => formatAddress(a);
 
 function parentFrom(block: unknown): ParentInput | null {
   const b = j(block);

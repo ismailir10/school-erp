@@ -160,11 +160,14 @@ function AddressInputs({ control, prefix }: { control: Ctl; prefix: "studentData
   const n = (k: string) => `${prefix}.address.${k}` as Name;
   return (
     <div className="grid gap-field sm:grid-cols-2">
-      <TextInput control={control} name={n("perumahan")} label="Perumahan" className="sm:col-span-2" />
+      <TextInput control={control} name={n("perumahan")} label="Perumahan / Jalan" className="sm:col-span-2" />
       <TextInput control={control} name={n("blokCluster")} label="Blok / Cluster" />
       <TextInput control={control} name={n("rtRw")} label="RT / RW" />
-      <TextInput control={control} name={n("kecamatan")} label="Kecamatan" />
       <TextInput control={control} name={n("kodePos")} label="Kode pos" />
+      <TextInput control={control} name={n("kelurahan")} label="Kelurahan / Desa" />
+      <TextInput control={control} name={n("kecamatan")} label="Kecamatan" />
+      <TextInput control={control} name={n("kotaKab")} label="Kota / Kabupaten" />
+      <TextInput control={control} name={n("provinsi")} label="Provinsi" />
     </div>
   );
 }

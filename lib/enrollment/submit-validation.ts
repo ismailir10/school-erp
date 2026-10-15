@@ -42,12 +42,19 @@ const optNumber = (msg: string, max?: { value: number; msg: string }) =>
     ).optional(),
   );
 
+// Kode pos is deliberately lenient here (any text up to 10): drafts autosaved before the
+// parent form enforced 5 digits must still submit, and staff may fix an odd value in
+// "Ubah data". The parent form (`components/enrollment/address-fields.tsx`) takes digits
+// only and blocks Lanjut on a partial code; the server never rejects an old blob for it.
 const addressSchema = z
   .object({
     perumahan: optionalTrimmed(z.string().max(120)),
     blokCluster: optionalTrimmed(z.string().max(60)),
     rtRw: optionalTrimmed(z.string().max(20)),
+    kelurahan: optionalTrimmed(z.string().max(80)),
     kecamatan: optionalTrimmed(z.string().max(80)),
+    kotaKab: optionalTrimmed(z.string().max(80)),
+    provinsi: optionalTrimmed(z.string().max(60)),
     kodePos: optionalTrimmed(z.string().max(10)),
   })
   .optional();

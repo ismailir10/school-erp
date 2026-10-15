@@ -19,6 +19,9 @@ import { StepTransition } from "@/components/reactbits/step-transition";
 import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import { SignaturePad } from "@/components/enrollment/signature-pad";
 import { DocumentsStep, useDocumentUploads } from "@/components/enrollment/documents-step";
+import { AddressFields, EMPTY_ADDRESS, addressFromBlob, kodePosError, type AddressValue } from "@/components/enrollment/address-fields";
+import { AREA_CLASS, INPUT_CLASS, SELECT_CLASS } from "@/components/enrollment/field-styles";
+import { formatAddress } from "@/lib/enrollment/address";
 import {
   DOCUMENT_ITEMS,
   isDocumentKey,
@@ -56,7 +59,6 @@ import {
   resumeStep,
   stepLabel,
   type ContactFieldKey,
-  type ContactIssue,
   type OnlyParent,
   type ParentSide,
 } from "./form-logic";
@@ -78,7 +80,6 @@ type Prefill = {
   documents: PublicDocuments;
 };
 
-type AddressState = { perumahan: string; blokCluster: string; rtRw: string; kecamatan: string; kodePos: string };
 type ParentState = {
   name: string;
   birthPlace: string;
@@ -86,7 +87,7 @@ type ParentState = {
   agama: string;
   phone: string;
   email: string;
-  address: AddressState;
+  address: AddressValue;
   education: string;
   occupation: string;
   employerName: string;
@@ -118,7 +119,7 @@ type StudentState = {
   siblingsAngkat: string;
   childOrder: string;
   siblingsTotal: string;
-  address: AddressState;
+  address: AddressValue;
   priorFamilyAttendees: PriorFamily[];
 };
 type ConsentState = {
@@ -132,10 +133,9 @@ type ConsentState = {
   onlyParent: OnlyParent;
 };
 
-const EMPTY_ADDR: AddressState = { perumahan: "", blokCluster: "", rtRw: "", kecamatan: "", kodePos: "" };
 const EMPTY_PARENT: ParentState = {
   name: "", birthPlace: "", dateOfBirth: "", agama: "", phone: "", email: "",
-  address: { ...EMPTY_ADDR }, education: "", occupation: "", employerName: "",
+  address: { ...EMPTY_ADDRESS }, education: "", occupation: "", employerName: "",
   employerAddress: "", employerPhone: "", income: "",
 };
 
@@ -148,7 +148,6 @@ function obj(v: unknown): Record<string, unknown> {
 
 function initStudent(p: unknown): StudentState {
   const s = obj(p);
-  const a = obj(s.address);
   const pf = Array.isArray(s.priorFamilyAttendees) ? (s.priorFamilyAttendees as unknown[]) : [];
   return {
     childName: str(s.childName), nickname: str(s.nickname), childGender: (s.childGender === "L" || s.childGender === "P" ? s.childGender : ""),
@@ -159,17 +158,16 @@ function initStudent(p: unknown): StudentState {
     weightKg: str(s.weightKg), heightCm: str(s.heightCm), headCircumferenceCm: str(s.headCircumferenceCm),
     siblingsKandung: str(s.siblingsKandung), siblingsTiri: str(s.siblingsTiri), siblingsAngkat: str(s.siblingsAngkat),
     childOrder: str(s.childOrder), siblingsTotal: str(s.siblingsTotal),
-    address: { perumahan: str(a.perumahan), blokCluster: str(a.blokCluster), rtRw: str(a.rtRw), kecamatan: str(a.kecamatan), kodePos: str(a.kodePos) },
+    address: addressFromBlob(s.address),
     priorFamilyAttendees: pf.slice(0, MAX_PRIOR_FAMILY_ATTENDEES).map((r) => ({ name: str(obj(r).name), yearEntered: str(obj(r).yearEntered) })),
   };
 }
 function initParent(p: unknown): ParentState {
   const s = obj(p);
-  const a = obj(s.address);
   return {
     name: str(s.name), birthPlace: str(s.birthPlace), dateOfBirth: str(s.dateOfBirth), agama: str(s.agama),
     phone: str(s.phone), email: str(s.email),
-    address: { perumahan: str(a.perumahan), blokCluster: str(a.blokCluster), rtRw: str(a.rtRw), kecamatan: str(a.kecamatan), kodePos: str(a.kodePos) },
+    address: addressFromBlob(s.address),
     education: str(s.education), occupation: str(s.occupation), employerName: str(s.employerName),
     employerAddress: str(s.employerAddress), employerPhone: str(s.employerPhone), income: str(s.income),
   };
@@ -189,20 +187,38 @@ function initConsent(p: unknown): ConsentState {
   };
 }
 
+/** `data-field` of an input the form can flag and focus: a parent contact, or the kode pos of an address block. */
+type AddressFieldKey = "student.address.kodePos" | "ayah.address.kodePos" | "ibu.address.kodePos";
+type FieldKey = ContactFieldKey | AddressFieldKey;
+type FieldIssue = { key: FieldKey; message: string };
+
+/** A malformed kode pos is the only address rule; everything else in the address is optional. */
+function kodePosIssues(key: AddressFieldKey, a: AddressValue): FieldIssue[] {
+  const message = kodePosError(a);
+  return message ? [{ key, message }] : [];
+}
+
+/** Every flaggable input on a parent step that fails, in on-screen order (contacts, address, office phone). */
+function parentFieldIssues(side: ParentSide, p: ParentState): FieldIssue[] {
+  const contact = parentContactIssues(side, p);
+  return [
+    ...contact.filter((c) => c.key !== `${side}.employerPhone`),
+    ...kodePosIssues(`${side}.address.kodePos`, p.address),
+    ...contact.filter((c) => c.key === `${side}.employerPhone`),
+  ];
+}
+
 /**
  * One line in the step alert. `step` is set for issues that belong to another
  * step (a rejected submit); the alert then offers a button that jumps there.
  */
-type FormIssue = { text: string; step?: number; field?: ContactFieldKey };
+type FormIssue = { text: string; step?: number; field?: FieldKey };
 
 const plain = (texts: string[]): FormIssue[] => texts.map((text) => ({ text }));
 const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
   a.length === b.length && a.every((x, i) => x.text === b[i].text && x.step === b[i].step);
 
 // Public-form controls: 44px / 16px, scoped here so the shared ui/* stay as-is.
-const INPUT_CLASS = "h-11 text-base placeholder:text-muted-foreground/60 md:text-base";
-const SELECT_CLASS = "h-11 text-base";
-const AREA_CLASS = "text-base placeholder:text-muted-foreground/60 md:text-base";
 // Press feedback is pure CSS: a compositor-only transform, off under reduced motion. The Button base
 // already has transition-all, which covers `scale`; adding transition-transform here would drop its
 // colour and ring easing. aria-disabled buttons stay put, because they read as unavailable.
@@ -264,7 +280,7 @@ export default function PendaftaranClient({
   const [errors, setErrors] = useState<FormIssue[]>([]);
   // Contact inputs whose format error is showing. The message itself is derived
   // from the current value, so it clears the moment the parent corrects it.
-  const [flagged, setFlagged] = useState<ContactFieldKey[]>([]);
+  const [flagged, setFlagged] = useState<FieldKey[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -296,7 +312,7 @@ export default function PendaftaranClient({
   // scheduled them. The old `setX(v); scheduleSave()` closure sent the
   // previous keystroke's state.
   const buildPayload = () => {
-    const cleanAddr = (a: AddressState) => ({ ...a });
+    const cleanAddr = (a: AddressValue) => ({ ...a });
     const cleanParent = (p: ParentState) => ({ ...p, address: cleanAddr(p.address) });
     return {
       programId,
@@ -404,9 +420,11 @@ export default function PendaftaranClient({
     return e;
   }
 
-  function contactIssuesFor(s: number): ContactIssue[] {
-    if (s === 1 && !isWaived(consent.onlyParent, "ayah")) return parentContactIssues("ayah", ayah);
-    if (s === 2 && !isWaived(consent.onlyParent, "ibu")) return parentContactIssues("ibu", ibu);
+  // Inputs with a format rule (phone, email, kode pos): flagged inline and focused, not listed in the alert.
+  function contactIssuesFor(s: number): FieldIssue[] {
+    if (s === 0) return kodePosIssues("student.address.kodePos", student.address);
+    if (s === 1 && !isWaived(consent.onlyParent, "ayah")) return parentFieldIssues("ayah", ayah);
+    if (s === 2 && !isWaived(consent.onlyParent, "ibu")) return parentFieldIssues("ibu", ibu);
     return [];
   }
 
@@ -426,12 +444,12 @@ export default function PendaftaranClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, student, ayah, ibu, programId, consent, documents, requiredKey]);
 
-  function focusField(key: ContactFieldKey) {
+  function focusField(key: FieldKey) {
     document.querySelector<HTMLElement>(`[data-field="${key}"]`)?.focus();
   }
 
   /** Open a step without validating the current one (stepper, "Buka langkah"). */
-  function go(i: number, flag: ContactFieldKey[] = []) {
+  function go(i: number, flag: FieldKey[] = []) {
     // Drop the alert lines for the step being left and the one being opened;
     // lines for other steps stay so the parent can still jump to them.
     setErrors((prev) => prev.filter((x) => x.step !== undefined && x.step !== i));
@@ -667,16 +685,16 @@ export default function PendaftaranClient({
           card's own padding keeps input focus rings inside the clip. */}
       <div className="overflow-x-clip rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <StepTransition stepKey={step} direction={direction}>
-        {step === 0 && <StudentStep value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
+        {step === 0 && <StudentStep token={token} flagged={flagged} value={student} onChange={(v) => { setStudent(v); scheduleSave(); }} />}
         {step === 1 && (
           <ParentStep
-            title="Data Ayah" side="ayah" flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }}
+            title="Data Ayah" side="ayah" token={token} flagged={flagged} value={ayah} onChange={(v) => { setAyah(v); scheduleSave(); }}
             onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
           />
         )}
         {step === 2 && (
           <ParentStep
-            title="Data Ibu" side="ibu" flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }}
+            title="Data Ibu" side="ibu" token={token} flagged={flagged} value={ibu} onChange={(v) => { setIbu(v); scheduleSave(); }}
             onlyParent={consent.onlyParent} onOnlyParent={(v) => { setConsent((c) => ({ ...c, onlyParent: v })); scheduleSave(); }}
           />
         )}
@@ -946,20 +964,11 @@ function SelectField({
   );
 }
 
-function AddressFields({ value, onChange }: { value: AddressState; onChange: (v: AddressState) => void }) {
-  const set = (k: keyof AddressState, v: string) => onChange({ ...value, [k]: v });
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <TextField label="Perumahan" className="sm:col-span-2" value={value.perumahan} onChange={(v) => set("perumahan", v)} />
-      <TextField label="Blok / Cluster" value={value.blokCluster} onChange={(v) => set("blokCluster", v)} />
-      <TextField label="RT / RW" value={value.rtRw} onChange={(v) => set("rtRw", v)} />
-      <TextField label="Kecamatan" value={value.kecamatan} onChange={(v) => set("kecamatan", v)} />
-      <TextField label="Kode Pos" value={value.kodePos} onChange={(v) => set("kodePos", v)} />
-    </div>
-  );
-}
-
-function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: StudentState) => void }) {
+function StudentStep({
+  token, flagged, value, onChange,
+}: {
+  token: string; flagged: FieldKey[]; value: StudentState; onChange: (v: StudentState) => void;
+}) {
   const set = <K extends keyof StudentState>(k: K, v: StudentState[K]) => onChange({ ...value, [k]: v });
   const setFamily = (i: number, k: keyof PriorFamily, v: string) => {
     const list = value.priorFamilyAttendees.slice();
@@ -1000,7 +1009,14 @@ function StudentStep({ value, onChange }: { value: StudentState; onChange: (v: S
 
       <Separator />
       <h3 className="text-sm font-semibold text-foreground">Alamat</h3>
-      <AddressFields value={value.address} onChange={(v) => set("address", v)} />
+      <AddressFields
+        token={token}
+        legend="Alamat anak"
+        idPrefix="student.address"
+        showErrors={flagged.includes("student.address.kodePos")}
+        value={value.address}
+        onChange={(v) => set("address", v)}
+      />
 
       <Separator />
       <h3 className="text-sm font-semibold text-foreground">Kelahiran &amp; kesehatan</h3>
@@ -1074,9 +1090,9 @@ function SingleParentToggle({
 }
 
 function ParentStep({
-  title, side, flagged, value, onChange, onlyParent, onOnlyParent,
+  title, side, token, flagged, value, onChange, onlyParent, onOnlyParent,
 }: {
-  title: string; side: ParentSide; flagged: ContactFieldKey[]; value: ParentState; onChange: (v: ParentState) => void;
+  title: string; side: ParentSide; token: string; flagged: FieldKey[]; value: ParentState; onChange: (v: ParentState) => void;
   onlyParent: OnlyParent; onOnlyParent: (v: OnlyParent) => void;
 }) {
   const set = <K extends keyof ParentState>(k: K, v: ParentState[K]) => onChange({ ...value, [k]: v });
@@ -1106,7 +1122,14 @@ function ParentStep({
       </div>
       <Separator />
       <h3 className="text-sm font-semibold text-foreground">Alamat</h3>
-      <AddressFields value={value.address} onChange={(v) => set("address", v)} />
+      <AddressFields
+        token={token}
+        legend={side === "ayah" ? "Alamat Ayah" : "Alamat Ibu"}
+        idPrefix={`${side}.address`}
+        showErrors={flagged.includes(`${side}.address.kodePos`)}
+        value={value.address}
+        onChange={(v) => set("address", v)}
+      />
       <Separator />
       <h3 className="text-sm font-semibold text-foreground">Pekerjaan</h3>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -1377,11 +1400,22 @@ function ReviewStep({
         <Row label="Nama lengkap" value={student.childName} />
         <Row label="Jenis kelamin" value={student.childGender === "L" ? "Laki-laki" : student.childGender === "P" ? "Perempuan" : ""} />
         <Row label="Tempat, tanggal lahir" value={[student.birthPlace, reviewDate(student.dateOfBirth)].filter(Boolean).join(", ")} />
+        <Row label="Alamat" value={formatAddress(student.address) ?? ""} />
       </section>
       <section>
         <h3 className="mb-1 text-sm font-semibold text-foreground">Orang Tua</h3>
-        {!isWaived(consent.onlyParent, "ayah") && <Row label="Ayah" value={ayah.name} />}
-        {!isWaived(consent.onlyParent, "ibu") && <Row label="Ibu" value={ibu.name} />}
+        {!isWaived(consent.onlyParent, "ayah") && (
+          <>
+            <Row label="Ayah" value={ayah.name} />
+            <Row label="Alamat Ayah" value={formatAddress(ayah.address) ?? ""} />
+          </>
+        )}
+        {!isWaived(consent.onlyParent, "ibu") && (
+          <>
+            <Row label="Ibu" value={ibu.name} />
+            <Row label="Alamat Ibu" value={formatAddress(ibu.address) ?? ""} />
+          </>
+        )}
         {consent.onlyParent && <Row label="Pengisi" value="Satu orang tua / wali" />}
       </section>
       <section>

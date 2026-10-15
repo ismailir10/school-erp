@@ -138,6 +138,8 @@ describe("PATCH /api/enrollments/[id] — validated staff edit", () => {
     ["name length", { studentData: { childName: "a".repeat(81) } }, "studentData.childName"],
     ["weight ceiling", { studentData: { weightKg: 9999 } }, "studentData.weightKg"],
     ["address length", { studentData: { address: { kodePos: "1".repeat(11) } } }, "studentData.address.kodePos"],
+    ["region length", { ayahData: { address: { kelurahan: "k".repeat(81) } } }, "ayahData.address.kelurahan"],
+    ["province length", { ibuData: { address: { provinsi: "p".repeat(61) } } }, "ibuData.address.provinsi"],
     ["onlyParent", { consentData: { onlyParent: "wali" } }, "consentData.onlyParent"],
     ["dcare type", { dcareAddon: "yes" }, "dcareAddon"],
   ])("400 on a malformed %s, with the field path, and nothing is written", async (_label, body, field) => {
@@ -163,6 +165,28 @@ describe("PATCH /api/enrollments/[id] — validated staff edit", () => {
     expect(res.status).toBe(200);
     expect(written().ayahData).toEqual({ name: "Bapak Ahmad" });
     expect(written().studentData).toEqual({ childName: "Aisyah", birthPlace: "Bekasi", address: { perumahan: "Taman Aster" } });
+  });
+
+  it("saves the region keys next to the stored address and clears one by name", async () => {
+    const res = await patch({
+      studentData: { address: { kelurahan: "Citarum", kotaKab: "Kota Bandung", provinsi: "Jawa Barat", kodePos: "" } },
+    });
+    expect(res.status).toBe(200);
+    expect(written().studentData).toEqual({
+      childName: "Aisyah",
+      birthPlace: "Bekasi",
+      address: { perumahan: "Taman Aster", kelurahan: "Citarum", kotaKab: "Kota Bandung", provinsi: "Jawa Barat" },
+    });
+  });
+
+  it("drops an unknown address key instead of storing it", async () => {
+    const res = await patch({ studentData: { address: { kelurahan: "Citarum", negara: "ID" } } });
+    expect(res.status).toBe(200);
+    expect(written().studentData).toEqual({
+      childName: "Aisyah",
+      birthPlace: "Bekasi",
+      address: { perumahan: "Taman Aster", kodePos: "17530", kelurahan: "Citarum" },
+    });
   });
 
   it("clearing the last address field removes the empty address object", async () => {

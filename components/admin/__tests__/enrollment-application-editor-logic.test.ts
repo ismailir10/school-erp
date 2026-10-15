@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPatchBody, editorSchemaFor, feeNoteLine, maskUnchanged, toEditorValues } from "../enrollment-application-editor-logic";
+import { ADDRESS_KEYS, buildPatchBody, editorSchemaFor, feeNoteLine, maskUnchanged, toEditorValues } from "../enrollment-application-editor-logic";
 
 const source = {
   studentData: { childName: "Aisyah", weightKg: 14.5, address: { kodePos: "40123" }, priorFamilyAttendees: [{ name: "Rani", yearEntered: "2019" }] },
@@ -19,6 +19,25 @@ describe("toEditorValues", () => {
     expect(v.ibuData.name).toBe("");
     expect(v.consentData.onlyParent).toBe("ayah");
     expect(v.programId).toBe("p-1");
+  });
+
+  it("hydrates all eight address keys, in form order, from a full or an old blob", () => {
+    expect([...ADDRESS_KEYS]).toEqual(["perumahan", "blokCluster", "rtRw", "kodePos", "kelurahan", "kecamatan", "kotaKab", "provinsi"]);
+    const full = { perumahan: "P", blokCluster: "B", rtRw: "1/2", kodePos: "40115", kelurahan: "K", kecamatan: "C", kotaKab: "Kota", provinsi: "Jabar" };
+    expect(toEditorValues({ ...source, ayahData: { address: full } }).ayahData.address).toEqual(full);
+    const old = toEditorValues(source).studentData.address;
+    expect(old).toEqual({ perumahan: "", blokCluster: "", rtRw: "", kodePos: "40123", kelurahan: "", kecamatan: "", kotaKab: "", provinsi: "" });
+  });
+
+  it("round-trips a changed region key into the patch", () => {
+    const initial = toEditorValues(source);
+    const next = structuredClone(initial);
+    next.studentData.address.kelurahan = "Citarum";
+    next.ibuData.address.provinsi = "Jawa Barat";
+    expect(buildPatchBody(initial, next)).toEqual({
+      studentData: { address: { kelurahan: "Citarum" } },
+      ibuData: { address: { provinsi: "Jawa Barat" } },
+    });
   });
 
   it("ignores an onlyParent value outside the allowed set", () => {

@@ -306,6 +306,27 @@ describe("POST /api/enrollments/[id]/convert — minimum data", () => {
     nothingCreated();
   });
 
+  it("writes the full joined address for the child and a parent, and an old four-key blob reads as before", async () => {
+    useApp(
+      app({
+        studentData: {
+          childName: "Aisyah Putri",
+          address: {
+            perumahan: "Jl. Citarum 5", blokCluster: "B", rtRw: "01/02", kelurahan: "Citarum",
+            kecamatan: "Bandung Wetan", kotaKab: "Kota Bandung", provinsi: "Jawa Barat", kodePos: "40115",
+          },
+        },
+        ayahData: { name: "Bapak Ahmad", address: { perumahan: "Taman Aster", kecamatan: "Cikarang", kodePos: "17530" } },
+      }),
+    );
+    expect((await POST(reqx(), ctx())).status).toBe(200);
+    expect(studentCreate.mock.calls[0][0].data.address).toBe(
+      "Jl. Citarum 5, B, 01/02, Citarum, Bandung Wetan, Kota Bandung, Jawa Barat, 40115",
+    );
+    const ayahArg = parentCreate.mock.calls.find((c) => c[0].data.name === "Bapak Ahmad")![0].data;
+    expect(ayahArg.address).toBe("Taman Aster, Cikarang, 17530");
+  });
+
   it("converts from the locked copy, not the stale pre-tx read", async () => {
     useApp(app());
     lockedApp = app({ childName: "Aisyah Putri Az-Zahra", studentData: { childName: "Aisyah Putri Az-Zahra" } });
