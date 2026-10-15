@@ -162,7 +162,7 @@ Data: demo auth, disposable local Postgres, seeded super admin (`u_super_admin`)
   branch only — accept: token route + page + client tests green (reuse: `fee-snapshot.ts`; baseline `023c38e`).
 - [ ] T2 Pay-after for staff — invite takes no program and creates no fee; *Kirim Formulir* one tap; result card without
   fee block; no *Menunggu pembayaran* stat — accept: invite route + admissions page + dialog tests green (parallel with T1).
-- [ ] T3 Wilayah data + lookup — pinned vendoring script, compact JSON + MIT notices, `lib/wilayah` lookup by kode pos
+- [x] T3 Wilayah data + lookup — pinned vendoring script, compact JSON + MIT notices, `lib/wilayah` lookup by kode pos
   and name search, token-gated rate-limited route — accept: lib + route tests green, sample codes 40115 / 12950 / 99351
   (parallel with T1, T2).
 - [ ] T4 Address UI + fields — shared address component in the parent form (3 places), new keys in validation, staff
@@ -174,6 +174,7 @@ Data: demo auth, disposable local Postgres, seeded super admin (`u_super_admin`)
 ## Implementation
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (one subagent per slice; workers never commit, the driver re-runs every gate, reviews and commits). T1 ∥ T2 ∥ T3 in parallel (disjoint files: token routes + `app/pendaftaran/**` vs invite route + `components/admin/admissions/**` vs new `lib/wilayah/**` + one new route); T4 after T1 + T3 (shares `app/pendaftaran/[token]/client.tsx` with T1, consumes T3); T5 last. Review per task: standards + spec reviewers, plus security for `app/api/**`.
+- T3: `scripts/vendor-wilayah.mjs` (zero-dep, pinned to cahyadsn/wilayah@5d450cc + wilayah_kodepos@ba84971, `--from` for offline clones, hard validation, deterministic output), `lib/wilayah/data/{wilayah.json,NOTICE.txt}` (1.87 MB, 562 KB gzipped; 38 / 514 / 7,285 / 83,762 / 10,632 kode pos; both MIT notices verbatim), `lib/wilayah/lookup.ts` (`lookupKodePos` exact 5 digits sorted by kelurahan; `searchWilayah` normalized prefix-token search, ≥3 letters, ranked kelurahan → kecamatan → spread, index built lazily: ~0.3 ms lookup, 3–36 ms search), `app/api/enrollments/token/[token]/wilayah/route.ts` (`// @public`, per-IP 60/min, open form only via `denyTokenAccess`, `?kodepos=` xor `?q=`, Indonesian 400s, region data only). The JSON is a plain import inlined into the route chunk, so no file tracing config is needed on Vercel; build confirmed in the full gate.
 
 ## Verification
 
