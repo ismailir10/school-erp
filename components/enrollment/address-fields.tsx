@@ -4,8 +4,11 @@
  * Address block of the public pendaftaran form (child, Ayah, Ibu): kode pos
  * first, region boxes second.
  *
- *   Perumahan / Jalan · Blok / Cluster · RT / RW · Kode pos · Kelurahan / Desa ·
- *   Kecamatan · Kota / Kabupaten · Provinsi
+ *   Perumahan / Jalan · Blok / Cluster · RT / RW · Kode pos · [status · "Tidak tahu
+ *   kode pos?" + search panel] · Kelurahan / Desa · Kecamatan · Kota / Kabupaten · Provinsi
+ *
+ * The status line and the search toggle sit right under the kode pos so they stay in view on a
+ * phone; the four region boxes then stay together as one group.
  *
  * The kode pos input has no maxlength attribute on purpose: browsers truncate a paste to
  * maxlength BEFORE onChange runs, so "40 115" would arrive as "40 11". The handler strips
@@ -491,38 +494,6 @@ export function AddressFields({ token, value, onChange, legend, idPrefix, showEr
         fieldKey={idPrefix ? `${idPrefix}.kodePos` : undefined}
       />
 
-      {showDropdown ? (
-        <Field>
-          <FieldLabel htmlFor={kelSelectId}>Kelurahan / Desa</FieldLabel>
-          <NativeSelect
-            id={kelSelectId}
-            className="w-full"
-            selectClassName={SELECT_CLASS}
-            ref={kelSelectRef}
-            value={unlisted ? CURRENT : selectedIndex >= 0 ? String(selectedIndex) : ""}
-            onChange={(e) => onPickKelurahan(e.target.value)}
-          >
-            <NativeSelectOption value="">Pilih kelurahan / desa</NativeSelectOption>
-            {unlisted && <NativeSelectOption value={CURRENT}>{value.kelurahan}</NativeSelectOption>}
-            {lookup.options.map((o, i) => (
-              <NativeSelectOption key={`${o.kelurahan}|${o.kecamatan}`} value={String(i)}>
-                {kecamatanDiffers ? `${o.kelurahan} — ${o.kecamatan}` : o.kelurahan}
-              </NativeSelectOption>
-            ))}
-            <NativeSelectOption value={OTHER}>Lainnya (ketik sendiri)</NativeSelectOption>
-          </NativeSelect>
-        </Field>
-      ) : (
-        <div className="flex flex-col gap-1">
-          <AddressTextField label="Kelurahan / Desa" value={value.kelurahan} onChange={set("kelurahan")} inputRef={kelInputRef} />
-          {canReturnToList && (
-            <Button type="button" variant="link" className="h-11 justify-start px-0 text-base" onClick={returnToList}>
-              Pilih dari daftar
-            </Button>
-          )}
-        </div>
-      )}
-
       <div className="space-y-2 sm:col-span-2">
         {/* One stable polite region for every lookup message; it stays mounted (empty) so changes are announced. */}
         <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
@@ -573,9 +544,41 @@ export function AddressFields({ token, value, onChange, legend, idPrefix, showEr
         )}
       </div>
 
+      {showDropdown ? (
+        <Field>
+          <FieldLabel htmlFor={kelSelectId}>Kelurahan / Desa</FieldLabel>
+          <NativeSelect
+            id={kelSelectId}
+            className="w-full"
+            selectClassName={SELECT_CLASS}
+            ref={kelSelectRef}
+            value={unlisted ? CURRENT : selectedIndex >= 0 ? String(selectedIndex) : ""}
+            onChange={(e) => onPickKelurahan(e.target.value)}
+          >
+            <NativeSelectOption value="">Pilih kelurahan / desa</NativeSelectOption>
+            {unlisted && <NativeSelectOption value={CURRENT}>{value.kelurahan}</NativeSelectOption>}
+            {lookup.options.map((o, i) => (
+              <NativeSelectOption key={`${o.kelurahan}|${o.kecamatan}`} value={String(i)}>
+                {kecamatanDiffers ? `${o.kelurahan} — ${o.kecamatan}` : o.kelurahan}
+              </NativeSelectOption>
+            ))}
+            <NativeSelectOption value={OTHER}>Lainnya (ketik sendiri)</NativeSelectOption>
+          </NativeSelect>
+        </Field>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <AddressTextField label="Kelurahan / Desa" value={value.kelurahan} onChange={set("kelurahan")} inputRef={kelInputRef} />
+          {canReturnToList && (
+            <Button type="button" variant="link" className="h-11 justify-start px-0 text-base" onClick={returnToList}>
+              Pilih dari daftar
+            </Button>
+          )}
+        </div>
+      )}
+
       <AddressTextField label="Kecamatan" value={value.kecamatan} onChange={set("kecamatan")} />
       <AddressTextField label="Kota / Kabupaten" value={value.kotaKab} onChange={set("kotaKab")} />
-      <AddressTextField label="Provinsi" className="sm:col-span-2" value={value.provinsi} onChange={set("provinsi")} />
+      <AddressTextField label="Provinsi" value={value.provinsi} onChange={set("provinsi")} />
     </div>
   );
 }

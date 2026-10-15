@@ -25,6 +25,8 @@ export type AdmissionApplication = {
   id: string;
   status: string;
   programName: string | null;
+  /** The name written on the formulir ("" when blank); the list prefers it when the lead has none. */
+  childName: string;
   studentId: string | null;
   submittedAt: string | null;
   /** null = no fee row. `canRemind`: a WhatsApp number exists and the fee is still unpaid. */

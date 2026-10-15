@@ -55,7 +55,8 @@ function PaymentCell({ admission: a }: { admission: Admission }) {
  * lead without a formulir has nowhere to go, and a viewer cannot open the dialog.
  */
 function IdentityCell({ admission: a, canEdit, onEdit }: { admission: Admission; canEdit: boolean; onEdit: (a: Admission) => void }) {
-  const label = admissionChildLabel(a.childName);
+  // The lead's own name wins; a lead without one shows the child the parent named on the formulir.
+  const label = admissionChildLabel(a.childName.trim() ? a.childName : a.application?.childName);
   // Prefer derived age from dateOfBirth; fall back to the legacy childAge free text.
   const age = formatAgeFromDob(a.dateOfBirth) ?? a.childAge;
   const contact = a.parentPhone ? ` · ${a.parentPhone}` : a.parentWhatsapp ? ` · WA ${a.parentWhatsapp}` : "";

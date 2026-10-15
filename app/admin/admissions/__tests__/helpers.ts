@@ -50,7 +50,7 @@ export function leadRow(over: Record<string, unknown> = {}) {
 
 export function formulir(over: Record<string, unknown> = {}) {
   return {
-    id: "ea-1", status: "INVITED", programName: "KB", studentId: null,
+    id: "ea-1", status: "INVITED", programName: "KB", childName: "", studentId: null,
     submittedAt: null, fee: null,
     ...over,
   };

@@ -65,6 +65,7 @@ const lead = (over: Row = {}): Row => ({
 const application = (over: Row = {}): Row => ({
   id: "e1",
   status: "INVITED",
+  childName: "Aisyah Putri",
   program: { name: "Day Care" },
   studentId: null,
   submittedAt: null,
@@ -133,6 +134,7 @@ describe("GET /api/admissions — item shape", () => {
       id: "e1",
       status: "SUBMITTED",
       programName: "Day Care",
+      childName: "Aisyah Putri",
       studentId: null,
       submittedAt: submittedAt.toISOString(),
       fee: { status: "UNPAID", amount: 1500000, canRemind: true },
@@ -158,14 +160,14 @@ describe("GET /api/admissions — item shape", () => {
     expect(json).not.toContain("081111111111");
     expect(json).not.toContain("ayahData");
     expect(Object.keys(item.application as object).sort()).toEqual(
-      ["fee", "id", "programName", "status", "studentId", "submittedAt"],
+      ["childName", "fee", "id", "programName", "status", "studentId", "submittedAt"],
     );
   });
 
   it("never selects the access token or the form blocks in the list query", async () => {
     await get();
     const select = db.findMany.mock.calls[0][0].include.enrollmentApplication.select;
-    expect(Object.keys(select).sort()).toEqual(["fee", "id", "program", "status", "studentId", "submittedAt"]);
+    expect(Object.keys(select).sort()).toEqual(["childName", "fee", "id", "program", "status", "studentId", "submittedAt"]);
   });
 
   it.each([

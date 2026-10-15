@@ -1176,7 +1176,7 @@ function ProgramStep({
       </Field>
       <label className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card p-3">
         <Checkbox className="size-5" checked={dcareAddon} onCheckedChange={(c) => onDcare(c === true)} />
-        <span className="text-sm text-foreground">Tambahan Dcare (penitipan)</span>
+        <span className="text-sm text-foreground">Tambahan Day Care (penitipan)</span>
       </label>
     </div>
   );
