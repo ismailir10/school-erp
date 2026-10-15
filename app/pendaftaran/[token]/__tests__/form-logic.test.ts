@@ -67,8 +67,6 @@ describe("resumeStep", () => {
     expect(resumeStep({ ...complete, ayah: { ...parent, name: "" } })).toBe(1);
     expect(resumeStep({ ...complete, ibu: { ...parent, name: " " } })).toBe(2);
     expect(resumeStep({ ...complete, programId: "" })).toBe(3);
-    // Pay-first: the school fixed the program, so a missing id here never sends the parent to that step.
-    expect(resumeStep({ ...complete, programId: "", programLocked: true })).toBe(resumeStep(complete));
     expect(resumeStep({ ...complete, student: { ...complete.student, dateOfBirth: "" } })).toBe(0);
   });
 

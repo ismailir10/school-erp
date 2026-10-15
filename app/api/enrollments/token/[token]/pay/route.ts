@@ -13,14 +13,14 @@ const RATE_WINDOW_MS = 60_000;
 
 /**
  * POST /api/enrollments/token/[token]/pay — the link the parent follows to pay
- * the pendaftaran fee. Pay-first: the fee exists from the moment staff send the
- * formulir, so this works while the form is still INVITED (the "Bayar dulu"
- * screen) as well as after it was submitted (a formulir sent before pay-first).
+ * the pendaftaran fee. The fee is created when the form is submitted, so this
+ * serves a submitted application; an open form only has a fee when it was sent
+ * under the short-lived pay-first order, and is served the same way.
  *
  *   200 { paymentUrl }          payable gateway link (stored one, or a fresh one)
  *   200 { status: "PAID" | "WAIVED" }   nothing left to pay
- *   404 { error: "NO_FEE" }     the form is still open and has no fee (a free
- *                                program, or a formulir sent before pay-first)
+ *   404 { error: "NO_FEE" }     the form is still open and has no fee yet (it is
+ *                                priced when the parent submits)
  *   404                          unknown token, or a submitted application with no fee
  *   409 { error: "APPLICATION_CLOSED" } staff rejected the application or cancelled
  *                                the lead; no new link
@@ -47,9 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const perToken = rateLimit(`enroll-pay-token:${token}`, TOKEN_LIMIT_PER_MIN, RATE_WINDOW_MS);
   if (!perToken.success) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   if (access === "EXPIRED") return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
-  // INVITED ("OK" = fee settled or none, "PAYMENT_REQUIRED" = fee owed) and
-  // SUBMITTED all go on to the fee lookup; an OPEN form without a fee answers
-  // NO_FEE below.
+  // INVITED ("OK") and SUBMITTED both go on to the fee lookup; an OPEN form
+  // without a fee answers NO_FEE below.
   const link = await getOrCreateFeePaymentLink({
     applicationId: id,
     tenantId,

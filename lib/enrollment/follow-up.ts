@@ -63,7 +63,7 @@ export function feeReminderText(input: {
 }): string {
   const who = input.parentName?.trim() ? `Bapak/Ibu ${input.parentName.trim()}` : "Bapak/Ibu";
   const school = input.schoolName?.trim();
-  // Pay-first: the fee can be chased before the child has been named.
+  // The child may not be named yet (a fee created under pay-first).
   const child = input.childName.trim();
   return [
     school ? `Assalamu'alaikum ${who}. Kami dari ${school}.` : `Assalamu'alaikum ${who}.`,

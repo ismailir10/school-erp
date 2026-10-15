@@ -239,27 +239,17 @@ describe("GET /api/enrollments/token/[token]/signature", () => {
   });
 });
 
-describe("signature — pay-first gate", () => {
-  it("POST: 409 PAYMENT_REQUIRED while the fee is UNPAID; nothing is stored or merged", async () => {
-    mockRow({ status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } } as never);
-    const res = await POST(postReq("ayah"), ctx);
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." });
-    expect(saveFile).not.toHaveBeenCalled();
-    expect(mergeJsonKey).not.toHaveBeenCalled();
-  });
-
-  it("GET: the saved-signature status is gated too, and the row is not read", async () => {
-    mockRow({ status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } } as never);
-    const res = await GET(getReq(), ctx);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("PAYMENT_REQUIRED");
-    expect(findUnique).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([["PAID"], ["WAIVED"], [null]])("POST is allowed with fee %s", async (status) => {
+describe("signature — the fee never gates the pads (pay after submit)", () => {
+  // A fee row on an open form only exists for a formulir sent under pay-first (staging).
+  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])("POST is allowed with fee %s", async (status) => {
     mockRow({ status: "INVITED", tokenExpiresAt: future, fee: status ? { status } : null } as never);
     expect((await POST(postReq("ayah"), ctx)).status).toBe(200);
     expect(mergeJsonKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET reads the saved-signature status with an UNPAID fee", async () => {
+    mockRow({ status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } } as never);
+    expect((await GET(getReq(), ctx)).status).toBe(200);
+    expect(findUnique).toHaveBeenCalledTimes(2);
   });
 });

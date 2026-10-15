@@ -7,8 +7,9 @@
  * shared webhook processor resolves after Invoice (see webhook-processor.ts).
  *
  * Server-only. Called from the public `/pay` route and (re-issuing a link)
- * from staff actions. Pay-first: the fee exists from the moment staff send the
- * formulir, so a link can be minted while the application is still INVITED.
+ * from staff actions. The fee is created when the parent submits the form, so a
+ * link is normally minted for a SUBMITTED application (a fee on a still-INVITED
+ * one only exists for forms sent under the short-lived pay-first order).
  */
 
 import { prisma } from "@/lib/db";
@@ -78,7 +79,7 @@ async function resolveLink(
   });
   if (!fee || fee.tenantId !== opts.tenantId) return { kind: "NO_FEE" };
   if (fee.status === "PAID" || fee.status === "WAIVED") return { kind: "SETTLED", status: fee.status };
-  // Works while the form is still INVITED (pay-first) as well as after submit.
+  // Works for a SUBMITTED application and for an INVITED one that already holds a fee.
   // A rejected application or a cancelled lead is closed: no link is handed out.
   if (isFeeClosed(fee.application)) return { kind: "CLOSED" };
 
@@ -105,7 +106,7 @@ async function resolveLink(
         getGateway().createSession({
           referenceId: fee.id,
           amount,
-          // Pay-first: the fee is paid before the child is named, so the name may be blank.
+          // Guard a blank name (a fee on a not-yet-named application under pay-first).
           description: fee.application.childName.trim() ? `Biaya pendaftaran — ${fee.application.childName}` : "Biaya pendaftaran",
           customerName: admission?.parentName || fee.application.childName,
           customerEmail: admission?.parentEmail ?? fee.application.parentEmail ?? undefined,

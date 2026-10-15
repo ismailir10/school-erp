@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { CONSENT_VERSION } from "@/lib/enrollment/consent-clauses";
 
-const { findUnique, updateMany, programFindFirst, programFindMany, feeCreate, queryRaw, transaction, tenantFindUnique } =
+const { findUnique, updateMany, programFindFirst, programFindMany, feeCreate, queryRaw, transaction, tenantFindUnique, repriceUnpaidFee } =
   vi.hoisted(() => ({
+    repriceUnpaidFee: vi.fn(),
     findUnique: vi.fn(),
     tenantFindUnique: vi.fn(),
     updateMany: vi.fn(),
@@ -27,6 +28,14 @@ vi.mock("@/lib/db", () => {
   };
   return { prisma: client };
 });
+
+// An existing fee is repriced by the helper staff's "Ubah data" uses; its maths and its
+// PAID / WAIVED rules have their own tests, so it is stubbed here to prove the route
+// delegates to it under the row lock and shapes the 201 body from its answer.
+vi.mock("@/lib/enrollment/fee-snapshot", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/enrollment/fee-snapshot")>()),
+  repriceUnpaidFee,
+}));
 
 import { POST } from "../route";
 import { __resetRateLimitForTest } from "@/lib/rate-limit";
@@ -485,108 +494,101 @@ describe("pendaftaran fee (cycle 2026-10-10-pendaftaran-fee-payment)", () => {
   });
 });
 
-describe("POST /submit — pay-first (the fee exists from the moment staff sent the formulir)", () => {
+describe("POST /submit — pay after the form: a fee row already left by pay-first (staging)", () => {
   const PID = "c" + "a".repeat(24);
-  const STORED = "c" + "b".repeat(24);
+  const OTHER = "c" + "b".repeat(24);
   const SIGS = { ayah: { signatureToken: DB_AYAH }, ibu: { signatureToken: DB_IBU } };
 
-  /**
-   * `accessFee` is what the token lookup sees, `storedFee` what the locked read
-   * sees (they differ only in a race). `programId`/`dcareAddon` are the stored choice.
-   */
-  function mockFormulir(opts: {
-    accessFee?: { status: string } | null;
-    storedFee?: { status: string } | null;
-    programId?: string | null;
-    dcareAddon?: boolean;
-  }) {
-    const { accessFee = null, storedFee = accessFee, programId = STORED, dcareAddon = true } = opts;
+  /** `fee` is the row a formulir sent under pay-first already holds (what the locked read sees). */
+  function mockFormulir(fee: { id: string } | null) {
     findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) =>
       arg.where.accessToken
-        ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1", fee: accessFee }
-        : { consentData: SIGS, documents: null, programId, dcareAddon, fee: storedFee },
+        ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" }
+        : { consentData: SIGS, documents: null, fee },
     );
   }
+  const view = (status: string, baseAmount: number, amount: number) => ({ status, baseAmount, amount });
 
-  it("409 PAYMENT_REQUIRED while the fee is UNPAID: no transaction, no flip, no fee", async () => {
-    mockFormulir({ accessFee: { status: "UNPAID" } });
-    const res = await POST(req(validBody()), ctx);
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: "PAYMENT_REQUIRED", message: "Bayar biaya formulir dulu supaya formulir bisa diisi." });
-    expect(transaction).not.toHaveBeenCalled();
-    expect(updateMany).not.toHaveBeenCalled();
-    expect(feeCreate).not.toHaveBeenCalled();
+  beforeEach(() => {
+    mockFormulir({ id: "fee-1" });
+    programFindMany.mockResolvedValue([
+      { id: PID, code: "KB", name: "KB", enrollmentFee: 300_000 },
+      { id: OTHER, code: "TK", name: "TK", enrollmentFee: 800_000 },
+    ]);
   });
 
-  it("re-checks under the row lock: a fee created after the access check still blocks the flip", async () => {
-    mockFormulir({ accessFee: null, storedFee: { status: "UNPAID" } });
-    const res = await POST(req(validBody()), ctx);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("PAYMENT_REQUIRED");
-    expect(updateMany).not.toHaveBeenCalled();
-    expect(feeCreate).not.toHaveBeenCalled();
-  });
-
-  it.each([["PAID"], ["WAIVED"]])("with a %s fee: submits with the STORED program and Day Care, whatever the body says", async (status) => {
-    mockFormulir({ accessFee: { status }, programId: STORED, dcareAddon: true });
-    programFindMany.mockResolvedValue([{ id: STORED, code: "TK", name: "TK", enrollmentFee: 800_000 }]);
-    const res = await POST(req({ ...validBody(), programId: PID, dcareAddon: false }), ctx);
+  it("an UNPAID fee never refuses the submit: it is repriced to the submitted program and Day Care, not duplicated", async () => {
+    repriceUnpaidFee.mockResolvedValue({ note: "repriced", fee: view("UNPAID", 800_000, 800_000) });
+    const res = await POST(req({ ...validBody(), programId: OTHER, dcareAddon: true }), ctx);
     expect(res.status).toBe(201);
-    const { data } = updateMany.mock.calls[0][0];
-    expect(data).toMatchObject({ status: "SUBMITTED", programId: STORED, dcareAddon: true });
-    // The tenant check runs on the stored program, not the body's.
-    expect(programFindFirst.mock.calls[0][0].where).toEqual({ id: STORED, tenantId: "t-1" });
+    expect(updateMany.mock.calls[0][0].data).toMatchObject({ status: "SUBMITTED", programId: OTHER, dcareAddon: true });
+    expect(repriceUnpaidFee).toHaveBeenCalledTimes(1);
+    const [, input] = repriceUnpaidFee.mock.calls[0];
+    expect(input).toMatchObject({ tenantId: "t-1", applicationId: "a", programId: OTHER, dcareAddon: true, actorId: "parent-form" });
+    expect(feeCreate).not.toHaveBeenCalled();
+    // The body carries the fee like a fresh one, so the thank-you card shows the pay panel.
+    expect(await res.json()).toEqual({ ok: true, id: "a", fee: { baseAmount: 800_000, amount: 800_000, status: "UNPAID" } });
   });
 
-  it.each([["PAID"], ["WAIVED"]])("with a %s fee: never creates a second fee; the response says so", async (status) => {
-    mockFormulir({ accessFee: { status } });
-    programFindMany.mockResolvedValue([{ id: STORED, code: "TK", name: "TK", enrollmentFee: 800_000 }]);
-    const res = await POST(req(validBody()), ctx);
+  it("the submitted program is checked against the tenant's ACTIVE programs even though a fee exists", async () => {
+    programFindMany.mockResolvedValue([{ id: PID, code: "KB", name: "KB", enrollmentFee: 300_000 }]);
+    const res = await POST(req({ ...validBody(), programId: OTHER }), ctx);
+    expect(res.status).toBe(422);
+    expect((await res.json()).fields.programId).toBe("Program tidak valid");
+    expect(programFindMany.mock.calls[0][0].where).toEqual({ tenantId: "t-1", status: "ACTIVE" });
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(repriceUnpaidFee).not.toHaveBeenCalled();
+  });
+
+  it.each([["PAID"], ["WAIVED"]])("a %s fee is left alone: the helper changes nothing and the body carries no fee", async (status) => {
+    repriceUnpaidFee.mockResolvedValue({
+      note: status === "PAID" ? "unchanged_paid" : "unchanged_waived",
+      fee: view(status, 800_000, 800_000),
+    });
+    const res = await POST(req({ ...validBody(), programId: OTHER }), ctx);
     expect(res.status).toBe(201);
     expect(feeCreate).not.toHaveBeenCalled();
-    expect(await res.json()).toEqual({ ok: true, id: "a", fee: null, feeStatus: status });
+    expect(await res.json()).toEqual({ ok: true, id: "a", fee: null });
   });
 
-  it("with a fee the body need not repeat program or Day Care at all", async () => {
-    mockFormulir({ accessFee: { status: "PAID" } });
-    const { programId: _p, dcareAddon: _d, ...rest } = validBody();
-    expect((await POST(req(rest), ctx)).status).toBe(201);
-    expect(updateMany.mock.calls[0][0].data).toMatchObject({ programId: STORED, dcareAddon: true });
-  });
-
-  it("a program retired after the formulir was sent cannot block a parent who already paid", async () => {
-    mockFormulir({ accessFee: { status: "PAID" } });
-    programFindMany.mockResolvedValue([{ id: PID, code: "KB", name: "KB", enrollmentFee: 0 }]); // STORED not ACTIVE
-    expect((await POST(req(validBody()), ctx)).status).toBe(201);
-    expect(programFindMany).not.toHaveBeenCalled();
-  });
-
-  it("the stored program must still belong to the tenant", async () => {
-    mockFormulir({ accessFee: { status: "PAID" } });
-    programFindFirst.mockResolvedValue(null);
+  it("a fee that the new program zeroes (closed as WAIVED) carries no fee: no pay panel for a free program", async () => {
+    repriceUnpaidFee.mockResolvedValue({ note: "repriced", fee: view("WAIVED", 0, 0) });
     const res = await POST(req(validBody()), ctx);
-    expect(res.status).toBe(422);
-    expect(updateMany).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ ok: true, id: "a", fee: null });
   });
 
-  it("a stored fee with no stored program is refused like a form with no program (422 on programId)", async () => {
-    mockFormulir({ accessFee: { status: "PAID" }, programId: null });
+  it("an unchanged UNPAID fee (same program) still leads to the pay panel", async () => {
+    repriceUnpaidFee.mockResolvedValue({ note: "repriced", fee: view("UNPAID", 300_000, 270_000) });
     const res = await POST(req(validBody()), ctx);
-    expect(res.status).toBe(422);
-    expect((await res.json()).fields.programId).toBeTruthy();
-    expect(updateMany).not.toHaveBeenCalled();
+    expect((await res.json()).fee).toEqual({ baseAmount: 300_000, amount: 270_000, status: "UNPAID" });
   });
 
-  describe("legacy: a formulir sent before pay-first (no fee row) keeps the old order", () => {
-    it("uses the program chosen in the form and creates the fee at submit", async () => {
-      mockFormulir({ accessFee: null, storedFee: null, programId: STORED, dcareAddon: false });
-      programFindMany.mockResolvedValue([{ id: PID, code: "KB", name: "KB", enrollmentFee: 300_000 }]);
-      const res = await POST(req({ ...validBody(), programId: PID }), ctx);
+  it("no reprice (and no flip) when the submit loses the race: the repricing only follows a won flip", async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+    expect((await POST(req(validBody()), ctx)).status).toBe(409);
+    expect(repriceUnpaidFee).not.toHaveBeenCalled();
+    expect(feeCreate).not.toHaveBeenCalled();
+  });
+
+  describe("no fee row (every form sent now): priced at submit", () => {
+    beforeEach(() => mockFormulir(null));
+
+    it("uses the program chosen in the form and creates the fee", async () => {
+      const res = await POST(req({ ...validBody(), programId: PID, dcareAddon: false }), ctx);
       expect(res.status).toBe(201);
       expect(updateMany.mock.calls[0][0].data).toMatchObject({ programId: PID, dcareAddon: false });
+      expect(repriceUnpaidFee).not.toHaveBeenCalled();
       expect(feeCreate).toHaveBeenCalledTimes(1);
       expect(feeCreate.mock.calls[0][0].data).toMatchObject({ applicationId: "a", amount: 300_000, status: "UNPAID" });
       expect(await res.json()).toEqual({ ok: true, id: "a", fee: { baseAmount: 300_000, amount: 300_000, status: "UNPAID" } });
+    });
+
+    it("a free program creates no fee and answers fee: null", async () => {
+      programFindMany.mockResolvedValue([{ id: PID, code: "KB", name: "KB", enrollmentFee: 0 }]);
+      const res = await POST(req(validBody()), ctx);
+      expect(res.status).toBe(201);
+      expect(feeCreate).not.toHaveBeenCalled();
+      expect(await res.json()).toEqual({ ok: true, id: "a", fee: null });
     });
   });
 });
