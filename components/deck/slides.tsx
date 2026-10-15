@@ -41,17 +41,17 @@ export const SLIDES: Slide[] = [
     id: "kesiswaan",
     nav: "Kesiswaan",
     kicker: "Kesiswaan",
-    title: "Pendaftaran: bayar dulu, isi formulir, jadi siswa",
-    lead: "Orang tua membayar biaya formulir dulu, lalu mengisi datanya lewat tautan, atau diisi bersama di meja admin saat datang langsung. Admin memeriksa berkas, lalu satu ketukan mengubah pendaftar menjadi data siswa dan wali.",
+    title: "Pendaftaran: isi formulir, bayar, jadi siswa",
+    lead: "Orang tua mengisi datanya lewat tautan, atau diisi bersama di meja admin saat datang langsung, lalu membayar biaya pendaftaran setelah formulir dikirim. Admin memeriksa berkas, lalu satu ketukan mengubah pendaftar menjadi data siswa dan wali.",
     steps: [
       { title: "Catat pertanyaan", text: "Admin mencatat nama orang tua dan satu kontak, atau orang tua mengisi form singkat di halaman pendaftaran." },
       {
         title: "Kirim Formulir",
-        text: "Admin memilih program dan Day Care, biaya langsung terlihat. Tautan dikirim lewat WhatsApp atau email; orang tua membayar dulu, baru formulir terbuka.",
+        text: "Satu ketukan, tanpa memilih program atau biaya. Tautan dikirim lewat WhatsApp atau email; orang tua memilih program dan Day Care di formulir, biayanya dibayar setelah formulir dikirim.",
       },
       {
         title: "Formulir masuk",
-        text: "Tujuh langkah: data anak dan orang tua, berkas, persetujuan. Tiap orang tua menandatangani dari ponselnya, atau diisi bersama admin.",
+        text: "Tujuh langkah: data anak dan orang tua, berkas, persetujuan. Cukup ketik kode pos, alamatnya terisi. Tiap orang tua menandatangani dari ponselnya, atau diisi bersama admin; biaya dibayar setelah formulir dikirim.",
       },
       { title: "Siswa", text: "Admin memeriksa berkas, lalu menekan Terima & Jadikan Siswa. Data siswa dan wali ikut dibuat." },
     ],

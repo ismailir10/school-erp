@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { firstProgramId } from "./helpers/enrollment";
 
 // Demo mode E2E tests — discovers user ID from /api/auth/users and sets
 // session cookie directly to avoid rate-limit on repeated beforeEach calls.
@@ -284,8 +283,7 @@ test.describe("Admin flows", () => {
     expect(stillNewRow).toMatchObject({ status: "INQUIRY", stage: "BARU" });
 
     // A converted lead is a student: it cannot be cancelled (409), and nothing else moves it back.
-    const programId = await firstProgramId(page.request);
-    const invite = await page.request.post("/api/enrollments/invite", { data: { admissionId: lead.id, programId } });
+    const invite = await page.request.post("/api/enrollments/invite", { data: { admissionId: lead.id } });
     expect(invite.ok()).toBeTruthy();
     const applicationId = (await invite.json()).id as string;
     const convert = await page.request.post(`/api/enrollments/${applicationId}/convert`);

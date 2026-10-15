@@ -212,7 +212,6 @@ test.describe("Enrollment documents follow-ups", () => {
       ip,
       child: CHILD_COPY,
       email: `e2e-salin-${STAMP}@example.com`,
-      programId,
     });
 
     // Unique parent emails/phones so convert creates NEW Parent rows instead of

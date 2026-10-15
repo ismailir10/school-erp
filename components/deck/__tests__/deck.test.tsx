@@ -140,11 +140,12 @@ describe("Deck content", () => {
     }
   });
 
-  it("teaches the shipped admissions flow: pay first, walk-in, one-click convert", () => {
+  it("teaches the shipped admissions flow: pay after the form, walk-in, one-click convert", () => {
     const slide = SLIDES.find((s) => s.id === "kesiswaan");
     const copy = [slide?.title, slide?.lead, ...(slide?.steps ?? []).flatMap((st) => [st.title, st.text])].join(" ");
     expect(slide?.steps).toHaveLength(4);
-    expect(copy).toMatch(/membayar dulu|bayar dulu/);
+    expect(copy).toMatch(/dibayar setelah formulir dikirim|membayar biaya pendaftaran setelah formulir dikirim/);
+    expect(copy).not.toMatch(/bayar dulu|membayar dulu|membayar biaya formulir dulu/);
     expect(copy).toMatch(/Kirim Formulir/);
     expect(copy).toMatch(/Terima & Jadikan Siswa/);
     expect(copy).toMatch(/diisi bersama/);

@@ -57,8 +57,8 @@ Kalau butuh SCHOOL_ADMIN, buat via `/admin/settings` (User + role SCHOOL_ADMIN) 
 - **Fase:** staff-only (data admisi diisi tim admin dulu, publik belum diarahkan ke `/daftar` sungguhan)
 - **Langkah:**
   1. Publik: isi form `/daftar` (satu halaman pendek: nama orang tua + satu kontak; data anak opsional).
-  2. Admin: `/admin/admissions` → baris Tahap *Baru* → "Kirim Formulir" (pilih Program + Day Care; email tidak wajib, bisa WA atau salin tautan).
-  3. Buka link tokenized `/pendaftaran/[token]`: layar *Bayar dulu*, bayar (atau admin Tandai lunas / Bebaskan), lalu isi wizard 7 langkah, submit.
+  2. Admin: `/admin/admissions` → baris Tahap *Baru* → "Kirim Formulir" (satu ketukan, tanpa memilih Program atau biaya; email tidak wajib, bisa WA atau salin tautan).
+  3. Buka link tokenized `/pendaftaran/[token]`: form langsung terbuka; isi wizard 7 langkah (pilih Program + Day Care, ketik kode pos untuk mengisi kelurahan/kecamatan/kota/provinsi), submit, lalu *Bayar sekarang* (atau admin Tandai lunas / Bebaskan dari kartu biaya di formulir).
   4. Admin: baris jadi *Formulir masuk* → "Terima & Jadikan Siswa" (satu konfirmasi; jawab pertanyaan duplikat siswa/wali bila muncul).
 - **Hasil diharapkan:** Admission → EnrollmentApplication → Student + 2 Parent row ter-generate, baris berakhir *Siswa*. Data konsisten (bukan hilang) dari form ke record final. Sibling auto-detect muncul kalau email/telp cocok data existing.
 

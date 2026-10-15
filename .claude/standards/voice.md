@@ -104,9 +104,12 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Formulir masuk (Tahap: the parent, or staff on their behalf, submitted the formulir) | Sedang ditinjau, Dalam tinjauan, Under review (there is no review step to click) |
 | Diterima (Tahap: accepted, student not created yet — normally brief, convert accepts and creates in one step) | Admitted, Disetujui |
 | Siswa (Tahap: converted, the student exists; row action "Lihat siswa") | Terdaftar, Registered, Enrolled |
-| Menunggu pembayaran (the Pendaftaran stat card and a fee that is sent but not settled; the filter beside it reads "Belum bayar") | Tertunda, Pending |
-| Tandai lunas (staff settle the formulir fee in cash or transfer; asks once more because it cannot be undone) | Bayar manual, Mark paid |
-| Bebaskan biaya (staff waive the formulir fee; the parent's payment screen then opens the form) | Gratiskan, Hapus biaya |
+| Belum bayar (the Pendaftaran Pembayaran filter and count: a formulir fee that exists and is not settled) | Tertunda, Pending, Unpaid |
+| Menunggu pembayaran (parent payment page only: back from DOKU, payment not confirmed yet; the Pendaftaran list has no such card) | Tertunda, Pending |
+| Tandai lunas (staff settle the formulir fee in cash or transfer, from the fee card after the parent submitted; asks once more because it cannot be undone) | Bayar manual, Mark paid |
+| Bebaskan biaya (staff waive the formulir fee from the fee card after the parent submitted; the parent's link then shows no payment due) | Gratiskan, Hapus biaya |
+| Kode pos (address box: 5 digits, typing it fills Kelurahan / Desa, Kecamatan, Kota / Kabupaten and Provinsi; the helper link reads "Tidak tahu kode pos?") | Zip code, Postal code, Kodepos |
+| Kelurahan / Desa (address box; a dropdown when a kode pos covers several) | Kelurahan, Desa as two separate boxes, Village, Sub-district |
 | Ubah data (staff edit any field of a formulir before the student exists) | Edit formulir, Koreksi (Edit stays the generic word for ordinary forms) |
 | Tandai formulir masuk (staff submit on the parent's behalf; consent is noted as "disetujui langsung di sekolah", never a drawn signature) | Submit atas nama, Paksa kirim |
 | Terima & Jadikan Siswa (the one convert action: accept the formulir and create the student and wali links, one confirm) | Konversi ke Siswa, Mulai Tinjau + Terima + Konversi (the three old clicks) |

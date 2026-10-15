@@ -36,6 +36,9 @@ test.describe("Teacher flows", () => {
     const records = await response.json() as Array<{date:string;checkInTime:string|null;checkOutTime:string|null}>;
     const saved = records.find(record => record.date === today);
     const personal = page.locator('[aria-label="Kehadiran pribadi"]');
+    // The seeded record for the latest school day is sometimes LATE (random 15-44 min after 07:00,
+    // seeded per date), and the card then reads "Masuk 07.29 · Terlambat 29 menit · …".
+    const LATE_LABEL = "(?: · Terlambat(?: \\d+ menit)?)?";
     await expect(personal).toBeVisible();
     // Assert the actual saved times in the browser's locale. Indonesian time
     // punctuation varies between local and CI ICU builds (07:30 vs 07.30).
@@ -49,10 +52,10 @@ test.describe("Teacher flows", () => {
     }, saved ?? null);
     if (saved?.checkOutTime) {
       expect(displayTimes.checkIn).not.toBeNull();
-      await expect(personal).toContainText(`Masuk ${displayTimes.checkIn} · pulang ${displayTimes.checkOut}`);
+      await expect(personal).toContainText(new RegExp(`Masuk ${displayTimes.checkIn}${LATE_LABEL} · pulang ${displayTimes.checkOut}`));
       await expect(personal.getByRole("button")).toHaveCount(0);
     } else if (saved?.checkInTime) {
-      await expect(personal).toContainText(`Masuk ${displayTimes.checkIn} · sudah tercatat`);
+      await expect(personal).toContainText(new RegExp(`Masuk ${displayTimes.checkIn}${LATE_LABEL} · sudah tercatat`));
       await expect(personal.getByRole("button", {name:"Catat pulang",exact:true})).toBeVisible();
     } else {
       await expect(personal).toContainText("Kehadiran pribadi belum dicatat");

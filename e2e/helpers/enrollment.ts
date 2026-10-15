@@ -1,7 +1,7 @@
 import { expect, type APIRequestContext, type Browser, type BrowserContext } from "@playwright/test";
 
 /**
- * Shared setup for the enrollment-form specs (signature handover, documents).
+ * Shared setup for the enrollment-form specs (signature handover, documents, fee, pipeline).
  *
  * Everything goes through the real HTTP API with the demo admin cookie, the
  * same way `enrollment-application.spec.ts` does. Public (tokenized) calls carry
@@ -50,11 +50,12 @@ export type Invite = {
   token: string;
   /** The EnrollmentApplication id (what the staff fee and detail routes are addressed by). */
   applicationId: string;
-  /** Staff view of the fee row the invite created (null = free program, nothing to pay). */
-  fee: { status: string; amount: number } | null;
 };
 
-/** Staff settle a fee in one call (cash), the way the "Tandai lunas" button does. */
+/**
+ * Staff settle a fee in one call (cash), the way the formulir detail's "Tandai lunas" button does.
+ * Pay-after: the fee only exists once the parent has submitted the form (or staff marked it in).
+ */
 export async function markFeePaid(admin: APIRequestContext, applicationId: string): Promise<void> {
   const res = await admin.patch(`/api/enrollments/${applicationId}/fee`, {
     data: { action: "MARK_PAID", method: "CASH", note: "e2e" },
@@ -65,15 +66,14 @@ export async function markFeePaid(admin: APIRequestContext, applicationId: strin
 /**
  * Public admission inquiry → admin invite → opaque form token.
  *
- * Pay-first (cycle 2026-10-11-pendaftaran-simplify): the invite takes Program (+ Day Care)
- * and creates the pendaftaran fee right then; until it is PAID or WAIVED the parent's
- * writes are refused. Most specs are about the FORM, not the fee, so by default a priced
- * program's fee is settled in cash straight away (`settle: false` keeps it UNPAID, for
- * the specs that are about the gate). A free program creates no fee at all.
+ * Pay-after (cycle 2026-10-15-pendaftaran-pay-after-form): "Kirim Formulir" is one tap. The
+ * invite takes only the lead, picks no program and creates NO fee; the parent chooses Program
+ * (+ Day Care) in the form, and the fee is priced when the form is submitted. So the form is
+ * open the moment this returns, and nothing needs settling before the parent can write.
  */
 export async function createInvite(
   admin: APIRequestContext,
-  opts: { ip: string; child: string; email: string; programId?: string; dcareAddon?: boolean; settle?: boolean },
+  opts: { ip: string; child: string; email: string },
 ): Promise<Invite> {
   const adm = await admin.post("/api/admission/submit", {
     headers: { "X-Forwarded-For": opts.ip },
@@ -89,21 +89,59 @@ export async function createInvite(
   expect(adm.ok()).toBeTruthy();
   const admissionId = (await adm.json()).id as string;
 
-  const programId = opts.programId ?? (await firstProgramId(admin));
+  // The invite route is rate limited per client IP (10/min). Every spec invites from the same
+  // loopback address, so a per-call forwarded IP keeps their buckets apart (and a retry's fresh).
   const inv = await admin.post("/api/enrollments/invite", {
-    data: { admissionId, programId, ...(opts.dcareAddon !== undefined ? { dcareAddon: opts.dcareAddon } : {}) },
+    headers: { "X-Forwarded-For": opts.ip },
+    data: { admissionId },
   });
   expect(inv.ok()).toBeTruthy();
-  const body = (await inv.json()) as { id: string; formUrl: string; fee: { status: string; amount: number } | null };
+  const body = (await inv.json()) as { id: string; formUrl: string };
   const token = body.formUrl.split("/pendaftaran/")[1];
   expect(token.length).toBeGreaterThan(20);
+  return { admissionId, token, applicationId: body.id };
+}
 
-  let fee = body.fee;
-  if (fee?.status === "UNPAID" && opts.settle !== false) {
-    await markFeePaid(admin, body.id);
-    fee = { ...fee, status: "PAID" };
-  }
-  return { admissionId, token, applicationId: body.id, fee };
+export type ProgramFee = { id: string; name: string; enrollmentFee: number };
+
+/**
+ * The pendaftaran fee is a per-school setting shared by every spec. Prices the first program at
+ * `fee` and the second at 0 (free), and returns both plus a `restore()` for `afterAll`.
+ */
+export async function priceTwoPrograms(
+  admin: APIRequestContext,
+  fee: number,
+): Promise<{ priced: ProgramFee; free: ProgramFee; requiredDocuments: string[]; restore: () => Promise<void> }> {
+  const res = await admin.get("/api/config/enrollment");
+  expect(res.status()).toBe(200);
+  const cfg = await res.json();
+  const requiredDocuments = cfg.requiredDocuments as string[];
+  expect(cfg.programs.length).toBeGreaterThan(1);
+  const priced = { ...(cfg.programs[0] as ProgramFee) };
+  const free = { ...(cfg.programs[1] as ProgramFee) };
+  const put = await admin.put("/api/config/enrollment", {
+    data: {
+      requiredDocuments,
+      programFees: [
+        { programId: priced.id, fee },
+        { programId: free.id, fee: 0 },
+      ],
+    },
+  });
+  expect(put.status()).toBe(200);
+  return {
+    priced,
+    free,
+    requiredDocuments,
+    restore: async () => {
+      await admin.put("/api/config/enrollment", {
+        data: {
+          requiredDocuments,
+          programFees: [priced, free].map((p) => ({ programId: p.id, fee: p.enrollmentFee })),
+        },
+      });
+    },
+  };
 }
 
 export async function firstProgramId(admin: APIRequestContext): Promise<string> {
@@ -118,15 +156,17 @@ export async function firstProgramId(admin: APIRequestContext): Promise<string> 
  * Pre-fill the draft through the public PATCH so every wizard step validates
  * and the parent only has to sign. Names are on `consentData` so the
  * "Nama jelas" fields are filled on every device that opens the link.
+ * Program (+ Day Care) is the parent's choice in the form, so it rides on the draft.
  */
 export async function prefillDraft(
   request: APIRequestContext,
-  opts: { token: string; ip: string; child: string; programId: string },
+  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string> },
 ): Promise<void> {
   const res = await request.patch(`/api/enrollments/token/${opts.token}`, {
     headers: { "X-Forwarded-For": opts.ip },
     data: {
       programId: opts.programId,
+      ...(opts.dcareAddon !== undefined ? { dcareAddon: opts.dcareAddon } : {}),
       studentData: {
         childName: opts.child,
         childGender: "P",
@@ -134,6 +174,7 @@ export async function prefillDraft(
         dateOfBirth: "2021-03-15",
         agama: "ISLAM",
         kewarganegaraan: "WNI",
+        ...(opts.address ? { address: opts.address } : {}),
       },
       ayahData: { name: "E2E Ayah" },
       ibuData: { name: "E2E Ibu" },
@@ -151,5 +192,48 @@ export async function postSignature(
   return request.post(`/api/enrollments/token/${opts.token}/signature?which=${opts.which}`, {
     headers: { "X-Forwarded-For": opts.ip },
     multipart: { file: { name: "sig.png", mimeType: "image/png", buffer: PNG_1X1 } },
+  });
+}
+
+/** The body the real form sends on submit (the server prices from `programId` / `dcareAddon`; it never takes an amount). */
+export function submitBody(opts: {
+  programId: string;
+  child: string;
+  dcareAddon?: boolean;
+  address?: Record<string, string>;
+}) {
+  return {
+    programId: opts.programId,
+    dcareAddon: opts.dcareAddon ?? false,
+    studentData: {
+      childName: opts.child,
+      childGender: "P",
+      birthPlace: "Bekasi",
+      dateOfBirth: "2021-03-15",
+      agama: "ISLAM",
+      kewarganegaraan: "WNI",
+      ...(opts.address ? { address: opts.address } : {}),
+    },
+    ayahData: { name: "E2E Ayah" },
+    ibuData: { name: "E2E Ibu" },
+    consentData: { agreed: true, version: CONSENT_VERSION, ayah: { name: "E2E Ayah" }, ibu: { name: "E2E Ibu" } },
+  };
+}
+
+/**
+ * Fill a formulir through the public token API and submit it: draft (Program included), both
+ * signatures, submit. Returns the submit response (201 expected) so callers can read `fee`.
+ */
+export async function fillAndSubmit(
+  request: APIRequestContext,
+  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string> },
+) {
+  await prefillDraft(request, opts);
+  for (const which of ["ayah", "ibu"] as const) {
+    expect((await postSignature(request, { token: opts.token, ip: opts.ip, which })).status()).toBe(200);
+  }
+  return request.post(`/api/enrollments/token/${opts.token}/submit`, {
+    headers: { "X-Forwarded-For": opts.ip },
+    data: submitBody(opts),
   });
 }
