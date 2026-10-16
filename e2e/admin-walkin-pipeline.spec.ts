@@ -68,6 +68,9 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
   async function searchList(page: Page, text: string) {
     await page.goto("/admin/admissions");
     await page.getByPlaceholder("Cari nama anak atau orang tua...").fill(text);
+    // The search reaches the URL through a 300 ms debounced router.replace. A row click made
+    // before it fires is undone by that replace, which lands the page back on the list.
+    await expect(page).toHaveURL(/[?&]search=/);
     return page.getByRole("row").filter({ hasText: text });
   }
 
