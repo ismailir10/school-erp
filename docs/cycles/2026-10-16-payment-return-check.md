@@ -127,7 +127,7 @@ a payment link, the ones beyond the first 200 are never polled.
 - [x] **T4: Admin list row action.** "Cek status pembayaran" in the invoice list row menu, using the existing admin
       refresh endpoint.
       Accept: list client tests for visibility, the call, and the refresh. Parallel with T1.
-- [ ] **T5: e2e and docs.** Extend the parent return e2e to assert the check request. Update the README payments line
+- [x] **T5: e2e and docs.** Extend the parent return e2e to assert the check request. Update the README payments line
       and `docs/uat/jobs/parent.md` if it lists the return behaviour. Deps: T3, T4.
 
 ## Implementation
@@ -137,6 +137,7 @@ a payment link, the ones beyond the first 200 are never polled.
 - T2: `app/api/guardian/invoices/[id]/check-payment/route.ts` — `POST`, guardian scoping copied from the guardian invoice GET (401 / 403 / flat 404 incl. the null-email guard), rate limit `guardian-check-payment:<user>:<invoice>` 6/min after scoping, `SKIPPED` without polling when the invoice is not SENT/PARTIALLY_PAID/OVERDUE or has no link, else `reconcileInvoicePayment(id, { minIntervalMs: 10_000 })`; body is only `{ code, status }`; a thrown reconcile is logged and answered 200 `GATEWAY_ERROR`. README parent row. Tests: `guardian-invoice-check-payment.test.ts` (22).
 - T3: `app/parent/invoices/client.tsx` — after the unchanged return handling, a `paid` return (also legacy `xenditStatus`) for an invoice that is not PAID or CANCELLED calls the check endpoint; `UPDATED` → `router.refresh()` (the existing PAID-flip toast does the rest), `NO_CHANGE`/`UNAVAILABLE`/`GATEWAY_ERROR` → one retry after 15 s, anything else stops. No toast on failure, by decision; a `console.warn` with no body. A mount-scoped ref and timer stop it on unmount without cancelling it when the return effect re-runs. PARTIALLY_PAID returns are checked too: the parent may have just paid the remainder. design-system: no visual change on the parent page. Tests: `client.test.tsx` (+7: request, UPDATED refresh, one retry, no retry on SKIPPED, cancel, PAID, unmount); `fetch` is now stubbed for the whole file.
 - T4: `app/admin/invoices/invoices-client.tsx` — row action "Cek status pembayaran" / "Memeriksa..." (RefreshCw) after Catat Pembayaran, shown for `payments.record` + SENT/OVERDUE/PARTIALLY_PAID + a link; calls the existing `POST /api/invoices/[id]/refresh-payment` with the detail page's toast mapping, then reloads the list and stats. The shared row-menu item has no `disabled`, so the handler ignores clicks while a check runs. design-system: no new visual pattern — the existing DataTable row menu, icon size and sonner toasts. README finance line names the three reconcile paths. Tests: `invoices-client.test.tsx` (+5: shown and calls, no link, PAID, no permission, 429 error toast).
+- T5: `e2e/payment.spec.ts` — the legacy paid-return test waits for the `POST …/check-payment`, asserts 200 with exactly `code` and `status` and no `UPDATED` (demo gateway never settles), before the existing assertions. `docs/uat/jobs/parent.md` (INV-00 Done when) and `docs/uat/jobs/admin.md` (INV-02 step 5) describe the new behaviour.
 
 ## Verification
 

@@ -86,7 +86,20 @@ test.describe("Payment return shims", () => {
     expect(["SENT", "OVERDUE"]).toContain(invoice.status);
     expect(invoice.totalPaid).toBe(0);
 
-    await page.goto(`/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`);
+    // A paid return also asks the server to check the gateway (cycle
+    // 2026-10-16-payment-return-check). The demo gateway never reports a
+    // settlement, so the invoice must stay unpaid; the response carries only
+    // a code and the status, never the admin-voice reconcile message.
+    const [checkResponse] = await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().endsWith(`/api/guardian/invoices/${invoice.id}/check-payment`) && res.request().method() === "POST",
+      ),
+      page.goto(`/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`),
+    ]);
+    expect(checkResponse.status()).toBe(200);
+    const check = await checkResponse.json() as Record<string, unknown>;
+    expect(Object.keys(check).sort()).toEqual(["code", "status"]);
+    expect(check.code).not.toBe("UPDATED");
     await expect(page.getByText("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.")).toBeVisible();
     await expect(page.getByText(/Alhamdulillah/i)).toHaveCount(0);
     await expect(page.getByRole("dialog")).toBeVisible();
