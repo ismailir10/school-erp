@@ -40,5 +40,5 @@ Dependabot PR #647 bumps `framer-motion` from 13.0.0 to 14.0.0. Its CI was green
 
 ## Ship Notes
 
-- Migration: none. Env: none. App code: none. Supersedes #647.
+- Migration: none. Env: none. App code: none. Supersedes #647 and its refresh #657 (14.1.0); `^14.0.0` resolves to 14.3.0 here.
 - Rollback: revert the squash commit.
