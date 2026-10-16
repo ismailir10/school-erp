@@ -82,14 +82,12 @@ describe("GuardianFormBody — accessible names (AC1)", () => {
 
     // Junction fields (childOrder / isPrimary) only render in this branch.
     expect(screen.getByLabelText("Anak ke-")).toBeInTheDocument();
-    // The Switch's underlying hidden checkbox is also `getByLabelText`-
-    // resolvable via the same `htmlFor`/`id` pair (`guardian-primary`), but
-    // Base UI additionally mirrors the label onto the visible
-    // `role="switch"` element via a generated `aria-labelledby`, so two
-    // elements now share the accessible name "Wali Utama". Query the
-    // interactive switch directly instead to keep this assertion
-    // unambiguous.
-    expect(screen.getByRole("switch", { name: "Wali Utama" })).toBeInTheDocument();
+    // Query the interactive `role="switch"` directly: its underlying hidden
+    // checkbox also answers to the `guardian-primary` label. Base UI < 1.9
+    // replaced the switch's own aria-label with the field label ("Wali
+    // Utama"); 1.9 keeps the aria-label ("Tandai sebagai wali utama"). Either
+    // way the name must contain the visible label (WCAG 2.5.3 Label in Name).
+    expect(screen.getByRole("switch", { name: /wali utama/i })).toBeInTheDocument();
   });
 
   it("resolves getByLabelText for the showRelationship=false branch (guardians list / detail entry points)", () => {
