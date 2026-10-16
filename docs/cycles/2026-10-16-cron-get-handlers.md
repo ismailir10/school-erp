@@ -103,3 +103,18 @@ production only by doing what the crons were always meant to do.
 - **design-system:** n/a. No frontend file is touched.
 
 ## Ship Notes
+
+- **Route: other code.** The diff compared against `origin/staging` (`d597681f`) touches the two cron route handlers,
+  their tests, one new test, the payments runbook and this doc. The auth checks are unchanged, and no session,
+  cookie or OAuth code is touched. No `needs-staging-verify`.
+- **Nothing changes on staging.** Vercel runs cron jobs only on the production deployment, so the fix takes effect
+  at the next `/ship --to-main`.
+- **After promotion, the first nightly runs do real work:**
+  - **00:30 UTC.** The reconcile sweep polls DOKU for every SENT, PARTIALLY_PAID or OVERDUE invoice holding a
+    payment link, up to 200 per run, and credits everything DOKU reports as settled. That includes INV-2026-0121
+    and any other paid-but-unrecorded invoice.
+  - **01:00 UTC.** Maintenance flips every SENT invoice past its due date to OVERDUE ("Lewat Tempo") for the first
+    time, and purges WebhookEvent rows older than 90 days. Expect a one-time jump in the overdue count.
+- **Post-promotion check.** In the Vercel dashboard, open Cron Jobs and confirm both jobs logged a 200. A 500 means
+  `CRON_SECRET` is not set on production. If `cappedAtLimit` is `true`, more than 200 invoices are outstanding and
+  the backlog takes more than one night.
