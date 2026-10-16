@@ -2,7 +2,7 @@
 
 ## Context
 
-A parent paid invoice INV-2026-0121 (Galendra) through DOKU on 8 Oct 2026. DOKU emailed them a PAID receipt, but on
+A parent paid an invoice through DOKU on 8 Oct 2026 (the reported case). DOKU emailed them a PAID receipt, but on
 16 Oct the admin invoice list still showed **Link Dibuat** with the full balance outstanding. The admin team asked why,
 and the worry is that other paid invoices are sitting unpaid in Talib too.
 
@@ -16,7 +16,7 @@ Three paths can credit a DOKU payment, and all three missed this one:
    every example is a `GET` handler), but both cron route handlers export only `POST`. Next.js answers 405 before
    any of our code runs. The tests call `POST` directly, so they stay green.
    - The sibling `/api/cron/finance-maintenance` (01:00 UTC: SENT → OVERDUE past due, WebhookEvent 90-day purge) has
-     the same defect. Corroborating evidence: INV-2026-0121 was due 15 Oct, and on 16 Oct it still shows SENT rather than OVERDUE.
+     the same defect. Corroborating evidence: the reported invoice was due 15 Oct, and on 16 Oct it still shows SENT rather than OVERDUE.
 3. **An admin pressing "Cek status pembayaran"** on the invoice detail page. It works, but nobody knew to press it.
 
 Fixing (2) turns every missed DOKU payment into one that is credited by the next morning, with no admin action.
@@ -111,7 +111,7 @@ production only by doing what the crons were always meant to do.
   at the next `/ship --to-main`.
 - **After promotion, the first nightly runs do real work:**
   - **00:30 UTC.** The reconcile sweep polls DOKU for every SENT, PARTIALLY_PAID or OVERDUE invoice holding a
-    payment link, up to 200 per run, and credits everything DOKU reports as settled. That includes INV-2026-0121
+    payment link, up to 200 per run, and credits everything DOKU reports as settled. That includes the reported invoice
     and any other paid-but-unrecorded invoice.
   - **01:00 UTC.** Maintenance flips every SENT invoice past its due date to OVERDUE ("Lewat Tempo") for the first
     time, and purges WebhookEvent rows older than 90 days. Expect a one-time jump in the overdue count.
