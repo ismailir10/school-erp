@@ -127,7 +127,7 @@ jobs:
       # The defect that silenced backup.yml for eighteen nights was a gh call
       # in a job with no GH_REPO and no checkout. Assert by inspection that no
       # such call exists in any workflow, so it cannot come back.
-      - name: Assert every workflow gh call has GH_REPO
+      - name: Assert workflow gh calls have GH_REPO and checkouts can read contents
         run: |
           set -euo pipefail
           # Parsing the workflows properly beats grepping them; PyYAML is not

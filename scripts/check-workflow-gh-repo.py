@@ -14,6 +14,13 @@ open an issue on. This guard is why that cannot come back silently.
 Steps are checked whether they call `gh` directly or go through
 scripts/alert-issue.sh, which needs the same context.
 
+A second rule, same failure shape: a job that declares its own `permissions`
+map without `contents` gets `contents: none`, so `actions/checkout` fails on a
+private repo before the job reaches its real work. The keepalive and backup
+alert/resolve jobs declared `issues: write` only and failed exactly so until
+2026-10-16 (cycle 2026-10-16-keepalive-permissions): every prod-down and
+backup-failure issue they were meant to open was silently never opened.
+
 Usage: python3 scripts/check-workflow-gh-repo.py .github/workflows/*.yml
        python3 scripts/check-workflow-gh-repo.py --self-test
 """
@@ -46,6 +53,27 @@ def offenders(path):
             env = {**workflow_env, **job_env, **(step.get("env") or {})}
             if "GH_REPO" not in env:
                 found.append(f"{job_name} / {step.get('name', '(unnamed step)')}")
+    return found
+
+
+def checkout_without_contents(path):
+    """Jobs that run actions/checkout under a token with no `contents` read.
+
+    A job-level `permissions` map replaces the workflow-level one entirely, and
+    every scope it does not name becomes `none`. A string (`read-all`,
+    `write-all`) or no `permissions` at all keeps contents readable.
+    """
+    doc = yaml.safe_load(open(path)) or {}
+    found = []
+    for job_name, job in (doc.get("jobs") or {}).items():
+        perms = job.get("permissions", doc.get("permissions"))
+        if not isinstance(perms, dict):
+            continue
+        if perms.get("contents") in ("read", "write"):
+            continue
+        for step in job.get("steps") or []:
+            if str(step.get("uses") or "").startswith("actions/checkout"):
+                found.append(f"{job_name} / {step.get('name', step['uses'])}")
     return found
 
 
@@ -93,6 +121,34 @@ jobs:
       - name: opens an alert with no GH_REPO
         run: bash scripts/alert-issue.sh open lbl "T" body.md owner
 """,
+    "good-checkout-with-contents.yml": """
+jobs:
+  alert:
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+""",
+    "good-checkout-inherits-workflow.yml": """
+permissions:
+  contents: read
+  issues: write
+jobs:
+  alert:
+    steps:
+      - uses: actions/checkout@v7
+""",
+    "bad-checkout-no-contents.yml": """
+permissions:
+  contents: read
+jobs:
+  alert:
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+""",
 }
 
 
@@ -107,7 +163,7 @@ def self_test():
             path = os.path.join(d, name)
             with open(path, "w") as fh:
                 fh.write(body)
-            bad = offenders(path)
+            bad = offenders(path) + checkout_without_contents(path)
             should_fail = name.startswith("bad-")
             if bool(bad) != should_fail:
                 verdict = "flagged" if bad else "passed"
@@ -126,15 +182,20 @@ def main(paths):
     failed = False
     for path in paths:
         bad = offenders(path)
+        no_contents = checkout_without_contents(path)
         if bad:
             failed = True
             print(f"::error::{path}: reaches the GitHub API without GH_REPO in: "
                   + "; ".join(bad))
-        else:
+            print("  Add 'GH_REPO: ${{ github.repository }}' to the step or job env,")
+            print("  and an actions/checkout step if the job runs a repo script.")
+        if no_contents:
+            failed = True
+            print(f"::error::{path}: runs actions/checkout with no `contents` "
+                  "permission in: " + "; ".join(no_contents))
+            print("  Add 'contents: read' to that job's permissions map.")
+        if not bad and not no_contents:
             print(f"OK — {path}")
-    if failed:
-        print("\nAdd 'GH_REPO: ${{ github.repository }}' to the step or job env,")
-        print("and an actions/checkout step if the job runs a repo script.")
     return 1 if failed else 0
 
 
