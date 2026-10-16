@@ -52,6 +52,9 @@ import { reconcileEnrollmentFee, reconcileInvoicePayment } from "@/lib/payments/
  * lock, the amount/currency checks, the overpayment tolerance, and the
  * PAID/CANCELLED short-circuits. Re-running is a no-op by construction.
  *
+ * Vercel Cron calls the path with GET; a POST-only export answered 405 and
+ * never ran (cycle 2026-10-16-cron-get-handlers).
+ *
  * Auth mirrors `/api/cron/finance-maintenance`: `Authorization: Bearer
  * ${CRON_SECRET}` plus a `vercel-cron/` User-Agent, both fail-closed.
  */
@@ -79,7 +82,7 @@ const CONCURRENCY = 5;
  */
 const MAX_FEES_PER_RUN = 100;
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
     console.error("[CRON] CRON_SECRET not set — refusing to run.");

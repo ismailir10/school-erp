@@ -9,12 +9,15 @@ import { prisma } from "@/lib/db";
  * 1. Purge WebhookEvent rows older than 90 days (audit retention).
  * 2. Promote SENT invoices past their dueDate (Asia/Jakarta) to OVERDUE.
  *
+ * Vercel Cron calls the path with GET; a POST-only export answered 405 and
+ * never ran (cycle 2026-10-16-cron-get-handlers).
+ *
  * Auth: Authorization: Bearer ${CRON_SECRET}. Vercel Cron auto-injects this
  * header when CRON_SECRET is set in project settings — operator MUST set
  * it before merge (one-time `openssl rand -hex 32`). Defense-in-depth:
  * User-Agent must start with `vercel-cron/`. Both checks fail-closed.
  */
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
     console.error("[CRON] CRON_SECRET not set — refusing to run.");
