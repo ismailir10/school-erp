@@ -34,6 +34,11 @@ updates:
       # "contextOrFilename.getFilename is not a function" — see closed PR #460.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # eslint-config-next 16.4 requires eslint-plugin-react-hooks ^7.1, whose React Compiler
+      # rules flag 121 existing sites (90 set-state-in-effect, 20 refs) — see closed PR #645.
+      # package.json `overrides` holds the plugin at 7.0.1. Drop both when those sites are fixed.
+      - dependency-name: "eslint-config-next"
+        versions: [">=16.4.0"]
 
   - package-ecosystem: github-actions
     directory: "/"
