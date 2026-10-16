@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { toast } from "sonner";
 import { InvoicesClient } from "@/app/admin/invoices/invoices-client";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -16,7 +17,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
 const invoice = {
@@ -33,11 +34,26 @@ const invoice = {
 };
 
 function stubFetch(
-  opts: { invoices?: Array<typeof invoice>; stats?: Record<string, number> } = {},
+  opts: {
+    invoices?: Array<typeof invoice & { xenditPaymentUrl?: string | null }>;
+    stats?: Record<string, number>;
+    refresh?: { status: number; body: Record<string, unknown> };
+  } = {},
 ) {
   const invoices = opts.invoices ?? [invoice];
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (/\/api\/invoices\/[^/]+\/refresh-payment/.test(url)) {
+      const r = opts.refresh ?? {
+        status: 200,
+        body: { code: "UPDATED", message: "Pembayaran ditemukan di gateway — tagihan ditandai LUNAS." },
+      };
+      return Promise.resolve({
+        ok: r.status >= 200 && r.status < 300,
+        status: r.status,
+        json: async () => r.body,
+      } as Response);
+    }
     if (url.includes("/api/invoices/stats")) {
       return Promise.resolve({
         ok: true,
@@ -193,6 +209,85 @@ describe("InvoicesClient — Catat Pembayaran row action and ?status= (R2-ADMIN-
   });
 });
 
+describe("InvoicesClient — Cek status pembayaran row action", () => {
+  const linked = { ...invoice, xenditPaymentUrl: "https://checkout.xendit.co/web/abc" };
+
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+  });
+
+  async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    await user.click(screen.getByRole("button", { name: /Buka menu aksi|Aksi untuk/ }));
+  }
+
+  it("a SENT row with a payment link POSTs refresh-payment, toasts the message and refetches list + stats", async () => {
+    const f = stubFetch({ invoices: [linked] });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openMenu(user);
+    const count = (needle: string) => f.mock.calls.filter((c) => String(c[0]).includes(needle)).length;
+    const listBefore = count("/api/invoices?");
+    const statsBefore = count("/api/invoices/stats");
+
+    await user.click(await screen.findByRole("menuitem", { name: "Cek status pembayaran" }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Pembayaran ditemukan di gateway — tagihan ditandai LUNAS.");
+    });
+    const post = f.mock.calls.find((c) => String(c[0]) === "/api/invoices/inv1/refresh-payment");
+    expect((post as unknown[] | undefined)?.[1]).toMatchObject({ method: "POST" });
+    await waitFor(() => {
+      expect(count("/api/invoices?")).toBeGreaterThan(listBefore);
+      expect(count("/api/invoices/stats")).toBeGreaterThan(statsBefore);
+    });
+  });
+
+  it("is absent without a payment link", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: null }] }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openMenu(user);
+    await screen.findByRole("menuitem", { name: "Catat Pembayaran" });
+    expect(screen.queryByRole("menuitem", { name: "Cek status pembayaran" })).not.toBeInTheDocument();
+  });
+
+  it("is absent on a PAID row", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...linked, status: "PAID", totalPaid: 500000 }] }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByRole("button", { name: /Buka menu aksi|Aksi untuk/ })).not.toBeInTheDocument();
+  });
+
+  it("is absent without the recordPayment capability", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [linked] }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={{ ...caps, recordPayment: false }} />);
+    await openMenu(user);
+    await screen.findByRole("menuitem", { name: "Batalkan" });
+    expect(screen.queryByRole("menuitem", { name: "Cek status pembayaran" })).not.toBeInTheDocument();
+  });
+
+  it("shows the server's error text on a non-ok response (429)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({
+        invoices: [linked],
+        refresh: { status: 429, body: { error: "Terlalu sering memeriksa. Coba lagi sebentar." } },
+      }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: "Cek status pembayaran" }));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Terlalu sering memeriksa. Coba lagi sebentar.");
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
 
 it("offers continuation for an interrupted run without offering to discard issued invoices", async () => {
   const usual = stubFetch();

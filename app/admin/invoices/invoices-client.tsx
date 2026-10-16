@@ -43,6 +43,7 @@ type Invoice = {
   totalDue: number;
   totalPaid: number;
   status: string;
+  xenditPaymentUrl?: string | null;
   createdAt: string;
   student: { name: string; nickname: string | null };
   _count: { payments: number };
@@ -265,6 +266,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
+  const [checkingRowId, setCheckingRowId] = useState<string | null>(null);
   const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
   const [overflowConfirm, setOverflowConfirm] = useState<{
     total: number;
@@ -496,6 +498,32 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     }
   }
 
+  // Per-row payment reconciliation — same endpoint and toast mapping as the
+  // detail page's "Cek status pembayaran". Idempotent server-side; refetch the
+  // list + stats on every exit path so a flipped status shows up in the row.
+  async function handleRowCheckPayment(invoiceId: string) {
+    setCheckingRowId(invoiceId);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/refresh-payment`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "Gagal memeriksa status pembayaran");
+        return;
+      }
+      if (d.code === "UPDATED") toast.success(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else toast.info(d.message);
+    } catch {
+      toast.error("Gagal memeriksa status pembayaran");
+    } finally {
+      if (mountedRef.current) {
+        setCheckingRowId(null);
+        fetchInvoices();
+        fetchStats();
+      }
+    }
+  }
+
   async function handleVoidInvoice() {
     if (!voidTarget) return;
     const res = await fetch(`/api/invoices/${voidTarget.id}/void`, { method: "POST" });
@@ -533,6 +561,10 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           const canRecordPayment =
             capabilities.recordPayment &&
             (PAYABLE_INVOICE_STATUSES as readonly string[]).includes(inv.status);
+          // Same rule as the detail page: only an unpaid invoice that holds a
+          // gateway link can have a payment sitting at the gateway.
+          const canCheckPayment = canRecordPayment && !!inv.xenditPaymentUrl;
+          const isCheckingThisRow = checkingRowId === inv.id;
           const rowActions = [
             ...(canRecordPayment
               ? [
@@ -540,6 +572,19 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                     label: "Catat Pembayaran",
                     icon: <CreditCard size={14} />,
                     onClick: () => routerRef.current.push(`/admin/invoices/${inv.id}?bayar=1`),
+                  },
+                ]
+              : []),
+            ...(canCheckPayment
+              ? [
+                  {
+                    label: isCheckingThisRow ? "Memeriksa..." : "Cek status pembayaran",
+                    icon: <RefreshCw size={14} />,
+                    onClick: () => {
+                      // Row-action items have no `disabled` prop; guard against
+                      // a re-trigger while any check is in flight.
+                      if (!checkingRowId) handleRowCheckPayment(inv.id);
+                    },
                   },
                 ]
               : []),
@@ -567,7 +612,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     // handleRowRetry is stable across renders for the purposes of this effect
     // (closes over fetchInvoices/fetchStats which are useCallback-stable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [retryingRowId, capabilities],
+    [retryingRowId, checkingRowId, capabilities],
   );
 
   // Billing Run wizard (Cycle B1, Task T9) — fired once step 3's commit loop

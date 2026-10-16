@@ -124,7 +124,7 @@ a payment link, the ones beyond the first 200 are never polled.
 - [ ] **T3: Parent return triggers the check.** In the parent invoices client, the `paid` return calls the endpoint
       immediately and once more after 15 s while still unpaid, then refreshes the list when `UPDATED`.
       Accept: client tests for paid, cancel, PAID and retry; the existing return tests stay green. Deps: T2.
-- [ ] **T4: Admin list row action.** "Cek status pembayaran" in the invoice list row menu, using the existing admin
+- [x] **T4: Admin list row action.** "Cek status pembayaran" in the invoice list row menu, using the existing admin
       refresh endpoint.
       Accept: list client tests for visibility, the call, and the refresh. Parallel with T1.
 - [ ] **T5: e2e and docs.** Extend the parent return e2e to assert the check request. Update the README payments line
@@ -134,6 +134,7 @@ a payment link, the ones beyond the first 200 are never polled.
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5; T1 ∥ T4 (disjoint files), then T2 → T3 sequential (T2 needs T1's reconcile signature, T3 needs T2's endpoint), T5 inline (why: a test assertion and two doc lines). The driver reviews every diff and re-runs the gates itself.
 - T1: `prisma/schema.prisma` + `prisma/migrations/20261016000000_add_invoice_payment_checked_at/` (nullable `Invoice.paymentCheckedAt`). `lib/payments/reconcile.ts`: `reconcileInvoicePayment(id, { minIntervalMs?, now? })` stamps the column before every gateway call; with `minIntervalMs` the stamp is an atomic `updateMany` claim, and a lost claim returns `NO_CHANGE` "Baru saja diperiksa." with no gateway call. `app/api/cron/reconcile-payments/route.ts` orders candidates `paymentCheckedAt asc nulls first, dueDate asc`. The runbook names the rotation. Tests: `invoice-refresh-payment.test.ts` (+4: stamp order, lost claim, claim `where`, no stamp on NOT_FOUND) and `cron-reconcile-payments.test.ts` (rotation order).
+- T4: `app/admin/invoices/invoices-client.tsx` — row action "Cek status pembayaran" / "Memeriksa..." (RefreshCw) after Catat Pembayaran, shown for `payments.record` + SENT/OVERDUE/PARTIALLY_PAID + a link; calls the existing `POST /api/invoices/[id]/refresh-payment` with the detail page's toast mapping, then reloads the list and stats. The shared row-menu item has no `disabled`, so the handler ignores clicks while a check runs. design-system: no new visual pattern — the existing DataTable row menu, icon size and sonner toasts. README finance line names the three reconcile paths. Tests: `invoices-client.test.tsx` (+5: shown and calls, no link, PAID, no permission, 429 error toast).
 
 ## Verification
 
