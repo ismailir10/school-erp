@@ -28,7 +28,7 @@ Each session also sends its own origin as `additional_info.override_notification
 
 An audit on 2026-07-29 found that **no DOKU notification has ever verified**. Every DOKU payment to date was credited by an admin pressing "Perbarui pembayaran", while the Xendit webhook has real deliveries.
 
-The safety net is a daily cron, `GET /api/cron/reconcile-payments` (Vercel Cron calls with GET) at 00:30 UTC — deliberately *before* `finance-maintenance` at 01:00, so a paid invoice is not then promoted to OVERDUE. It polls the gateway for every outstanding invoice holding a payment link and credits anything settled, routing through the same processor as the webhook, so it is idempotent and cannot double-credit. A delivered notification still credits immediately and the sweep then no-ops.
+The safety net is a daily cron, `GET /api/cron/reconcile-payments` (Vercel Cron calls with GET) at 00:30 UTC — deliberately *before* `finance-maintenance` at 01:00, so a paid invoice is not then promoted to OVERDUE. It polls the gateway for every outstanding invoice holding a payment link and credits anything settled, routing through the same processor as the webhook, so it is idempotent and cannot double-credit. A delivered notification still credits immediately and the sweep then no-ops. Candidates rotate by `paymentCheckedAt` (never-checked first), up to 200 per night, so a backlog over 200 is covered over several nights; raise `MAX_PER_RUN` if `cappedAtLimit` is true night after night.
 
 Hourly would be better, but **Vercel's Hobby plan allows one cron per day, max two per project** — a deployment carrying `0 * * * *` is rejected outright. Until the plan changes, "Perbarui pembayaran" on the invoice detail page is how an admin credits a payment immediately.
 

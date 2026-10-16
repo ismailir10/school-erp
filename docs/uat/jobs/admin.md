@@ -154,7 +154,8 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   2. Click "Lihat" on an invoice
   3. See: line items, subtotal, payments applied, outstanding balance, status history
   4. On an unpaid invoice, tap Chat WhatsApp in the Kontak Wali card
-- **Done when:** Detail page shows line items + payment trail + outstanding balance. All Rupiah amounts formatted via `formatRupiah()`. Status transitions (PENDING → SENT → PAID / OVERDUE) visible with timestamps. For a billed invoice with money left, Chat WhatsApp opens WhatsApp in a new tab on the wali's number with a courteous reminder naming the child, the invoice and what is left, plus the payment link (or the parent portal); with no usable number the card says so, and a paid, cancelled or draft invoice offers no reminder.
+  5. A parent says they paid through DOKU but the row still reads Link Dibuat: from the list's row menu, tap Cek status pembayaran
+- **Done when:** Detail page shows line items + payment trail + outstanding balance. All Rupiah amounts formatted via `formatRupiah()`. Status transitions (PENDING → SENT → PAID / OVERDUE) visible with timestamps. For a billed invoice with money left, Chat WhatsApp opens WhatsApp in a new tab on the wali's number with a courteous reminder naming the child, the invoice and what is left, plus the payment link (or the parent portal); with no usable number the card says so, and a paid, cancelled or draft invoice offers no reminder. Cek status pembayaran is in the row menu of an unpaid invoice that holds a payment link, answers with a toast, and the row shows Lunas when the gateway has the payment.
 - **Why this job matters:** When a parent disputes a charge, Ibu Nur needs the full story in one place — not three queries. If payment history is hidden, she defaults to WhatsApp.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
