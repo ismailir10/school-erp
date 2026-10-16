@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InvoicesClient } from "../client";
 
@@ -42,6 +42,13 @@ beforeEach(() => {
   replaceFn.mockClear();
   refreshFn.mockClear();
   mockSearchParams = new URLSearchParams();
+  // A paid return now pings the check endpoint; never reach a real network.
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 const mockInvoices = [
@@ -390,6 +397,89 @@ describe("InvoicesClient (cycle-4)", () => {
       render(<InvoicesClient data={mockInvoices} />);
       expect(toastFn.success).not.toHaveBeenCalled();
       expect(replaceFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Paid return asks the server to check the payment", () => {
+    const CHECK_URL = "/api/guardian/invoices/inv-1/check-payment";
+    const stubCheck = (code: string, status = "SENT") => {
+      const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ code, status }) }));
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    };
+    const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    it("POSTs the check once and keeps the 'sedang diperiksa' toast", async () => {
+      const fetchMock = stubCheck("NO_CHANGE");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("sedang diperiksa"));
+      await act(async () => {});
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(CHECK_URL, { method: "POST" });
+    });
+
+    it("refreshes the list again when the check reports UPDATED", async () => {
+      const fetchMock = stubCheck("UPDATED", "PAID");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      const syncRefreshes = refreshFn.mock.calls.length;
+      await act(async () => {});
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(refreshFn).toHaveBeenCalledTimes(syncRefreshes + 1);
+    });
+
+    it("retries exactly once after 15s on NO_CHANGE", async () => {
+      vi.useFakeTimers();
+      const fetchMock = stubCheck("NO_CHANGE");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(14_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry after a non-retryable code", async () => {
+      vi.useFakeTimers();
+      const fetchMock = stubCheck("SKIPPED");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      await flush();
+      await act(async () => { await vi.advanceTimersByTimeAsync(40_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not check on a cancel return", async () => {
+      const fetchMock = stubCheck("NO_CHANGE");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=cancel");
+      render(<InvoicesClient data={mockInvoices} />);
+      await act(async () => {});
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("does not check when the invoice is already PAID", async () => {
+      const fetchMock = stubCheck("NO_CHANGE");
+      mockSearchParams = new URLSearchParams("invoice=inv-3&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      await act(async () => {});
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("drops the retry when the page unmounts first", async () => {
+      vi.useFakeTimers();
+      const fetchMock = stubCheck("NO_CHANGE");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      const { unmount } = render(<InvoicesClient data={mockInvoices} />);
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      unmount();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 

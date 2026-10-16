@@ -11,7 +11,7 @@ import { formatDate, formatInvoicePeriod, formatRupiah } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -107,6 +107,11 @@ export function InvoicesClient({
   const [pendingPayments, setPendingPayments] = useState<Record<string, number>>({});
   const handledReturnRef = useRef<string | null>(null);
   const prevDataRef = useRef<InvoiceItem[] | null>(null);
+  // Return-check bookkeeping. Deliberately outside the return effect: that
+  // effect re-runs when router.replace changes the search params, and its
+  // cleanup must not cancel a check that is already under way.
+  const mountedRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loading = data === null;
 
   useEffect(() => {
@@ -114,6 +119,53 @@ export function InvoicesClient({
       toast.error("Tagihan belum bisa dimuat. Coba lagi sebentar ya.");
     }
   }, [data]);
+
+  // Ask the server to look the payment up at the gateway, so a webhook that
+  // never arrived does not leave the parent waiting for the nightly sweep. One
+  // retry after 15 s covers a gateway that has not settled yet.
+  // No toast on any failure: "Pembayaran sedang diperiksa" is already shown and
+  // stays true, and the nightly sweep is the backstop.
+  const checkPaymentAfterReturn = useCallback(
+    async (invoiceId: string): Promise<void> => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          // Unmount clears this timer, so the promise never settles and the loop ends there.
+          await new Promise<void>((resolve) => {
+            retryTimerRef.current = setTimeout(() => {
+              retryTimerRef.current = null;
+              resolve();
+            }, 15_000);
+          });
+          if (!mountedRef.current) return;
+        }
+        let code: string | undefined;
+        try {
+          const res = await fetch(`/api/guardian/invoices/${invoiceId}/check-payment`, { method: "POST" });
+          if (!res.ok) return;
+          code = ((await res.json()) as { code?: string }).code;
+        } catch {
+          if (mountedRef.current) console.warn("Payment check after return failed");
+          return;
+        }
+        if (!mountedRef.current) return;
+        if (code === "UPDATED") {
+          router.refresh();
+          return;
+        }
+        if (code !== "NO_CHANGE" && code !== "UNAVAILABLE" && code !== "GATEWAY_ERROR") return;
+      }
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    };
+  }, []);
 
   // Payment gateway return-URL handler. Backend rewires successReturnUrl and
   // cancelReturnUrl to land here with `?invoice=<id>&paymentStatus=paid|cancel`
@@ -149,7 +201,10 @@ export function InvoicesClient({
     delete retained.xenditStatus;
     router.replace(parentHref("/parent/invoices", selectedChildId, retained), { scroll: false });
     if (found.status !== "PAID") router.refresh();
-  }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId]);
+    if (paymentStatusParam.toLowerCase() === "paid" && found.status !== "PAID" && found.status !== "CANCELLED") {
+      void checkPaymentAfterReturn(found.id);
+    }
+  }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId, checkPaymentAfterReturn]);
 
   // Webhook → list freshness. While at least one outstanding invoice has an
   // active Xendit payment session (xenditPaymentUrl != null), poll the server
