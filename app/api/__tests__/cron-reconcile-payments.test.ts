@@ -84,12 +84,16 @@ describe("GET /api/cron/reconcile-payments — sweep", () => {
     expect(where.xenditPaymentUrl).toEqual({ not: null });
   });
 
-  it("prioritises the most-overdue invoice and caps the batch", async () => {
+  it("rotates least recently checked first, then oldest due, and caps the batch", async () => {
     await GET(makeReq(authed));
 
     const args = findManyMock.mock.calls[0][0];
-    // dueDate is indexed on Invoice; Invoice has no updatedAt column.
-    expect(args.orderBy).toEqual({ dueDate: "asc" });
+    // Never-checked leads; every reconcile stamps paymentCheckedAt, so an
+    // unchanged invoice moves to the back and a backlog > cap is still covered.
+    expect(args.orderBy).toEqual([
+      { paymentCheckedAt: { sort: "asc", nulls: "first" } },
+      { dueDate: "asc" },
+    ]);
     expect(args.take).toBe(200);
   });
 

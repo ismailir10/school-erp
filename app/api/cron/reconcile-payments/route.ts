@@ -62,14 +62,15 @@ import { reconcileEnrollmentFee, reconcileInvoicePayment } from "@/lib/payments/
 /**
  * Cap per run. Each candidate costs one outbound gateway call, and Vercel
  * caps function duration — an unbounded sweep over a full billing cycle's
- * invoices would time out and reconcile nothing at all. At the pilot's ~179
- * students one daily run covers the whole outstanding set several times over.
+ * invoices would time out and reconcile nothing at all.
  *
- * Ordering is `dueDate asc` (indexed, and the most-overdue invoice is the one
- * whose missing payment hurts most). Note this is a *priority* order, not a
- * rotation: if outstanding invoices ever exceed this cap for a sustained
- * period, the newest-due tail would never be polled. `cappedAtLimit` in the
- * response exists to make that visible before it becomes a problem.
+ * Candidates are a rotation: least recently checked first (`paymentCheckedAt`,
+ * never-checked leading), then oldest due date. Every reconcile stamps the
+ * column, so an invoice that comes back unchanged moves to the back of the
+ * queue and every invoice holding a link is polled within ceil(N/200) nights.
+ * `cappedAtLimit` in the response is true when the cap was filled (>= 200
+ * candidates), meaning the full set takes more than one night; if it is true
+ * night after night, raise this cap.
  */
 const MAX_PER_RUN = 200;
 
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
       xenditPaymentUrl: { not: null },
     },
     select: { id: true },
-    orderBy: { dueDate: "asc" },
+    orderBy: [{ paymentCheckedAt: { sort: "asc", nulls: "first" } }, { dueDate: "asc" }],
     take: MAX_PER_RUN,
   });
 

@@ -113,7 +113,7 @@ a payment link, the ones beyond the first 200 are never polled.
 
 ## Tasks
 
-- [ ] **T1: Throttle, stamp and rotation.** Add the migration and column. `reconcileInvoicePayment` gains
+- [x] **T1: Throttle, stamp and rotation.** Add the migration and column. `reconcileInvoicePayment` gains
       `{ minIntervalMs?, now? }`: it claims and stamps `paymentCheckedAt`, and returns `NO_CHANGE` when it is
       throttled. The sweep orders by `paymentCheckedAt` (nulls first), then `dueDate`. The runbook and the cycle-doc
       guidance on the cap are corrected.
@@ -131,6 +131,9 @@ a payment link, the ones beyond the first 200 are never polled.
       and `docs/uat/jobs/parent.md` if it lists the return behaviour. Deps: T3, T4.
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5; T1 ∥ T4 (disjoint files), then T2 → T3 sequential (T2 needs T1's reconcile signature, T3 needs T2's endpoint), T5 inline (why: a test assertion and two doc lines). The driver reviews every diff and re-runs the gates itself.
+- T1: `prisma/schema.prisma` + `prisma/migrations/20261016000000_add_invoice_payment_checked_at/` (nullable `Invoice.paymentCheckedAt`). `lib/payments/reconcile.ts`: `reconcileInvoicePayment(id, { minIntervalMs?, now? })` stamps the column before every gateway call; with `minIntervalMs` the stamp is an atomic `updateMany` claim, and a lost claim returns `NO_CHANGE` "Baru saja diperiksa." with no gateway call. `app/api/cron/reconcile-payments/route.ts` orders candidates `paymentCheckedAt asc nulls first, dueDate asc`. The runbook names the rotation. Tests: `invoice-refresh-payment.test.ts` (+4: stamp order, lost claim, claim `where`, no stamp on NOT_FOUND) and `cron-reconcile-payments.test.ts` (rotation order).
 
 ## Verification
 

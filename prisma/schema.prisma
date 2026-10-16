@@ -952,6 +952,7 @@ model Invoice {
   xenditSessionId  String? // Xendit checkout session ID
   xenditPaymentUrl String? // Xendit hosted checkout URL
   paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
+  paymentCheckedAt DateTime? // stamped by every reconcile; throttles the parent check and rotates the nightly sweep
   createdAt        DateTime  @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)

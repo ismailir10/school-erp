@@ -170,9 +170,11 @@ function unavailableMessage(reason: string | undefined): string {
  */
 export async function reconcileInvoicePayment(
   invoiceId: string,
+  opts: { minIntervalMs?: number; now?: Date } = {},
 ): Promise<ReconcileResult> {
   const gateway = getGateway();
   const provider = gateway.id;
+  const now = opts.now ?? new Date();
 
   const before = await prisma.invoice.findUnique({
     where: { id: invoiceId },
@@ -192,6 +194,41 @@ export async function reconcileInvoicePayment(
       statusBefore: null,
       statusAfter: null,
     };
+  }
+
+  // Stamp `paymentCheckedAt` BEFORE the network call, on every path, so the
+  // nightly sweep rotates (least recently checked first) and admin/parent polls
+  // count too. With `minIntervalMs` the stamp is an atomic claim — one statement
+  // both checks the interval and writes it — so concurrent callers cannot each
+  // pass a read-then-write check and each hit the gateway; the lock lives in the
+  // database, so it holds across serverless instances. A failed poll is simply
+  // retried after the interval. Without it (admin button, cron) it always polls.
+  if (opts.minIntervalMs !== undefined) {
+    const claim = await prisma.invoice.updateMany({
+      where: {
+        id: invoiceId,
+        OR: [
+          { paymentCheckedAt: null },
+          { paymentCheckedAt: { lt: new Date(now.getTime() - opts.minIntervalMs) } },
+        ],
+      },
+      data: { paymentCheckedAt: now },
+    });
+    if (claim.count === 0) {
+      return {
+        code: "NO_CHANGE",
+        message: "Baru saja diperiksa.",
+        provider,
+        gatewayStatus: null,
+        statusBefore: before.status,
+        statusAfter: before.status,
+      };
+    }
+  } else {
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { paymentCheckedAt: now },
+    });
   }
 
   let status: GatewayPaymentStatus;
