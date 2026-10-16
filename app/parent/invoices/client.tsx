@@ -126,7 +126,7 @@ export function InvoicesClient({
   // No toast on any failure: "Pembayaran sedang diperiksa" is already shown and
   // stays true, and the nightly sweep is the backstop.
   const checkPaymentAfterReturn = useCallback(
-    async (invoiceId: string): Promise<void> => {
+    async (invoiceId: string, renderedStatus: string): Promise<void> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
           // Unmount clears this timer, so the promise never settles and the loop ends there.
@@ -139,16 +139,20 @@ export function InvoicesClient({
           if (!mountedRef.current) return;
         }
         let code: string | undefined;
+        let status: string | undefined;
         try {
           const res = await fetch(`/api/guardian/invoices/${invoiceId}/check-payment`, { method: "POST" });
           if (!res.ok) return;
-          code = ((await res.json()) as { code?: string }).code;
+          ({ code, status } = (await res.json()) as { code?: string; status?: string });
         } catch {
           if (mountedRef.current) console.warn("Payment check after return failed");
           return;
         }
         if (!mountedRef.current) return;
-        if (code === "UPDATED") {
+        // A status that moved on from what the page rendered also needs a
+        // re-read: a webhook can credit the invoice between the two checks,
+        // and the retry then reports SKIPPED / ALREADY_PAID with status PAID.
+        if (code === "UPDATED" || (status !== undefined && status !== renderedStatus)) {
           router.refresh();
           return;
         }
@@ -202,7 +206,7 @@ export function InvoicesClient({
     router.replace(parentHref("/parent/invoices", selectedChildId, retained), { scroll: false });
     if (found.status !== "PAID") router.refresh();
     if (paymentStatusParam.toLowerCase() === "paid" && found.status !== "PAID" && found.status !== "CANCELLED") {
-      void checkPaymentAfterReturn(found.id);
+      void checkPaymentAfterReturn(found.id, found.status);
     }
   }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId, checkPaymentAfterReturn]);
 

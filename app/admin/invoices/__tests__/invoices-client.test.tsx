@@ -245,6 +245,36 @@ describe("InvoicesClient — Cek status pembayaran row action", () => {
     });
   });
 
+  it("reloads with the CURRENT search after the filter changed, not the query the row menu was built with", async () => {
+    const f = stubFetch({ invoices: [linked] });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    const listUrls = () => f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/invoices?"));
+
+    await user.type(screen.getByPlaceholderText("Cari siswa atau nomor tagihan..."), "Aisyah");
+    await waitFor(() => {
+      expect(listUrls().some((u) => u.includes("search=Aisyah"))).toBe(true);
+    });
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    await waitFor(() => {
+      expect(listUrls().at(-1)).toContain("search=Aisyah");
+    });
+    const listBefore = listUrls().length;
+
+    await openMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: "Cek status pembayaran" }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalled();
+      expect(listUrls().length).toBeGreaterThan(listBefore);
+    });
+    const reloads = listUrls().slice(listBefore);
+    expect(reloads.length).toBeGreaterThan(0);
+    for (const url of reloads) expect(url).toContain("search=Aisyah");
+  });
+
   it("is absent without a payment link", async () => {
     vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: null }] }));
     const user = userEvent.setup();

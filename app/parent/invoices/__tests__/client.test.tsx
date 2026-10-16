@@ -444,6 +444,37 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
+    it("does not refresh again when NO_CHANGE reports the status the page already rendered", async () => {
+      vi.useFakeTimers();
+      const fetchMock = stubCheck("NO_CHANGE", "SENT");
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      const syncRefreshes = refreshFn.mock.calls.length;
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(refreshFn).toHaveBeenCalledTimes(syncRefreshes);
+      await act(async () => { await vi.advanceTimersByTimeAsync(14_000); });
+      expect(refreshFn).toHaveBeenCalledTimes(syncRefreshes);
+    });
+
+    it("refreshes after the retry when a webhook paid the invoice between the two checks", async () => {
+      vi.useFakeTimers();
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ code: "NO_CHANGE", status: "SENT" }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ code: "SKIPPED", status: "PAID" }) });
+      vi.stubGlobal("fetch", fetchMock);
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={mockInvoices} />);
+      const syncRefreshes = refreshFn.mock.calls.length;
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(refreshFn).toHaveBeenCalledTimes(syncRefreshes);
+      await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(refreshFn).toHaveBeenCalledTimes(syncRefreshes + 1);
+    });
+
     it("does not retry after a non-retryable code", async () => {
       vi.useFakeTimers();
       const fetchMock = stubCheck("SKIPPED");

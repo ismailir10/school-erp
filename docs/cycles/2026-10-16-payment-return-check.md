@@ -181,6 +181,20 @@ Compared `origin/staging...HEAD`. The diff touches:
 
 **Glossary:** the copy uses "Cek status pembayaran", "Memeriksa...", "Link Dibuat" and "Tagihan". No banned terms appear.
 
+### Review round 1 (Codex on #664): re-verified on 2026-10-16
+
+- **Parent page.** A webhook that credits the invoice between the first check and the 15 s retry made the retry answer `SKIPPED`/`ALREADY_PAID` with `status: PAID`. The client refreshed only on `UPDATED`, so the page stayed stale until its 30 s poll. It now also refreshes when the returned status differs from the one it rendered.
+- **Admin list.** The memoized row menu kept the handler from an earlier render, so a check after a filter change reloaded the table with the previous query. The reload now goes through a ref that an effect keeps pointed at the current `fetchInvoices`/`fetchStats`.
+  - `handleRowRetry` ("Coba Lagi Link") has the same stale-closure shape. It is pre-existing and out of scope, so it is noted here and not changed.
+- **Regression tests.** Each new test fails against the old source and passes now:
+  - parent: retry with `SKIPPED`/`PAID` refreshes, and `NO_CHANGE` with the same status does not;
+  - admin: a check after searching "Aisyah" reloads with `search=Aisyah`.
+- **Re-run.**
+  - `npx vitest run app/parent/invoices app/admin/invoices <guardian check route test>`: `Tests 139 passed`.
+  - `npm run lint`: clean.
+  - `DEMO_MODE=true npm run build`: exit 0.
+  - Playwright `payment`, `parent`, `admin-payments`, `admin-manual-invoice-layout`, `admin`: `46 passed`, on a fresh disposable database.
+
 ## Ship Notes
 
 - **Route: other code.** The new guardian endpoint authenticates with the existing `getSession()` and repeats the guardian invoice GET's scoping, unchanged. No login, session, cookie or shared guard code changed, so no `needs-staging-verify` label.

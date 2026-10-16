@@ -353,6 +353,15 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     fetchInvoices();
   }, [fetchInvoices]);
 
+  // Latest list + stats reload, for row actions captured by the memoized columns.
+  const reloadListRef = useRef(() => {});
+  useEffect(() => {
+    reloadListRef.current = () => {
+      fetchInvoices();
+      fetchStats();
+    };
+  }, [fetchInvoices, fetchStats]);
+
   // Cleanup the auto-hide timer on unmount + flip mountedRef so any in-flight
   // runBulkRetry callbacks (onProgress, onOverflow, post-run toasts) can
   // short-circuit and avoid setting state on an unmounted component.
@@ -501,6 +510,9 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // Per-row payment reconciliation — same endpoint and toast mapping as the
   // detail page's "Cek status pembayaran". Idempotent server-side; refetch the
   // list + stats on every exit path so a flipped status shows up in the row.
+  // The row menu is memoized and does not rebuild when filters change, so the
+  // reload goes through a ref holding the CURRENT query's fetchers; a captured
+  // fetchInvoices would reload the table with the previous filter.
   async function handleRowCheckPayment(invoiceId: string) {
     setCheckingRowId(invoiceId);
     try {
@@ -518,8 +530,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     } finally {
       if (mountedRef.current) {
         setCheckingRowId(null);
-        fetchInvoices();
-        fetchStats();
+        reloadListRef.current();
       }
     }
   }
