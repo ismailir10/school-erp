@@ -211,16 +211,21 @@ test.describe("Pendaftaran fee", () => {
       // The old Formulir list is gone: its address lands on the unified Pendaftaran list.
       await expect(page).toHaveURL(/\/admin\/admissions/);
       await page.getByPlaceholder("Cari nama anak atau orang tua...").fill(CHILD);
+      // The search reaches the URL after a debounce and then refetches the list. The row is often
+      // already on the unfiltered first page, so wait for the filter before touching it.
+      await expect(page).toHaveURL(/[?&]search=/);
       const rowEl = page.getByRole("row").filter({ hasText: CHILD });
       await expect(rowEl).toContainText("Formulir masuk");
       await expect(rowEl).toContainText("Belum bayar");
-      // A click on the row menu made before the table hydrates is lost; retry the open until the menu shows.
+      // A click made before the table hydrates is lost, and a late refetch can close an open menu:
+      // open and check the item as one retried step.
       const reminderItem = page.getByRole("menuitem", { name: "Ingatkan bayar (WhatsApp)" });
       await expect(async () => {
         if (!(await reminderItem.isVisible())) await rowEl.getByRole("button", { name: `Aksi untuk ${CHILD}` }).click();
-        await expect(reminderItem).toBeVisible({ timeout: 1_000 });
+        await expect(reminderItem).toHaveAttribute("href", `/api/enrollments/${applicationId}/fee/reminder`, {
+          timeout: 1_000,
+        });
       }).toPass();
-      await expect(reminderItem).toHaveAttribute("href", `/api/enrollments/${applicationId}/fee/reminder`);
     } finally {
       await page.close();
     }
