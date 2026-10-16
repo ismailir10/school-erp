@@ -42,21 +42,21 @@ a payment link, the ones beyond the first 200 are never polled.
 
 ## Acceptance criteria
 
-- [ ] A parent returning with `paymentStatus=paid` for an unpaid invoice triggers one status check right away and one
+- [x] A parent returning with `paymentStatus=paid` for an unpaid invoice triggers one status check right away and one
       more ~15 s later if it is still unpaid. When the check credits the payment, the list re-reads and the existing
       "Alhamdulillah, tagihan … terbayar" toast appears once.
-- [ ] `paymentStatus=cancel`, an already-PAID invoice, or an invoice without a payment link triggers no check.
-- [ ] The parent endpoint returns 401 without a session and 403 for a non-guardian. It returns 404 for another
+- [x] `paymentStatus=cancel`, an already-PAID invoice, or an invoice without a payment link triggers no check.
+- [x] The parent endpoint returns 401 without a session and 403 for a non-guardian. It returns 404 for another
       family's invoice, another tenant's invoice, or a missing one, without polling. It returns 429 past the rate limit.
       Its response body carries only `code` and `status`.
-- [ ] Two checks of the same invoice within 10 s poll the gateway once. The second returns `NO_CHANGE` without a
+- [x] Two checks of the same invoice within 10 s poll the gateway once. The second returns `NO_CHANGE` without a
       gateway call.
-- [ ] The nightly sweep picks never-checked invoices first, then the least recently checked. Every reconcile, from
+- [x] The nightly sweep picks never-checked invoices first, then the least recently checked. Every reconcile, from
       the admin button, the sweep or the parent path, stamps `paymentCheckedAt`.
-- [ ] The admin invoice list shows "Cek status pembayaran" in the row menu for an unpaid invoice with a link when the
+- [x] The admin invoice list shows "Cek status pembayaran" in the row menu for an unpaid invoice with a link when the
       user may record payments, and hides it otherwise. Pressing it shows the result toast and refreshes the row and
       the stats.
-- [ ] The migration is additive: one nullable column, and no data change.
+- [x] The migration is additive: one nullable column, and no data change.
 
 ## Verify flows
 
@@ -141,4 +141,50 @@ a payment link, the ones beyond the first 200 are never polled.
 
 ## Verification
 
+### Verified locally on 2026-10-16, head `e9effc04` (base `origin/staging` `b579b3e`)
+
+Compared `origin/staging...HEAD`. The diff touches:
+- `prisma/` (one migration and the schema)
+- `lib/payments/reconcile.ts`
+- `app/api/cron/reconcile-payments/`, and the new `app/api/guardian/invoices/[id]/check-payment/`
+- `app/parent/invoices/client.tsx` and `app/admin/invoices/invoices-client.tsx`
+- `e2e/payment.spec.ts`, README, the runbook and the UAT jobs
+
+**Migration.** On a disposable local Postgres 16, I pushed `origin/staging`'s schema, applied `20261016000000_add_invoice_payment_checked_at/migration.sql` (`ALTER TABLE`), and ran `prisma migrate diff` from the database to the branch schema. The diff is empty, then the database was seeded.
+
+**Full gate.**
+- `npm run lint`: clean.
+- `verify-rls-coverage.sh`: `43 / 43`.
+- `verify-api-auth.sh`: `210 / 210`.
+- `npx vitest run`: `Test Files 622 passed | 2 skipped (624)`, `Tests 7263 passed | 42 todo`.
+- `DEMO_MODE=true npm run build`: exits 0. `ƒ /api/guardian/invoices/[id]/check-payment` and `ƒ /api/cron/reconcile-payments` are dynamic.
+- `npx playwright test`: `189 passed (5.3m)`. It uses an untracked local config that points `launchOptions.executablePath` at the container's pre-installed Chromium, because the pinned `@playwright/test` expects a newer browser build. Nothing in the repo changed for this.
+
+**Verify flows.** I walked these with a real browser against `DEMO_MODE=true npm run start`, signed in with demo cookies.
+1. **Parent paid return.** `u_rightjet` (390×844) opened `/parent/invoices?invoice=<SENT invoice with link>&paymentStatus=paid`.
+   - The toast "Pembayaran sedang diperiksa…" and the pending note both showed.
+   - One `POST …/check-payment` returned `200 {"code":"NO_CHANGE","status":"SENT"}`; the demo gateway reports PENDING.
+   - The params were stripped, and the stamp `paymentCheckedAt` was written.
+2. **Parent cancel.** The same URL with `paymentStatus=cancel` showed "Pembayaran belum selesai" and made 0 check requests.
+3. **Admin list.** `u_school_admin` opened `/admin/invoices`.
+   - The SENT row's menu offers `["Catat Pembayaran","Cek status pembayaran","Batalkan"]`.
+   - Pressing the new item sent `POST /api/invoices/<id>/refresh-payment` and got 200 `NO_CHANGE`; the toast read "Belum ada pembayaran masuk.".
+   - A DRAFT row's menu offers only `["Batalkan"]`.
+4. **Errors and scoping.**
+   - Another family's guardian (`u_kbaster_parent_d4`) gets `404 {"error":"Not found"}`.
+   - An anonymous caller gets `401`.
+   - The owner posting twice gets `200 {"code":"NO_CHANGE","status":"SENT"}` both times. The bodies never carry the admin message. The 10 s throttle itself is proven in Vitest: a lost claim makes no gateway call.
+
+**Highlights:** `admin-row-menu.png` (the new row action) and `parent-paid-return.png` (the parent page, visually unchanged).
+
+**design-system:** the admin item reuses the existing DataTable row menu, the 14 px `RefreshCw` icon and the sonner toasts. The parent page has no visual change.
+
+**Glossary:** the copy uses "Cek status pembayaran", "Memeriksa...", "Link Dibuat" and "Tagihan". No banned terms appear.
+
 ## Ship Notes
+
+- **Route: other code.** The new guardian endpoint authenticates with the existing `getSession()` and repeats the guardian invoice GET's scoping, unchanged. No login, session, cookie or shared guard code changed, so no `needs-staging-verify` label.
+- **Migration.** `20261016000000_add_invoice_payment_checked_at` is additive: one nullable column. `prisma migrate deploy` applies it in the staging and production builds.
+- **After promotion:**
+  - Every existing invoice starts with a NULL stamp, so the first sweep picks never-checked invoices first. Its order matches today's due-date order until stamps accumulate.
+  - A parent returning from DOKU now triggers `POST /api/guardian/invoices/<id>/check-payment`. If it fails, the log line is `[GUARDIAN CHECK PAYMENT] failed`.
