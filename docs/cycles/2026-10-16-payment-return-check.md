@@ -118,7 +118,7 @@ a payment link, the ones beyond the first 200 are never polled.
       throttled. The sweep orders by `paymentCheckedAt` (nulls first), then `dueDate`. The runbook and the cycle-doc
       guidance on the cap are corrected.
       Accept: reconcile and cron tests cover the claim, the stamp and the order.
-- [ ] **T2: Parent check endpoint.** `POST /api/guardian/invoices/[id]/check-payment` with guardian scoping, a rate
+- [x] **T2: Parent check endpoint.** `POST /api/guardian/invoices/[id]/check-payment` with guardian scoping, a rate
       limit, skip rules, the 10 s throttle, and a `{ code, status }` response.
       Accept: the route test covers every acceptance case above. Deps: T1.
 - [ ] **T3: Parent return triggers the check.** In the parent invoices client, the `paid` return calls the endpoint
@@ -134,6 +134,7 @@ a payment link, the ones beyond the first 200 are never polled.
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5; T1 ∥ T4 (disjoint files), then T2 → T3 sequential (T2 needs T1's reconcile signature, T3 needs T2's endpoint), T5 inline (why: a test assertion and two doc lines). The driver reviews every diff and re-runs the gates itself.
 - T1: `prisma/schema.prisma` + `prisma/migrations/20261016000000_add_invoice_payment_checked_at/` (nullable `Invoice.paymentCheckedAt`). `lib/payments/reconcile.ts`: `reconcileInvoicePayment(id, { minIntervalMs?, now? })` stamps the column before every gateway call; with `minIntervalMs` the stamp is an atomic `updateMany` claim, and a lost claim returns `NO_CHANGE` "Baru saja diperiksa." with no gateway call. `app/api/cron/reconcile-payments/route.ts` orders candidates `paymentCheckedAt asc nulls first, dueDate asc`. The runbook names the rotation. Tests: `invoice-refresh-payment.test.ts` (+4: stamp order, lost claim, claim `where`, no stamp on NOT_FOUND) and `cron-reconcile-payments.test.ts` (rotation order).
+- T2: `app/api/guardian/invoices/[id]/check-payment/route.ts` — `POST`, guardian scoping copied from the guardian invoice GET (401 / 403 / flat 404 incl. the null-email guard), rate limit `guardian-check-payment:<user>:<invoice>` 6/min after scoping, `SKIPPED` without polling when the invoice is not SENT/PARTIALLY_PAID/OVERDUE or has no link, else `reconcileInvoicePayment(id, { minIntervalMs: 10_000 })`; body is only `{ code, status }`; a thrown reconcile is logged and answered 200 `GATEWAY_ERROR`. README parent row. Tests: `guardian-invoice-check-payment.test.ts` (22).
 - T4: `app/admin/invoices/invoices-client.tsx` — row action "Cek status pembayaran" / "Memeriksa..." (RefreshCw) after Catat Pembayaran, shown for `payments.record` + SENT/OVERDUE/PARTIALLY_PAID + a link; calls the existing `POST /api/invoices/[id]/refresh-payment` with the detail page's toast mapping, then reloads the list and stats. The shared row-menu item has no `disabled`, so the handler ignores clicks while a check runs. design-system: no new visual pattern — the existing DataTable row menu, icon size and sonner toasts. README finance line names the three reconcile paths. Tests: `invoices-client.test.tsx` (+5: shown and calls, no link, PAID, no permission, 429 error toast).
 
 ## Verification
