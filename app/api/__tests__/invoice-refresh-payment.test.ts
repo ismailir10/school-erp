@@ -279,6 +279,38 @@ describe("POST /api/invoices/[id]/refresh-payment — outcomes", () => {
     expect(processPaymentEventMock.mock.calls[0][0].kind).toBe("SESSION_EXPIRED");
   });
 
+  it("keys an expiry on the session, so a reissued link that expires later is not deduped away", async () => {
+    const eventIds: string[] = [];
+    for (const sessionId of ["ps-first", "ps-second"]) {
+      stubInvoice({ statusBefore: "OVERDUE", statusAfter: "OVERDUE", sessionId });
+      fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+      processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
+      await call();
+      eventIds.push(processPaymentEventMock.mock.calls.at(-1)?.[0].eventId);
+    }
+    expect(eventIds[0]).not.toBe(eventIds[1]);
+    expect(eventIds[0]).toContain("ps-first");
+  });
+
+  it("tells the admin the dead link was cleared when an expired SENT invoice is past due", async () => {
+    stubInvoice({ statusBefore: "SENT", statusAfter: "OVERDUE" });
+    fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "PROMOTED_OVERDUE" } });
+    const body = await (await call()).json();
+    expect(body.code).toBe("UPDATED");
+    expect(body.message).toContain("Link lama dihapus");
+  });
+
+  it("reports a cleared link even though an OVERDUE invoice keeps its status", async () => {
+    stubInvoice({ statusBefore: "OVERDUE", statusAfter: "OVERDUE" });
+    fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
+    const body = await (await call()).json();
+    expect(body.code).toBe("UPDATED");
+    expect(body.statusAfter).toBe("OVERDUE");
+    expect(body.message).toContain("Link lama dihapus");
+  });
+
   it("surfaces a refund for manual handling instead of swallowing it", async () => {
     stubInvoice({ statusBefore: "PAID", statusAfter: "PAID" });
     fetchPaymentStatusMock.mockResolvedValue({

@@ -6,6 +6,10 @@ import {
   type NormalizedPaymentEvent,
 } from "./webhook-processor";
 
+/** Admin-facing sentence whenever an expired session's dead link was cleared. */
+const EXPIRED_LINK_CLEARED_MESSAGE =
+  "Sesi pembayaran sudah kedaluwarsa. Link lama dihapus — silakan buat link baru.";
+
 /**
  * Invoice status → Indonesian label, for user-facing reconcile messages.
  *
@@ -291,11 +295,14 @@ export async function reconcileInvoicePayment(
     };
   }
 
+  // An expired session carries no payment id, so key it on the session: a later
+  // link for the same invoice that also expires is a new event, not a duplicate
+  // of the first (which would leave its dead link in place).
   const eventId = buildManualEventId(
     provider,
     before.id,
     status.state,
-    status.paymentId,
+    status.paymentId ?? before.xenditSessionId,
   );
 
   const normalized: NormalizedPaymentEvent = {
@@ -351,6 +358,18 @@ export async function reconcileInvoicePayment(
     duplicate: outcome.duplicate,
   };
 
+  // An expired link on an invoice that stays owed: the status may not move
+  // (OVERDUE / PARTIALLY_PAID) but the dead link was cleared, which is a real
+  // change the admin needs to hear about.
+  if (outcome.status === "LINK_CLEARED" || outcome.status === "PROMOTED_OVERDUE") {
+    return {
+      ...base,
+      code: "UPDATED",
+      message:
+        EXPIRED_LINK_CLEARED_MESSAGE,
+    };
+  }
+
   if (changed) {
     return {
       ...base,
@@ -361,7 +380,7 @@ export async function reconcileInvoicePayment(
           : statusAfter === "PARTIALLY_PAID"
             ? "Pembayaran sebagian ditemukan di gateway — tagihan diperbarui."
             : statusAfter === "PENDING_PAYMENT_LINK"
-              ? "Sesi pembayaran sudah kedaluwarsa. Link lama dihapus — silakan buat link baru."
+              ? EXPIRED_LINK_CLEARED_MESSAGE
               : `Status tagihan diperbarui menjadi ${INVOICE_STATUS_LABELS[statusAfter] ?? statusAfter}.`,
     };
   }

@@ -269,6 +269,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
               id: "inv1",
               status: "SENT",
               invoiceNumber: "INV-1",
+              dueDate: "2099-01-01",
             }),
             update: txInvoiceUpdate,
           },

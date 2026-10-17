@@ -587,8 +587,21 @@ export function parseDokuOrderStatus(envelope: unknown): GatewayPaymentStatus {
   const order = obj("order");
   const channel = obj("channel");
 
-  const rawStatus =
+  const transactionStatus =
     typeof transaction.status === "string" ? transaction.status : null;
+
+  // Checkout's own order-level status (DOKU changelog, 24 Jul 2025). A link the
+  // parent never opened has no channel and so no `transaction`, which would read
+  // as PENDING forever; `ORDER_EXPIRED` ("Order expired without payment") is the
+  // only expiry signal such an order carries. It only upgrades a PENDING read:
+  // a terminal transaction status (paid, failed, refunded) always wins. Merchants
+  // registered before Dec 2024 must ask DOKU support to enable `order.status`;
+  // without it this branch simply never fires. Cycle 2026-10-17-expired-link-overdue.
+  const orderStatus = typeof order.status === "string" ? order.status : null;
+  const orderExpired =
+    orderStatus?.toUpperCase() === "ORDER_EXPIRED" &&
+    mapDokuTransactionState(transactionStatus) === "PENDING";
+  const rawStatus = orderExpired ? orderStatus : transactionStatus;
 
   // Same float-tolerant coercion as the notification route — some channels
   // send `20000.00` rather than `20000`.
@@ -604,7 +617,7 @@ export function parseDokuOrderStatus(envelope: unknown): GatewayPaymentStatus {
       : null;
 
   return {
-    state: mapDokuTransactionState(rawStatus),
+    state: orderExpired ? "EXPIRED" : mapDokuTransactionState(transactionStatus),
     rawStatus,
     // Same idempotency key the notification route uses, so a manual refresh
     // and a late notification for one settlement collapse onto one Payment row.

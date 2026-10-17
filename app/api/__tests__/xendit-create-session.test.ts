@@ -129,6 +129,72 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     expect(updateCall?.data?.sentAt).toBeInstanceOf(Date);
   });
 
+  // The expiry sweep clears a dead link on OVERDUE / PARTIALLY_PAID invoices
+  // (cycle 2026-10-17-expired-link-overdue), which makes a fresh link reachable
+  // for them. Issuing it must not demote them to SENT.
+  it.each(["OVERDUE", "PARTIALLY_PAID"])(
+    "a fresh link on a %s invoice keeps its status",
+    async (status) => {
+      const { prisma } = await import("@/lib/db");
+      const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+        id: "inv-owed",
+        tenantId: "tnt-1",
+        invoiceNumber: "INV-OWED-1",
+        status,
+        totalDue: 250000,
+        totalPaid: status === "PARTIALLY_PAID" ? 100000 : 0,
+        xenditSessionId: null,
+        xenditPaymentUrl: null,
+        paymentLinkError: null,
+        student: { name: "Citra" },
+        lines: [{ labelSnapshot: "SPP" }],
+      } as never);
+      vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+        paymentUrl: "https://checkout.doku.com/new",
+      });
+      vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+      const res = await POST(makeReq({ invoiceIds: ["inv-owed"] }) as never);
+      expect((await res.json()).created).toBe(1);
+
+      const data = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0]?.data;
+      expect(data).toEqual({ paymentLinkError: null });
+    },
+  );
+
+  it.each(["OVERDUE", "PARTIALLY_PAID"])(
+    "a failed link on a %s invoice records the error but does not move it to PENDING_PAYMENT_LINK",
+    async (status) => {
+      const { prisma } = await import("@/lib/db");
+      const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+        id: "inv-owed",
+        tenantId: "tnt-1",
+        invoiceNumber: "INV-OWED-1",
+        status,
+        totalDue: 250000,
+        totalPaid: 0,
+        xenditSessionId: null,
+        xenditPaymentUrl: null,
+        paymentLinkError: null,
+        student: { name: "Citra" },
+        lines: [{ labelSnapshot: "SPP" }],
+      } as never);
+      vi.mocked(createPaymentSessionForInvoice).mockRejectedValue(new Error("gateway down"));
+      vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+
+      const body = await (await POST(makeReq({ invoiceIds: ["inv-owed"] }) as never)).json();
+      expect(body.failed).toBe(1);
+
+      const data = vi.mocked(prisma.invoice.update).mock.calls[0]?.[0]?.data as Record<string, unknown>;
+      expect(data).not.toHaveProperty("status");
+      expect(data.paymentLinkError).toEqual(expect.any(String));
+    },
+  );
+
   it("Xendit failure path: persists status=PENDING_PAYMENT_LINK + paymentLinkError, increments failed", async () => {
     const { prisma } = await import("@/lib/db");
     const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");

@@ -1,6 +1,6 @@
 # Expired payment links: keep past-due invoices owed (2026-10-17)
 
-> **Status: spec awaiting approval.** T1 (reproduction) is done; the fix is not built.
+> **Status: spec approved by the user ("go with your recommendations") on 2026-10-17; T1–T4 built.** Two follow-ups raised after approval are open at the end of this doc.
 
 ## Context
 
@@ -29,7 +29,7 @@ poll stubbed (T1, below).
 
 ## Decisions
 
-Open, for the user (recommendation first):
+Approved as recommended on 2026-10-17:
 
 1. **An expired link must never change what the family owes.** A billed invoice keeps counting as outstanding whatever
    happens to its link. Recommended: it is the only reading consistent with the existing "outstanding" definition and
@@ -93,17 +93,34 @@ production write and would re-open the gate.
 ## Tasks
 
 - [x] T1 Reproduce gap 2 — accept: a test fails for the right reason on today's code (reuse: `cron-reconcile-payments` mocks)
-- [ ] T2 Expiry handler keeps past-due invoices outstanding and clears dead links for all unpaid statuses — accept: T1 test passes as a plain `it`, ACs 1–5 covered (deps: T1, decisions 1–2)
-- [ ] T3 Confirm DOKU's expired status wording — accept: documented from one real status response or the DOKU docs (parallel with T2)
-- [ ] T4 Docs: `docs/runbooks/payments-gateway.md` states what an expiry does per status — accept: runbook matches T2
+- [x] T2 Expiry handler keeps past-due invoices outstanding and clears dead links for all unpaid statuses — accept: T1 test passes as a plain `it`, ACs 1–5 covered (deps: T1, decisions 1–2)
+- [x] T3 Confirm DOKU's expired status wording — accept: documented from one real status response or the DOKU docs (parallel with T2)
+- [x] T4 Docs: `docs/runbooks/payments-gateway.md` states what an expiry does per status — accept: runbook matches T2
 
 ## Implementation
 
+- Plan: driver=claude-sonnet-5, workers=claude-sonnet-5 (two review subagents, standards and spec axes, in parallel); T1 done earlier, T2 and T3 sequential and inline (a small slice in one file the workers would need the whole plan for), T4 inline.
 - **T1.** `app/api/__tests__/expired-link-past-due.test.ts`: two cases at the processor seam. The control (not-yet-due
   `SENT` reverts to "Link Gagal") passes; the gap-2 case is `it.fails`, asserting a past-due unpaid invoice stays in
   `UNPAID_INVOICE_STATUSES`. `it.fails` keeps CI green while the bug exists and goes red when it is fixed, which is
   the cue to make it a plain `it` in T2. Run as a plain `it` it fails with
   `expected [ 'SENT', 'PARTIALLY_PAID', 'OVERDUE' ] to include 'PENDING_PAYMENT_LINK'`.
+
+- T2: `lib/payments/webhook-processor.ts` (`handleSessionExpired`), `lib/payments/reconcile.ts`, `app/api/xendit/create-session/route.ts` — in the advisory-locked transaction, `SENT` past its Jakarta due date becomes `OVERDUE`, `SENT` not yet due and `PENDING_PAYMENT_LINK` revert as before, `OVERDUE` / `PARTIALLY_PAID` keep their status; all three lose the dead link. The admin "Cek status pembayaran" message now says the link was cleared. The `it.fails` pin is a plain `it` with per-status, boundary (18:00 UTC is already the next day in Jakarta, clock faked) and redelivery cases.
+- T2 review fixes, each from a reviewer finding: (1) a new link no longer demotes `OVERDUE` / `PARTIALLY_PAID` to `SENT`, and a failed new link no longer moves them to "Link Gagal" (both paths became reachable once dead links are cleared) in `create-session/route.ts`; (2) the invoice `EXPIRED` event id is keyed on the session id, as the enrollment-fee path already is, so a reissued link that expires later is not deduplicated away; (3) one shared admin message constant.
+- T3: DOKU's Checkout check-status also returns `order.status` (`ORDER_GENERATED`, `ORDER_EXPIRED` = "Order expired without payment", changelog 24 Jul 2025). A link nobody opened has no channel and no transaction, so reading `transaction.status` alone leaves it pending forever. `parseDokuOrderStatus` now treats `ORDER_EXPIRED` as expired, **only** when the transaction state would otherwise read pending; a paid, failed or refunded transaction always wins. DOKU's docs say the field is only returned to merchants registered from December 2024 or enabled by DOKU support. **Not verified against a live DOKU response** (no credentials in this environment), and the docs show no example of an expired response.
+- T4: `docs/runbooks/payments-gateway.md` states what an expiry does per status.
+
+## Known residuals (recorded, not built)
+
+- A not-yet-due `SENT` invoice whose link expires early goes to "Link Gagal", outside the outstanding statuses, and `finance-maintenance` never promotes it afterwards (Decision 2, accepted). Rare in practice since links expire at the end of the due date.
+- A stale `EXPIRED` event can clear a newer live link on an `OVERDUE` / `PARTIALLY_PAID` invoice if the sweep races an admin issuing a new link. The window is one gateway poll; the same pattern already existed for `SENT`.
+- The two-job cron-order test named under Test seams is not written: with Decision 2 the order no longer matters, and `finance-maintenance` only touches `SENT`.
+
+## Open follow-ups (raised by the user after approval, undecided)
+
+- **Show the real VA channel** (for example "Virtual Account BCA") instead of "Virtual Account (DOKU)". The channel is in the notification and status payloads (`channel.id`), but `processPaymentEvent` drops it and `Payment` has no column for it. Needs a nullable `Payment.channelCode` column: a schema change, so it re-opens the gate.
+- **A button to refresh every unpaid invoice at once** on the admin invoice list.
 
 ## Verification
 
@@ -120,6 +137,14 @@ AFTER 01:00  A: PENDING_PAYMENT_LINK link=null         D: OVERDUE link=kept     
 
 A is never promoted (gap 2). D keeps its dead link (gap 1). B and C show the overdue job itself works. The script was
 a throwaway test file, not committed.
+
+**Task gate after the fix** (run on this branch, nothing recorded from memory):
+
+- `npx eslint lib/payments app/api` and `npx tsc --noEmit`: no output.
+- `npx vitest run`: `Test Files 623 passed | 2 skipped (625)`, `Tests 7290 passed | 42 todo`.
+- `npm run build` with a placeholder `DATABASE_URL`: exit 0. Without it the build fails identically on the untouched base, because this container has no `.env`.
+- The real-database reproduction was not re-run against the fix: CI has no database and the Postgres cluster was removed after T1. The processor seam is covered by the tests above.
+- No frontend file changed; `design-system` frontend gate not applicable.
 
 ## Ship Notes
 
