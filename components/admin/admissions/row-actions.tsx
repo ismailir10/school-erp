@@ -143,8 +143,7 @@ export function AdmissionRowActions({ admission: a, canEdit, onSend, sending = f
             render={
               <Button
                 variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
+                size="icon"
                 aria-label={`Aksi untuk ${label}`}
                 data-admission-menu={a.id}
               />

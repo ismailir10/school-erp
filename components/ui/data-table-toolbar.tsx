@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 interface DataTableToolbarProps {
@@ -87,9 +88,12 @@ export function DataTableToolbar({
   }, [isControlled, onValueChange, search, onSearchChange]);
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3 mb-4">
+    // Phone: a two-column grid (search spans both, dropdowns pair up, an odd
+    // last dropdown spans both, reset and actions get their own row). Tablet
+    // up: the single row it always was.
+    <div className="mb-4 grid grid-cols-2 gap-3 sm:flex sm:flex-row">
       {hasSearch && (
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative col-span-2 max-w-sm flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             // The search box has no visible label by design — the magnifier
@@ -104,7 +108,7 @@ export function DataTableToolbar({
         </div>
       )}
 
-      {filters?.map((filter) => (
+      {filters?.map((filter, index) => (
         <Select
           key={filter.key}
           value={filter.value}
@@ -118,7 +122,13 @@ export function DataTableToolbar({
               than bare "X": a page often has a form field of the same name
               (e.g. Status), and the accessible name should say which one this
               is. */}
-          <SelectTrigger aria-label={`Filter ${filter.label}`} className="w-full sm:w-40 h-9">
+          <SelectTrigger
+            aria-label={`Filter ${filter.label}`}
+            className={cn(
+              "h-9 w-full sm:w-40",
+              index === filters.length - 1 && filters.length % 2 === 1 && "col-span-2 sm:col-span-1",
+            )}
+          >
             <SelectValue placeholder={filter.label} />
           </SelectTrigger>
           <SelectContent>
@@ -134,7 +144,7 @@ export function DataTableToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-9 w-full sm:w-auto"
+          className="col-span-2 h-9 w-full sm:col-span-1 sm:w-auto"
           onClick={handleReset}
         >
           <X size={14} className="mr-1.5" aria-hidden="true" />
@@ -142,7 +152,7 @@ export function DataTableToolbar({
         </Button>
       )}
 
-      {actions && <div className="flex gap-2 ml-auto">{actions}</div>}
+      {actions && <div className="col-span-2 ml-auto flex gap-2">{actions}</div>}
     </div>
   );
 }

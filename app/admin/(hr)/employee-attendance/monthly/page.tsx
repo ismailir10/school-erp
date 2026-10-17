@@ -7,9 +7,10 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ChevronLeft, ChevronRight, ArrowLeft, CalendarX } from "lucide-react";
+import { ArrowLeft, CalendarX } from "lucide-react";
 import { formatMonthLabel } from "@/lib/format";
 import Link from "next/link";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 
 type MonthlyData = {
   employee: { id: string; kode: string; nama: string; campusName: string };
@@ -111,9 +112,15 @@ export default function MonthlyAttendancePage() {
 
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button onClick={prevMonth} aria-label="Bulan sebelumnya" className="p-2 rounded-lg hover:bg-accent"><ChevronLeft size={16} /></button>
-        <span className="text-sm font-semibold w-40 text-center capitalize">{monthLabel}</span>
-        <button onClick={nextMonth} aria-label="Bulan berikutnya" className="p-2 rounded-lg hover:bg-accent"><ChevronRight size={16} /></button>
+        <PeriodStepper
+          label={monthLabel}
+          onPrev={prevMonth}
+          onNext={nextMonth}
+          prevLabel="Bulan sebelumnya"
+          nextLabel="Bulan berikutnya"
+          className="w-full sm:w-auto"
+          labelClassName="capitalize sm:w-40"
+        />
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger>
           <SelectContent>

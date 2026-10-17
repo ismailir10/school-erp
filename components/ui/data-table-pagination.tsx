@@ -55,8 +55,7 @@ export function DataTablePagination({
         <div className="flex gap-1" role="group" aria-label="Navigasi halaman">
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
+            size="icon"
             onClick={() => onPageChange?.(1)}
             disabled={page <= 1}
             aria-label="Halaman pertama"
@@ -65,8 +64,7 @@ export function DataTablePagination({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
+            size="icon"
             onClick={() => onPageChange?.(page - 1)}
             disabled={page <= 1}
             aria-label={`Halaman sebelumnya, ${Math.max(1, page - 1)}`}
@@ -75,8 +73,7 @@ export function DataTablePagination({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
+            size="icon"
             onClick={() => onPageChange?.(page + 1)}
             disabled={page >= totalPages}
             aria-label={`Halaman berikutnya, ${Math.min(totalPages, page + 1)}`}
@@ -85,8 +82,7 @@ export function DataTablePagination({
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
+            size="icon"
             onClick={() => onPageChange?.(totalPages)}
             disabled={page >= totalPages}
             aria-label="Halaman terakhir"
