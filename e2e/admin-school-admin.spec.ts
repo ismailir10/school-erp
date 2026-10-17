@@ -262,7 +262,11 @@ test.describe("SCHOOL_ADMIN reminder queue", () => {
       await expect(openLink.first()).toBeVisible({ timeout: 30_000 });
     }
 
-    const row = dialog.getByRole("listitem").filter({ has: openLink }).first();
+    // `has` resolves inside each list item, so it must not be rooted at the dialog.
+    const row = dialog
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("link", { name: /Buka WhatsApp/ }) })
+      .first();
     expect(await row.getByRole("link", { name: /Buka WhatsApp/ }).getAttribute("href")).toMatch(/^https:\/\/wa\.me\/\d+/);
 
     const [popup, stamp] = await Promise.all([
