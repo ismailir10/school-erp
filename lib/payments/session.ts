@@ -13,6 +13,30 @@ import { stripQuery } from "@/lib/payments/xendit/client";
  */
 
 /**
+ * Line items sent to the gateway. They must sum to the charged amount, which
+ * is what is still owed, not the invoice total. Once anything has been paid the
+ * real lines no longer add up to it (DOKU can reject the mismatch), so a partly
+ * paid invoice goes out as a single "Sisa tagihan" line for the remainder.
+ */
+export function sessionLineItems(
+  invoice: {
+    invoiceNumber: string;
+    totalDue: unknown;
+    lines: { labelSnapshot: string; finalAmount: unknown }[];
+  },
+  remaining: number,
+): { name: string; quantity: number; price: number }[] {
+  if (remaining < Number(invoice.totalDue)) {
+    return [{ name: `Sisa tagihan ${invoice.invoiceNumber}`, quantity: 1, price: remaining }];
+  }
+  return invoice.lines.map((line) => ({
+    name: line.labelSnapshot,
+    quantity: 1,
+    price: Number(line.finalAmount),
+  }));
+}
+
+/**
  * Resolve the origin for payment gateway success/cancel return URLs.
  *
  * Priority:
@@ -180,11 +204,7 @@ export async function createPaymentSessionForInvoice(
           // own collection window closed. `invoice.dueDate` was already loaded
           // forty lines above; it was simply never told to the gateway.
           expiresAt: resolveSessionExpiry(invoice.dueDate),
-          items: invoice.lines.map((line) => ({
-            name: line.labelSnapshot,
-            quantity: 1,
-            price: Number(line.finalAmount),
-          })),
+          items: sessionLineItems(invoice, remaining),
         }),
       { invoiceId, tenantId },
     );

@@ -4,13 +4,14 @@ import { getSession } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceReceiptPdf } from "@/lib/pdf/invoice-receipt";
 import { RECEIPT_INVOICE_SELECT, buildReceiptData } from "@/lib/pdf/receipt-data";
+import { hasReceipt } from "@/lib/finance/invoice-receipt";
 import React from "react";
 
 /**
  * GET /api/guardian/invoices/[id]/pdf
  * Returns the kuitansi PDF for a guardian.
  * Only accessible by GUARDIAN role, only for their own children's invoices that
- * have received money (PAID / PARTIALLY_PAID, like the admin route): a wali who
+ * have received money (any status label but CANCELLED, like the admin route): a wali who
  * paid part in cash still needs proof of it.
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -57,7 +58,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Money-received guard — no leaked draft/unpaid receipts
-  if (invoice.status !== "PAID" && invoice.status !== "PARTIALLY_PAID") {
+  if (!hasReceipt(invoice)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

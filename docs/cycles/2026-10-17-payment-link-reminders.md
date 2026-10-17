@@ -1,0 +1,234 @@
+# Payment links that heal themselves, and WhatsApp reminders from the invoice list
+
+## Context
+
+The school's finance admin reports three kinds of unpaid bills in October 2026:
+
+- parents who forgot one month of SPP;
+- annual fees that are partly paid;
+- many parents during the Xendit → DOKU changeover who say they never got a payment link.
+
+The app sends parents nothing itself. DOKU emails reach almost nobody, because few guardians have an email on file. So the admin chases every bill by hand on WhatsApp, and usually falls back to "transfer manually to the school account".
+
+#666 and #670 (promoted to production as #671 on 2026-10-17) made expired links clear themselves. They also let a parent ask for a new link from the portal, and gave the admin bulk "Cek semua belum lunas" and "Buat link baru (N)". Four gaps remain:
+
+1. **Links for overdue invoices die within a day.** A link lasts until the due date, with a floor of one day. A link made for an invoice that is already past due therefore expires after 24 hours: a link the admin sends today is dead tomorrow.
+2. **Nothing makes a new link automatically.** The nightly sweep clears a dead link but leaves the invoice with no link until a parent or the admin presses a button. The admin's "Chat WhatsApp" then sends the parent-portal address. Most parents cannot sign in there, because login needs a Google email on file.
+3. **The link's amount goes stale after a partial payment.**
+   - A manual partial payment leaves a link that still asks for the old, larger amount. Paying it is credited but flagged as an overpayment.
+   - A new link for a partly paid invoice sends line items that add up to the full fee while the charge is only the remainder. DOKU may reject that.
+   - A partly paid invoice past its due date never becomes "Lewat Tempo", so it is missing from the overdue count, the very group the school chases for annual fees.
+4. **No way to work through reminders.** The only reminder is one "Chat WhatsApp" button per invoice detail page, and nothing records who was reminded when. The admin cannot answer "I never got the link" or avoid double-messaging a family.
+
+Desired outcome: every unpaid invoice holds a working link without anyone pressing a button. The admin can go down a list of families who owe money, one tap each, with a message that carries that link, and sees who was reminded and when.
+
+UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is about six months old, which is past the 60-day rule. It predates the finance cycles of August–October, so it is possibly stale, verify before acting, and no findings are carried in.
+
+## Decisions
+
+- **D1. Overdue links last 7 days.** When the due date is already past, a new link stays open for 7 days instead of 24 hours. A not-yet-due invoice still expires at the end of its due date, and one due today keeps the 24-hour floor.
+  - Why 7: a week covers a parent who reads the message at the weekend.
+  - It also caps how often the nightly job makes a new order per overdue invoice.
+- **D2. The nightly maintenance job heals links.** It runs after the payment sweep. It creates a link for every unpaid invoice (Terkirim, Dibayar Sebagian, Lewat Tempo) that has none, as many as fit in its time budget, at most 50 a night.
+  - The admin's "Buat link baru (N)" stays for catch-up.
+  - The job runs at 08:00 WIB, after the 07:30 sweep has cleared dead links.
+  - It is not added as a new scheduled job, because the Hobby plan's cron allowance is tight.
+- **D3. "Lewat Tempo" wins over "Dibayar Sebagian" once the due date passes.**
+  - Rule: an invoice with money still owed after its due date is Lewat Tempo, whether or not part of it has been paid.
+  - This applies in the nightly promotion and whenever a payment is recorded.
+  - The paid and remaining amounts still show everywhere.
+  - A receipt (kuitansi) stays downloadable for any invoice with money paid, so a partial payer keeps their receipt after promotion.
+  - Why: the school chases exactly these families, and the overdue figures should count them.
+- **D4. A link always charges what is still owed.**
+  - Recording or reversing a manual payment drops the old link in the same step and makes a new one right after, without making the admin wait for it.
+  - If that immediate attempt fails, the nightly heal retries.
+  - A link for a partly paid invoice carries a single line, "Sisa tagihan <invoice number>", for the remaining amount, so the line items always match the charge.
+- **D5. "Buat link baru" on one invoice** (admin invoice detail, same permission as making links today).
+  - The app first asks the gateway whether the invoice was paid, and records the payment if so.
+  - Otherwise it replaces the stored link after a confirmation.
+  - The old link may still accept money until it expires. If a parent pays it anyway, the payment is still credited to the invoice (an overpayment is flagged for review, as today), and the confirmation says so.
+- **D6. WhatsApp reminders are a queue, not a broadcast.**
+  - A "Pengingat WhatsApp" button on the invoice list opens a queue of unpaid invoices whose guardian has a usable WhatsApp/phone number.
+  - Order: families never reminded first, then the oldest reminder, then the oldest due date.
+  - Each row opens WhatsApp with the existing salam message and the invoice's current link, and records the reminder.
+  - Why a queue: wa.me cannot send by itself and no WhatsApp API is connected. So "one tap per family, nothing forgotten" is the honest best.
+  - The detail page's "Chat WhatsApp" records a reminder the same way.
+- **D7. What a reminder records.** The time, the admin who opened it, and a running count, stored on the invoice and written to the audit log.
+  - The UI says "Diingatkan <waktu>", never "Terkirim": the app only opened WhatsApp, the admin presses send.
+- **D8. Who can use reminders.** People with the permission to record payments, the collections role that already runs "Cek semua belum lunas". Making a missing link from inside the queue additionally needs the permission to create invoices, as today.
+
+## Acceptance criteria
+
+- [ ] A link created for an invoice whose due date has passed stays open for 7 days. A link for a not-yet-due invoice still closes at the end of its due date (24-hour floor for one due today). Registration-fee links are unchanged.
+- [ ] After the nightly maintenance run, every Terkirim / Dibayar Sebagian / Lewat Tempo invoice that had no link has one. It stops within its time budget, takes at most 50 a night, and a gateway failure on one invoice does not stop the rest.
+- [ ] A Dibayar Sebagian invoice past its due date shows Lewat Tempo after the nightly run. A partial payment recorded on a past-due invoice leaves it Lewat Tempo, not Dibayar Sebagian. Paid and remaining amounts, and the kuitansi download (admin and parent), still work for it.
+- [ ] Recording a manual partial payment replaces the link with one for the new remaining amount. Reversing a payment does the same. If the new link cannot be made right away, the invoice is left without a link, and the nightly heal or "Buat link baru (N)" picks it up.
+- [ ] A link made for a partly paid invoice has a single line item named "Sisa tagihan <invoice number>" equal to the remaining amount. A never-paid invoice keeps its real line items.
+- [ ] On an unpaid invoice that has a link, the admin can press "Buat link baru". After a confirmation the invoice holds a different, working link. If the gateway reports the invoice as already paid, the payment is recorded and no new link is made. If the gateway cannot be reached, the old link is kept and an error says so.
+- [ ] The invoice list has "Pengingat WhatsApp". The queue lists unpaid invoices with a reachable guardian number, never-reminded first, each showing student, period, remaining amount, status and "Diingatkan …" or "Belum diingatkan". It says how many unpaid invoices are left out for having no number.
+- [ ] Tapping a row's WhatsApp action opens wa.me to the guardian with the salam message and the invoice's payment link. The invoice records the reminder (time, admin, count), the audit log has an entry, and the row then shows "Diingatkan baru saja". A row with no link offers to make one first.
+- [ ] The detail page's "Chat WhatsApp" records a reminder too, and the detail page shows when the invoice was last reminded.
+- [ ] Users without the payment-recording permission see no reminder button, and the reminder endpoints answer 403. Another school's invoice answers 404.
+
+## Verify flows
+
+1. **Admin works the reminder queue** (`u_school_admin`, /admin/invoices, seeded unpaid invoices):
+   - Press "Pengingat WhatsApp". The queue opens; check the count of excluded no-number invoices.
+   - On a row with a link, tap WhatsApp. Expect a wa.me URL with the guardian's number and a message containing the link.
+   - Close and reopen. That row now shows "Diingatkan baru saja" and sits below never-reminded rows.
+   - On a row without a link, make the link from the queue, then tap WhatsApp.
+   - Check the audit log entry.
+2. **Admin replaces a link** (invoice detail of a seeded unpaid invoice with a link): "Buat link baru" → confirm → the link on the page changes and opens.
+   - Error case: with the gateway made to fail, the old link stays and an error toast shows.
+3. **Partial payment on an overdue annual fee** (seeded past-due SENT invoice):
+   - Create a link, then record a partial manual transfer.
+   - Expect status Lewat Tempo, "Dibayar X / Sisa Y", a new link for Y with a single "Sisa tagihan" line, and the kuitansi still downloadable (admin, and parent as `u_rightjet` if it is their child).
+4. **Nightly maintenance** (call the maintenance job locally with the cron secret):
+   - A past-due Dibayar Sebagian invoice becomes Lewat Tempo.
+   - Unpaid invoices without links get links, with a 7-day expiry for overdue ones.
+   - Edge case: a guardian with no number is absent from the queue and counted in the "no number" note.
+
+## UX notes
+
+- **Invoice list header.** "Pengingat WhatsApp" sits beside "Cek semua belum lunas" (same permission). The queue opens in the standard responsive dialog: a Dialog on desktop, a Sheet on mobile.
+- **Queue rows.**
+  - Content: student name and period; remaining amount (tabular numerals); status badge; "Diingatkan 3 hari lalu · oleh <nama>" or "Belum diingatkan".
+  - Primary action: "Buka WhatsApp", a real link so the phone opens WhatsApp directly.
+  - When the invoice has no link, the action is "Buat link dulu". Once a link exists it becomes "Buka WhatsApp".
+- **Queue footer and empty state.** A footer note: "<n> tagihan belum lunas tanpa nomor WhatsApp wali — lengkapi di data wali." The empty state is "Semua tagihan belum lunas sudah diingatkan hari ini" or "Tidak ada tagihan belum lunas", not a generic "no data".
+- **Replacing a link.** Detail-page action "Buat link baru". The confirmation follows voice.md: "Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat." Buttons are "Buat link baru" and "Batal".
+- **Detail page.** The Kontak Wali card shows "Terakhir diingatkan …".
+- **Copy.** The admin chrome uses no Arabic greeting. The salam stays only in the message to the parent. Never "Terkirim".
+
+## Test seams
+
+- Unit:
+  - The link expiry rule (overdue → 7 days).
+  - Session building (partial-invoice line item).
+  - Invoice payment-state derivation (past-due partial → Lewat Tempo).
+  - The reminder message helper.
+- API route tests, with the mocked-db style already used:
+  - The maintenance job: promotion SQL and the heal phase with its budget and cap.
+  - Manual payment record/reverse: link dropped, recreation scheduled.
+  - Replace-link route: paid, gateway error, replaced, permission, tenant.
+  - Reminder list and reminder record routes: permission, tenant, ordering, no-number count.
+- Component tests:
+  - The invoice list queue: open, row actions, capability off.
+  - The detail page: replace link, last-reminded, stamp on chat.
+- e2e: the admin reminder queue opens from /admin/invoices and records a reminder through the API, extending the existing invoice spec. The mobile-layout route list keeps /admin/invoices green.
+
+## Non-goals
+
+- Sending WhatsApp messages automatically (no WhatsApp Business API), and email or SMS reminders.
+- Retrying "Link Gagal" (PENDING_PAYMENT_LINK) invoices nightly. "Coba Lagi Link" stays the path.
+- Cancelling the old order at DOKU/Xendit when a link is replaced.
+- Combined "pay all invoices" links, installment plans, carry-over of arrears, surat penagihan, and parent proof-of-transfer upload.
+- Fixing guardian contact data, and backfilling historical reminders.
+- Production promotion: that only happens when the user asks.
+
+## Assumptions
+
+- A single "Sisa tagihan" line item is accepted by both DOKU and Xendit. It always sums to the charged amount, which is the safe shape whatever DOKU's rule is.
+- The maintenance job can run for up to 60 seconds, the same as the other bulk routes. The heal phase stops starting new links about 22 seconds after the job begins, the pattern already proven in "Buat link baru (N)".
+- Demo mode's stub gateways stand in for DOKU/Xendit in local verification. A real DOKU sandbox is not available here.
+- The guardian used for reminders is the invoice's primary active guardian, the same one the detail page uses today.
+
+## Gate re-openers
+
+- **Schema migration:** additive and nullable. Invoice gets last-reminded time, last-reminded-by and a reminder count. Named here, so it is approved.
+- **New mutating routes**, so auth-sensitive: replace a link, list reminders, record a reminder. The PR is labelled `needs-staging-verify`.
+- **Automatic gateway orders from the nightly job:** it creates payment orders with no human pressing a button. This is the intended behavior, approved with this spec.
+- No new dependency, no PII change (WhatsApp numbers are already shown to admins), no production write by this cycle.
+
+## Tasks
+
+- [x] T1 Overdue links last 7 days — accept: expiry unit tests for past-due (7d), due-today (24h floor), future (end of due date), cap (30d). (deps: none; reuse: existing expiry tests) **parallel A**
+- [x] T2 Partial-invoice link charges one "Sisa tagihan" line — accept: session test shows one line equal to remaining for a partly paid invoice, real lines otherwise. (deps: none) **parallel A**
+- [x] T3 Nightly maintenance promotes past-due partial invoices and heals missing links — accept: route tests for the SQL covering both statuses, a heal phase under a deadline, at most 50, failure isolation, cache bust. Selection and budget are shared with "Buat link baru (N)". (deps: none; reuse: create-missing-links selection and deadline, ensurePaymentLink) **parallel A**
+- [x] T4 Reminder bookkeeping and API — accept: migration plus schema fields, a list route (ordering, no-number count, permission, tenant) and a record route (stamp, count, audit, rate limit, permission, tenant) with tests. (deps: none; reuse: invoice-reminder helpers, recordAudit, primary-guardian include) **parallel A**
+- [x] T5 Lewat Tempo wins once past due, and receipts follow money paid — accept: payment-state unit tests, gateway payment path uses the same rule, kuitansi routes and buttons allowed for any invoice with money paid (admin and parent) with tests. (deps: none) **after A** (touches the admin detail page)
+- [x] T6 Manual record/reverse drops the stale link and remakes it — accept: route tests show the link cleared in the payment transaction and recreation scheduled after the response. (deps: T2 for amounts) **after A, parallel with T5**
+- [x] T7 Replace the link on one invoice — accept: route tests (paid → recorded, gateway error → kept, live → replaced, permission, tenant), plus the detail-page action with confirmation and component tests. (deps: T5 on the same page) **after T5**
+- [x] T8 Reminder queue on the invoice list, plus last-reminded and stamping on detail — accept: component tests (open, ordering shown, WhatsApp href, stamp call, "Buat link dulu", capability off), detail page shows "Terakhir diingatkan" and stamps on chat, e2e queue flow. (deps: T4, T7) **after T7**
+- [x] T9 Docs: README finance line, `docs/uat/jobs/admin.md` (reminder queue, replace link), payments runbook (nightly heal, 7-day overdue links) — accept: `bash scripts/audit-docs.sh` clean. (deps: all)
+
+## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5.
+  - T1, T2, T3 and T4 run in parallel: disjoint files.
+  - T5 and T6 then run in parallel.
+  - T7 and T8 run sequentially: both touch the admin invoice detail page, and T8 needs T4's API.
+  - T9 is inline: a docs-only sweep after the code lands.
+  - Workers edit and test only; the driver runs the gate, reviews and commits one commit per task.
+
+- T2: `lib/payments/session.ts`, `lib/payments/__tests__/session-line-items.test.ts`. New `sessionLineItems()`: a partly paid invoice goes out as one "Sisa tagihan <no>" line for the remainder; the adapters still round both amount and price.
+- T1: `lib/payments/expiry.ts`, `lib/payments/__tests__/resolve-session-expiry.test.ts`. A due date before today (WIB, from the injectable `now`) floors the window at 7 days; due today keeps the 24-hour floor; the 30-day cap is unchanged. Registration fees use `defaultExpiresAt` and are unaffected.
+- T3: `lib/payments/missing-links.ts` (new shared `createMissingPaymentLinks`: selection, owing-money guard via a column comparison, order, concurrency 5, start deadline), `app/api/cron/finance-maintenance/route.ts` (promotes SENT, and PARTIALLY_PAID still owing, past due; then heals links for all tenants, batch 50, 22 s start deadline, `maxDuration` 60; a heal failure is reported, not a 500), `app/api/invoices/create-missing-links/route.ts` (refactored onto the helper, response unchanged), plus tests. Review: promotion first ignored zero-balance PARTIALLY_PAID rows (fixed with `"totalPaid" < "totalDue"`), and remaining-0 candidates could starve the batch (fixed by the owing guard, confirmed against the local Postgres: 82 rows by Prisma field reference = 82 by raw SQL).
+- T4: migration `20261017120000_add_invoice_reminders` (Invoice `lastRemindedAt`, `lastRemindedBy`, `remindCount`, additive), `lib/finance/reminder-queue.ts`, `GET /api/invoices/reminders` (queue of owing invoices with a reachable primary guardian, never-reminded first; `meta.excludedNoNumber`, `meta.truncated` at a 2000-row safety cap; narrow `select`), `POST /api/invoices/[id]/reminder` (stamps and audits in one transaction, returns the wa.me URL; 403/404/409/422/429), plus tests. Both need `payments.record`. Review fixes: a narrow `select` instead of loading full guardian rows, neutral 409 copy.
+- T5: `lib/finance/invoice-payment-state.ts` (money paid but still owing past the due date derives OVERDUE; due today stays PARTIALLY_PAID), `lib/payments/webhook-processor.ts` (gateway payments use the same derivation, WIB today), new `lib/finance/invoice-receipt.ts` `hasReceipt` (money paid and not cancelled) used by both kuitansi routes, the admin detail page and the parent sheet, `lib/payments/reconcile.ts` (a credited partial payment that leaves the status OVERDUE still reports "Pembayaran sebagian ditemukan"), plus tests. The admin record-payment review badge now previews Lewat Tempo for a past-due partial amount. design-system: no new component or token; the receipt action reuses the existing header and overflow-menu actions, and the badges are the existing StatusBadge.
+- T6: `app/api/invoices/[id]/payments/route.ts`, `.../[paymentId]/reverse/route.ts`, `lib/payments/ensure-link.ts` (`staleLinkCleared`, `scheduleRelink`), plus tests. When the invoice still owes money after a manual record or reverse, the transaction clears the link (after the recompute, which reads it) and stamps `paymentCheckedAt`. A new link is then made after the response with `after()`; a failure is logged and left to the nightly heal. Review fixes: the stamp invalidates a concurrent creator's claim so a link for the old balance cannot land; links are kept when nothing will be remade, so "Link Gagal" keeps its error; record-payment is rate limited (20/min).
+- T7a (found in T7 review, also a production bug since #671): `lib/payments/doku/client.ts` `parseDokuOrderStatus`. A live DOKU order nobody opened has no `transaction`, so its status read as null and the parent's "Minta link baru" answered "Link belum bisa diperiksa" instead of returning the working link. It now reports `order.status` (e.g. ORDER_GENERATED), or PENDING when DOKU sends no order status. The state mapping is unchanged, and a skipped or throttled check still reads as null and is still refused. Tests in `gateway-status-parsing.test.ts` and `guardian-invoice-payment-link.test.ts`.
+- T7: new `POST /api/invoices/[id]/replace-payment-link` (`invoices.create`, 10/min, tenant-scoped, `maxDuration` 60). It checks the gateway first, and a paid invoice is recorded with no new link. A gateway error keeps the old link. Otherwise it clears the old link with a compare-and-swap on the stored session, URL and unpaid status, makes a new one, and audits both steps. `lib/payments/reconcile.ts` gains `unavailableReason`, so ORDER_NOT_FOUND (no order behind the link, nothing paid) can be replaced. Links that can never be checked get "Hubungi tim teknis". Admin detail page: "Buat link baru" in the overflow menu behind a ConfirmDialog with the spec copy, refetching on every outcome. design-system: the existing overflow menu, ConfirmDialog and toast patterns; no new component.
+- T8: new `components/admin/invoices/reminder-queue-dialog.tsx` (ResponsiveFormDialog, a list of cards that works at 390 px with 44 px targets, "<n> tagihan di antrean", rows with Sisa, status badge and "Diingatkan … · oleh …" or "Belum diingatkan"). "Buka WhatsApp" is a real `https://wa.me/` anchor whose click fires a keepalive POST stamp. "Buat link dulu" uses the replace route, and without `invoices.create` the row says so. The footer notes the no-number count and truncation, plus empty, all-reminded-today, loading and error states. New `lib/finance/stamp-reminder.ts`. Invoice list header "Pengingat WhatsApp" (`payments.record`). The detail page stamps on Chat WhatsApp when the admin can record payments, and shows "Terakhir diingatkan …". The detail API adds `lastRemindedByName`. One e2e test is in `e2e/admin-school-admin.spec.ts`. Review fixes: "Muat lebih banyak" re-fetches pages 1..n+1 and merges, so a row that shifts after a stamp is not skipped; one load path guarded against stale responses; a double tap does not stamp twice; one status live region and focus moves; a wa.me-only href guard; e2e popups routed at context level. design-system: ResponsiveFormDialog, StatusBadge, Button and EmptyState from the existing kit; no new tokens.
+- T9: README finance and Admin rows, `docs/runbooks/payments-gateway.md` (replace link, 7-day overdue links, nightly heal, manual payment re-link, "Sisa tagihan" line, DOKU unopened status), `docs/uat/jobs/admin.md` (new JTBD-ADMIN-INV-07 reminder queue; INV-02 steps 4 and 8; INV-03 step 5; Last audited bumped), and the CLAUDE.md counts block regenerated. `audit-docs.sh`: 13 ok, 1 warn (ADR age, pre-existing), 0 fail.
+
+## Verification
+
+### Verified locally — 0630c4c, 2026-10-17
+- Gate (runtime head 7c80c80; 0630c4c only fixes an e2e locator):
+  - `npm run lint` → exit 0.
+  - `npx vitest run` → Test Files 642 passed | 2 skipped; Tests 7546 passed | 42 todo.
+  - `verify-rls-coverage` → 43/43; `verify-api-auth` → 216/216.
+  - `DEMO_MODE=true npm run build` → exit 0.
+  - `npx playwright test` → 241 passed (5.9m), no flaky, on a freshly seeded disposable Postgres. It ran with `launchOptions.executablePath=/opt/pw-browsers/chromium` from an uncommitted local config, because the pinned Playwright 1.64 wants Chromium revision 1248 and the container ships 1194.
+- App: production build with demo auth, the Xendit/DOKU test stubs and `CRON_SECRET`, on a disposable local Postgres (port 54329), http://localhost:3000. Staging check: pending (`needs-staging-verify`).
+- Walked:
+  1. **Reminder queue (`u_school_admin`).**
+     - The list was ready in 376 ms and the queue opened in 458 ms: "81 tagihan di antrean", footer "1 tagihan belum lunas tanpa nomor WhatsApp wali".
+     - "Buat link dulu" → 200 REPLACED in 165 ms. The row turned into "Buka WhatsApp" with a `https://wa.me/62…?text=Assalamu'alaikum Bapak/Ibu …` href, and focus moved to it.
+     - Tapping it opened the popup (wa.me aborted by the harness) and the stamp POST returned 200 with `remindCount` 1. The row read "Diingatkan baru saja · oleh Anda".
+     - On reopening, the first row is a not-yet-reminded family. The detail page read "Terakhir diingatkan baru saja · oleh Admin Sekolah".
+  2. **Replace link.**
+     - The detail ⋯ menu "Buat link baru" showed the confirm "Ganti link pembayaran? / Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat. / Batal / Buat link baru".
+     - The route returned 200 REPLACED and the toast "Link baru siap. Kirim ke wali lewat WhatsApp."
+  3. **Partial payment, past due (INV-2026-0003, due 2026-10-07).**
+     - Made a link, then recorded Rp 425.000 by transfer → 201.
+     - The status stays OVERDUE, paid 425.000 of 850.000.
+     - Admin kuitansi → 200. Parent (`u_rightjet`) kuitansi for their partly paid, now-overdue INV-2026-0002 → 200 application/pdf; another family's invoice → 404.
+  4. **Nightly job** (`GET /api/cron/finance-maintenance` with the cron secret and UA):
+     - Response: `{"overduePromoted":14,"linkHeal":{"created":50,"failed":0,"skipped":0,"remaining":28},"linkHealError":null}`.
+     - Partly paid past-due invoices now read OVERDUE. 28 of 82 owing invoices remain without a link for the next night: the cap of 50 works.
+  - Edge: a guardian with no number is left out and counted in the footer. A teacher gets 403 from GET `/api/invoices/reminders` and from POST reminder.
+  - Error: a gateway failure on replace is covered by route tests (502 keeps the old link). The demo gateway cannot be made to fail from the UI.
+- Console/network:
+  - The only errors are 404s for `/_vercel/insights` and `/_vercel/speed-insights` scripts, which are not served outside Vercel. This is pre-existing and not this diff.
+  - No 5xx anywhere. The server log has no errors.
+- Screenshots: `.verify-shots/reminder-queue-desktop.png`, `reminder-row-after-stamp.png`, `replace-link-confirm.png`, `partial-overdue-detail.png`, `reminder-queue-phone.png`. At iPhone 13 with touch there is no horizontal overflow and no target under 44 px. Without touch emulation the buttons render compact, by design: the 44 px floor is touch-only.
+- Highlight: `reminder-queue-desktop.png`, `reminder-queue-phone.png`.
+- design-system: the queue uses the kit's ResponsiveFormDialog, StatusBadge, Button and EmptyState, the type scale and tabular Rupiah, with no new colors or tokens. This was checked against `.claude/standards/design-system.html` dialog, badge and list patterns.
+- Rounds: 2.
+  - Round 1 found the e2e row locator rooted at the dialog (it found nothing inside each list item) and fixed it in 0630c4c.
+  - Round 2 found nothing to fix.
+- Not checked:
+  - A visibly different URL after a replace or a manual payment: the demo gateway mints one fixed URL per invoice (`demo.*.local/checkout/<id>`). Route and unit tests assert the clear-then-create sequence.
+  - The 7-day expiry and the single "Sisa tagihan" line reaching DOKU: the stubs drop them. Unit tests pin the payload.
+  - A real DOKU sandbox response for an unopened order: no sandbox credentials here.
+
+## Ship Notes
+
+- **Route:** other code (no login, session or cookie change). It carries `needs-staging-verify` as the spec named, because it adds three admin mutating routes and changes nightly gateway behaviour. Compared `origin/staging...HEAD`: 59 files.
+- **Migration:** `20261017120000_add_invoice_reminders` adds Invoice `lastRemindedAt`, `lastRemindedBy` and `remindCount` (default 0). It is additive and is applied by `prisma migrate deploy` in the build. No backfill.
+- **Env vars:** none new. Production must keep `XENDIT_SECRET_KEY` set (needed to check Xendit-era links) and `CRON_SECRET` (the nightly heal runs inside `finance-maintenance`).
+- **Behaviour change on first nightly run after promotion:**
+  - `finance-maintenance` (08:00 WIB) makes up to 50 DOKU orders a night for owing invoices without a link, so the backlog clears over a few nights. "Buat link baru (N)" still catches up on demand.
+  - Partly paid past-due invoices move to Lewat Tempo, so the overdue count rises. That is existing debt becoming visible.
+- **Signed-in staging check after merge** (`SCHOOL_ADMIN`, staging uses the DOKU sandbox):
+  1. Tagihan → Pengingat WhatsApp opens. "Buat link dulu" makes a link, and "Buka WhatsApp" opens wa.me with the link; the row then reads "Diingatkan baru saja".
+  2. Invoice detail ⋯ → Buat link baru → confirm. A new sandbox link appears and differs from the old one.
+  3. Record a partial manual payment on a past-due invoice. It stays Lewat Tempo, and after a few seconds a new link exists.
+  4. As a parent, "Minta link baru" on an invoice whose link was never opened returns the working link.
+  Remove `needs-staging-verify` once all four pass.
+- **Watch after promotion:**
+  - The first `finance-maintenance` JSON (`linkHeal`, `linkHealError`).
+  - Whether DOKU returns `order.status` for unopened orders (`gatewayStatus` ORDER_GENERATED vs a synthesised PENDING).
+- **Rollback:** revert the squash commit. The three new columns can stay, since nothing else depends on them.

@@ -29,6 +29,26 @@ describe("deriveInvoicePaymentState", () => {
     expect(r).toEqual({ status: "PARTIALLY_PAID", paidAt: null });
   });
 
+  it("partial payment past the due date -> OVERDUE, paid amount untouched, no paidAt", () => {
+    expect(deriveInvoicePaymentState(base, D(250_000), "2026-10-01")).toEqual({ status: "OVERDUE", paidAt: null });
+  });
+
+  it("a partly paid OVERDUE invoice stays OVERDUE when more is paid but not all", () => {
+    expect(deriveInvoicePaymentState({ ...base, status: "OVERDUE" }, D(600_000), "2026-10-05").status).toBe("OVERDUE");
+  });
+
+  it("partial payment on the due day itself is still PARTIALLY_PAID (due today is not late)", () => {
+    expect(deriveInvoicePaymentState(base, D(250_000), "2026-09-30").status).toBe("PARTIALLY_PAID");
+  });
+
+  it("full payment past the due date -> PAID, not OVERDUE", () => {
+    expect(deriveInvoicePaymentState({ ...base, status: "OVERDUE" }, D(1_000_000), "2026-10-05").status).toBe("PAID");
+  });
+
+  it("reversal of one of two payments on a PAID invoice past due -> OVERDUE", () => {
+    expect(deriveInvoicePaymentState({ ...base, status: "PAID" }, D(400_000), "2026-10-05").status).toBe("OVERDUE");
+  });
+
   it("nothing paid on an untouched invoice keeps its status (record path parity)", () => {
     expect(deriveInvoicePaymentState({ ...base, status: "OVERDUE" }, D(0), "2026-10-15").status).toBe("OVERDUE");
   });

@@ -82,6 +82,8 @@ export type ReconcileResult = {
   processorStatus?: string;
   /** True when the identical gateway state had already been processed. */
   duplicate?: boolean;
+  /** Only on UNAVAILABLE: why the gateway could not answer (e.g. ORDER_NOT_FOUND). */
+  unavailableReason?: string;
 };
 
 /**
@@ -187,6 +189,7 @@ export async function reconcileInvoicePayment(
       invoiceNumber: true,
       xenditSessionId: true,
       xenditPaymentUrl: true,
+      totalPaid: true,
     },
   });
   if (!before) {
@@ -298,6 +301,7 @@ export async function reconcileInvoicePayment(
       gatewayStatus: null,
       statusBefore: before.status,
       statusAfter: before.status,
+      unavailableReason: status.unavailableReason,
     };
   }
 
@@ -361,10 +365,12 @@ export async function reconcileInvoicePayment(
 
   const after = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    select: { status: true },
+    select: { status: true, totalPaid: true },
   });
   const statusAfter = after?.status ?? before.status;
-  const changed = statusAfter !== before.status;
+  // A partial payment on an OVERDUE invoice leaves it OVERDUE, but money was credited.
+  const paidMoved = String(after?.totalPaid ?? before.totalPaid) !== String(before.totalPaid);
+  const changed = statusAfter !== before.status || paidMoved;
 
   console.info("[PAYMENT REFRESH]", {
     provider,
@@ -405,7 +411,7 @@ export async function reconcileInvoicePayment(
       message:
         statusAfter === "PAID"
           ? "Pembayaran ditemukan di gateway — tagihan ditandai LUNAS."
-          : statusAfter === "PARTIALLY_PAID"
+          : statusAfter === "PARTIALLY_PAID" || paidMoved
             ? "Pembayaran sebagian ditemukan di gateway — tagihan diperbarui."
             : statusAfter === "PENDING_PAYMENT_LINK"
               ? EXPIRED_LINK_CLEARED_MESSAGE

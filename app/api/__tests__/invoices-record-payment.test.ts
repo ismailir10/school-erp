@@ -19,6 +19,7 @@ vi.mock("@/lib/auth", () => ({
   isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
 }));
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimit: () => ({ success: true, remaining: 19 }) }));
 vi.mock("@/lib/generated/prisma/client", () => ({
   Prisma: {
     Decimal: class {

@@ -14,9 +14,15 @@ const tx = vi.hoisted(() => ({
 }));
 const $transaction = vi.hoisted(() => vi.fn());
 const revalidateTag = vi.hoisted(() => vi.fn());
+const scheduleRelink = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({ prisma: { $transaction } }));
 vi.mock("next/cache", () => ({ revalidateTag }));
+// The link helpers have their own tests (ensure-link.test.ts); here only that the route calls them.
+vi.mock("@/lib/payments/ensure-link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/payments/ensure-link")>()),
+  scheduleRelink,
+}));
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };
@@ -107,6 +113,51 @@ describe("POST reverse payment", () => {
     });
     expect(audit.after.reason).toBe("Salah input nominal");
     expect(revalidateTag).toHaveBeenCalledWith("parent-invoice-list", { expire: 0 });
+  });
+
+  describe("stale payment link", () => {
+    const LINK_CLEARED = {
+      xenditSessionId: null,
+      xenditPaymentUrl: null,
+      paymentLinkError: null,
+      paymentCheckedAt: expect.any(Date),
+    };
+    const staleInvoice = { ...invoice, xenditSessionId: "s-1", xenditPaymentUrl: "https://pay/old" };
+
+    beforeEach(() => {
+      tx.invoice.findUnique.mockResolvedValue(staleInvoice);
+    });
+
+    it("clears the link fields in the tx after the recompute, keeping the unpaid status the link implied", async () => {
+      const res = await POST(req({ reason: "Salah input nominal" }), ctx);
+      expect((await res.json()).invoiceStatus).toBe("SENT");
+      const updates = tx.invoice.update.mock.calls.map((c) => c[0]);
+      expect(updates).toHaveLength(2);
+      expect(updates[0].data.status).toBe("SENT"); // recompute first, while the link was still on the row
+      expect(updates[1]).toEqual({ where: { id: "inv-1" }, data: LINK_CLEARED });
+      expect(tx.invoice.update.mock.invocationCallOrder[1]).toBeLessThan(tx.auditLog.create.mock.invocationCallOrder[0]);
+    });
+
+    it("now owing: schedules the relink with the raw request origin", async () => {
+      await POST(req({ reason: "Salah input nominal" }), ctx);
+      expect(scheduleRelink).toHaveBeenCalledTimes(1);
+      expect(scheduleRelink).toHaveBeenCalledWith("inv-1", "t-1", "http://localhost", "REVERSE PAYMENT");
+    });
+
+    it("an invoice that stays settled keeps its link fields and schedules nothing", async () => {
+      tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(1_000_000) }]);
+      const res = await POST(req({ reason: "Salah input nominal" }), ctx);
+      expect((await res.json()).invoiceStatus).toBe("PAID");
+      expect(tx.invoice.update.mock.calls.map((c) => c[0].data).some((d) => "paymentLinkError" in d)).toBe(false);
+      expect(scheduleRelink).not.toHaveBeenCalled();
+    });
+
+    it("an already-reversed payment touches no link and schedules nothing", async () => {
+      tx.payment.findUnique.mockResolvedValue({ ...payment, status: "REVERSED" });
+      await POST(req({ reason: "Salah input nominal" }), ctx);
+      expect(tx.invoice.update).not.toHaveBeenCalled();
+      expect(scheduleRelink).not.toHaveBeenCalled();
+    });
   });
 
   it("is idempotent: an already-reversed payment answers 200 and writes nothing", async () => {

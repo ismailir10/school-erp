@@ -13,15 +13,35 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Floor. An invoice whose due date is today or already past still yields a
- * session good for another 24 hours.
+ * Floor for an invoice due today. Its end-of-day instant can be only hours away
+ * (or seconds), so the session is still good for another 24 hours.
  *
- * An overdue invoice is still collectable — that is the entire point of chasing
- * one. Handing the parent a Virtual Account that is dead the moment it is
- * issued turns a payable debt into a support ticket, which is strictly worse
- * than a short window.
+ * Handing the parent a Virtual Account that is dead the moment it is issued
+ * turns a payable debt into a support ticket, which is strictly worse than a
+ * short window. A due date already in the past gets the longer
+ * `OVERDUE_WINDOW_MS` instead.
  */
 const MIN_WINDOW_MS = 1 * DAY_MS;
+
+/**
+ * Floor for an invoice whose due date is strictly before today (WIB). An overdue
+ * invoice is still collectable — that is the entire point of chasing one — and
+ * a reminder is only useful if the link in it still works when the parent gets
+ * round to it.
+ *
+ * Seven days because a week covers a parent who reads the reminder at the
+ * weekend rather than the moment it lands. It also bounds how often the nightly
+ * heal has to create a fresh order for the same overdue invoice: with the old
+ * 24-hour floor every overdue invoice's link died overnight and was re-created
+ * every night, which is one gateway order per invoice per day.
+ *
+ * Added in cycle 2026-10-17-payment-link-reminders (D1). Registration fees do
+ * not pass through here — they use `defaultExpiresAt`.
+ */
+const OVERDUE_WINDOW_MS = 7 * DAY_MS;
+
+/** Fixed WIB (`Asia/Jakarta`) offset from UTC, in milliseconds. No DST. */
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 /**
  * Cap. DOKU publishes only `Max Length: 6` for `payment_due_date` and defers
@@ -50,8 +70,9 @@ const MAX_WINDOW_MS = 30 * DAY_MS;
  * round-trip. That is the whole reason this can be a pure string concatenation
  * rather than a timezone-database lookup.
  *
- * The result is clamped to `[now + 1 day, now + 30 days]` — see `MIN_WINDOW_MS`
- * and `MAX_WINDOW_MS`.
+ * The result is clamped to `[floor, now + 30 days]`. The floor is `now + 7 days`
+ * when `dueDate` is strictly before today in WIB (`OVERDUE_WINDOW_MS`) and
+ * `now + 1 day` otherwise (`MIN_WINDOW_MS`); the cap is `MAX_WINDOW_MS`.
  */
 export function resolveSessionExpiry(dueDate: string, now: Date = new Date()): Date {
   const endOfDueDate = new Date(`${dueDate}T23:59:59+07:00`);
@@ -72,7 +93,13 @@ export function resolveSessionExpiry(dueDate: string, now: Date = new Date()): D
     return defaultExpiresAt(now);
   }
 
-  const floor = new Date(now.getTime() + MIN_WINDOW_MS);
+  // Today's WIB calendar date, derived from the injectable `now`. Shifting by the
+  // fixed +07:00 offset and reading the UTC date gives the WIB date without an
+  // `Intl` round-trip. `YYYY-MM-DD` strings compare correctly as plain strings.
+  const todayWib = new Date(now.getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+  const overdue = dueDate < todayWib;
+
+  const floor = new Date(now.getTime() + (overdue ? OVERDUE_WINDOW_MS : MIN_WINDOW_MS));
   const cap = new Date(now.getTime() + MAX_WINDOW_MS);
 
   if (endOfDueDate < floor) return floor;

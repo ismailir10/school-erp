@@ -20,10 +20,12 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
 import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
+import { stampReminder } from "@/lib/finance/stamp-reminder";
+import { userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
-import { formatRupiah, formatDateShort } from "@/lib/format";
+import { formatRupiah, formatDateShort, formatRelativeTime } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,8 @@ import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { hasReceipt } from "@/lib/finance/invoice-receipt";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 
 // Same `Control` extraction `useZodForm` produces (input values in, the
 // schema's parsed output out) — `payForm.control`'s exact type, so
@@ -48,6 +52,7 @@ type InvoiceDetail = {
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
   paymentLinkError: string | null;
+  lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
 };
@@ -153,7 +158,7 @@ function PaymentReview({
   notes,
   remaining,
 }: {
-  invoice: Pick<InvoiceDetail, "invoiceNumber" | "student">;
+  invoice: Pick<InvoiceDetail, "invoiceNumber" | "student" | "dueDate">;
   amount: number;
   method: string;
   paidAt: string;
@@ -162,6 +167,8 @@ function PaymentReview({
   remaining: number;
 }) {
   const settles = amount >= remaining;
+  // Same rule the server applies: still owing after the due date is Lewat Tempo.
+  const owingStatus = invoice.dueDate < getTodayInTimezone("Asia/Jakarta") ? "OVERDUE" : "PARTIALLY_PAID";
   return (
     <div className="space-y-field" data-testid="payment-review">
       <p className="text-sm text-muted-foreground">
@@ -179,7 +186,7 @@ function PaymentReview({
         {notes.trim() && <ReviewRow label="Catatan">{notes.trim()}</ReviewRow>}
         <ReviewRow label="Status setelah dicatat">
           <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <StatusBadge status={settles ? "PAID" : "PARTIALLY_PAID"} />
+            <StatusBadge status={settles ? "PAID" : owingStatus} />
             {!settles && (
               <span className="text-xs text-muted-foreground">Sisa <span className="font-currency">{formatRupiah(remaining - amount)}</span></span>
             )}
@@ -215,6 +222,8 @@ export default function InvoiceDetailPage() {
   const [voiding, setVoiding] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [refreshingPayment, setRefreshingPayment] = useState(false);
+  const [replaceLinkOpen, setReplaceLinkOpen] = useState(false);
+  const [replacingLink, setReplacingLink] = useState(false);
   // Bumped after a manual refresh so the activity panel re-fetches — a
   // reconciliation can append a WebhookEvent row the panel would otherwise
   // miss until a full page reload.
@@ -244,6 +253,24 @@ export default function InvoiceDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
+
+  // The "Chat WhatsApp" anchor stamps the reminder from its click handler, which
+  // never calls preventDefault: the new tab has to open synchronously or mobile
+  // browsers block it. A failed stamp toasts; WhatsApp has opened anyway.
+  // A second tap while the stamp is in flight still opens the link but does not POST again.
+  const stampingRef = useRef(false);
+  const handleStampReminder = useCallback(() => {
+    if (stampingRef.current) return;
+    stampingRef.current = true;
+    stampReminder(id)
+      .then((stamp) =>
+        setInvoice((prev) =>
+          prev ? { ...prev, lastRemindedAt: stamp.lastRemindedAt, remindCount: stamp.remindCount, lastRemindedByName: "Anda" } : prev,
+        ),
+      )
+      .catch((err) => toast.error(userMessage(err, "Pengingat belum tercatat.")))
+      .finally(() => { stampingRef.current = false; });
+  }, [id]);
 
   // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so
   // "Catat Pembayaran" lands straight in the existing dialog. Honoured once,
@@ -442,6 +469,38 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  /**
+   * "Buat link baru" — swap the stored link for a fresh one. The server asks the gateway
+   * first: a payment already made is recorded instead (outcome PAID, no new link), and an
+   * unreadable gateway leaves the old link alone. Every outcome ends the dialog and reloads,
+   * because even a failed replacement can have dropped the old link.
+   */
+  async function handleReplaceLink() {
+    setReplacingLink(true);
+    try {
+      const res = await fetch(`/api/invoices/${id}/replace-payment-link`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "Link baru belum berhasil dibuat. Coba lagi sebentar lagi.");
+      } else if (d.outcome === "PAID") {
+        toast.success(d.message);
+      } else {
+        toast.success("Link baru siap. Kirim ke wali lewat WhatsApp.");
+      }
+      // Close before the reload swaps the page for its skeleton and unmounts the dialog.
+      setReplaceLinkOpen(false);
+      setActivityKey((k) => k + 1);
+      await fetchInvoice();
+    } catch {
+      toast.error("Link baru belum berhasil dibuat. Periksa koneksi lalu coba lagi.");
+      setReplaceLinkOpen(false);
+      // The request may have reached the server before the connection dropped.
+      await fetchInvoice();
+    } finally {
+      setReplacingLink(false);
+    }
+  }
+
   async function handleVoidInvoice() {
     setVoiding(true);
     const res = await fetch(`/api/invoices/${id}/void`, { method: "POST" });
@@ -494,13 +553,17 @@ export default function InvoiceDetailPage() {
   const canRefreshPayment = invoice.capabilities?.recordPayment &&
     !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
 
+  // Only while the link can still be paid: the server answers 409 for anything else.
+  const canReplaceLink = !!invoice.capabilities?.create && !!invoice.xenditPaymentUrl &&
+    (UNPAID_INVOICE_STATUSES as readonly string[]).includes(invoice.status) && remaining > 0;
+
   // FINX-9: the same kuitansi a guardian downloads, once money has landed.
   // A plain new-tab open — the route answers with a PDF, not a page to
   // client-navigate to. On a Lunas invoice nothing else competes for the
-  // header, so it sits there; a partially paid one already has up to two
-  // buttons, so it goes in the overflow menu.
+  // header, so it sits there; a partly paid one (Dibayar Sebagian or Lewat
+  // Tempo) already has up to two buttons, so it goes in the overflow menu.
   const receiptAction: DetailPageHeaderAction | null =
-    invoice.capabilities?.recordPayment && (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID")
+    invoice.capabilities?.recordPayment && hasReceipt(invoice)
       ? {
           label: "Unduh kuitansi",
           icon: <FileText size={14} aria-hidden="true" />,
@@ -572,7 +635,18 @@ export default function InvoiceDetailPage() {
           ...(receiptAction && invoice.status === "PAID" ? [receiptAction] : []),
         ]}
         menuActions={[
-          ...(receiptAction && invoice.status === "PARTIALLY_PAID" ? [receiptAction] : []),
+          ...(canReplaceLink
+            ? [
+                {
+                  label: "Buat link baru",
+                  icon: <Link2 size={14} aria-hidden="true" />,
+                  onClick: () => setReplaceLinkOpen(true),
+                  disabled: replacingLink,
+                  testId: "invoice-replace-link-btn",
+                } satisfies DetailPageHeaderAction,
+              ]
+            : []),
+          ...(receiptAction && invoice.status !== "PAID" ? [receiptAction] : []),
           ...(canVoid
             ? [
                 {
@@ -585,6 +659,17 @@ export default function InvoiceDetailPage() {
               ]
             : []),
         ]}
+      />
+
+      {/* Replace the payment link — the old one may still take a payment until it expires */}
+      <ConfirmDialog
+        open={replaceLinkOpen}
+        onOpenChange={(o) => !replacingLink && setReplaceLinkOpen(o)}
+        title="Ganti link pembayaran?"
+        description="Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat."
+        onConfirm={handleReplaceLink}
+        confirmLabel="Buat link baru"
+        loading={replacingLink}
       />
 
       {/* Void Confirmation */}
@@ -710,6 +795,13 @@ export default function InvoiceDetailPage() {
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
               {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}
+              {(canRemind || invoice.lastRemindedAt) && (
+                <p className="mt-2 text-xs text-muted-foreground" data-testid="invoice-last-reminded" aria-live="polite">
+                  {invoice.lastRemindedAt
+                    ? `Terakhir diingatkan ${formatRelativeTime(invoice.lastRemindedAt)}${invoice.lastRemindedByName ? ` · oleh ${invoice.lastRemindedByName}` : ""}`
+                    : "Belum diingatkan"}
+                </p>
+              )}
               {canRemind &&
                 (reminderUrl ? (
                   <Button
@@ -720,6 +812,8 @@ export default function InvoiceDetailPage() {
                     // Base UI would otherwise mark the anchor role="button"; it navigates.
                     role="link"
                     data-testid="invoice-whatsapp-reminder"
+                    // Stamping needs payments.record; without it the link still opens, unrecorded.
+                    onClick={invoice.capabilities?.recordPayment ? handleStampReminder : undefined}
                     render={
                       <a
                         href={reminderUrl}

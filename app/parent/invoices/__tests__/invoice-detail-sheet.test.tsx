@@ -80,6 +80,15 @@ describe("InvoiceDetailSheet — kuitansi on partial payment (R2-P-6)", () => {
     expect(link).toHaveTextContent("Bukti pembayaran sebagian");
   });
 
+  it("keeps the kuitansi and the Sudah dibayar / Sisa amounts once the invoice is Lewat Tempo", async () => {
+    renderSheet({ status: "OVERDUE" });
+    const link = await screen.findByRole("link", { name: /Kuitansi\.pdf/ });
+    expect(link).toHaveAttribute("href", "/api/guardian/invoices/inv-3/pdf");
+    const text = (screen.getByTestId("invoice-totals").textContent ?? "").replace(/\s/g, "");
+    expect(text).toMatch(/Sudahdibayar.*400\.000/);
+    expect(text).toMatch(/Sisatagihan.*450\.000/);
+  });
+
   it("offers no kuitansi while nothing has been paid", async () => {
     renderSheet({ status: "SENT", totalPaid: 0, payments: [] });
     await screen.findByTestId("invoice-totals");
