@@ -15,7 +15,7 @@ The procedure is the shared [agent-workflow](https://github.com/ismailir10/agent
 [`working-principles`](.claude/skills/working-principles/SKILL.md), then [`spec`](.claude/skills/spec/SKILL.md),
 [`build`](.claude/skills/build/SKILL.md), [`verify-local`](.claude/skills/verify-local/SKILL.md) and
 [`ship`](.claude/skills/ship/SKILL.md). **Never edit them here** — change them upstream and re-sync
-(`bash scripts/sync-agent-workflow.sh`); the `Docs sync` check fails on a hand edit. Talib's own steps live in
+(`bash scripts/sync-agent-workflow.sh`); the `Checks` check fails on a hand edit. Talib's own steps live in
 [`docs/workflow/`](docs/workflow/) ([spec](docs/workflow/spec.md), [build](docs/workflow/build.md),
 [verify](docs/workflow/verify.md), [ship](docs/workflow/ship.md)); its facts in the Repo profile below. Below are only
 the rules that bind **outside** the skills.
@@ -25,7 +25,7 @@ the rules that bind **outside** the skills.
 - Self-merge only when the verification route selected from the actual diff is clean and every required check is green on the head — never on red or pending. App changes use local demo-auth browser verification with disposable local Postgres. Auth-impacting or uncertain changes also get a signed-in check on the **staging deployment** after merge; the PR is labelled `needs-staging-verify` before it merges and keeps it until that check passes, and `/ship --to-main` refuses to promote while any does.
 - **Vercel builds only `staging` and `main`.** `vercel.json` `ignoreCommand` → `scripts/vercel-ignore.sh` skips every other branch, so PRs get no preview deployment. This keeps the project inside the free tier; do not re-enable per-PR previews without the user's say-so.
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
-- **Playwright runs locally in verify-local** for every diff that touches a user flow, and its result goes in the cycle doc's Verification. CI's `Playwright E2E` only runs on a PR labelled `e2e`, so it is never a substitute: if Playwright cannot run locally, stop and ask. Add the `e2e` label when the PR touches a user flow.
+- **Playwright runs locally in verify-local** for every diff that touches a user flow, and its result goes in the cycle doc's Verification. CI's `E2E` only runs on a PR labelled `e2e`, so it is never a substitute: if Playwright cannot run locally, stop and ask. Add the `e2e` label when the PR touches a user flow.
 
 ### Orchestration — you drive the loop, not the user
 
@@ -77,7 +77,7 @@ Repo-specific extensions: `docs/workflow/{spec,build,verify,ship}.md`.
 | Sign in locally | Demo auth only: `school-erp-session` cookie set to a seeded user id (`u_super_admin`, `u_school_admin`, `u_teacher`, `u_rightjet`) on localhost; demo login picker under `next dev`. Never on staging or any shared host |
 | Task gate | `npm run build && npx vitest run` (no `DEMO_MODE` in the Vitest env) |
 | Full gate | lint + Vitest + RLS/API-auth guards + `DEMO_MODE=true` build + `npx playwright test` on the disposable DB ([docs/workflow/verify.md § Full gate](docs/workflow/verify.md#full-gate)) |
-| CI | Ready (non-draft) PRs: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Keepalive & Alert Self-Test`. `Playwright E2E` + `Backup Pipeline Self-Test` (`e2e.yml`) run on pushes to `staging`/`main`, manual dispatch, or a PR labelled **`e2e`** — add it when the PR touches a user flow or the backup pipeline. Drafts get no CI ([docs/workflow/ship.md § CI](docs/workflow/ship.md#ci)) |
+| CI | Ready (non-draft) PRs run three checks: `Checks` (~20 s: doc-sync rule, `audit-docs.sh`, audit/hook tests, workflow-sync, keepalive/alert self-tests) and `Test & Build` (typecheck, lint, Vitest, RLS + API-auth guards, `DEMO_MODE` build) in `ci.yml`; `E2E` (`e2e.yml`: Playwright + backup pipeline self-test) only on a PR labelled **`e2e`** or manual dispatch, skipped otherwise — add the label when the PR touches a user flow or the backup pipeline. Every promotion PR carries `e2e`. Pushes to `staging`/`main` run no CI. Drafts get no CI ([docs/workflow/ship.md § CI](docs/workflow/ship.md#ci)) |
 | Load on demand | [docs/workflow/build.md § Per task](docs/workflow/build.md#per-task): standards and `better-*` dispatch tables |
 | Sensitive paths | `app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, tenant or role logic |
 | Docs to keep true | README.md when modules, routes or entities change (`feat`/`perf` + `app/`/`lib/` requires it staged); `docs/uat/jobs/<portal>.md` when a portal capability changes; [`docs/runbooks/environments.md`](docs/runbooks/environments.md) for env vars; the counts block below via `bash scripts/audit-docs.sh --write` |
@@ -156,7 +156,7 @@ model=claude-opus-5  # or gpt-5.5, glm-5.2, claude-sonnet-5, human — must matc
 
 `scripts/test-hooks.sh` is the exact rule table and every test scenario — run it.
 
-**6. GitHub branch protection.** Hooks can be bypassed with `--no-verify`; branch protection cannot. The intended rule (`ops/branch-protection.json`): `staging` and `main` require a PR, allow no direct push (including the owner), and require green checks — `Docs sync`, `Lint, Typecheck & Test`, `Build`, plus `Playwright E2E` (which reports skipped on a PR without the `e2e` label; see the Repo profile CI row). **Not enforced right now:** the repo is private on the free plan, so the protection API returns 403 and `staging`/`main` report `protected: false`. Until that changes, `pre-push` and `/ship`'s merge rule are the only boundary. **staging → main cadence:** every 2-4 merged cycles.
+**6. GitHub branch protection.** Hooks can be bypassed with `--no-verify`; branch protection cannot. The intended rule (`ops/branch-protection.json`): `staging` and `main` require a PR, allow no direct push (including the owner), and require green checks — `Checks`, `Test & Build`, plus `E2E` (which reports skipped on a PR without the `e2e` label; see the Repo profile CI row). **Not enforced right now:** the repo is private on the free plan, so the protection API returns 403 and `staging`/`main` report `protected: false`. Until that changes, `pre-push` and `/ship`'s merge rule are the only boundary. **staging → main cadence:** every 2-4 merged cycles.
 
 **7. Commit attribution.** Every commit carries `Model-Trailer:`, `Role:` and `Co-Authored-By:`, auto-appended by `prepare-commit-msg`. A commit that lands as `Model-Trailer: human` means the hook failed — surface it to the user.
 
@@ -165,7 +165,7 @@ model=claude-opus-5  # or gpt-5.5, glm-5.2, claude-sonnet-5, human — must matc
 Branch protection also requires an **up-to-date head**, which interacts badly with dependabot: merging one bump re-stales every other open PR, so a queue of *n* needs *n* serial rebase + full-CI rounds. Eleven PRs sat frozen for a week over exactly this. Do not merge them one by one.
 
 - **Minors + patches** — batch them. All versions in one branch, `npm install`, one verify-local pass, PR as `chore(deps)`. Dependabot closes its own as superseded.
-- **Majors** — one per cycle, never batched. Read the dependabot PR's CI first: red `Build` means real breakage, not a version string.
+- **Majors** — one per cycle, never batched. Read the dependabot PR's CI first: red `Test & Build` means real breakage, not a version string.
 - **Cadence** — drain at each `/ship --to-main`, so nothing sits longer than 2-4 cycles.
 - Security alerts are separate: `gh api repos/:owner/:repo/dependabot/alerts`.
 
@@ -215,9 +215,9 @@ An archived doc is frozen: fix inbound links, never edit the body.
 
 Three layers, weakest to strongest:
 
-1. **`pre-commit` + the `Docs sync` CI check (presence).** A code change must touch a cycle doc / README / CLAUDE.md. This proves *something* was written, not that it is correct — README and CLAUDE.md can rot while every PR is green. That is exactly how the drift of 2026-08-20 happened.
+1. **`pre-commit` + the `Checks` CI check (presence).** A code change must touch a cycle doc / README / CLAUDE.md. This proves *something* was written, not that it is correct — README and CLAUDE.md can rot while every PR is green. That is exactly how the drift of 2026-08-20 happened.
 2. **`commit-msg` (narrow).** `^(feat|perf)` + staged `app/**` or `lib/**` requires README staged. `fix|refactor|chore|docs|test|style|build|ci|release` fall under layer 1 only; `Merge|Revert|fixup!|squash!|amend!` bypass.
-3. **`bash scripts/audit-docs.sh` (truth).** Runs inside the required `Docs sync` check, so it gates the merge. Verifies: the generated counts block matches the tree; every standards file and `better-*` skill named here exists; every glob in the [docs/workflow/build.md](docs/workflow/build.md) load-on-demand tables matches tracked files; every plugin-qualified skill name in the skills, CLAUDE.md and `docs/workflow/` is declared in the registry; every relative link in README, CLAUDE and `docs/workflow/` resolves; `docs/` has no stray directory; no tracked path is missing on disk; no `.env*` or `verify-accounts.json` is tracked; README stays inside its size budget. Warns (does not fail) on ADR rows past the 60-day window, since trimming is judgement.
+3. **`bash scripts/audit-docs.sh` (truth).** Runs inside the required `Checks` check, so it gates the merge. Verifies: the generated counts block matches the tree; every standards file and `better-*` skill named here exists; every glob in the [docs/workflow/build.md](docs/workflow/build.md) load-on-demand tables matches tracked files; every plugin-qualified skill name in the skills, CLAUDE.md and `docs/workflow/` is declared in the registry; every relative link in README, CLAUDE and `docs/workflow/` resolves; `docs/` has no stray directory; no tracked path is missing on disk; no `.env*` or `verify-accounts.json` is tracked; README stays inside its size budget. Warns (does not fail) on ADR rows past the 60-day window, since trimming is judgement.
 
 The same check runs `bash scripts/sync-agent-workflow.sh --check`, which fails when a vendored workflow skill was edited by hand.
 
@@ -296,7 +296,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 71 |
 | `e2e/*.spec.ts` | 41 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 104 / 233 |
+| `docs/cycles` active / archived | 106 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

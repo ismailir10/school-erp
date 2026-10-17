@@ -111,13 +111,16 @@ gh label create "model:$MODEL" --color 5319E7 --description "Built by $MODEL" 2>
 
 ## CI
 
-- Ready PRs run `Docs sync` (`docs-check.yml`: doc-sync rule, `audit-docs.sh`, audit/hook regression tests,
-  `sync-agent-workflow.sh --check`) and `Lint, Typecheck & Test`, `Build`, `Keepalive & Alert Self-Test` (`ci.yml`).
-  All must be green on the head SHA.
-- `Playwright E2E` and `Backup Pipeline Self-Test` (`e2e.yml`) run on a PR only when it carries the **`e2e`** label
-  (adding the label starts them). Add it when the diff touches a user flow (`app/`, `components/`, `lib/`, `prisma/`,
-  `proxy.ts`, `e2e/`) or the backup pipeline; then both must be green too. Without the label they show as skipped,
-  which is expected, not a pass of local e2e.
+- Ready PRs run `Checks` (~20 s: doc-sync rule, `audit-docs.sh`, audit/hook regression tests,
+  `sync-agent-workflow.sh --check`, keepalive/alert self-tests, workflow guard) and `Test & Build` (typecheck, lint,
+  Vitest, RLS + API-auth guards, then the `DEMO_MODE` production build), both in `ci.yml`. Both must be green on the
+  head SHA.
+- `E2E` (`e2e.yml`: Playwright plus the backup pipeline self-test) runs on a PR only when it carries the **`e2e`**
+  label (adding the label starts it) or on manual dispatch. Add it when the diff touches a user flow (`app/`,
+  `components/`, `lib/`, `prisma/`, `proxy.ts`, `e2e/`) or the backup pipeline; then it must be green too. Without the
+  label it shows as skipped, which is expected, not a pass of local e2e.
+- Pushes to `staging` and `main` run no CI. Every promotion PR carries `e2e`, so all three checks run on the exact
+  tree that reaches production.
 - Vercel builds only `staging` and `main` (`scripts/vercel-ignore.sh`): no PR preview exists, never wait for one.
 - A test that fails in CI but passes locally: `bash scripts/flake-hunt.sh` before calling it a flake.
 
@@ -189,8 +192,8 @@ does not exist yet; create it once with `gh label create needs-human --color B60
 4. Open the PR `staging` → `main`, title `[<model>] Promote staging → main (<AHEAD> commits)`, labels `model:<model>`
    and `promotion`, body: summary, the cycle docs merged since main
    (`git log --format='%s' origin/main..origin/staging -- docs/cycles/ | grep -oE 'docs/cycles/[^ ]+\.md' | sort -u`,
-   falling back to the commit list), and `git log --format='- %s' origin/main..origin/staging`. Add `e2e` so the
-   heavy jobs run on the promotion.
+   falling back to the commit list), and `git log --format='- %s' origin/main..origin/staging`. Add `e2e` (required on every
+   promotion) so the heavy job runs on the promotion.
 5. **Stop and hand off.** Print the PR URL and exactly:
    ```
    Watch CI live:
