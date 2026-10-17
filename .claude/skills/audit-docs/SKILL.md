@@ -1,12 +1,12 @@
 ---
 name: audit-docs
-description: Doc-staleness sweep. Thin wrapper over scripts/audit-docs.sh, which compares README.md and CLAUDE.md against the actual repo state — generated counts block, standards + skill files, relative links, docs/ directory shape, tracked-path sanity, public-repo hygiene, README size budget, ADR 60-day window. The same script runs inside the required "Docs sync" CI check, so its verdict is the one that gates merges.
+description: Doc-staleness sweep. Thin wrapper over scripts/audit-docs.sh, which compares README.md and CLAUDE.md against the actual repo state — generated counts block, standards + skill files, relative links, docs/ directory shape, tracked-path sanity, public-repo hygiene, README size budget, ADR 60-day window. The same script runs inside the required "Checks" CI check, so its verdict is the one that gates merges.
 disable-model-invocation: true
 ---
 
 # /audit-docs — doc-staleness sweep
 
-The checks live in **`scripts/audit-docs.sh`**, not in this file. That is deliberate: this skill used to *be* the checks — 165 lines of prose with shell snippets for a model to run by hand — and it silently did not run. Docs drifted for weeks while every PR passed. The logic now lives in a script that exits non-zero and runs inside the required `Docs sync` check, so it cannot be skipped.
+The checks live in **`scripts/audit-docs.sh`**, not in this file. That is deliberate: this skill used to *be* the checks — 165 lines of prose with shell snippets for a model to run by hand — and it silently did not run. Docs drifted for weeks while every PR passed. The logic now lives in a script that exits non-zero and runs inside the required `Checks` check, so it cannot be skipped.
 
 **Your job here is to run it and interpret the result, not to re-implement it.**
 

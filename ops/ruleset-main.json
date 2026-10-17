@@ -26,10 +26,9 @@
       "parameters": {
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
-          { "context": "Docs sync" },
-          { "context": "Lint, Typecheck & Test" },
-          { "context": "Build" },
-          { "context": "Playwright E2E" }
+          { "context": "Checks" },
+          { "context": "Test & Build" },
+          { "context": "E2E" }
         ]
       }
     }

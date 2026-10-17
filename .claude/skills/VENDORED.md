@@ -52,7 +52,7 @@ needs the CLAUDE.md dispatch table and `link-agent-skills.sh` updated too.
 | Paths | `working-principles/`, `spec/`, `build/`, `verify-local/`, `ship/`, plus `scripts/sync-agent-workflow.sh` and `scripts/pr-screenshots.sh` |
 
 The shared `spec → build → verify-local → ship` procedure. Talib's own steps live in `docs/workflow/*.md` and its
-facts in CLAUDE.md § Repo profile; neither is touched by a sync. The `Docs sync` check runs
+facts in CLAUDE.md § Repo profile; neither is touched by a sync. The `Checks` check runs
 `bash scripts/sync-agent-workflow.sh --check`, which fails on any hand edit to a file listed in the lock.
 
 ### Re-vendor

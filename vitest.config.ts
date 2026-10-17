@@ -16,7 +16,7 @@ export default defineConfig({
     exclude: EXCLUDE,
 
     // Timeouts are wall-clock ceilings, and CI runners are contended: the
-    // `Lint, Typecheck & Test` job shares 4 vCPUs between three vitest forks,
+    // `Test & Build` job shares 4 vCPUs between three vitest forks,
     // so a test that takes 900ms on an idle laptop can take 5s there. The
     // stock 5s testTimeout / 1s testing-library asyncUtilTimeout put the
     // slowest component tests barely 3x from the cliff, which is why three
