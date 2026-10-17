@@ -170,7 +170,7 @@ for (const role of Object.keys(ROUTES) as Role[]) {
     for (const route of ROUTES[role]) {
       test(route.replace(/\/?:.*$/, "/[id]"), async ({ page }) => {
         const url = await resolve(page, route);
-        test.skip(url === null, "no detail row in the seed to open");
+        expect(url, `no detail row to open from ${route.split(":")[1]}`).not.toBeNull();
         await page.goto(url!);
         await page.locator("h1").first().waitFor();
         // Let skeletons resolve into the real rows before measuring.
