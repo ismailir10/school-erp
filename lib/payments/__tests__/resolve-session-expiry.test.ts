@@ -36,17 +36,39 @@ describe("resolveSessionExpiry", () => {
     expect(windowDays).toBeLessThan(15);
   });
 
-  it("lifts an already-overdue invoice to a 1-day floor rather than expiring it on arrival", () => {
+  it("gives an invoice due yesterday a 7-day window rather than expiring it on arrival", () => {
     // An overdue invoice is still collectable. A born-dead VA is a support
-    // ticket, which is strictly worse than a short window.
-    const resolved = resolveSessionExpiry("2026-07-01", now);
-    expect(resolved.toISOString()).toBe(new Date(now.getTime() + DAY_MS).toISOString());
+    // ticket, which is strictly worse than a short window. Cycle
+    // 2026-10-17-payment-link-reminders D1: overdue links last a week.
+    const resolved = resolveSessionExpiry("2026-08-19", now);
+    expect(resolved.toISOString()).toBe(new Date(now.getTime() + 7 * DAY_MS).toISOString());
     expect(resolved.getTime()).toBeGreaterThan(now.getTime());
   });
 
-  it("lifts a same-day due date to the floor, not to seconds from now", () => {
+  it("gives a long-overdue invoice the same 7-day window", () => {
+    const tenDaysAgo = resolveSessionExpiry("2026-08-10", now);
+    expect(tenDaysAgo.toISOString()).toBe(new Date(now.getTime() + 7 * DAY_MS).toISOString());
+
+    const monthsAgo = resolveSessionExpiry("2026-07-01", now);
+    expect(monthsAgo.toISOString()).toBe(new Date(now.getTime() + 7 * DAY_MS).toISOString());
+  });
+
+  it("judges 'overdue' by the WIB calendar date, not the UTC one", () => {
+    // 20 Aug 2026, 00:30 WIB is still 19 Aug in UTC. An invoice due the 19th is
+    // overdue in WIB (7-day floor); one due the 20th is due today (1-day floor).
+    const justAfterWibMidnight = new Date("2026-08-19T17:30:00.000Z");
+    expect(resolveSessionExpiry("2026-08-19", justAfterWibMidnight).toISOString()).toBe(
+      new Date(justAfterWibMidnight.getTime() + 7 * DAY_MS).toISOString(),
+    );
+    expect(resolveSessionExpiry("2026-08-20", justAfterWibMidnight).toISOString()).toBe(
+      new Date(justAfterWibMidnight.getTime() + DAY_MS).toISOString(),
+    );
+  });
+
+  it("lifts a same-day due date to the 1-day floor, not to seconds from now", () => {
     // End of today WIB is ~14 hours away at this `now` — inside the floor, so
-    // the floor wins. A parent told "due today" still gets a usable window.
+    // the floor wins. A parent told "due today" still gets a usable window, and
+    // due today is not overdue, so it does not get the 7-day window.
     const resolved = resolveSessionExpiry("2026-08-20", now);
     expect(resolved.toISOString()).toBe(new Date(now.getTime() + DAY_MS).toISOString());
   });
