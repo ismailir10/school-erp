@@ -215,3 +215,20 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is a
   - A real DOKU sandbox response for an unopened order: no sandbox credentials here.
 
 ## Ship Notes
+
+- **Route:** other code (no login, session or cookie change). It carries `needs-staging-verify` as the spec named, because it adds three admin mutating routes and changes nightly gateway behaviour. Compared `origin/staging...HEAD`: 59 files.
+- **Migration:** `20261017120000_add_invoice_reminders` adds Invoice `lastRemindedAt`, `lastRemindedBy` and `remindCount` (default 0). It is additive and is applied by `prisma migrate deploy` in the build. No backfill.
+- **Env vars:** none new. Production must keep `XENDIT_SECRET_KEY` set (needed to check Xendit-era links) and `CRON_SECRET` (the nightly heal runs inside `finance-maintenance`).
+- **Behaviour change on first nightly run after promotion:**
+  - `finance-maintenance` (08:00 WIB) makes up to 50 DOKU orders a night for owing invoices without a link, so the backlog clears over a few nights. "Buat link baru (N)" still catches up on demand.
+  - Partly paid past-due invoices move to Lewat Tempo, so the overdue count rises. That is existing debt becoming visible.
+- **Signed-in staging check after merge** (`SCHOOL_ADMIN`, staging uses the DOKU sandbox):
+  1. Tagihan → Pengingat WhatsApp opens. "Buat link dulu" makes a link, and "Buka WhatsApp" opens wa.me with the link; the row then reads "Diingatkan baru saja".
+  2. Invoice detail ⋯ → Buat link baru → confirm. A new sandbox link appears and differs from the old one.
+  3. Record a partial manual payment on a past-due invoice. It stays Lewat Tempo, and after a few seconds a new link exists.
+  4. As a parent, "Minta link baru" on an invoice whose link was never opened returns the working link.
+  Remove `needs-staging-verify` once all four pass.
+- **Watch after promotion:**
+  - The first `finance-maintenance` JSON (`linkHeal`, `linkHealError`).
+  - Whether DOKU returns `order.status` for unopened orders (`gatewayStatus` ORDER_GENERATED vs a synthesised PENDING).
+- **Rollback:** revert the squash commit. The three new columns can stay, since nothing else depends on them.
