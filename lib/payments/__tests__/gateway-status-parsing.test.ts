@@ -169,8 +169,22 @@ describe("parseDokuOrderStatus", () => {
       expect(out.rawStatus).toBe(status);
     });
 
-    it("leaves a live order pending", () => {
-      expect(parseDokuOrderStatus(order("ORDER_GENERATED")).state).toBe("PENDING");
+    it("leaves a live order pending and reports its order status when no transaction exists", () => {
+      const out = parseDokuOrderStatus(order("ORDER_GENERATED"));
+      expect(out.state).toBe("PENDING");
+      expect(out.rawStatus).toBe("ORDER_GENERATED");
+    });
+
+    it("synthesises PENDING when the order carries no status and no transaction", () => {
+      const out = parseDokuOrderStatus({ order: { invoice_number: "inv1", amount: 20000 } });
+      expect(out.state).toBe("PENDING");
+      expect(out.rawStatus).toBe("PENDING");
+    });
+
+    it("prefers the transaction status over the order status", () => {
+      const out = parseDokuOrderStatus({ ...order("ORDER_GENERATED"), transaction: { status: "SUCCESS" } });
+      expect(out.state).toBe("COMPLETED");
+      expect(out.rawStatus).toBe("SUCCESS");
     });
   });
 
