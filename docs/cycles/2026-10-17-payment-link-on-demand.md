@@ -122,3 +122,12 @@ Final tree on this branch, nothing recorded from memory:
 - One copy fix from the walk: under the new button the help box said "Link pembayaran belum tersedia", which now contradicts the button above it; it reads "Bila link belum bisa dibuat, silakan hubungi bagian tata usaha sekolah ..." and keeps the wording the existing tests pin.
 
 ## Ship Notes
+
+Not shipped. Same branch and PR as `2026-10-17-expired-link-overdue`: [#666](https://github.com/ismailir10/school-erp/pull/666), draft.
+
+- **Migration:** none. **Env:** none.
+- **New routes** (both under `app/api/**`): `POST /api/guardian/invoices/[id]/payment-link` (GUARDIAN, own child's invoice) and `POST /api/invoices/create-missing-links` (`invoices.create`). The parent route is the first place a parent can cause a gateway session to be created, which is why it had its own security review and why the PR keeps the `needs-staging-verify` label.
+- **Post-merge on staging**, signed in: as a parent, open an invoice whose link expired (or clear one's link in the database) and press "Buat link pembayaran", then pay or at least open the link; as an admin, press "Buat link baru (N)" and watch N fall. Use the real DOKU sandbox if the demo gateway is not what staging runs.
+- **Watch after the first production sweep:** how many invoices show "Buat link baru (N)", since that is the number of families who will see "Buat link pembayaran". A very large N on day one means the backlog from the weeks the cron never ran.
+- **Residuals worth knowing** (in Implementation): a payment landing in the second between reading the amount and writing a new link; `PARTIALLY_PAID` line items that still sum to the full amount.
+- **Rollback:** revert the commits; nothing is written that the old code cannot read (a link on an invoice is ordinary data).
