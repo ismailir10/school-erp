@@ -143,7 +143,7 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is a
 ## Tasks
 
 - [ ] T1 Overdue links last 7 days — accept: expiry unit tests for past-due (7d), due-today (24h floor), future (end of due date), cap (30d). (deps: none; reuse: existing expiry tests) **parallel A**
-- [ ] T2 Partial-invoice link charges one "Sisa tagihan" line — accept: session test shows one line equal to remaining for a partly paid invoice, real lines otherwise. (deps: none) **parallel A**
+- [x] T2 Partial-invoice link charges one "Sisa tagihan" line — accept: session test shows one line equal to remaining for a partly paid invoice, real lines otherwise. (deps: none) **parallel A**
 - [ ] T3 Nightly maintenance promotes past-due partial invoices and heals missing links — accept: route tests for the SQL covering both statuses, a heal phase under a deadline, at most 50, failure isolation, cache bust. Selection and budget are shared with "Buat link baru (N)". (deps: none; reuse: create-missing-links selection and deadline, ensurePaymentLink) **parallel A**
 - [ ] T4 Reminder bookkeeping and API — accept: migration plus schema fields, a list route (ordering, no-number count, permission, tenant) and a record route (stamp, count, audit, rate limit, permission, tenant) with tests. (deps: none; reuse: invoice-reminder helpers, recordAudit, primary-guardian include) **parallel A**
 - [ ] T5 Lewat Tempo wins once past due, and receipts follow money paid — accept: payment-state unit tests, gateway payment path uses the same rule, kuitansi routes and buttons allowed for any invoice with money paid (admin and parent) with tests. (deps: none) **after A** (touches the admin detail page)
@@ -160,6 +160,8 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is a
   - T7 and T8 run sequentially: both touch the admin invoice detail page, and T8 needs T4's API.
   - T9 is inline: a docs-only sweep after the code lands.
   - Workers edit and test only; the driver runs the gate, reviews and commits one commit per task.
+
+- T2: `lib/payments/session.ts`, `lib/payments/__tests__/session-line-items.test.ts`. New `sessionLineItems()`: a partly paid invoice goes out as one "Sisa tagihan <no>" line for the remainder; the adapters still round both amount and price.
 
 ## Verification
 
