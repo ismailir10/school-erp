@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getGateway } from "./registry";
+import { paymentLinkProvider } from "./link-provider";
 import { GatewayApiError, type GatewayPaymentStatus } from "./types";
 import {
   processPaymentEvent,
@@ -176,8 +177,6 @@ export async function reconcileInvoicePayment(
   invoiceId: string,
   opts: { minIntervalMs?: number; now?: Date } = {},
 ): Promise<ReconcileResult> {
-  const gateway = getGateway();
-  const provider = gateway.id;
   const now = opts.now ?? new Date();
 
   const before = await prisma.invoice.findUnique({
@@ -187,18 +186,23 @@ export async function reconcileInvoicePayment(
       status: true,
       invoiceNumber: true,
       xenditSessionId: true,
+      xenditPaymentUrl: true,
     },
   });
   if (!before) {
     return {
       code: "NOT_FOUND",
       message: "Tagihan tidak ditemukan.",
-      provider,
+      provider: getGateway().id,
       gatewayStatus: null,
       statusBefore: null,
       statusAfter: null,
     };
   }
+
+  const gateway = getGateway(before.xenditPaymentUrl);
+  const provider = gateway.id;
+  const owner = paymentLinkProvider(before.xenditPaymentUrl);
 
   // Stamp `paymentCheckedAt` BEFORE the network call, on every path, so the
   // nightly sweep rotates (least recently checked first) and admin/parent polls
@@ -244,10 +248,26 @@ export async function reconcileInvoicePayment(
 
   let status: GatewayPaymentStatus;
   try {
-    status = await gateway.fetchPaymentStatus({
-      invoiceId: before.id,
-      sessionId: before.xenditSessionId,
-    });
+    if ((owner === "demo-xendit" || owner === "demo-doku") && process.env.DEMO_MODE !== "true") {
+      // These exact hosts are emitted only by our demo factories. They cannot accept money;
+      // retire them through the ordinary expiry processor and its session+URL CAS.
+      status = {
+        state: "EXPIRED", rawStatus: "DEMO_LINK_RETIRED", paymentId: null,
+        amount: null, currency: null, channelCode: null,
+        raw: { source: "demo-link-retirement" },
+      };
+    } else if (before.xenditPaymentUrl && owner === null) {
+      status = {
+        state: "UNAVAILABLE", rawStatus: null, paymentId: null,
+        amount: null, currency: null, channelCode: null, raw: null,
+        unavailableReason: "UNKNOWN_LINK_PROVIDER",
+      };
+    } else {
+      status = await gateway.fetchPaymentStatus({
+        invoiceId: before.id,
+        sessionId: before.xenditSessionId,
+      });
+    }
   } catch (err) {
     const message =
       err instanceof GatewayApiError
@@ -321,6 +341,7 @@ export async function reconcileInvoicePayment(
     // id directly — no reference_id string surgery, no session fallback needed.
     referenceId: before.id,
     sessionId: before.xenditSessionId,
+    ...(dispatch.kind === "SESSION_EXPIRED" ? { expectedPaymentUrl: before.xenditPaymentUrl } : {}),
     paymentId: status.paymentId,
     amount: status.amount,
     currency: status.currency,

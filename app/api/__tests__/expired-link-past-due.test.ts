@@ -153,6 +153,38 @@ describe("session expiry — a superseded session", () => {
     expect(await expireWith("sess-1", null)).toBeNull();
   });
 
+  it.each(["OVERDUE", "SENT"])("a URL-only replacement before processing a %s expiry survives the poll snapshot", async (status) => {
+    const replacementUrl = "https://checkout.xendit.co/new-session";
+    const row = { id: "inv1", status, invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: null, xenditPaymentUrl: replacementUrl };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+
+    const { body } = await processPaymentEvent({
+      ...expiredEvent(),
+      sessionId: null,
+      expectedPaymentUrl: "https://demo.xendit.local/checkout/inv1",
+    });
+
+    expect(body).toMatchObject({ status: "IGNORED:stale_session" });
+    expect(invoiceUpdate).not.toHaveBeenCalled();
+    expect(row.xenditPaymentUrl).toBe(replacementUrl);
+  });
+
+  it("an expiry with an unchanged URL-only poll snapshot still clears that link", async () => {
+    const url = "https://demo.xendit.local/checkout/inv1";
+    const row = { id: "inv1", status: "OVERDUE", invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: null, xenditPaymentUrl: url };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+
+    const { body } = await processPaymentEvent({ ...expiredEvent(), sessionId: null, expectedPaymentUrl: url });
+
+    expect(body).toMatchObject({ status: "LINK_CLEARED" });
+    expect(invoiceUpdate).toHaveBeenCalledWith({
+      where: { id: "inv1", xenditSessionId: null, xenditPaymentUrl: url },
+      data: DEAD_LINK_CLEARED,
+    });
+  });
+
   it.each(["OVERDUE", "SENT"])("a named expiry still clears a URL-only %s session", async (status) => {
     expect(await expireWith("sess-1", null, status, "https://checkout.test/url-only")).toMatchObject({
       where: { id: "inv1", xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/url-only" },
