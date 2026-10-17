@@ -11,6 +11,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -146,7 +147,18 @@ export default function AttendancePage() {
 
   // Memoised — a fresh array every render would remount row cells and close
   // any open row-action menu (Cycle 3 T7).
-  const columns: ColumnDef<EmployeeAttendance>[] = useMemo(() => [
+  const columns: ColumnDef<EmployeeAttendance>[] = useMemo(() => {
+    const statusBadge = (ea: EmployeeAttendance) => {
+      if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
+      // No record on a non-working day means the school was closed, not
+      // that the employee failed to show up.
+      return nonWorkingDay ? (
+        <StatusBadge status="HOLIDAY" />
+      ) : (
+        <StatusBadge status="ABSENT" label="—" />
+      );
+    };
+    return [
     {
       id: "nama",
       accessorFn: (row) => row.employee.nama,
@@ -156,13 +168,19 @@ export default function AttendancePage() {
       cell: ({ row }) => {
         const ea = row.original;
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
             </div>
             <DataTableLinkCell
               href={`/admin/employees/${ea.employee.id}`}
-              description={`${ea.employee.kode} · ${ea.employee.campusName}`}
+              className="min-w-0 whitespace-normal"
+              description={
+                <>
+                  {`${ea.employee.kode} · ${ea.employee.campusName}`}
+                  <DataTableMobileMeta className="mt-1">{statusBadge(ea)}</DataTableMobileMeta>
+                </>
+              }
             >
               {ea.employee.nama}
             </DataTableLinkCell>
@@ -199,17 +217,9 @@ export default function AttendancePage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
-      cell: ({ row }) => {
-        const ea = row.original;
-        if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
-        // No record on a non-working day means the school was closed, not
-        // that the employee failed to show up.
-        return nonWorkingDay ? (
-          <StatusBadge status="HOLIDAY" />
-        ) : (
-          <StatusBadge status="ABSENT" label="—" />
-        );
-      },
+      // Status sits under the name below `md` (DataTableMobileMeta above).
+      meta: { priority: "low" },
+      cell: ({ row }) => statusBadge(row.original),
     },
     {
       id: "actions",
@@ -228,7 +238,8 @@ export default function AttendancePage() {
         />
       ),
     },
-  ], [openOverride, nonWorkingDay]);
+  ];
+  }, [openOverride, nonWorkingDay]);
 
   return (
     <>

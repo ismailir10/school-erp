@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Progress } from "@/components/ui/progress";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -13,8 +12,8 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 
 // ------------------------------------------------------------------
 // Types
@@ -227,29 +226,15 @@ export default function ClassWeekPage({
         description="Rekap kelengkapan pengisian Buku Penghubung per siswa."
         actions={
           <div className="flex items-center gap-2">
-            <Button
+            <PeriodStepper
+              label={formatWeekLabel(ws)}
+              onPrev={() => handleWeekChange(-1)}
+              onNext={() => handleWeekChange(1)}
+              prevLabel="Minggu sebelumnya"
+              nextLabel="Minggu berikutnya"
               variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => handleWeekChange(-1)}
-              title="Minggu sebelumnya"
-              aria-label="Minggu sebelumnya"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="text-sm font-medium min-w-[140px] text-center">
-              {formatWeekLabel(ws)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => handleWeekChange(1)}
-              title="Minggu berikutnya"
-              aria-label="Minggu berikutnya"
-            >
-              <ChevronRight size={14} />
-            </Button>
+              labelClassName="min-w-[104px] font-medium sm:min-w-[140px]"
+            />
           </div>
         }
       />

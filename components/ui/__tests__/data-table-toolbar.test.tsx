@@ -137,3 +137,21 @@ describe("DataTableToolbar", () => {
     expect(screen.getByRole("button", { name: "Atur Ulang" })).toBeInTheDocument();
   });
 });
+
+describe("DataTableToolbar phone layout", () => {
+  const options = [{ value: "all", label: "Semua" }, { value: "a", label: "A" }];
+  const filter = (key: string) => ({ key, label: key, options, value: "all", onChange: () => {} });
+
+  it("pairs dropdowns two per row and lets an odd last one span both", () => {
+    render(<DataTableToolbar filters={[filter("Status"), filter("Kampus"), filter("Program")]} />);
+    const [status, kampus, program] = screen.getAllByRole("combobox");
+    expect(status.className).not.toContain("col-span-2");
+    expect(kampus.className).not.toContain("col-span-2");
+    expect(program.className).toContain("col-span-2");
+  });
+
+  it("keeps a lone dropdown full width", () => {
+    render(<DataTableToolbar filters={[filter("Status")]} />);
+    expect(screen.getByRole("combobox").className).toContain("col-span-2");
+  });
+});

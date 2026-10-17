@@ -76,7 +76,7 @@ export const KehadiranSection = memo(function KehadiranSection({
       actions={
         <Input
           type="month"
-          className="h-8 w-40 text-xs"
+          className="h-8 w-40 text-base md:text-xs"
           aria-label="Bulan kehadiran"
           value={month}
           onChange={(e) => handleMonthChange(e.target.value)}

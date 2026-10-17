@@ -56,10 +56,10 @@ export function DossierSection({
     // parked underneath it.
     <Card id={id} className="mb-3 scroll-mt-28 p-0">
       <Collapsible open={open} onOpenChange={onOpenChange}>
-        <div className="flex items-center justify-between gap-2 px-card py-3">
+        <div className="flex items-center justify-between gap-2 px-card">
           <CollapsibleTrigger
             aria-controls={contentId}
-            className="group flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="group flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <ChevronDown
               size={15}
@@ -69,8 +69,10 @@ export function DossierSection({
                 !open && "-rotate-90",
               )}
             />
-            <h2 className="truncate text-sm font-semibold text-foreground">{label}</h2>
-            {badge}
+            {/* Wraps instead of truncating: with a count badge and an action beside it,
+                a 390px header cut "Daftar Siswa" to "Daftar Si…". */}
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">{label}</h2>
+            {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
           </CollapsibleTrigger>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>

@@ -199,8 +199,7 @@ export function CategoryAccordion({
                 <div className="flex items-center gap-0.5 shrink-0">
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
+                    size="icon-sm"
                     disabled={idx === 0 || pending !== null}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -213,8 +212,7 @@ export function CategoryAccordion({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
+                    size="icon-sm"
                     disabled={idx === categories.length - 1 || pending !== null}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -227,7 +225,7 @@ export function CategoryAccordion({
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
-                      render={<Button variant="ghost" size="sm" className="h-7 w-7 p-0" />}
+                      render={<Button variant="ghost" size="icon-sm" />}
                     >
                       <MoreVertical className="h-3.5 w-3.5" />
                       <span className="sr-only">Buka menu kategori</span>
@@ -289,8 +287,7 @@ export function CategoryAccordion({
                       </div>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
+                        size="icon-sm"
                         disabled={iIdx === 0 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, -1)}
                         title="Naik"
@@ -300,8 +297,7 @@ export function CategoryAccordion({
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
+                        size="icon-sm"
                         disabled={iIdx === cat.indicators.length - 1 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, 1)}
                         title="Turun"
@@ -311,7 +307,7 @@ export function CategoryAccordion({
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
-                          render={<Button variant="ghost" size="sm" className="h-7 w-7 p-0" />}
+                          render={<Button variant="ghost" size="icon-sm" />}
                         >
                           <MoreVertical className="h-3.5 w-3.5" />
                           <span className="sr-only">Buka menu indikator</span>

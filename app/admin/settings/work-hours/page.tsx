@@ -106,7 +106,7 @@ export default function OrgConfigPage() {
                   return (
                     <label
                       key={d.key}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                      className={`flex min-h-11 items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
                         checked
                           ? "border-primary bg-primary/5 text-primary-text"
                           : "border-border text-muted-foreground hover:border-primary/30"

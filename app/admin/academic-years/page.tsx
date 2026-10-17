@@ -24,6 +24,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { Plus, ArrowRightCircle, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
@@ -260,12 +261,17 @@ export default function AcademicPage() {
       cell: ({ row }) => {
         const p = row.original;
         return (
-          <div>
-            <div className="flex items-center gap-2">
+          // whitespace-normal: table cells are nowrap, which would push the table wider than a phone.
+          <div className="whitespace-normal">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-sm font-medium">{p.name}</span>
               <Badge variant="outline" className="text-xs font-currency">{p.code}</Badge>
             </div>
             {p.description && <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>}
+            {/* Status is hidden below `md`: repeat it under the name for a phone. */}
+            <DataTableMobileMeta className="mt-1">
+              <StatusBadge status={p.status} />
+            </DataTableMobileMeta>
           </div>
         );
       },
@@ -295,6 +301,8 @@ export default function AcademicPage() {
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      // Status sits under the name below `md` (DataTableMobileMeta in the name cell).
+      meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
@@ -337,7 +345,27 @@ export default function AcademicPage() {
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
-      cell: ({ row }) => <span className="text-sm font-medium">{row.original.name}</span>,
+      cell: ({ row }) => {
+        const y = row.original;
+        return (
+          // whitespace-normal: table cells are nowrap, which would push the table wider than a phone.
+          <div className="whitespace-normal">
+            <span className="text-sm font-medium">{y.name}</span>
+            {/* Periode, Status and the class link are hidden below `md`: repeat them under the name for a phone. */}
+            <DataTableMobileMeta className="mt-1">
+              <StatusBadge status={y.status} />
+              <span>{formatDateShort(y.startDate)} — {formatDateShort(y.endDate)}</span>
+              <Link
+                href={`/admin/classes?yearId=${y.id}`}
+                className="inline-flex min-h-8 items-center gap-1 text-primary-text hover:underline [@media(pointer:coarse)]:min-h-11"
+              >
+                Kelola kelas
+                <ArrowRightCircle size={12} aria-hidden="true" />
+              </Link>
+            </DataTableMobileMeta>
+          </div>
+        );
+      },
     },
     {
       accessorKey: "startDate",
@@ -357,11 +385,15 @@ export default function AcademicPage() {
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      // Status sits under the name below `md` (DataTableMobileMeta in the name cell).
+      meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
       id: "manageClasses",
       header: "",
+      // Below `md` this link lives in the name cell's meta line ("Kelola kelas").
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <Link
           href={`/admin/classes?yearId=${row.original.id}`}

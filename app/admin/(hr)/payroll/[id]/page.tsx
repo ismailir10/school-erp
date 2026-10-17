@@ -158,11 +158,12 @@ export default function PayrollDetailPage() {
       cell: ({ row }) => {
         const item = row.original;
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
             </div>
             <DataTableLinkCell
+              className="min-w-0 whitespace-normal"
               onClick={() => setDetailItem(item)}
               description={`${item.employee.kode} · ${item.employee.jabatan}`}
             >
@@ -204,7 +205,7 @@ export default function PayrollDetailPage() {
         const item = row.original;
         const delta = comparison?.[item.employee.id];
         return (
-          <div>
+          <div className="whitespace-normal">
             <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
             {delta !== undefined && (
               <p className={`font-currency text-xs ${delta >= 0 ? "text-success" : "text-destructive"}`}>

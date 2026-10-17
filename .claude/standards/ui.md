@@ -45,6 +45,9 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
 | Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
 | Empty list | `<EmptyState>` | Plain `<p>` |
+| Small "label above a number" tile (dashboard, detail rail, trend strip) | `<StatTile>` (`components/ui/stat-tile.tsx`; `StatCard` stays the icon + count-up KPI card on list pages) | Hand-rolled `rounded-lg border` tile with `text-[10px]` |
+| Previous / label / next stepper for a month or week | `<PeriodStepper>` (`components/ui/period-stepper.tsx`; URL-driven week navigation with a "today" shortcut is the portal `WeekNavigator`) | `<button className="p-2">` with a chevron |
+| Icon-only button | `<Button size="icon">` / `"icon-sm"` | `size="sm" className="h-8 w-8 p-0 …"` |
 | Confirm, destructive or not | `<ConfirmDialog>` (`destructive` prop for delete/void/cancel) | raw `<AlertDialog>` import, `window.confirm()` |
 | Form field | `<FormField>` (`components/ui/form.tsx`, binds react-hook-form onto `Field` / `FieldLabel` / `FieldDescription` / `FieldError`) | Raw `<Label>` + `<Input>`, hand-wired `htmlFor`/`aria-invalid`, a `useState` form object |
 | Loading | `<Skeleton>` | `animate-pulse` divs |
@@ -59,6 +62,16 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Transient feedback | `toast.*()` (sonner) | `alert()`, inline banner for success |
 
 `<StatusBadge>` (`components/ui/status-badge.tsx`) owns every status tone as a named key — never a page-local tone map. Class health ("Kondisi" on the classes list) uses the `Sehat` / `Perhatian` / `Kritis` / `Libur` keys.
+
+## Touch targets (phones)
+
+Every control is at least **44px** tall on a touch device (`(pointer: coarse)`), and looks exactly as before on a mouse. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after` so the layout doesn't change. A new control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
+
+`e2e/mobile-layout.spec.ts` walks the admin, teacher and parent routes at 390px and fails on sideways page scroll, a control under 44px, a data table that needs a sideways scroll (only the month × employee matrix is exempt), and a text field under 16px. Add a new route to its list when you add a screen.
+
+**Filters on a phone.** `DataTableToolbar` lays out as a two-column grid below `sm`: search spans both, dropdowns pair up (an odd last one spans both), reset and actions get their own row. Don't wrap its filters in a custom stack.
+
+**Month calendars on a phone.** A 7-column grid leaves ~44px per cell at 390px, too small to tap a session in; below `md` render the same data as a day-by-day list (`ClassSessionsCalendar` is the reference).
 
 ## Overlays Rule
 
