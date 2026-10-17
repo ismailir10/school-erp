@@ -81,13 +81,16 @@ describe("candidate selection", () => {
       xenditPaymentUrl: null,
     });
     expect(args.where.OR[0]).toEqual({ paymentCheckedAt: null });
+    // "not being created right now": a claim is a stamp in the future
     expect(args.where.OR[1].paymentCheckedAt.lt).toBeInstanceOf(Date);
     expect(args.orderBy[0]).toEqual({ paymentCheckedAt: { sort: "asc", nulls: "first" } });
   });
 
   it("counts what is left with the same filter", async () => {
     await POST(req());
-    expect(countMock.mock.calls[0][0].where).toEqual(findManyMock.mock.calls[0][0].where);
+    const [picked, left] = [findManyMock.mock.calls[0][0].where, countMock.mock.calls[0][0].where];
+    expect({ ...left, OR: undefined }).toEqual({ ...picked, OR: undefined });
+    expect(left.OR[1].paymentCheckedAt.lt).toBeInstanceOf(Date);
   });
 });
 
@@ -98,7 +101,7 @@ describe("running the batch", () => {
     const body = await (await POST(req())).json();
 
     expect(ensureMock).toHaveBeenCalledTimes(3);
-    expect(ensureMock).toHaveBeenCalledWith("inv-0", "t1", "http://localhost:3000", { waitForWinnerMs: 0, releaseOnFailure: false });
+    expect(ensureMock).toHaveBeenCalledWith("inv-0", "t1", "http://localhost:3000", { waitForWinnerMs: 0 });
     expect(body).toEqual({ created: 3, failed: 0, skipped: 0, remaining: 40 });
   });
 

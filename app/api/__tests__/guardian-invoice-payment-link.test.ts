@@ -97,6 +97,11 @@ describe("scoping", () => {
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 
+  it("only an ACTIVE guardian link counts: this route writes, so a soft-deleted one must not", async () => {
+    await call();
+    expect(parentFindFirst.mock.calls[0][0].select.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("404 for another school's invoice", async () => {
     invoiceFindUnique.mockResolvedValue(invoiceRow({ tenantId: "t-2" }));
     expect((await call()).status).toBe(404);

@@ -61,13 +61,24 @@ describe("an invoice that already has a link", () => {
 });
 
 describe("creating exactly one link", () => {
-  it("claims the invoice only while it has no link and was not claimed in the last 30 s", async () => {
+  it("claims the invoice with a stamp in the FUTURE, only while it has no link and is not already claimed", async () => {
     await call();
     const { where, data } = updateMany.mock.calls[0][0];
+    expect(where.id).toBe("inv1");
     expect(where.xenditPaymentUrl).toBeNull();
-    expect(where.OR[0]).toEqual({ paymentCheckedAt: null });
-    expect(where.OR[1].paymentCheckedAt.lt.getTime()).toBe(NOW.getTime() - 30_000);
-    expect(data).toEqual({ paymentCheckedAt: NOW });
+    // Not claimed = never stamped, or stamped in the past (a payment check, harmless).
+    expect(where.OR).toEqual([{ paymentCheckedAt: null }, { paymentCheckedAt: { lt: NOW } }]);
+    expect(data.paymentCheckedAt.getTime()).toBe(NOW.getTime() + 45_000);
+  });
+
+  // The regression the security review found: the parent route runs a payment check
+  // (which stamps "now") right before this. That stamp must not read as a claim.
+  it("a stamp left by a payment check a moment ago does not block the claim", async () => {
+    findUnique.mockResolvedValue(row({ paymentCheckedAt: new Date(NOW.getTime() - 100) }));
+    await call();
+    const { where } = updateMany.mock.calls[0][0];
+    const justBefore = new Date(NOW.getTime() - 100);
+    expect(where.OR[1].paymentCheckedAt.lt.getTime()).toBeGreaterThan(justBefore.getTime());
   });
 
   it("a caller that loses the claim creates nothing and returns the winner's link", async () => {
@@ -87,28 +98,28 @@ describe("creating exactly one link", () => {
     expect(await call(0)).toEqual({ kind: "FAILED" });
     expect(createSession).not.toHaveBeenCalled();
   });
+
+  it("on success the claim is turned into an ordinary check stamp, touching only its own claim", async () => {
+    await call();
+    const finish = updateMany.mock.calls[1][0];
+    expect(finish.where).toEqual({ id: "inv1", paymentCheckedAt: new Date(NOW.getTime() + 45_000) });
+    expect(finish.data.paymentCheckedAt).toBeInstanceOf(Date);
+  });
 });
 
 describe("failure", () => {
-  it("a thrown gateway error gives the claim back and reports FAILED", async () => {
-    findUnique.mockResolvedValue(row({ paymentCheckedAt: new Date("2026-10-17T09:00:00Z") }));
+  it("a thrown gateway error keeps the claim (a cooldown), so a failing invoice is not retried on every press", async () => {
     createSession.mockRejectedValue(new Error("gateway down"));
-
     expect(await call()).toEqual({ kind: "FAILED" });
-    const release = updateMany.mock.calls[1][0];
-    expect(release.where).toEqual({ id: "inv1", xenditPaymentUrl: null });
-    expect(release.data).toEqual({ paymentCheckedAt: new Date("2026-10-17T09:00:00Z") });
+    expect(updateMany).toHaveBeenCalledTimes(1); // the claim only: no release, no restore
   });
 
-  it("a batch caller can keep the claim after a failure so the failed invoice sorts behind the others", async () => {
-    createSession.mockRejectedValue(new Error("gateway down"));
-    expect(await ensurePaymentLink("inv1", "t1", "https://app.test", { now: NOW, waitForWinnerMs: 0, releaseOnFailure: false })).toEqual({ kind: "FAILED" });
-    expect(updateMany).toHaveBeenCalledTimes(1); // the claim only, no release
-  });
-
-  it("a session helper that declines (invoice flipped to paid meanwhile) is NOT_PAYABLE and releases the claim", async () => {
+  it("a session helper that declines (invoice flipped to paid meanwhile) is NOT_PAYABLE and releases only its own claim", async () => {
+    findUnique.mockResolvedValue(row({ paymentCheckedAt: new Date("2026-10-17T09:00:00Z") }));
     createSession.mockResolvedValue(null);
     expect(await call()).toEqual({ kind: "NOT_PAYABLE" });
-    expect(updateMany).toHaveBeenCalledTimes(2);
+    const release = updateMany.mock.calls[1][0];
+    expect(release.where).toEqual({ id: "inv1", paymentCheckedAt: new Date(NOW.getTime() + 45_000) });
+    expect(release.data).toEqual({ paymentCheckedAt: new Date("2026-10-17T09:00:00Z") });
   });
 });

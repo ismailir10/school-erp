@@ -19,12 +19,13 @@ import { hasPermission } from "@/lib/permissions";
  *
  * The SERVER picks the batch, so a list filter can never hide an unpaid invoice.
  * Candidates are the tenant's SENT / PARTIALLY_PAID / OVERDUE invoices with no
- * link, never-touched first and then by due date, skipping any claimed in the
- * last 30 s. Each one goes through `ensurePaymentLink`, the same one-link-only
- * path the parent button uses, so an admin and a parent acting on the same
- * invoice, or a double press, still make exactly one link. An invoice that fails
- * keeps its claim stamp, which sorts it behind the untouched ones, so a few
- * stubborn failures cannot starve the rest.
+ * link, never-touched first and then by due date, skipping any that someone is
+ * creating a link for right now. Each one goes through `ensurePaymentLink`, the
+ * same one-link-only path the parent button uses, so an admin and a parent acting
+ * on the same invoice, or a double press, still make exactly one link. An invoice
+ * that fails keeps its claim (a stamp in the future), which both rests it for the
+ * claim window and sorts it behind the untouched ones, so a few stubborn failures
+ * cannot starve the rest.
  *
  * It creates links only: no status changes, no message to the parent. Same
  * permission as creating invoices (`invoices.create`), tenant-scoped, rate
@@ -36,8 +37,6 @@ export const maxDuration = 60;
 /** Per call. A session create is about a second; 25 at 5 at a time stays well inside `maxDuration`. */
 const BATCH_SIZE = 25;
 const CONCURRENCY = 5;
-/** Matches the claim window in `ensurePaymentLink`. */
-const CLAIM_WINDOW_MS = 30_000;
 /** Stop starting new links after this long; the rest stay for the next press. */
 const START_DEADLINE_MS = 40_000;
 
@@ -57,16 +56,17 @@ export async function POST(req: Request) {
 
   const { tenantId } = session;
   const origin = new URL(req.url).origin;
-  const where = (claimCutoff: Date) => ({
+  // "Not being created right now": a claim is a stamp in the future (see `ensurePaymentLink`).
+  const where = (now: Date) => ({
     tenantId,
     status: { in: [...UNPAID_INVOICE_STATUSES] },
     xenditPaymentUrl: null,
-    OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lt: claimCutoff } }],
+    OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lt: now } }],
   });
-  const cutoff = new Date(Date.now() - CLAIM_WINDOW_MS);
+  const startedAt = new Date();
 
   const candidates = await prisma.invoice.findMany({
-    where: where(cutoff),
+    where: where(startedAt),
     select: { id: true },
     orderBy: [{ paymentCheckedAt: { sort: "asc", nulls: "first" } }, { dueDate: "asc" }],
     take: BATCH_SIZE,
@@ -79,10 +79,7 @@ export async function POST(req: Request) {
       run(async () => {
         if (Date.now() > deadline) return "SKIPPED" as const;
         // No waiting on a racing winner here: a batch moves on, the next press revisits it.
-        const r = await ensurePaymentLink(invoice.id, tenantId, origin, {
-          waitForWinnerMs: 0,
-          releaseOnFailure: false,
-        });
+        const r = await ensurePaymentLink(invoice.id, tenantId, origin, { waitForWinnerMs: 0 });
         if (r.kind === "READY") return r.created ? ("CREATED" as const) : ("ALREADY" as const);
         return r.kind === "NOT_PAYABLE" ? ("SKIPPED" as const) : ("FAILED" as const);
       }),
@@ -98,7 +95,7 @@ export async function POST(req: Request) {
     revalidateTag("student-invoices", { expire: 0 });
   }
 
-  const remaining = await prisma.invoice.count({ where: where(cutoff) });
+  const remaining = await prisma.invoice.count({ where: where(new Date()) });
 
   return NextResponse.json({
     created,

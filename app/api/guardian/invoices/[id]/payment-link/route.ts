@@ -53,7 +53,9 @@ export async function POST(
     where: session.parentId
       ? { id: session.parentId, tenantId: session.tenantId }
       : { email: session.email, tenantId: session.tenantId },
-    select: { guardians: { select: { studentId: true } } },
+    // ACTIVE only: this route writes (it creates a gateway session), so a soft-deleted
+    // guardian link must not count.
+    select: { guardians: { where: { status: "ACTIVE" }, select: { studentId: true } } },
   });
   if (!guardian) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

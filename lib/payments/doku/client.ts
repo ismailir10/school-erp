@@ -400,9 +400,12 @@ export async function createDokuSession(
         Signature: signature,
       },
       body: rawBody,
+      // A session create that hangs would hold the invoice's link claim and the
+      // caller's request open; 10 s x the 3 retries stays inside the claim window.
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
-    // Fetch itself threw — DNS, TLS, socket reset, etc. No HTTP response to
+    // Fetch itself threw — DNS, TLS, socket reset, a timeout, etc. No HTTP response to
     // classify, so retriable network error with status=null.
     const message = err instanceof Error ? err.message : "DOKU network error";
     throw new GatewayApiError({
