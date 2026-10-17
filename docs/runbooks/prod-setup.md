@@ -132,9 +132,9 @@ Enable on `main` + `staging`:
 ```bash
 gh api -X PUT repos/ismailir10/annisaa-erp-v3/branches/main/protection \
   -F required_status_checks.strict=true \
-  -F 'required_status_checks.contexts[]=Lint, Typecheck & Test' \
-  -F 'required_status_checks.contexts[]=Build' \
-  -F 'required_status_checks.contexts[]=Playwright E2E' \
+  -F 'required_status_checks.contexts[]=Checks' \
+  -F 'required_status_checks.contexts[]=Test & Build' \
+  -F 'required_status_checks.contexts[]=E2E' \
   -F enforce_admins=true \
   -F required_pull_request_reviews= \
   -F restrictions= \
@@ -144,9 +144,9 @@ gh api -X PUT repos/ismailir10/annisaa-erp-v3/branches/main/protection \
 # Repeat for staging
 gh api -X PUT repos/ismailir10/annisaa-erp-v3/branches/staging/protection \
   -F required_status_checks.strict=true \
-  -F 'required_status_checks.contexts[]=Lint, Typecheck & Test' \
-  -F 'required_status_checks.contexts[]=Build' \
-  -F 'required_status_checks.contexts[]=Playwright E2E' \
+  -F 'required_status_checks.contexts[]=Checks' \
+  -F 'required_status_checks.contexts[]=Test & Build' \
+  -F 'required_status_checks.contexts[]=E2E' \
   -F enforce_admins=true \
   -F required_pull_request_reviews= \
   -F restrictions= \
