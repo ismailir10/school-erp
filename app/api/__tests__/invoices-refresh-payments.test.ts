@@ -140,6 +140,37 @@ describe("running the batch", () => {
     expect((await (await POST()).json()).failed).toBe(2);
   });
 
+  it("claims each invoice atomically, so a racing second press cannot poll it twice", async () => {
+    findManyMock.mockResolvedValue(ids(2));
+    await POST();
+    for (const call of reconcileMock.mock.calls) {
+      expect(call[1]).toEqual({ minIntervalMs: 10 * 60_000 });
+    }
+  });
+
+  it("stops starting polls once the deadline passes and leaves the rest for the next press", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-17T10:00:00Z"));
+      findManyMock.mockResolvedValue(ids(8));
+      // The first batch of five is already running when the clock jumps past the deadline.
+      reconcileMock.mockImplementation(async () => {
+        await Promise.resolve(); // the other four of the first five have started by now
+        vi.setSystemTime(new Date("2026-10-17T10:00:50Z"));
+        return { code: "NO_CHANGE" };
+      });
+      countMock.mockResolvedValue(3);
+
+      const body = await (await POST()).json();
+
+      expect(reconcileMock).toHaveBeenCalledTimes(5);
+      expect(body).toMatchObject({ checked: 5, remaining: 3 });
+      expect(body.tally.SKIPPED).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("nothing to check is a clean zero, not an error", async () => {
     const res = await POST();
     expect(res.status).toBe(200);

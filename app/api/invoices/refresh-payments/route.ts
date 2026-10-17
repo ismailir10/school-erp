@@ -29,6 +29,10 @@ import { hasPermission } from "@/lib/permissions";
  *
  * Auth and permission mirror the single-invoice `refresh-payment` route. Rate
  * limited per admin because one call costs up to 50 outbound gateway requests.
+ * The limiter is per serverless instance, so the real bound on gateway spend is
+ * the database: each reconcile claims the invoice atomically (`minIntervalMs`),
+ * which holds across instances, so two presses that race (a double click, two
+ * tabs) cannot poll the same invoice twice within the 10 minutes.
  */
 export const maxDuration = 60;
 
@@ -38,6 +42,13 @@ const BATCH_SIZE = 50;
 const CONCURRENCY = 5;
 /** An invoice checked more recently than this is skipped, which is what lets a second press move on. */
 const RECENTLY_CHECKED_MS = 10 * 60_000;
+/**
+ * Stop starting new polls after this long. A gateway poll can take 10 s, so a
+ * degraded gateway would otherwise carry 50 polls past `maxDuration` and the
+ * admin would get a timeout with no tally. Invoices not started are left
+ * unstamped and counted in `remaining`, so pressing again picks them up.
+ */
+const START_DEADLINE_MS = 40_000;
 
 export async function POST() {
   const session = await getSession();
@@ -69,12 +80,14 @@ export async function POST() {
     take: BATCH_SIZE,
   });
 
+  const deadline = Date.now() + START_DEADLINE_MS;
   const run = limit(CONCURRENCY);
   const codes = await Promise.all(
     candidates.map((invoice) =>
       run(async () => {
+        if (Date.now() > deadline) return "SKIPPED" as const;
         try {
-          return (await reconcileInvoicePayment(invoice.id)).code;
+          return (await reconcileInvoicePayment(invoice.id, { minIntervalMs: RECENTLY_CHECKED_MS })).code;
         } catch (err) {
           // One invoice must never abort the batch.
           console.error("[REFRESH PAYMENTS] Invoice failed", {
@@ -96,8 +109,9 @@ export async function POST() {
   // a fresh stamp and drop out, so this is exactly what the next press will take.
   const remaining = await prisma.invoice.count({ where: where(cutoff) });
 
+  const skipped = tally.SKIPPED ?? 0;
   return NextResponse.json({
-    checked: candidates.length,
+    checked: candidates.length - skipped,
     updated: tally.UPDATED ?? 0,
     failed: tally.GATEWAY_ERROR ?? 0,
     remaining,
