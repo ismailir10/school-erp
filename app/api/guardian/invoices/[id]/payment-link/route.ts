@@ -10,6 +10,8 @@ export const maxDuration = 60;
 
 /** Two asks about one invoice inside this window poll the gateway once. */
 const MIN_CHECK_INTERVAL_MS = 10_000;
+/** Only authoritative retryable/live states justify returning an existing checkout as usable. */
+const USABLE_LINK_STATUSES = new Set(["ACTIVE", "PENDING", "FAILED", "VOIDED", "ORDER_GENERATED"]);
 
 /**
  * POST /api/guardian/invoices/[id]/payment-link
@@ -84,13 +86,25 @@ export async function POST(
 
   if (invoice.xenditPaymentUrl) {
     try {
-      await reconcileInvoicePayment(id, { minIntervalMs: MIN_CHECK_INTERVAL_MS });
+      const check = await reconcileInvoicePayment(id, { minIntervalMs: MIN_CHECK_INTERVAL_MS });
+      // A failed or skipped check is no evidence that the stored checkout still works.
+      if (check.code === "GATEWAY_ERROR" || check.code === "UNAVAILABLE" ||
+          (check.code === "NO_CHANGE" && !USABLE_LINK_STATUSES.has(check.gatewayStatus?.toUpperCase() ?? "")) ||
+          check.gatewayStatus === "REFUNDED") {
+        return NextResponse.json(
+          { error: "Link belum bisa diperiksa. Coba lagi sebentar lagi, atau hubungi tata usaha." },
+          { status: 502 },
+        );
+      }
     } catch (error) {
-      // The check is best effort: if it fails the link we hold is simply returned.
       console.error("[GUARDIAN PAYMENT LINK] pre-check failed", {
         invoiceId: id,
         error: error instanceof Error ? error.message : String(error),
       });
+      return NextResponse.json(
+        { error: "Link belum bisa diperiksa. Coba lagi sebentar lagi, atau hubungi tata usaha." },
+        { status: 502 },
+      );
     }
   }
 

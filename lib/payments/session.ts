@@ -123,7 +123,7 @@ export async function createPaymentSessionForInvoice(
     where: {
       id: invoiceId,
       xenditPaymentUrl: null,
-      OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lt: now } }],
+      OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lte: now } }],
     },
     data: { paymentCheckedAt: claimedUntil },
   });

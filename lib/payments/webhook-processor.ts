@@ -33,6 +33,8 @@ export type NormalizedPaymentEvent = {
   kind: "PAYMENT_COMPLETED" | "SESSION_EXPIRED" | "UNHANDLED";
   referenceId: string | null; // resolves an Invoice by primary key
   sessionId: string | null; // fallback resolution via Invoice.xenditSessionId
+  /** Manual expiry polls carry the URL they inspected, including URL-only sessions. */
+  expectedPaymentUrl?: string | null;
   paymentId: string | null; // inner idempotency key -> Payment.xenditPaymentId
   amount: number | null;
   currency: string | null;
@@ -408,6 +410,12 @@ async function handleSessionExpired(
     // a delayed expiry for the old session must not clear the new link. Only possible to tell
     // apart when the event names its session (Xendit does; a DOKU notification does not, and
     // every DOKU session of an invoice shares its invoice number anyway).
+    if (event.expectedPaymentUrl !== undefined && event.expectedPaymentUrl !== fresh.xenditPaymentUrl) {
+      return {
+        type: "IGNORED:stale_session" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
     if (event.sessionId && (
       (fresh.xenditSessionId && event.sessionId !== fresh.xenditSessionId) ||
       (!fresh.xenditSessionId && !fresh.xenditPaymentUrl)

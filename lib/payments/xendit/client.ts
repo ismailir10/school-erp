@@ -439,8 +439,26 @@ export function parseXenditSessionStatus(data: unknown): GatewayPaymentStatus {
   };
 }
 
+/** Legacy Payment Link invoices predate Checkout Sessions and use a different response. */
+export function parseXenditInvoiceStatus(data: unknown): GatewayPaymentStatus {
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const rawStatus = firstString([d.status]);
+  const state = rawStatus?.toUpperCase() === "SETTLED" ? "COMPLETED" : mapXenditSessionState(rawStatus);
+  return {
+    state,
+    rawStatus,
+    paymentId: firstString([d.payment_id, d.id]),
+    // Credit what was received, never the face value of an unpaid legacy invoice.
+    amount: firstNumber([d.paid_amount]),
+    currency: firstString([d.currency]),
+    channelCode: firstString([d.payment_channel]),
+    raw: data,
+  };
+}
+
 /**
- * Read-only poll of a Xendit Checkout Session — `GET /sessions/{id}`.
+ * Read-only poll of a Xendit Checkout Session (`GET /sessions/{id}`) or a
+ * legacy Payment Link invoice (`GET /v2/invoices/{id}` for its 24-hex ID).
  *
  * Used by the admin "Perbarui pembayaran" action as a webhook fallback. Never
  * mutates gateway state. Returns `UNAVAILABLE` (rather than throwing) when the
@@ -480,13 +498,16 @@ export async function getXenditSessionStatus(
     };
   }
 
+  // Historical reseeds used /v2/invoices; those IDs are 24 hexadecimal characters,
+  // while Checkout Session IDs start with ps-. Both use the same fixed API origin.
+  const legacyInvoice = /^[a-f0-9]{24}$/i.test(ref.sessionId);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
     response = await fetch(
-      `${XENDIT_API_URL}/sessions/${encodeURIComponent(ref.sessionId)}`,
+      `${XENDIT_API_URL}/${legacyInvoice ? "v2/invoices" : "sessions"}/${encodeURIComponent(ref.sessionId)}`,
       {
         method: "GET",
         headers: { Authorization: getAuthHeader() },
@@ -519,7 +540,7 @@ export async function getXenditSessionStatus(
     // session-retrieve body without live credentials locally.
     console.info("[XENDIT DEBUG] Session status response:", JSON.stringify(data));
   }
-  return parseXenditSessionStatus(data);
+  return legacyInvoice ? parseXenditInvoiceStatus(data) : parseXenditSessionStatus(data);
 }
 
 /**

@@ -62,7 +62,7 @@ beforeEach(() => {
   rateLimitMock.mockReturnValue({ success: true, remaining: 5 });
   parentFindFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }, { studentId: "stu-2" }] });
   invoiceFindUnique.mockResolvedValue(invoiceRow());
-  reconcileMock.mockResolvedValue({ code: "NO_CHANGE" });
+  reconcileMock.mockResolvedValue({ code: "NO_CHANGE", gatewayStatus: "ACTIVE" });
   ensureMock.mockResolvedValue({ kind: "READY", paymentUrl: "https://checkout.doku.com/new", created: true });
 });
 
@@ -155,12 +155,27 @@ describe("getting a link", () => {
     expect(await (await call()).json()).toEqual({ paymentUrl: "https://checkout.doku.com/live", created: false });
   });
 
-  it("a failing pre-check does not stop the parent getting the link they hold", async () => {
+  it("a failing pre-check preserves the link but does not claim that it still works", async () => {
     invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: "https://checkout.doku.com/live" }));
     reconcileMock.mockRejectedValue(new Error("gateway down"));
     ensureMock.mockResolvedValue({ kind: "READY", paymentUrl: "https://checkout.doku.com/live", created: false });
     const res = await call();
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(502);
+    expect(ensureMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { code: "UNAVAILABLE", gatewayStatus: null },
+    { code: "GATEWAY_ERROR", gatewayStatus: null },
+    { code: "NO_CHANGE", gatewayStatus: null },
+    { code: "NO_CHANGE", gatewayStatus: "NEW_UNKNOWN_STATUS" },
+  ])("an unverified check $code never returns a stored link as live", async (result) => {
+    invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: "https://dev.xen.to/old" }));
+    reconcileMock.mockResolvedValue(result);
+    const res = await call();
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "Link belum bisa diperiksa. Coba lagi sebentar lagi, atau hubungi tata usaha." });
+    expect(ensureMock).not.toHaveBeenCalled();
   });
 });
 
