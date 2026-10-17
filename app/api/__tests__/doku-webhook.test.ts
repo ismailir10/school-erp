@@ -39,8 +39,7 @@ vi.mock("@/lib/generated/prisma/client", () => {
       super(msg);
     }
   }
-  // Minimal Decimal shim — webhook-processor + sumDecimals use add /
-  // greaterThanOrEqualTo.
+  // Minimal Decimal shim — webhook-processor + sumDecimals use add / gte / gt.
   class FakeDecimal {
     private n: number;
     constructor(v: unknown) {
@@ -51,6 +50,12 @@ vi.mock("@/lib/generated/prisma/client", () => {
     }
     greaterThanOrEqualTo(other: unknown): boolean {
       return this.n >= new FakeDecimal(other).n;
+    }
+    gte(other: unknown): boolean {
+      return this.n >= new FakeDecimal(other).n;
+    }
+    gt(other: unknown): boolean {
+      return this.n > new FakeDecimal(other).n;
     }
     toString(): string {
       return String(this.n);
@@ -528,6 +533,7 @@ describe("POST /api/doku/webhook (T4 contract)", () => {
               status: "SENT",
               totalDue: 1_000_000,
               totalPaid: 0,
+              dueDate: "2999-12-31",
             }),
             update: tx1InvoiceUpdate,
           },

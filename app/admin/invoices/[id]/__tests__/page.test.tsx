@@ -220,8 +220,25 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     }
   });
 
+  it("review of a partial amount on a past-due invoice says 'Lewat Tempo' with the remainder", async () => {
+    fixture({ invoice: { dueDate: daysAgo(3) } });
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    const dialog = await openDialog();
+    const amount = within(dialog).getByRole("textbox", { name: "Jumlah" });
+    await user.clear(amount);
+    await user.type(amount, "250000");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+
+    const review = await within(dialog).findByTestId("payment-review");
+    expect(within(review).getByText("Lewat Tempo")).toBeInTheDocument();
+    expect(within(review).queryByText("Dibayar Sebagian")).not.toBeInTheDocument();
+    expect(review).toHaveTextContent("Sisa Rp 350.000");
+  });
+
   it("review of a partial amount says 'Dibayar Sebagian' with the remainder; 'Ubah' returns to the form", async () => {
-    const fetchMock = fixture();
+    const fetchMock = fixture({ invoice: { dueDate: daysAgo(-14) } });
     const user = userEvent.setup();
     render(<InvoiceDetailPage />);
 
@@ -413,6 +430,16 @@ describe("InvoiceDetailPage — Unduh kuitansi (FINX-9)", () => {
 
   it("a PARTIALLY_PAID invoice keeps the header uncrowded: the action lives in the overflow menu", async () => {
     fixture();
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+    await screen.findByRole("button", { name: "Catat Pembayaran" });
+    expect(screen.queryByTestId("invoice-receipt-btn")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    expect(await screen.findByTestId("invoice-receipt-btn")).toHaveTextContent("Unduh kuitansi");
+  });
+
+  it("an OVERDUE invoice with payments keeps the kuitansi, in the overflow menu", async () => {
+    fixture({ invoice: { status: "OVERDUE", totalPaid: 400000 } });
     const user = userEvent.setup();
     render(<InvoiceDetailPage />);
     await screen.findByRole("button", { name: "Catat Pembayaran" });

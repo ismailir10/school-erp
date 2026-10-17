@@ -31,6 +31,7 @@ import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { hasReceipt } from "@/lib/finance/invoice-receipt";
 
 // Same `Control` extraction `useZodForm` produces (input values in, the
 // schema's parsed output out) — `payForm.control`'s exact type, so
@@ -153,7 +154,7 @@ function PaymentReview({
   notes,
   remaining,
 }: {
-  invoice: Pick<InvoiceDetail, "invoiceNumber" | "student">;
+  invoice: Pick<InvoiceDetail, "invoiceNumber" | "student" | "dueDate">;
   amount: number;
   method: string;
   paidAt: string;
@@ -162,6 +163,8 @@ function PaymentReview({
   remaining: number;
 }) {
   const settles = amount >= remaining;
+  // Same rule the server applies: still owing after the due date is Lewat Tempo.
+  const owingStatus = invoice.dueDate < getTodayInTimezone("Asia/Jakarta") ? "OVERDUE" : "PARTIALLY_PAID";
   return (
     <div className="space-y-field" data-testid="payment-review">
       <p className="text-sm text-muted-foreground">
@@ -179,7 +182,7 @@ function PaymentReview({
         {notes.trim() && <ReviewRow label="Catatan">{notes.trim()}</ReviewRow>}
         <ReviewRow label="Status setelah dicatat">
           <span className="inline-flex flex-wrap items-center justify-end gap-2">
-            <StatusBadge status={settles ? "PAID" : "PARTIALLY_PAID"} />
+            <StatusBadge status={settles ? "PAID" : owingStatus} />
             {!settles && (
               <span className="text-xs text-muted-foreground">Sisa <span className="font-currency">{formatRupiah(remaining - amount)}</span></span>
             )}
@@ -497,10 +500,10 @@ export default function InvoiceDetailPage() {
   // FINX-9: the same kuitansi a guardian downloads, once money has landed.
   // A plain new-tab open — the route answers with a PDF, not a page to
   // client-navigate to. On a Lunas invoice nothing else competes for the
-  // header, so it sits there; a partially paid one already has up to two
-  // buttons, so it goes in the overflow menu.
+  // header, so it sits there; a partly paid one (Dibayar Sebagian or Lewat
+  // Tempo) already has up to two buttons, so it goes in the overflow menu.
   const receiptAction: DetailPageHeaderAction | null =
-    invoice.capabilities?.recordPayment && (invoice.status === "PAID" || invoice.status === "PARTIALLY_PAID")
+    invoice.capabilities?.recordPayment && hasReceipt(invoice)
       ? {
           label: "Unduh kuitansi",
           icon: <FileText size={14} aria-hidden="true" />,
@@ -572,7 +575,7 @@ export default function InvoiceDetailPage() {
           ...(receiptAction && invoice.status === "PAID" ? [receiptAction] : []),
         ]}
         menuActions={[
-          ...(receiptAction && invoice.status === "PARTIALLY_PAID" ? [receiptAction] : []),
+          ...(receiptAction && invoice.status !== "PAID" ? [receiptAction] : []),
           ...(canVoid
             ? [
                 {

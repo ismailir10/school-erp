@@ -91,11 +91,15 @@ function stubInvoice({
   statusBefore = "SENT",
   statusAfter = statusBefore,
   sessionId = "ps-abc",
+  paidBefore = 0,
+  paidAfter = paidBefore,
 }: {
   tenantId?: string;
   statusBefore?: string;
   statusAfter?: string;
   sessionId?: string | null;
+  paidBefore?: number;
+  paidAfter?: number;
 } = {}) {
   invoiceFindUniqueMock.mockReset();
   invoiceFindUniqueMock
@@ -105,8 +109,9 @@ function stubInvoice({
       status: statusBefore,
       invoiceNumber: "INV-001",
       xenditSessionId: sessionId,
+      totalPaid: paidBefore,
     }) // reconciler pre-read
-    .mockResolvedValueOnce({ status: statusAfter }); // reconciler post-read
+    .mockResolvedValueOnce({ status: statusAfter, totalPaid: paidAfter }); // reconciler post-read
 }
 
 /** Same, minus the route's tenant-check read — for calling the reconciler
@@ -309,6 +314,15 @@ describe("POST /api/invoices/[id]/refresh-payment — outcomes", () => {
     expect(body.code).toBe("UPDATED");
     expect(body.statusAfter).toBe("OVERDUE");
     expect(body.message).toContain("Link lama dihapus");
+  });
+
+  it("reports a partial payment on an OVERDUE invoice even though its status stays OVERDUE", async () => {
+    stubInvoice({ statusBefore: "OVERDUE", statusAfter: "OVERDUE", paidBefore: 0, paidAfter: 300000 });
+    fetchPaymentStatusMock.mockResolvedValue(COMPLETED_STATUS);
+    const body = await (await call()).json();
+    expect(body.code).toBe("UPDATED");
+    expect(body.statusAfter).toBe("OVERDUE");
+    expect(body.message).toContain("Pembayaran sebagian ditemukan");
   });
 
   it("surfaces a refund for manual handling instead of swallowing it", async () => {
