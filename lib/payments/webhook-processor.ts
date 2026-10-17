@@ -285,6 +285,7 @@ async function handleSessionCompleted(
         amount: paymentAmount,
         method,
         xenditPaymentId: paymentId,
+        channelCode: event.channelCode,
         reference: paymentId,
         notes: `${providerLabel} payment via ${channelCode}`,
       },

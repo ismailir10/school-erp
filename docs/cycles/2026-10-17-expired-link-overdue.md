@@ -1,6 +1,6 @@
 # Expired payment links: keep past-due invoices owed (2026-10-17)
 
-> **Status: spec approved by the user ("go with your recommendations") on 2026-10-17; T1–T4 built.** Two follow-ups raised after approval are open at the end of this doc.
+> **Status: spec approved by the user ("go with your recommendations") on 2026-10-17; T1–T4 built.** Two follow-ups raised after approval (T5 channel name, T6 bulk refresh) were approved by the user on 2026-10-17 and are built in the same PR.
 
 ## Context
 
@@ -110,6 +110,7 @@ production write and would re-open the gate.
 - T2 review fixes, each from a reviewer finding: (1) a new link no longer demotes `OVERDUE` / `PARTIALLY_PAID` to `SENT`, and a failed new link no longer moves them to "Link Gagal" (both paths became reachable once dead links are cleared) in `create-session/route.ts`; (2) the invoice `EXPIRED` event id is keyed on the session id, as the enrollment-fee path already is, so a reissued link that expires later is not deduplicated away; (3) one shared admin message constant.
 - T3: DOKU's Checkout check-status also returns `order.status` (`ORDER_GENERATED`, `ORDER_EXPIRED` = "Order expired without payment", changelog 24 Jul 2025). A link nobody opened has no channel and no transaction, so reading `transaction.status` alone leaves it pending forever. `parseDokuOrderStatus` now treats `ORDER_EXPIRED` as expired, **only** when the transaction state would otherwise read pending; a paid, failed or refunded transaction always wins. DOKU's docs say the field is only returned to merchants registered from December 2024 or enabled by DOKU support. **Not verified against a live DOKU response** (no credentials in this environment), and the docs show no example of an expired response.
 - T4: `docs/runbooks/payments-gateway.md` states what an expiry does per status.
+- T5: `prisma/schema.prisma` + `prisma/migrations/20261017000000_add_payment_channel_code/` (nullable `Payment.channelCode`, additive), `lib/constants/payment-channels.ts` (the activity card's formatter, lifted so one owner renders "Virtual Account BCA"), `lib/constants/payment-methods.ts` (`paymentMethodLabel(method, channelCode?)`: only gateway methods take the channel), `lib/payments/webhook-processor.ts` (stores `event.channelCode` on credit; both the notification and the status poll already carry it), `lib/finance/payments-ledger.ts`, `app/admin/invoices/[id]/page.tsx`, `components/admin/invoices/payment-activity-card.tsx` (imports the shared label). Tests: label helper, ledger rows (channel vs older payment, totals still by method), DOKU webhook asserts the channel is written. No frontend layout change: the existing method badge shows the longer text, so the `design-system` reference was cross-checked for the badge only.
 
 ## Known residuals (recorded, not built)
 
@@ -117,10 +118,27 @@ production write and would re-open the gate.
 - A stale `EXPIRED` event can clear a newer live link on an `OVERDUE` / `PARTIALLY_PAID` invoice if the sweep races an admin issuing a new link. The window is one gateway poll; the same pattern already existed for `SENT`.
 - The two-job cron-order test named under Test seams is not written: with Decision 2 the order no longer matters, and `finance-maintenance` only touches `SENT`.
 
-## Open follow-ups (raised by the user after approval, undecided)
+## Follow-ups raised after approval (approved 2026-10-17)
 
-- **Show the real VA channel** (for example "Virtual Account BCA") instead of "Virtual Account (DOKU)". The channel is in the notification and status payloads (`channel.id`), but `processPaymentEvent` drops it and `Payment` has no column for it. Needs a nullable `Payment.channelCode` column: a schema change, so it re-opens the gate.
-- **A button to refresh every unpaid invoice at once** on the admin invoice list.
+**T5 — show the real payment channel.** Every DOKU payment reads "Virtual Account (DOKU)" in the invoice's payment list and the payments ledger, so an admin cannot tell BCA from Mandiri. The channel (`channel.id`, e.g. `VIRTUAL_ACCOUNT_BCA`) arrives in the notification and the status poll, but the processor drops it and `Payment` has nowhere to keep it.
+
+- Decision: store it. A new **nullable `Payment.channelCode`** column (additive, no backfill in the migration), written when a payment is credited. User approved the schema change.
+- Decision: one label helper, reusing the formatter the admin activity card already has, so "Virtual Account BCA" reads the same everywhere. A payment with no stored channel (every payment before this change, and any Xendit payment link) keeps today's label.
+- Decision: **no automatic backfill.** Older rows keep the generic label. A script to fill the last 90 days from stored webhook payloads would be a production write; offered at ship time, not built.
+- AC: a DOKU payment credited with channel `VIRTUAL_ACCOUNT_BCA` shows "Virtual Account BCA" in the invoice's payment list and in the payments ledger (rows and CSV); a payment without a stored channel shows "Virtual Account (DOKU)" as before; the method filter and totals still group by method.
+
+**T6 — refresh every unpaid invoice from the invoice list.** The user asked for a button that updates all unpaid invoices, and agreed to the recommendation: it covers **every** unpaid invoice that holds a payment link (`SENT`, `PARTIALLY_PAID`, `OVERDUE`), not the current filter or selection, **50 per click**, least recently checked first.
+
+- Decision: the server picks the batch (so a filter can never hide an unpaid invoice) and skips invoices checked in the last 10 minutes, which is what makes pressing the button again continue with the next 50. It reports how many are checked, how many changed, and how many remain.
+- Decision: same permission as the per-invoice "Cek status pembayaran" (`payments.record`), tenant-scoped, rate limited per admin, five gateway polls at a time, through the same read-only reconcile every other path uses, so no new write path.
+- UX: an outline button "Cek semua belum lunas" in the list header, with a progress state; the result toast says how many were updated and how many are left. Hidden without the permission.
+- AC: one click checks at most 50 unpaid invoices of the admin's own tenant, none of them checked in the last 10 minutes; a second click continues with the next ones; a gateway error on one invoice does not stop the rest; an admin without `payments.record` gets 403 and no button.
+- Non-goal: no background job, no progress bar across clicks, no change to the nightly sweep.
+
+Verify flows added: (T5) admin opens an invoice paid through DOKU BCA and sees "Virtual Account BCA"; an older payment still reads "Virtual Account (DOKU)". (T6) admin on `/admin/invoices` presses "Cek semua belum lunas" with more than 50 unpaid, sees "N diperbarui, M tersisa", presses again and the remainder shrinks; error case: gateway down returns a warning toast and the list stays intact.
+
+- [x] T5 Store and show the payment channel — accept: AC above (deps: schema migration approved)
+- [ ] T6 Bulk "Cek semua belum lunas" — accept: AC above (reuse: `reconcileInvoicePayment`, `limit` from `lib/finance/concurrency-limit`)
 
 ## Verification
 
