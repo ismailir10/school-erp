@@ -67,7 +67,10 @@ None. Any need for schema, credentials or production writes requires reconsideri
 
 ## Verification
 
-- Compared with staging base `c229995ea92446048595b5c976a73b2b13dc9357`. This is other backend code plus a guardian mutation response change; conservatively retain the signed-in staging gate. No frontend source or authentication changes. The exact verified code commit is recorded in the evidence-only follow-up commit.
+### Verified locally — 4cc66a3d, 2026-10-17
+
+- Compared with staging base `c229995ea92446048595b5c976a73b2b13dc9357`. This is other backend code plus a guardian mutation response change; conservatively retain the signed-in staging gate. No frontend source or authentication changes. Verified code commit: `4cc66a3da120bd6b1c8277c2027a81a2bc7db2b9`; subsequent changes only record this evidence.
+- Compared paths (`git diff --name-only c229995e..4cc66a3d`): `CLAUDE.md`, `app/api/__tests__/expired-link-past-due.test.ts`, `app/api/__tests__/guardian-invoice-payment-link.test.ts`, `app/api/guardian/invoices/[id]/payment-link/route.ts`, `docs/cycles/2026-10-17-staging-payment-provider.md`, `lib/payments/__tests__/invoice-link-provider.test.ts`, `lib/payments/link-provider.ts`, `lib/payments/reconcile.ts`, `lib/payments/registry.ts`, `lib/payments/session.ts`, `lib/payments/webhook-processor.ts`, `lib/payments/xendit/__tests__/legacy-invoice-status.test.ts`, `lib/payments/xendit/client.ts`.
 - Production build passed on Node 24.15. A first sandboxed build cached a local port-binding error; deleting this task's generated `.next` cache and rebuilding with local port permission passed without source/config changes.
 - Full Vitest: **637 files passed, 2 skipped; 7,460 tests passed, 42 todo**, 204.76 seconds. Logs: `/private/tmp/pr666-followup-vitest.log`.
 - Source ESLint: **0 warnings**, excluding generated Prisma output. Build typecheck and separate worker typecheck passed.
