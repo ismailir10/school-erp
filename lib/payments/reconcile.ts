@@ -82,6 +82,8 @@ export type ReconcileResult = {
   processorStatus?: string;
   /** True when the identical gateway state had already been processed. */
   duplicate?: boolean;
+  /** Only on UNAVAILABLE: why the gateway could not answer (e.g. ORDER_NOT_FOUND). */
+  unavailableReason?: string;
 };
 
 /**
@@ -299,6 +301,7 @@ export async function reconcileInvoicePayment(
       gatewayStatus: null,
       statusBefore: before.status,
       statusAfter: before.status,
+      unavailableReason: status.unavailableReason,
     };
   }
 

@@ -62,9 +62,12 @@ function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 400) {
 }
 
 function fixture(
-  overrides: { postStatus?: number; postBody?: unknown; invoice?: Partial<typeof baseInvoice> } = {},
+  overrides: {
+    postStatus?: number; postBody?: unknown; invoice?: Partial<typeof baseInvoice>;
+    replaceStatus?: number; replaceBody?: unknown;
+  } = {},
 ) {
-  const { postStatus = 201, postBody = { id: "pay-1" } } = overrides;
+  const { postStatus = 201, postBody = { id: "pay-1" }, replaceStatus = 200, replaceBody = { outcome: "REPLACED", url: "https://pay.example/new", created: true } } = overrides;
   const invoice = { ...baseInvoice, ...overrides.invoice };
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
     if (input === "/api/invoices/inv-1/payments" && init?.method === "POST") {
@@ -72,6 +75,9 @@ function fixture(
     }
     if (input.endsWith("/reverse") && init?.method === "POST") {
       return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    if (input === "/api/invoices/inv-1/replace-payment-link" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse(replaceBody, replaceStatus < 400, replaceStatus));
     }
     if (input === "/api/invoices/inv-1/void" && init?.method === "POST") {
       return Promise.resolve(jsonResponse({ ok: true }));
@@ -559,5 +565,134 @@ describe("InvoiceDetailPage — WhatsApp reminder to the wali", () => {
     await screen.findByText("Kontak Wali");
     expect(screen.queryByTestId("invoice-whatsapp-reminder")).not.toBeInTheDocument();
     expect(screen.queryByText(/Belum ada nomor WhatsApp wali/)).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — Buat link baru (replace the payment link)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const withLink = { xenditPaymentUrl: "https://pay.example/old" };
+  const replaceButton = () => screen.findByTestId("invoice-replace-link-btn");
+  async function openMenu() {
+    const user = userEvent.setup();
+    await screen.findByRole("button", { name: "Catat Pembayaran" });
+    await user.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    return user;
+  }
+
+  it("an unpaid invoice that owes money and holds a link offers it in the overflow menu", async () => {
+    fixture({ invoice: withLink });
+    render(<InvoiceDetailPage />);
+    await openMenu();
+    expect(await replaceButton()).toHaveTextContent("Buat link baru");
+  });
+
+  it.each([
+    ["no link", { xenditPaymentUrl: null }],
+    ["no create capability", { ...withLink, capabilities: { create: false, recordPayment: true, void: true } }],
+    ["a PAID invoice", { ...withLink, status: "PAID", totalPaid: 1000000 }],
+    ["a CANCELLED invoice", { ...withLink, status: "CANCELLED" }],
+    ["nothing left to pay", { ...withLink, totalPaid: 1000000 }],
+  ])("is not offered with %s", async (_name, invoice) => {
+    fixture({ invoice });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    // The overflow menu may not exist at all; open it when it does.
+    const more = screen.queryByRole("button", { name: "Aksi lainnya" });
+    if (more) await userEvent.setup().click(more);
+    expect(screen.queryByTestId("invoice-replace-link-btn")).not.toBeInTheDocument();
+  });
+
+  it("asks before doing anything: the confirmation explains the old link, Batal sends nothing", async () => {
+    const fetchMock = fixture({ invoice: withLink });
+    render(<InvoiceDetailPage />);
+    const user = await openMenu();
+    await user.click(await replaceButton());
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Ganti link pembayaran?" });
+    expect(within(dialog).getByText("Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat.")).toBeInTheDocument();
+    expect(posts(fetchMock, "/replace-payment-link")).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(posts(fetchMock, "/replace-payment-link")).toHaveLength(0);
+  });
+
+  it("confirming posts once, toasts that the link is ready and reloads the invoice", async () => {
+    const fetchMock = fixture({ invoice: withLink });
+    render(<InvoiceDetailPage />);
+    const user = await openMenu();
+    await user.click(await replaceButton());
+    const dialog = await screen.findByRole("alertdialog", { name: "Ganti link pembayaran?" });
+    const loadsBefore = fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length;
+
+    await user.click(within(dialog).getByRole("button", { name: "Buat link baru" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Link baru siap. Kirim ke wali lewat WhatsApp."));
+    expect(posts(fetchMock, "/replace-payment-link")).toHaveLength(1);
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length).toBe(loadsBefore + 1),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("when the gateway shows it was already paid, the server's message is toasted and the invoice reloads", async () => {
+    const message = "Pembayaran sudah masuk dan dicatat. Link baru tidak dibuat.";
+    const fetchMock = fixture({ invoice: withLink, replaceBody: { outcome: "PAID", message } });
+    render(<InvoiceDetailPage />);
+    const user = await openMenu();
+    await user.click(await replaceButton());
+    const dialog = await screen.findByRole("alertdialog", { name: "Ganti link pembayaran?" });
+    const loadsBefore = fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length;
+
+    await user.click(within(dialog).getByRole("button", { name: "Buat link baru" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(message));
+    expect(toast.success).not.toHaveBeenCalledWith("Link baru siap. Kirim ke wali lewat WhatsApp.");
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length).toBe(loadsBefore + 1),
+    );
+  });
+
+  it("an API error is toasted in the server's words and the invoice still reloads", async () => {
+    const error = "Link belum bisa diperiksa. Coba lagi sebentar lagi.";
+    const fetchMock = fixture({ invoice: withLink, replaceStatus: 502, replaceBody: { error } });
+    render(<InvoiceDetailPage />);
+    const user = await openMenu();
+    await user.click(await replaceButton());
+    const dialog = await screen.findByRole("alertdialog", { name: "Ganti link pembayaran?" });
+    const loadsBefore = fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length;
+
+    await user.click(within(dialog).getByRole("button", { name: "Buat link baru" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(error));
+    expect(toast.success).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length).toBe(loadsBefore + 1),
+    );
+  });
+
+  it("a network failure toasts a calm message instead of the raw error", async () => {
+    const fetchMock = fixture({ invoice: withLink });
+    render(<InvoiceDetailPage />);
+    const user = await openMenu();
+    await user.click(await replaceButton());
+    const dialog = await screen.findByRole("alertdialog", { name: "Ganti link pembayaran?" });
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input: string, init?: RequestInit) =>
+      input.endsWith("/replace-payment-link") ? Promise.reject(new Error("socket hang up")) : original(input, init),
+    );
+    const loadsBefore = fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length;
+
+    await user.click(within(dialog).getByRole("button", { name: "Buat link baru" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Link baru belum berhasil dibuat. Periksa koneksi lalu coba lagi."));
+    // The server may already have cleared the link before the connection dropped.
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length).toBe(loadsBefore + 1),
+    );
   });
 });

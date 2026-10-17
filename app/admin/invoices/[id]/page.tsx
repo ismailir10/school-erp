@@ -20,7 +20,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
-import { Ban, CreditCard, FileText, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
 import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
@@ -32,6 +32,7 @@ import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
 import { hasReceipt } from "@/lib/finance/invoice-receipt";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 
 // Same `Control` extraction `useZodForm` produces (input values in, the
 // schema's parsed output out) — `payForm.control`'s exact type, so
@@ -218,6 +219,8 @@ export default function InvoiceDetailPage() {
   const [voiding, setVoiding] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [refreshingPayment, setRefreshingPayment] = useState(false);
+  const [replaceLinkOpen, setReplaceLinkOpen] = useState(false);
+  const [replacingLink, setReplacingLink] = useState(false);
   // Bumped after a manual refresh so the activity panel re-fetches — a
   // reconciliation can append a WebhookEvent row the panel would otherwise
   // miss until a full page reload.
@@ -445,6 +448,38 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  /**
+   * "Buat link baru" — swap the stored link for a fresh one. The server asks the gateway
+   * first: a payment already made is recorded instead (outcome PAID, no new link), and an
+   * unreadable gateway leaves the old link alone. Every outcome ends the dialog and reloads,
+   * because even a failed replacement can have dropped the old link.
+   */
+  async function handleReplaceLink() {
+    setReplacingLink(true);
+    try {
+      const res = await fetch(`/api/invoices/${id}/replace-payment-link`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "Link baru belum berhasil dibuat. Coba lagi sebentar lagi.");
+      } else if (d.outcome === "PAID") {
+        toast.success(d.message);
+      } else {
+        toast.success("Link baru siap. Kirim ke wali lewat WhatsApp.");
+      }
+      // Close before the reload swaps the page for its skeleton and unmounts the dialog.
+      setReplaceLinkOpen(false);
+      setActivityKey((k) => k + 1);
+      await fetchInvoice();
+    } catch {
+      toast.error("Link baru belum berhasil dibuat. Periksa koneksi lalu coba lagi.");
+      setReplaceLinkOpen(false);
+      // The request may have reached the server before the connection dropped.
+      await fetchInvoice();
+    } finally {
+      setReplacingLink(false);
+    }
+  }
+
   async function handleVoidInvoice() {
     setVoiding(true);
     const res = await fetch(`/api/invoices/${id}/void`, { method: "POST" });
@@ -496,6 +531,10 @@ export default function InvoiceDetailPage() {
   // Nor is there anything left to fetch once it is Lunas (FIN-20).
   const canRefreshPayment = invoice.capabilities?.recordPayment &&
     !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
+
+  // Only while the link can still be paid: the server answers 409 for anything else.
+  const canReplaceLink = !!invoice.capabilities?.create && !!invoice.xenditPaymentUrl &&
+    (UNPAID_INVOICE_STATUSES as readonly string[]).includes(invoice.status) && remaining > 0;
 
   // FINX-9: the same kuitansi a guardian downloads, once money has landed.
   // A plain new-tab open — the route answers with a PDF, not a page to
@@ -575,6 +614,17 @@ export default function InvoiceDetailPage() {
           ...(receiptAction && invoice.status === "PAID" ? [receiptAction] : []),
         ]}
         menuActions={[
+          ...(canReplaceLink
+            ? [
+                {
+                  label: "Buat link baru",
+                  icon: <Link2 size={14} aria-hidden="true" />,
+                  onClick: () => setReplaceLinkOpen(true),
+                  disabled: replacingLink,
+                  testId: "invoice-replace-link-btn",
+                } satisfies DetailPageHeaderAction,
+              ]
+            : []),
           ...(receiptAction && invoice.status !== "PAID" ? [receiptAction] : []),
           ...(canVoid
             ? [
@@ -588,6 +638,17 @@ export default function InvoiceDetailPage() {
               ]
             : []),
         ]}
+      />
+
+      {/* Replace the payment link — the old one may still take a payment until it expires */}
+      <ConfirmDialog
+        open={replaceLinkOpen}
+        onOpenChange={(o) => !replacingLink && setReplaceLinkOpen(o)}
+        title="Ganti link pembayaran?"
+        description="Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat."
+        onConfirm={handleReplaceLink}
+        confirmLabel="Buat link baru"
+        loading={replacingLink}
       />
 
       {/* Void Confirmation */}
