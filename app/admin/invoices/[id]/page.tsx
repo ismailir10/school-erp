@@ -22,8 +22,10 @@ import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
 import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
+import { stampReminder } from "@/lib/finance/stamp-reminder";
+import { userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
-import { formatRupiah, formatDateShort } from "@/lib/format";
+import { formatRupiah, formatDateShort, formatRelativeTime } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
@@ -50,6 +52,7 @@ type InvoiceDetail = {
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
   paymentLinkError: string | null;
+  lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
 };
@@ -250,6 +253,24 @@ export default function InvoiceDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
+
+  // The "Chat WhatsApp" anchor stamps the reminder from its click handler, which
+  // never calls preventDefault: the new tab has to open synchronously or mobile
+  // browsers block it. A failed stamp toasts; WhatsApp has opened anyway.
+  // A second tap while the stamp is in flight still opens the link but does not POST again.
+  const stampingRef = useRef(false);
+  const handleStampReminder = useCallback(() => {
+    if (stampingRef.current) return;
+    stampingRef.current = true;
+    stampReminder(id)
+      .then((stamp) =>
+        setInvoice((prev) =>
+          prev ? { ...prev, lastRemindedAt: stamp.lastRemindedAt, remindCount: stamp.remindCount, lastRemindedByName: "Anda" } : prev,
+        ),
+      )
+      .catch((err) => toast.error(userMessage(err, "Pengingat belum tercatat.")))
+      .finally(() => { stampingRef.current = false; });
+  }, [id]);
 
   // R2-ADMIN-12: the invoices list row menu links here with ?bayar=1 so
   // "Catat Pembayaran" lands straight in the existing dialog. Honoured once,
@@ -774,6 +795,13 @@ export default function InvoiceDetailPage() {
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
               {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}
+              {(canRemind || invoice.lastRemindedAt) && (
+                <p className="mt-2 text-xs text-muted-foreground" data-testid="invoice-last-reminded" aria-live="polite">
+                  {invoice.lastRemindedAt
+                    ? `Terakhir diingatkan ${formatRelativeTime(invoice.lastRemindedAt)}${invoice.lastRemindedByName ? ` · oleh ${invoice.lastRemindedByName}` : ""}`
+                    : "Belum diingatkan"}
+                </p>
+              )}
               {canRemind &&
                 (reminderUrl ? (
                   <Button
@@ -784,6 +812,8 @@ export default function InvoiceDetailPage() {
                     // Base UI would otherwise mark the anchor role="button"; it navigates.
                     role="link"
                     data-testid="invoice-whatsapp-reminder"
+                    // Stamping needs payments.record; without it the link still opens, unrecorded.
+                    onClick={invoice.capabilities?.recordPayment ? handleStampReminder : undefined}
                     render={
                       <a
                         href={reminderUrl}

@@ -18,9 +18,10 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
+import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, Wallet, Banknote, CreditCard } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
@@ -269,6 +270,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   const [checkingRowId, setCheckingRowId] = useState<string | null>(null);
   const [checkingAll, setCheckingAll] = useState(false);
   const [creatingLinks, setCreatingLinks] = useState(false);
+  const [reminderQueueOpen, setReminderQueueOpen] = useState(false);
   const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
   const [overflowConfirm, setOverflowConfirm] = useState<{
     total: number;
@@ -729,6 +731,12 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                 {checkingAll ? "Memeriksa..." : "Cek semua belum lunas"}
               </Button>
             )}
+            {capabilities.recordPayment && (
+              <Button size="sm" variant="outline" onClick={() => setReminderQueueOpen(true)}>
+                <MessageCircle size={14} className="mr-1.5" />
+                Pengingat WhatsApp
+              </Button>
+            )}
             {capabilities.create && (
               <>
                 <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
@@ -917,6 +925,17 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         confirmLabel="Ya, Batalkan"
         destructive
       />
+
+      {/* WhatsApp reminder queue (cycle 2026-10-17-payment-link-reminders) —
+          same permission as "Cek semua belum lunas"; making a missing link
+          from inside it additionally needs `create`. */}
+      {capabilities.recordPayment && (
+        <ReminderQueueDialog
+          open={reminderQueueOpen}
+          onOpenChange={setReminderQueueOpen}
+          capabilities={{ create: capabilities.create }}
+        />
+      )}
 
       {/* Manual single-invoice creation — own component handles Dialog/Sheet
           switch internally and pushes to detail page on success. */}

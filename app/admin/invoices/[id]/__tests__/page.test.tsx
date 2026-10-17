@@ -43,6 +43,9 @@ const baseInvoice = {
   status: "PARTIALLY_PAID",
   xenditPaymentUrl: null as string | null,
   paymentLinkError: null,
+  lastRemindedAt: null as string | null,
+  lastRemindedByName: null as string | null,
+  remindCount: 0,
   student: {
     name: "Ahmad",
     nickname: null,
@@ -65,8 +68,13 @@ function fixture(
   overrides: {
     postStatus?: number; postBody?: unknown; invoice?: Partial<typeof baseInvoice>;
     replaceStatus?: number; replaceBody?: unknown;
+    reminderStatus?: number; reminderBody?: unknown;
   } = {},
 ) {
+  const {
+    reminderStatus = 200,
+    reminderBody = { lastRemindedAt: new Date().toISOString(), remindCount: 1, waUrl: "https://wa.me/6281234567890" },
+  } = overrides;
   const { postStatus = 201, postBody = { id: "pay-1" }, replaceStatus = 200, replaceBody = { outcome: "REPLACED", url: "https://pay.example/new", created: true } } = overrides;
   const invoice = { ...baseInvoice, ...overrides.invoice };
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
@@ -78,6 +86,9 @@ function fixture(
     }
     if (input === "/api/invoices/inv-1/replace-payment-link" && init?.method === "POST") {
       return Promise.resolve(jsonResponse(replaceBody, replaceStatus < 400, replaceStatus));
+    }
+    if (input === "/api/invoices/inv-1/reminder" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse(reminderBody, reminderStatus < 400, reminderStatus));
     }
     if (input === "/api/invoices/inv-1/void" && init?.method === "POST") {
       return Promise.resolve(jsonResponse({ ok: true }));
@@ -557,6 +568,84 @@ describe("InvoiceDetailPage — WhatsApp reminder to the wali", () => {
     render(<InvoiceDetailPage />);
     expect(await screen.findByText(/Belum ada nomor WhatsApp wali/)).toBeInTheDocument();
     expect(screen.queryByTestId("invoice-whatsapp-reminder")).not.toBeInTheDocument();
+  });
+
+  it("tapping Chat WhatsApp stamps the reminder (keepalive POST, no preventDefault) and the card says it was just reminded", async () => {
+    const fetchMock = fixture({ invoice: { status: "OVERDUE", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(screen.getByTestId("invoice-last-reminded")).toHaveTextContent("Belum diingatkan");
+
+    // fireEvent returns false when a handler called preventDefault.
+    expect(fireEvent.click(wa)).toBe(true);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("invoice-last-reminded")).toHaveTextContent("Terakhir diingatkan baru saja · oleh Anda"),
+    );
+    const call = posts(fetchMock, "/reminder");
+    expect(call).toHaveLength(1);
+    expect(call[0]![1]).toMatchObject({ method: "POST", keepalive: true });
+  });
+
+  it("without payments.record the link still opens but a tap records nothing", async () => {
+    const fetchMock = fixture({
+      invoice: {
+        status: "OVERDUE",
+        capabilities: { create: true, recordPayment: false, void: true },
+        ...withGuardian(ibu),
+      },
+    });
+    render(<InvoiceDetailPage />);
+
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(wa).toHaveAttribute("href", expect.stringContaining("https://wa.me/"));
+    expect(fireEvent.click(wa)).toBe(true);
+
+    await Promise.resolve();
+    expect(posts(fetchMock, "/reminder")).toHaveLength(0);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("a second tap while the stamp is in flight opens the link again but does not POST twice", async () => {
+    const fetchMock = fixture({ invoice: { status: "OVERDUE", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    expect(fireEvent.click(wa)).toBe(true);
+    expect(fireEvent.click(wa)).toBe(true);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("invoice-last-reminded")).toHaveTextContent("Terakhir diingatkan baru saja"),
+    );
+    expect(posts(fetchMock, "/reminder")).toHaveLength(1);
+  });
+
+  it("a refused stamp (429) toasts the server's words and leaves the line as it was", async () => {
+    fixture({
+      invoice: { status: "OVERDUE", ...withGuardian(ibu) },
+      reminderStatus: 429,
+      reminderBody: { error: "Terlalu banyak permintaan" },
+    });
+    render(<InvoiceDetailPage />);
+
+    fireEvent.click(await screen.findByTestId("invoice-whatsapp-reminder"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Terlalu banyak permintaan"));
+    expect(screen.getByTestId("invoice-last-reminded")).toHaveTextContent("Belum diingatkan");
+  });
+
+  it("shows when and by whom the invoice was last reminded", async () => {
+    fixture({
+      invoice: {
+        status: "OVERDUE",
+        lastRemindedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+        lastRemindedByName: "Bu Nur",
+        ...withGuardian(ibu),
+      },
+    });
+    render(<InvoiceDetailPage />);
+    expect(await screen.findByTestId("invoice-last-reminded")).toHaveTextContent("Terakhir diingatkan 3 hari lalu · oleh Bu Nur");
   });
 
   it.each(["PAID", "CANCELLED", "DRAFT"])("a %s invoice has nothing to chase", async (status) => {

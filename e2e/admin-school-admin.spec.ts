@@ -226,3 +226,55 @@ test.describe("Class-session substitute swap", () => {
     }
   });
 });
+
+// Cycle 2026-10-17-payment-link-reminders (T8): the WhatsApp reminder queue on the
+// invoice list. The app only opens wa.me (the admin presses send), so the test
+// aborts the external navigation and checks what the app itself records.
+test.describe("SCHOOL_ADMIN reminder queue", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.context().addCookies([{
+      name: "school-erp-session",
+      value: SCHOOL_ADMIN_USER_ID,
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+    }]);
+  });
+
+  test("opens from /admin/invoices, lists a wa.me link and records the reminder on tap", async ({ page }) => {
+    // Never reach WhatsApp: the popup opens, its navigation is cut. Popups ignore
+    // page.route, so the route lives on the context.
+    await page.context().route("https://wa.me/**", (route) => route.abort());
+
+    await page.goto("/admin/invoices");
+    await page.getByRole("button", { name: "Pengingat WhatsApp" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Pengingat WhatsApp" });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+    const openLink = dialog.getByRole("link", { name: /Buka WhatsApp/ });
+    // A seeded unpaid invoice may not hold a payment link yet; make one first.
+    const makeLink = dialog.getByRole("button", { name: "Buat link dulu" }).first();
+    await expect(openLink.or(makeLink).first()).toBeVisible({ timeout: 15_000 });
+    if ((await openLink.count()) === 0) {
+      await makeLink.click();
+      await expect(openLink.first()).toBeVisible({ timeout: 30_000 });
+    }
+
+    const row = dialog.getByRole("listitem").filter({ has: openLink }).first();
+    expect(await row.getByRole("link", { name: /Buka WhatsApp/ }).getAttribute("href")).toMatch(/^https:\/\/wa\.me\/\d+/);
+
+    const [popup, stamp] = await Promise.all([
+      page.context().waitForEvent("page"),
+      page.waitForResponse(
+        (r) => r.url().includes("/reminder") && r.request().method() === "POST" && r.status() === 200,
+      ),
+      row.getByRole("link", { name: /Buka WhatsApp/ }).click(),
+    ]);
+    expect(stamp.ok()).toBe(true);
+    await popup.close();
+
+    await expect(row).toContainText("Diingatkan baru saja", { timeout: 10_000 });
+  });
+});
