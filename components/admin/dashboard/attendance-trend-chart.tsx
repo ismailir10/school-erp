@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StatTile } from "@/components/ui/stat-tile";
 import { ArrowRight, ChartNoAxesColumnIncreasing } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
@@ -180,14 +181,5 @@ function TrendPill({
   value: number;
   className?: string;
 }) {
-  return (
-    <div className="rounded-lg border bg-muted/30 px-3 py-2">
-      <div className="text-caption font-medium text-muted-foreground">
-        {label}
-      </div>
-      <div className={`font-currency text-h2 font-semibold tabular-nums ${className ?? ""}`}>
-        {value}
-      </div>
-    </div>
-  );
+  return <StatTile label={label} value={value} size="md" mono valueClassName={className} className="bg-muted/30 px-3 py-2" />;
 }
