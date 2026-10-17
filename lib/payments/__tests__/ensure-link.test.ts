@@ -1,17 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { findUnique, createSession } = vi.hoisted(() => ({ findUnique: vi.fn(), createSession: vi.fn() }));
+const { findUnique, createSession, after, revalidateTag } = vi.hoisted(() => ({
+  findUnique: vi.fn(),
+  createSession: vi.fn(),
+  after: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({ prisma: { invoice: { findUnique } } }));
 vi.mock("@/lib/payments/session", () => ({ createPaymentSessionForInvoice: createSession }));
+vi.mock("next/server", () => ({ after }));
+vi.mock("next/cache", () => ({ revalidateTag }));
 
-import { ensurePaymentLink } from "@/lib/payments/ensure-link";
+import { ensurePaymentLink, scheduleRelink, staleLinkCleared } from "@/lib/payments/ensure-link";
 
 const row = (over: Record<string, unknown> = {}) => ({ tenantId: "t1", status: "OVERDUE", xenditPaymentUrl: null, ...over });
 const call = () => ensurePaymentLink("inv1", "t1", "https://app.test", { waitForWinnerMs: 0 });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  after.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
   findUnique.mockResolvedValue(row());
   createSession.mockResolvedValue({ paymentUrl: "https://checkout.doku.com/new", created: true });
@@ -72,5 +80,70 @@ describe("what it reports", () => {
   it("a thrown gateway error is FAILED", async () => {
     createSession.mockRejectedValue(new Error("gateway down"));
     expect(await call()).toEqual({ kind: "FAILED" });
+  });
+});
+
+describe("staleLinkCleared", () => {
+  it("drops the link and its error, and stamps the check time so an open creation claim loses", () => {
+    const now = new Date("2026-10-17T03:00:00Z");
+    expect(staleLinkCleared(now)).toEqual({
+      xenditSessionId: null,
+      xenditPaymentUrl: null,
+      paymentLinkError: null,
+      paymentCheckedAt: now,
+    });
+  });
+});
+
+describe("scheduleRelink", () => {
+  const schedule = () => scheduleRelink("inv1", "t1", "https://app.test", "RECORD PAYMENT");
+  const runAfter = () => after.mock.calls[0][0]();
+
+  it("defers the work until the response is out, then makes the link without waiting on a winner", async () => {
+    schedule();
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(createSession).not.toHaveBeenCalled();
+    await runAfter();
+    expect(createSession).toHaveBeenCalledWith("inv1", "t1", "https://app.test", {
+      holdClaimOnFailure: true,
+      waitForWinnerMs: 0,
+      now: undefined,
+    });
+  });
+
+  it("busts the parent caches when a new link was made", async () => {
+    schedule();
+    await runAfter();
+    expect(revalidateTag).toHaveBeenCalledWith("parent-invoice-list", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("student-invoices", { expire: 0 });
+  });
+
+  it("leaves the caches alone when no new link was made", async () => {
+    createSession.mockResolvedValue(null);
+    findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce({ status: "OVERDUE" });
+    schedule();
+    await runAfter();
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("swallows a failure inside the callback, logged under the caller's tag", async () => {
+    findUnique.mockRejectedValue(new Error("db down"));
+    schedule();
+    await expect(runAfter()).resolves.toBeUndefined();
+    expect(console.error).toHaveBeenCalledWith("[RECORD PAYMENT] relink failed", {
+      invoiceId: "inv1",
+      error: "db down",
+    });
+  });
+
+  it("a scheduler that throws does not propagate", () => {
+    after.mockImplementation(() => {
+      throw new Error("outside a request scope");
+    });
+    expect(schedule).not.toThrow();
+    expect(console.error).toHaveBeenCalledWith("[RECORD PAYMENT] could not schedule relink", {
+      invoiceId: "inv1",
+      error: "outside a request scope",
+    });
   });
 });

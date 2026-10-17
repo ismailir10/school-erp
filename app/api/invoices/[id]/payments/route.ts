@@ -13,6 +13,9 @@ import { recomputeInvoiceFromPayments } from "@/lib/finance/invoice-payment-stat
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { isGatewayPayment } from "@/lib/constants/payment-methods";
 import { formatRupiah } from "@/lib/format";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
+import { scheduleRelink, staleLinkCleared } from "@/lib/payments/ensure-link";
+import { rateLimit } from "@/lib/rate-limit";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +24,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (!rateLimit(`record-payment:${session.id}`, 20, 60_000).success) {
+    return NextResponse.json(
+      { error: "Terlalu banyak pencatatan dalam waktu singkat. Tunggu sebentar lalu coba lagi." },
+      { status: 429 },
+    );
+  }
+
   const { id: invoiceId } = await params;
+  const tenantId = session.tenantId;
   // recordPaymentSchema existed for exactly this endpoint but was never wired
   // in — the hand-rolled check let any `method` string persist verbatim
   // (Payment.method is a plain String column, no DB enum). `validateBody`'s
@@ -81,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const existing = await tx.payment.findFirst({ where: { invoiceId, idempotencyKey } });
         if (existing) {
           if (existing.requestHash !== requestHash) throw new Error("RETRY_MISMATCH");
-          return { payment: existing, replayed: true };
+          return { payment: existing, replayed: true, relink: false };
         }
       }
       if (fresh.status === "CANCELLED") throw new Error("CANCELLED");
@@ -119,6 +130,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await tx.invoice.update({ where: { id: invoiceId }, data: { paidAt: backdatedPaidAt } });
       }
 
+      // Still owing: the old link still charges the pre-payment balance (paying it would
+      // be flagged as an overpayment), so drop it and make a new one below. Dropped after
+      // the recompute, which reads `xenditPaymentUrl` to pick the unpaid status. An
+      // invoice that is no longer owing keeps its link fields as they were.
+      const relink =
+        (UNPAID_INVOICE_STATUSES as readonly string[]).includes(after.status) &&
+        totalDueDec.gt(after.totalPaid);
+      if (relink) {
+        await tx.invoice.update({ where: { id: invoiceId }, data: staleLinkCleared(new Date()) });
+      }
+
       await recordAudit(
         {
           tenantId: session.tenantId!,
@@ -138,7 +160,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tx,
       );
 
-      return { payment: p, replayed: false };
+      return { payment: p, replayed: false, relink };
     });
 
     // Manual payment writes Invoice.status + Invoice.totalPaid; bust the
@@ -146,6 +168,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // pick up the new state immediately (UAT-2026-05-03 INV-01 vector).
     revalidateTag("parent-invoice-list", { expire: 0 });
     revalidateTag("student-invoices", { expire: 0 });
+
+    if (result.relink) scheduleRelink(invoiceId, tenantId, new URL(req.url).origin, "RECORD PAYMENT");
     return NextResponse.json(result.payment, { status: result.replayed ? 200 : 201 });
   } catch (e) {
     if (e instanceof Error) {
