@@ -37,8 +37,19 @@ export const maxDuration = 60;
 /** Per call. A session create is about a second; 25 at 5 at a time stays well inside `maxDuration`. */
 const BATCH_SIZE = 25;
 const CONCURRENCY = 5;
-/** Stop starting new links after this long; the rest stay for the next press. */
-const START_DEADLINE_MS = 40_000;
+/**
+ * Stop starting new links after this long; the rest stay for the next press.
+ *
+ * It has to leave room for a creation's WHOLE retry budget, not one attempt: a gateway create
+ * times out at 10 s and `withRetry` makes up to 3 attempts with 0.25 s and 1 s backoffs, so one
+ * link can take 31.25 s. A create that starts just before the cutoff must still finish, with
+ * the remaining count and the response, inside `maxDuration`:
+ * 60 s - 32 s (worst-case create, rounded up) - 6 s (count query, response, scheduling) = 22 s.
+ */
+const MAX_DURATION_MS = 60_000;
+const WORST_CASE_CREATE_MS = 32_000;
+const RESPONSE_OVERHEAD_MS = 6_000;
+const START_DEADLINE_MS = MAX_DURATION_MS - WORST_CASE_CREATE_MS - RESPONSE_OVERHEAD_MS;
 
 export async function POST(req: Request) {
   const session = await getSession();

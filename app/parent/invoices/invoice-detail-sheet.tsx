@@ -105,7 +105,14 @@ export function InvoiceDetailSheet({
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
-  const [requestingLink, setRequestingLink] = useState(false);
+  // The invoice a link request is in flight for (not a bare flag): the sheet is reused for
+  // whichever invoice the parent opens next, and a response must only ever touch the invoice
+  // that asked for it.
+  const [requestingLinkFor, setRequestingLinkFor] = useState<string | null>(null);
+  const shownInvoiceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    shownInvoiceIdRef.current = invoice?.id ?? null;
+  }, [invoice]);
 
   if (open && invoiceId && invoiceId !== prevInvoiceId) {
     setPrevInvoiceId(invoiceId);
@@ -188,19 +195,28 @@ export function InvoiceDetailSheet({
   // ours; nothing the server or gateway says is shown (voice.md).
   async function requestPaymentLink() {
     if (!invoice) return;
+    const requestedId = invoice.id;
     const previousUrl = invoice.xenditPaymentUrl;
-    setRequestingLink(true);
+    // The parent can close this sheet and open another invoice while the request is out. A
+    // late answer for the first must not put ITS checkout link on the second (they would pay
+    // a different invoice from the one on screen), nor toast about it.
+    const stillShown = () => shownInvoiceIdRef.current === requestedId;
+    setRequestingLinkFor(requestedId);
     try {
-      const res = await fetch(`/api/guardian/invoices/${invoice.id}/payment-link`, { method: "POST" });
+      const res = await fetch(`/api/guardian/invoices/${requestedId}/payment-link`, { method: "POST" });
       const d = (await res.json().catch(() => ({}))) as { paymentUrl?: string; created?: boolean };
       if (res.ok && d.paymentUrl) {
         const url = d.paymentUrl;
-        setInvoice((prev) => (prev ? { ...prev, xenditPaymentUrl: url } : prev));
-        toast.success(
-          previousUrl && !d.created
-            ? "Link pembayaran masih berlaku. Silakan ketuk Bayar sekarang."
-            : "Link pembayaran sudah siap. Silakan ketuk Bayar sekarang.",
-        );
+        setInvoice((prev) => (prev && prev.id === requestedId ? { ...prev, xenditPaymentUrl: url } : prev));
+        if (stillShown()) {
+          toast.success(
+            previousUrl && !d.created
+              ? "Link pembayaran masih berlaku. Silakan ketuk Bayar sekarang."
+              : "Link pembayaran sudah siap. Silakan ketuk Bayar sekarang.",
+          );
+        }
+      } else if (!stillShown()) {
+        // Nothing to say about an invoice that is no longer on screen.
       } else if (res.status === 409) {
         toast.info("Tagihan ini sudah tidak bisa dibayar lewat link. Kami muat ulang statusnya.");
         onRefreshStatus?.();
@@ -210,12 +226,13 @@ export function InvoiceDetailSheet({
         toast.error("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
       }
     } catch {
-      toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+      if (stillShown()) toast.error("Koneksi terputus. Coba lagi sebentar ya.");
     } finally {
-      setRequestingLink(false);
+      setRequestingLinkFor((current) => (current === requestedId ? null : current));
     }
   }
 
+  const requestingLink = requestingLinkFor === invoice.id;
   const remaining = invoice.totalDue - invoice.totalPaid;
   const isPaid = invoice.status === "PAID";
   const isCancelled = invoice.status === "CANCELLED";

@@ -101,7 +101,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     } as never);
 
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/new-url",
+      paymentUrl: "https://checkout.xendit.co/web/new-url", created: true,
     });
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -152,7 +152,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
         lines: [{ labelSnapshot: "SPP" }],
       } as never);
       vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-        paymentUrl: "https://checkout.doku.com/new",
+        paymentUrl: "https://checkout.doku.com/new", created: true,
       });
       vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
@@ -260,7 +260,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     } as never);
 
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/retry-success",
+      paymentUrl: "https://checkout.xendit.co/web/retry-success", created: true,
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
@@ -326,7 +326,7 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
 
     // Helper is called only for B and C. B succeeds, C throws.
     vi.mocked(createPaymentSessionForInvoice)
-      .mockResolvedValueOnce({ paymentUrl: "https://checkout.xendit.co/web/B-url" })
+      .mockResolvedValueOnce({ paymentUrl: "https://checkout.xendit.co/web/B-url", created: true })
       .mockRejectedValueOnce(new Error("Xendit 500"));
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -436,7 +436,7 @@ describe("POST /api/xendit/create-session — request validation", () => {
       lines: [{ labelSnapshot: "SPP" }],
     } as never);
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/single",
+      paymentUrl: "https://checkout.xendit.co/web/single", created: true,
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 

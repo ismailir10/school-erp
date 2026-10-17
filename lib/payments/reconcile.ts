@@ -229,8 +229,15 @@ export async function reconcileInvoicePayment(
       };
     }
   } else {
-    await prisma.invoice.update({
-      where: { id: invoiceId },
+    // Never overwrite a link-creation claim: while `createPaymentSessionForInvoice` is making a
+    // link it holds a `paymentCheckedAt` stamp in the future, and an admin refresh landing in
+    // that window would otherwise erase it and let a second creator in. A check stamps "now",
+    // so it only ever replaces a stamp that is not in the future.
+    await prisma.invoice.updateMany({
+      where: {
+        id: invoiceId,
+        OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lte: now } }],
+      },
       data: { paymentCheckedAt: now },
     });
   }

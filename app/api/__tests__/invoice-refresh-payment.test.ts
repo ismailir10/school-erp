@@ -431,12 +431,17 @@ describe("reconcileInvoicePayment — paymentCheckedAt stamp + throttle", () => 
     const out = await reconcileInvoicePayment(INVOICE_ID, { now: NOW });
 
     expect(out.code).toBe("NO_CHANGE");
-    expect(invoiceUpdateMock).toHaveBeenCalledWith({
-      where: { id: INVOICE_ID },
+    // A guarded write: it replaces a stamp that is null or not in the future, so it can never
+    // erase a link-creation claim (a stamp in the future, see lib/payments/session.ts).
+    expect(invoiceUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: INVOICE_ID,
+        OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lte: NOW } }],
+      },
       data: { paymentCheckedAt: NOW },
     });
-    expect(invoiceUpdateManyMock).not.toHaveBeenCalled();
-    expect(invoiceUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(invoiceUpdateMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(
       fetchPaymentStatusMock.mock.invocationCallOrder[0],
     );
   });

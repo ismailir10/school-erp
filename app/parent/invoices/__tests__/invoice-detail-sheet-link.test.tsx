@@ -129,6 +129,78 @@ describe("no link (expired and cleared)", () => {
   });
 });
 
+describe("the parent moves to another invoice while a request is out", () => {
+  const byId: Record<string, typeof invoice> = {
+    "inv-A": { ...invoice, id: "inv-A", invoiceNumber: "INV-A" },
+    "inv-B": { ...invoice, id: "inv-B", invoiceNumber: "INV-B" },
+  };
+
+  async function setUp(reply: { status: number; body: Record<string, unknown> }) {
+    let release: () => void = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/payment-link")) {
+        await hold;
+        return { ok: reply.status < 300, status: reply.status, json: async () => reply.body };
+      }
+      return { ok: true, status: 200, json: async () => byId[url.split("/").pop()!] };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const ui = (id: string) => <InvoiceDetailSheet open onOpenChange={() => {}} invoiceId={id} />;
+    const view = render(ui("inv-A"));
+    await user.click(await screen.findByRole("button", { name: "Buat link pembayaran" }));
+    view.rerender(ui("inv-B")); // the parent opened B while A's request is still out
+    await screen.findAllByText("INV-B");
+    return { release: async () => { release(); await new Promise((r) => setTimeout(r, 50)); }, fetchMock };
+  }
+
+  it("A's checkout link never lands on B: B still offers to make its own, and nothing is toasted", async () => {
+    const { release } = await setUp({ status: 200, body: { paymentUrl: "https://checkout.doku.com/invoice-A", created: true } });
+
+    await release();
+
+    expect(screen.queryByRole("link", { name: /Bayar sekarang/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buat link pembayaran" })).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("B does not look busy because A's request is in flight, and can make its own link", async () => {
+    await setUp({ status: 200, body: { paymentUrl: "https://checkout.doku.com/invoice-A", created: true } });
+    expect(screen.getByRole("button", { name: "Buat link pembayaran" })).toBeEnabled();
+  });
+
+  it("a failure for A is not toasted over B either", async () => {
+    const { release } = await setUp({ status: 502, body: { error: "x" } });
+    await release();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Buat link pembayaran" })).toBeEnabled();
+  });
+
+  it("closing the sheet while the request is out drops the answer too", async () => {
+    let release: () => void = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/payment-link")) {
+          await hold;
+          return { ok: true, status: 200, json: async () => ({ paymentUrl: "https://checkout.doku.com/invoice-A", created: true }) };
+        }
+        return { ok: true, status: 200, json: async () => byId["inv-A"] };
+      }),
+    );
+    const user = userEvent.setup();
+    const view = render(<InvoiceDetailSheet open onOpenChange={() => {}} invoiceId="inv-A" />);
+    await user.click(await screen.findByRole("button", { name: "Buat link pembayaran" }));
+    view.rerender(<InvoiceDetailSheet open={false} onOpenChange={() => {}} invoiceId="inv-A" />);
+    release();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
 describe("a link is shown (maybe already expired)", () => {
   const withLink = { xenditPaymentUrl: "https://checkout.doku.com/old", status: "SENT" };
 

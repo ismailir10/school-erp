@@ -386,7 +386,7 @@ async function handleSessionExpired(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true, dueDate: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -400,6 +400,17 @@ async function handleSessionExpired(
     if (fresh.status === "CANCELLED") {
       return {
         type: "IGNORED:already_cancelled" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
+    // An expiry for a session that has since been replaced says nothing about the live one: once a
+    // parent or admin makes a new link on the same invoice (cycle 2026-10-17-payment-link-on-demand),
+    // a delayed expiry for the old session must not clear the new link. Only possible to tell
+    // apart when the event names its session (Xendit does; a DOKU notification does not, and
+    // every DOKU session of an invoice shares its invoice number anyway).
+    if (event.sessionId && fresh.xenditSessionId && event.sessionId !== fresh.xenditSessionId) {
+      return {
+        type: "IGNORED:stale_session" as const,
         invoiceNumber: fresh.invoiceNumber,
       };
     }
@@ -447,6 +458,7 @@ async function handleSessionExpired(
   if (
     result.type === "IGNORED:already_paid" ||
     result.type === "IGNORED:already_cancelled" ||
+    result.type === "IGNORED:stale_session" ||
     result.type === "IGNORED:status_not_revertible"
   ) {
     await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);

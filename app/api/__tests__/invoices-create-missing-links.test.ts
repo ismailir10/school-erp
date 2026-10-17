@@ -157,6 +157,36 @@ describe("running the batch", () => {
     }
   });
 
+  // A creation can take up to 31.25 s (3 attempts of 10 s plus backoffs), so work may only START
+  // early enough that the slowest one still ends inside maxDuration (60 s).
+  it("never starts a creation so late that its full retry budget would run past maxDuration", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const t0 = new Date("2026-10-17T10:00:00Z").getTime();
+      vi.setSystemTime(t0);
+      findManyMock.mockResolvedValue(ids(25));
+      const startedAt: number[] = [];
+      ensureMock.mockImplementation(async () => {
+        startedAt.push(Date.now() - t0);
+        await Promise.resolve();
+        // every attempt times out: the whole retry budget is spent
+        if (Date.now() < t0 + 31_250) vi.setSystemTime(t0 + 31_250);
+        return { kind: "FAILED" };
+      });
+      countMock.mockResolvedValue(25);
+
+      const body = await (await POST(req())).json();
+
+      // the first five were admitted at t0 and burn 31.25 s; the next five would start at 31.25 s,
+      // which is past the 22 s cutoff, so the rest are skipped
+      expect(startedAt).toHaveLength(5);
+      for (const start of startedAt) expect(start + 31_250).toBeLessThan(60_000 - 6_000);
+      expect(body).toMatchObject({ created: 0, failed: 5, skipped: 20 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("nothing to do is a clean zero", async () => {
     expect(await (await POST(req())).json()).toEqual({ created: 0, failed: 0, skipped: 0, remaining: 0 });
     expect(ensureMock).not.toHaveBeenCalled();

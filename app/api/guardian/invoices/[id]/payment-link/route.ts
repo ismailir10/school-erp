@@ -5,6 +5,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { ensurePaymentLink } from "@/lib/payments/ensure-link";
 import { reconcileInvoicePayment } from "@/lib/payments/reconcile";
 
+/** A pre-check poll (10 s) plus a creation with its full retry budget (31.25 s) fits inside this. */
+export const maxDuration = 60;
+
 /** Two asks about one invoice inside this window poll the gateway once. */
 const MIN_CHECK_INTERVAL_MS = 10_000;
 

@@ -40,14 +40,14 @@ const PAST_DUE = "2026-10-16";
 const DUE_TODAY = "2026-10-17";
 const NOT_YET_DUE = "2026-10-18";
 
-function expiredEvent() {
+function expiredEvent(sessionId = "sess-1") {
   return {
     provider: "doku" as const,
     eventId: "manual:doku:inv1:EXPIRED:sess-1",
     eventType: "manual.refresh.expired",
     kind: "SESSION_EXPIRED" as const,
     referenceId: "inv1",
-    sessionId: "sess-1",
+    sessionId,
     paymentId: null,
     amount: null,
     currency: null,
@@ -123,6 +123,37 @@ describe("session expiry — untouched", () => {
       status: "PENDING_PAYMENT_LINK",
       ...DEAD_LINK_CLEARED,
     });
+  });
+});
+
+describe("session expiry — a superseded session", () => {
+  // A parent or admin replaced the link, so S2 is live and a late expiry for S1 arrives.
+  async function expireWith(eventSession: string, storedSession: string | null, status = "OVERDUE") {
+    const row = { id: "inv1", status, invoiceNumber: "INV-2026-0001", dueDate: PAST_DUE, xenditSessionId: storedSession };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+    await processPaymentEvent(expiredEvent(eventSession));
+    return invoiceUpdate.mock.calls[0]?.[0] ?? null;
+  }
+
+  it("an expiry for the OLD session leaves the live replacement link untouched", async () => {
+    expect(await expireWith("sess-1", "sess-2")).toBeNull();
+  });
+
+  it.each(["SENT", "PARTIALLY_PAID"])("also for a %s invoice", async (status) => {
+    expect(await expireWith("sess-1", "sess-2", status)).toBeNull();
+  });
+
+  it("an expiry for the CURRENT session still clears it", async () => {
+    expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: { xenditSessionId: null, xenditPaymentUrl: null } });
+  });
+
+  it("an event that names no session (DOKU) behaves as before", async () => {
+    const row = { id: "inv1", status: "OVERDUE", invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: "sess-2" };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+    await processPaymentEvent({ ...expiredEvent(), sessionId: null });
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1);
   });
 });
 

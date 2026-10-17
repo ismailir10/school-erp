@@ -120,7 +120,7 @@ production write and would re-open the gate.
 ## Known residuals (recorded, not built)
 
 - A not-yet-due `SENT` invoice whose link expires early goes to "Link Gagal", outside the outstanding statuses, and `finance-maintenance` never promotes it afterwards (Decision 2, accepted). Rare in practice since links expire at the end of the due date.
-- A stale `EXPIRED` event can clear a newer live link on an `OVERDUE` / `PARTIALLY_PAID` invoice if the sweep races an admin issuing a new link. The window is one gateway poll; the same pattern already existed for `SENT`.
+- ~~A stale `EXPIRED` event can clear a newer live link~~ Fixed in the owner review of #666 (cycle `2026-10-17-payment-link-on-demand`): the expiry handler ignores an event whose session is not the invoice's current one.
 - The two-job cron-order test named under Test seams is not written: with Decision 2 the order no longer matters, and `finance-maintenance` only touches `SENT`.
 
 ## Follow-ups raised after approval (approved 2026-10-17)
