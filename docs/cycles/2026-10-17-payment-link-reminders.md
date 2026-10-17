@@ -174,4 +174,44 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is a
 
 ## Verification
 
+### Verified locally — 0630c4c, 2026-10-17
+- Gate (runtime head 7c80c80; 0630c4c only fixes an e2e locator):
+  - `npm run lint` → exit 0.
+  - `npx vitest run` → Test Files 642 passed | 2 skipped; Tests 7546 passed | 42 todo.
+  - `verify-rls-coverage` → 43/43; `verify-api-auth` → 216/216.
+  - `DEMO_MODE=true npm run build` → exit 0.
+  - `npx playwright test` → 241 passed (5.9m), no flaky, on a freshly seeded disposable Postgres. It ran with `launchOptions.executablePath=/opt/pw-browsers/chromium` from an uncommitted local config, because the pinned Playwright 1.64 wants Chromium revision 1248 and the container ships 1194.
+- App: production build with demo auth, the Xendit/DOKU test stubs and `CRON_SECRET`, on a disposable local Postgres (port 54329), http://localhost:3000. Staging check: pending (`needs-staging-verify`).
+- Walked:
+  1. **Reminder queue (`u_school_admin`).**
+     - The list was ready in 376 ms and the queue opened in 458 ms: "81 tagihan di antrean", footer "1 tagihan belum lunas tanpa nomor WhatsApp wali".
+     - "Buat link dulu" → 200 REPLACED in 165 ms. The row turned into "Buka WhatsApp" with a `https://wa.me/62…?text=Assalamu'alaikum Bapak/Ibu …` href, and focus moved to it.
+     - Tapping it opened the popup (wa.me aborted by the harness) and the stamp POST returned 200 with `remindCount` 1. The row read "Diingatkan baru saja · oleh Anda".
+     - On reopening, the first row is a not-yet-reminded family. The detail page read "Terakhir diingatkan baru saja · oleh Admin Sekolah".
+  2. **Replace link.**
+     - The detail ⋯ menu "Buat link baru" showed the confirm "Ganti link pembayaran? / Link lama akan diganti. Jika orang tua sudah membayar lewat link lama, pembayarannya tetap tercatat. / Batal / Buat link baru".
+     - The route returned 200 REPLACED and the toast "Link baru siap. Kirim ke wali lewat WhatsApp."
+  3. **Partial payment, past due (INV-2026-0003, due 2026-10-07).**
+     - Made a link, then recorded Rp 425.000 by transfer → 201.
+     - The status stays OVERDUE, paid 425.000 of 850.000.
+     - Admin kuitansi → 200. Parent (`u_rightjet`) kuitansi for their partly paid, now-overdue INV-2026-0002 → 200 application/pdf; another family's invoice → 404.
+  4. **Nightly job** (`GET /api/cron/finance-maintenance` with the cron secret and UA):
+     - Response: `{"overduePromoted":14,"linkHeal":{"created":50,"failed":0,"skipped":0,"remaining":28},"linkHealError":null}`.
+     - Partly paid past-due invoices now read OVERDUE. 28 of 82 owing invoices remain without a link for the next night: the cap of 50 works.
+  - Edge: a guardian with no number is left out and counted in the footer. A teacher gets 403 from GET `/api/invoices/reminders` and from POST reminder.
+  - Error: a gateway failure on replace is covered by route tests (502 keeps the old link). The demo gateway cannot be made to fail from the UI.
+- Console/network:
+  - The only errors are 404s for `/_vercel/insights` and `/_vercel/speed-insights` scripts, which are not served outside Vercel. This is pre-existing and not this diff.
+  - No 5xx anywhere. The server log has no errors.
+- Screenshots: `.verify-shots/reminder-queue-desktop.png`, `reminder-row-after-stamp.png`, `replace-link-confirm.png`, `partial-overdue-detail.png`, `reminder-queue-phone.png`. At iPhone 13 with touch there is no horizontal overflow and no target under 44 px. Without touch emulation the buttons render compact, by design: the 44 px floor is touch-only.
+- Highlight: `reminder-queue-desktop.png`, `reminder-queue-phone.png`.
+- design-system: the queue uses the kit's ResponsiveFormDialog, StatusBadge, Button and EmptyState, the type scale and tabular Rupiah, with no new colors or tokens. This was checked against `.claude/standards/design-system.html` dialog, badge and list patterns.
+- Rounds: 2.
+  - Round 1 found the e2e row locator rooted at the dialog (it found nothing inside each list item) and fixed it in 0630c4c.
+  - Round 2 found nothing to fix.
+- Not checked:
+  - A visibly different URL after a replace or a manual payment: the demo gateway mints one fixed URL per invoice (`demo.*.local/checkout/<id>`). Route and unit tests assert the clear-then-create sequence.
+  - The 7-day expiry and the single "Sisa tagihan" line reaching DOKU: the stubs drop them. Unit tests pin the payload.
+  - A real DOKU sandbox response for an unopened order: no sandbox credentials here.
+
 ## Ship Notes
