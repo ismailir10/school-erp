@@ -154,6 +154,13 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is a
 
 ## Implementation
 
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5.
+  - T1, T2, T3 and T4 run in parallel: disjoint files.
+  - T5 and T6 then run in parallel.
+  - T7 and T8 run sequentially: both touch the admin invoice detail page, and T8 needs T4's API.
+  - T9 is inline: a docs-only sweep after the code lands.
+  - Workers edit and test only; the driver runs the gate, reviews and commits one commit per task.
+
 ## Verification
 
 ## Ship Notes
