@@ -71,6 +71,21 @@ describe("getPaymentsLedger", () => {
     invoice: { id: `inv-${id}`, invoiceNumber, student: { name: studentName } },
   });
 
+  it("labels a gateway payment with its stored channel, and an older one with the method", async () => {
+    paymentFindMany.mockResolvedValue([
+      { ...payment("p1", 500000, "DOKU", "Aisyah", "INV-1"), channelCode: "VIRTUAL_ACCOUNT_BCA" },
+      payment("p2", 300000, "DOKU", "Budi", "INV-2"),
+    ]);
+    paymentGroupBy.mockResolvedValue([{ method: "DOKU", _sum: { amount: 800000 }, _count: { _all: 2 } }]);
+
+    const { rows, summary } = await getPaymentsLedger("t1", "2026-06-13", "2026-06-13");
+
+    expect(rows.map((r) => r.methodLabel)).toEqual(["Virtual Account BCA", "Virtual Account (DOKU)"]);
+    // Totals still group by method, not by channel.
+    expect(summary.byMethod).toHaveLength(1);
+    expect(summary.byMethod[0]).toMatchObject({ method: "DOKU", count: 2 });
+  });
+
   it("maps rows and computes per-method summary", async () => {
     paymentFindMany.mockResolvedValue([
       payment("p1", 500000, "CASH", "Aisyah", "INV-1"),

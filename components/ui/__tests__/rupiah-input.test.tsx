@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { RupiahInput, parseRupiahText } from "../rupiah-input";
@@ -255,7 +255,16 @@ describe("RupiahInput", () => {
 
     expect(input).toHaveValue("12.500.000");
     expect(onValue).toHaveBeenLastCalledWith(12500000);
-    await waitFor(() => expect(input.selectionStart).toBe(2));
+    // Wait for the component's caret restoration, then check the insertion point in digits:
+    // either side of a thousands separator represents the same position in the amount.
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(input.value.slice(input.selectionStart!).replace(/\D/g, "")).toHaveLength(6);
+
+    await user.keyboard("3");
+    expect(input).toHaveValue("123.500.000");
+    expect(onValue).toHaveBeenLastCalledWith(123500000);
   });
 
   it("ignores a typed minus by default and keeps the magnitude", async () => {

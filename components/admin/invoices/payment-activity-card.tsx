@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime, formatRupiah } from "@/lib/format";
+import { paymentChannelLabel } from "@/lib/constants/payment-channels";
 
 /**
  * Aktivitas Pembayaran — admin-side audit panel rendered on the invoice
@@ -58,34 +59,6 @@ type WebhookEventRow = {
 // `channel.id`). Deliberately vendor-neutral: describes what the row means,
 // not which provider's event vocabulary produced it.
 const METHOD_TOOLTIP = "Metode pembayaran tidak tercatat untuk event ini.";
-
-// Bank/channel acronyms that stay uppercase when a DOKU `channel.id` like
-// "VIRTUAL_ACCOUNT_BCA" is rendered human-readably, rather than being
-// title-cased into "Bca".
-const CHANNEL_ACRONYMS = new Set(["BCA", "BRI", "BNI", "BTN", "BNC", "CIMB", "DOKU"]);
-
-function titleCaseChannelWord(word: string): string {
-  if (CHANNEL_ACRONYMS.has(word)) return word;
-  if (word.length === 0) return word;
-  return word.charAt(0) + word.slice(1).toLowerCase();
-}
-
-/**
- * Renders a raw gateway channel enum (e.g. DOKU's `channel.id`
- * "VIRTUAL_ACCOUNT_BANK_MANDIRI") as human-readable Bahasa copy
- * ("Virtual Account Bank Mandiri") rather than dumping the enum verbatim.
- * Xendit rows never populate `paymentMethod`, so this only ever runs on
- * DOKU-shaped values.
- */
-function formatPaymentMethod(raw: string): string {
-  const withoutPrefix = raw.startsWith("VIRTUAL_ACCOUNT_")
-    ? raw.slice("VIRTUAL_ACCOUNT_".length)
-    : raw;
-  const words = withoutPrefix.split("_").filter(Boolean).map(titleCaseChannelWord);
-  return raw.startsWith("VIRTUAL_ACCOUNT_")
-    ? `Virtual Account ${words.join(" ")}`
-    : words.join(" ");
-}
 
 function formatPaidAt(iso: string | null): string {
   // "26 Apr 2026 · 16:23", pinned to Asia/Jakarta so SSR and the browser agree.
@@ -243,7 +216,7 @@ export function PaymentActivityCard({
                       <TooltipContent>{METHOD_TOOLTIP}</TooltipContent>
                     </Tooltip>
                   ) : (
-                    <span>Metode: {formatPaymentMethod(evt.displayFields.paymentMethod)}</span>
+                    <span>Metode: {paymentChannelLabel(evt.displayFields.paymentMethod)}</span>
                   )}
                 </div>
 

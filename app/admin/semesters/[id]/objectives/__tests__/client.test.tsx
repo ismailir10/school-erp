@@ -247,6 +247,8 @@ describe("IndicatorEditDialog", () => {
       <IndicatorEditDialog open onOpenChange={vi.fn()} indicator={indicator} onSaved={onSaved} />,
     );
 
+    // Let the dialog's initial autofocus settle before editing another field.
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Isi indikator" })).toHaveFocus());
     const orderField = screen.getByRole("spinbutton", { name: "Urutan" });
     await user.clear(orderField);
     await user.type(orderField, "7");

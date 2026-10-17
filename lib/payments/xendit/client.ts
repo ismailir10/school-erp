@@ -203,9 +203,11 @@ export async function createXenditSession(
         Authorization: getAuthHeader(),
       },
       body: JSON.stringify(body),
+      // Keep the complete retry budget inside the invoice claim and bulk function duration.
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
-    // Fetch itself threw — DNS, TLS, socket reset, etc. No HTTP response to
+    // Fetch itself threw — DNS, TLS, socket reset, timeout, etc. No HTTP response to
     // classify, so retriable network error with status=null.
     const message = err instanceof Error ? err.message : "Xendit network error";
     throw new GatewayApiError({

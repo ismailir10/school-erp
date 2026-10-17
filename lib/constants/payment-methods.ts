@@ -3,6 +3,8 @@
  * in app/admin/invoices/[id]/page.tsx; lifted here so the invoice detail and
  * the payments ledger render identical labels.
  */
+import { paymentChannelLabel } from "@/lib/constants/payment-channels";
+
 export const PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "XENDIT", "DOKU", "OTHER"] as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -35,6 +37,15 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   OTHER: "Lainnya",
 };
 
-export function paymentMethodLabel(method: string): string {
+/**
+ * Label for a payment. A gateway payment that stored the rail it came in on
+ * reads as that rail ("Virtual Account BCA"); everything else — manual
+ * payments, and gateway payments from before the channel was kept — reads as
+ * its method.
+ */
+export function paymentMethodLabel(method: string, channelCode?: string | null): string {
+  if (channelCode && (GATEWAY_PAYMENT_METHODS as readonly string[]).includes(method)) {
+    return paymentChannelLabel(channelCode);
+  }
   return PAYMENT_METHOD_LABELS[method] ?? method;
 }

@@ -239,6 +239,7 @@ export async function getPaymentsLedger(
         paidAt: true,
         amount: true,
         method: true,
+        channelCode: true,
         reference: true,
         invoice: {
           select: {
@@ -267,7 +268,7 @@ export async function getPaymentsLedger(
     paidAt: p.paidAt.toISOString(),
     amount: Number(p.amount),
     method: p.method,
-    methodLabel: paymentMethodLabel(p.method),
+    methodLabel: paymentMethodLabel(p.method, p.channelCode),
     reference: p.reference,
     invoiceNumber: p.invoice.invoiceNumber,
     studentName: p.invoice.student.name,

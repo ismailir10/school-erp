@@ -264,4 +264,34 @@ describe("createXenditSession — XenditApiError classification", () => {
     const err = await createXenditSession(baseParams).catch((e) => e);
     expect(err.message).toBe("service temporarily unavailable");
   });
+
+  it("aborts a hanging create after 10 seconds as a retriable network error", async () => {
+    vi.useFakeTimers();
+    try {
+      // Native AbortSignal.timeout uses internal timers; replace its clock with Vitest's.
+      const controller = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+        setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), ms);
+        return controller.signal;
+      });
+      vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      })));
+
+      const outcome = createXenditSession(baseParams).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(controller.signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(timeout).toHaveBeenCalledWith(10_000);
+      expect(await outcome).toMatchObject({
+        name: "GatewayApiError",
+        code: "network",
+        status: null,
+        retriable: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

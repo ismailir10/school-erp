@@ -54,7 +54,7 @@ describe("retryPaymentLinks — mixed success/failure", () => {
 
     vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (invoiceId === "i-3") throw new Error("Xendit 503");
-      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
+      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}`, created: true };
     });
 
     const out = await retryPaymentLinks("tnt-1", null);
@@ -164,7 +164,7 @@ describe("retryPaymentLinks — 25-invoice with 3 Xendit failures", () => {
     const failingIds = new Set(["i-5", "i-12", "i-20"]);
     vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
       if (failingIds.has(invoiceId)) throw new Error("Xendit 503");
-      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
+      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}`, created: true };
     });
 
     const out = await retryPaymentLinks("tnt-1", null);
@@ -203,7 +203,7 @@ describe("retryPaymentLinks — 25-invoice happy path", () => {
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
 
     vi.mocked(createPaymentSessionForInvoice).mockImplementation(async (invoiceId) => {
-      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}` };
+      return { paymentUrl: `https://checkout.xendit.co/web/${invoiceId}`, created: true };
     });
 
     const out = await retryPaymentLinks("tnt-1", null);

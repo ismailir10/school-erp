@@ -279,6 +279,38 @@ describe("POST /api/invoices/[id]/refresh-payment — outcomes", () => {
     expect(processPaymentEventMock.mock.calls[0][0].kind).toBe("SESSION_EXPIRED");
   });
 
+  it("keys an expiry on the session, so a reissued link that expires later is not deduped away", async () => {
+    const eventIds: string[] = [];
+    for (const sessionId of ["ps-first", "ps-second"]) {
+      stubInvoice({ statusBefore: "OVERDUE", statusAfter: "OVERDUE", sessionId });
+      fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+      processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
+      await call();
+      eventIds.push(processPaymentEventMock.mock.calls.at(-1)?.[0].eventId);
+    }
+    expect(eventIds[0]).not.toBe(eventIds[1]);
+    expect(eventIds[0]).toContain("ps-first");
+  });
+
+  it("tells the admin the dead link was cleared when an expired SENT invoice is past due", async () => {
+    stubInvoice({ statusBefore: "SENT", statusAfter: "OVERDUE" });
+    fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "PROMOTED_OVERDUE" } });
+    const body = await (await call()).json();
+    expect(body.code).toBe("UPDATED");
+    expect(body.message).toContain("Link lama dihapus");
+  });
+
+  it("reports a cleared link even though an OVERDUE invoice keeps its status", async () => {
+    stubInvoice({ statusBefore: "OVERDUE", statusAfter: "OVERDUE" });
+    fetchPaymentStatusMock.mockResolvedValue({ ...PENDING_STATUS, state: "EXPIRED", rawStatus: "EXPIRED" });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
+    const body = await (await call()).json();
+    expect(body.code).toBe("UPDATED");
+    expect(body.statusAfter).toBe("OVERDUE");
+    expect(body.message).toContain("Link lama dihapus");
+  });
+
   it("surfaces a refund for manual handling instead of swallowing it", async () => {
     stubInvoice({ statusBefore: "PAID", statusAfter: "PAID" });
     fetchPaymentStatusMock.mockResolvedValue({
@@ -399,12 +431,17 @@ describe("reconcileInvoicePayment — paymentCheckedAt stamp + throttle", () => 
     const out = await reconcileInvoicePayment(INVOICE_ID, { now: NOW });
 
     expect(out.code).toBe("NO_CHANGE");
-    expect(invoiceUpdateMock).toHaveBeenCalledWith({
-      where: { id: INVOICE_ID },
+    // A guarded write: it replaces a stamp that is null or not in the future, so it can never
+    // erase a link-creation claim (a stamp in the future, see lib/payments/session.ts).
+    expect(invoiceUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: INVOICE_ID,
+        OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lte: NOW } }],
+      },
       data: { paymentCheckedAt: NOW },
     });
-    expect(invoiceUpdateManyMock).not.toHaveBeenCalled();
-    expect(invoiceUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(invoiceUpdateMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateManyMock.mock.invocationCallOrder[0]).toBeLessThan(
       fetchPaymentStatusMock.mock.invocationCallOrder[0],
     );
   });

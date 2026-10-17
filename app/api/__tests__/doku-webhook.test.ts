@@ -228,6 +228,8 @@ describe("POST /api/doku/webhook (T4 contract)", () => {
           method: "DOKU",
           xenditPaymentId: "req-ok-1",
           reference: "req-ok-1",
+          // The rail DOKU reported is kept, so the invoice can say "Virtual Account BCA".
+          channelCode: "VIRTUAL_ACCOUNT_BCA",
         }),
       }),
     );

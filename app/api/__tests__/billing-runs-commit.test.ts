@@ -246,7 +246,7 @@ describe("POST /api/billing-runs/[id]/commit — status guard", () => {
     wireHappyTx([pendingRow()]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.example.com/inv-row-1",
+      paymentUrl: "https://checkout.example.com/inv-row-1", created: true,
     });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
@@ -509,7 +509,7 @@ describe("POST /api/billing-runs/[id]/commit — concurrent claim", () => {
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.example.com/inv-row-1",
+      paymentUrl: "https://checkout.example.com/inv-row-1", created: true,
     });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
@@ -558,7 +558,7 @@ describe("POST /api/billing-runs/[id]/commit — verbatim amounts", () => {
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.example.com/inv-row-1",
+      paymentUrl: "https://checkout.example.com/inv-row-1", created: true,
     });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
@@ -635,7 +635,7 @@ describe("POST /api/billing-runs/[id]/commit — payment-link fan-out", () => {
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.example.com/inv-row-1",
+      paymentUrl: "https://checkout.example.com/inv-row-1", created: true,
     });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
@@ -664,7 +664,7 @@ describe("POST /api/billing-runs/[id]/commit — run status transitions", () => 
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x" });
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x", created: true });
     // A second row still PENDING remains after this chunk — run must not
     // flip all the way to COMMITTED yet.
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(1);
@@ -688,7 +688,7 @@ describe("POST /api/billing-runs/[id]/commit — run status transitions", () => 
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x" });
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x", created: true });
     // No PENDING rows remain after this chunk.
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
@@ -712,7 +712,7 @@ describe("POST /api/billing-runs/[id]/commit — run status transitions", () => 
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
     wireHappyTx([row]);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x" });
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x", created: true });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(3);
 
     const res = await commitRun(makeReq({ rowIds: ["row-1"] }) as never, makeParams("run-1"));
@@ -752,7 +752,7 @@ describe("POST /api/billing-runs/[id]/commit — audit (R2-ADMIN-9)", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
     wireHappyTx(rows);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x" });
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://x", created: true });
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(0);
 
     const res = await commitRun(makeReq({ rowIds: ["row-1", "row-2"] }) as never, makeParams("run-1"));
