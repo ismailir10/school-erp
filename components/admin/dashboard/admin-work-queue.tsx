@@ -33,11 +33,11 @@ const columns: LegacyColumnDef<AdminWorkItem>[] = [
   {
     accessorKey: "title",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Pekerjaan" />,
-    cell: ({ row: { original: item } }) => <div className="min-w-40 max-w-xl whitespace-normal break-words space-y-1"><p className="font-semibold">{item.title}</p><p className="text-small text-muted-foreground">{item.description}</p><p className="text-small text-muted-foreground">{kindLabels[item.kind]}</p>{item.timeLabel && <p className="text-small">{item.timeLabel}</p>}<StatusBadge status={item.state} label={stateLabels[item.state]} /></div>,
+    cell: ({ row: { original: item } }) => <div className="min-w-0 max-w-xl whitespace-normal break-words space-y-1"><p className="font-semibold">{item.title}</p><p className="text-small text-muted-foreground">{item.description}</p><p className="text-small text-muted-foreground">{kindLabels[item.kind]}</p>{item.timeLabel && <p className="text-small">{item.timeLabel}</p>}<StatusBadge status={item.state} label={stateLabels[item.state]} /></div>,
   },
   {
     id: "actions", header: "Tindakan",
-    cell: ({ row: { original: item } }) => <Link href={item.href} aria-label={`${item.actionLabel}: ${item.title}`} className={buttonVariants({ variant: "outline", className: "h-auto min-h-11 max-w-36 whitespace-normal text-left" })}>{item.actionLabel}<ArrowRight className="size-4" /></Link>,
+    cell: ({ row: { original: item } }) => <Link href={item.href} aria-label={`${item.actionLabel}: ${item.title}`} className={buttonVariants({ variant: "outline", className: "h-auto min-h-11 min-w-11 justify-center whitespace-normal text-left md:max-w-36 md:justify-start" })}><span className="sr-only md:not-sr-only">{item.actionLabel}</span><ArrowRight className="size-4 shrink-0" /></Link>,
   },
 ];
 

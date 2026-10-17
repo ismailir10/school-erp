@@ -33,7 +33,7 @@ npx playwright test                               # starts `DEMO_MODE=true npm r
 
 Run `npx playwright test` with nothing on port 3000: it starts its own server with the Xendit/DOKU test stubs from
 `playwright.config.ts`, and refuses a non-local `DATABASE_URL` (never set `E2E_ALLOW_REMOTE_DB`). E2E is required for
-any diff that touches a user flow; CI's `Playwright E2E` only runs when the PR carries the `e2e` label, so it is not a
+any diff that touches a user flow; CI's `E2E` only runs when the PR carries the `e2e` label, so it is not a
 substitute. Playwright cannot run (browsers missing, Turbopack symlink issue, …) → stop and ask; never record a
 deferral to CI.
 

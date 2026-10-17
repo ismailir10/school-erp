@@ -48,7 +48,12 @@ function BreadcrumbLink({
     defaultTagName: "a",
     props: mergeProps<"a">(
       {
-        className: cn("transition-colors hover:text-foreground", className),
+        // Text links are ~20px tall; on touch the ::after grows the hit area to 44px
+        // without changing the row's layout (same trick as Checkbox/Switch).
+        className: cn(
+          "relative transition-colors hover:text-foreground [@media(pointer:coarse)]:after:absolute [@media(pointer:coarse)]:after:inset-x-0 [@media(pointer:coarse)]:after:-inset-y-3",
+          className
+        ),
       },
       props
     ),

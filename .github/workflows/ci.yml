@@ -1,49 +1,99 @@
 name: CI
 
+# Every ready PR gets two checks, plus E2E (e2e.yml) when it carries the `e2e` label:
+#   Checks        ~20 s  docs sync + audit, hook tests, keepalive/alert/workflow self-tests
+#   Test & Build  ~5 min typecheck, lint, unit tests, RLS + API-auth guards, production build
+#
+# CI runs on PRs only, never on pushes to staging/main. A promotion PR's head is staging itself, so
+# push runs duplicated every check it already ran (15 rows on one PR). The promotion PR still runs all
+# three on the exact tree that reaches production. Draft PRs skip CI entirely (metered minutes).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [staging, main]
-  push:
-    branches: [staging, main]
   workflow_dispatch:
 
-# A new push to a PR cancels the run it supersedes. Pushes to staging/main always finish.
+# A new push to a PR cancels the run it supersedes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
-# Cost control (private repo, metered Actions minutes). Draft PRs skip CI entirely. Ready PRs
-# run lint, typecheck, unit tests and build. The heavy jobs (Playwright e2e, backup self-test)
-# live in e2e.yml.
 jobs:
-  # On a push to a base branch, skip the jobs below when the merged PR already passed them on exactly this code
-  # (same git tree). Any doubt runs them. See scripts/ci-already-verified.sh (vendored from agent-workflow).
-  verified:
-    name: Already verified on PR
-    if: github.event_name == 'push'
+  checks:
+    name: Checks
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-      actions: read
-    outputs:
-      skip: ${{ steps.check.outputs.skip }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - id: check
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: bash scripts/ci-already-verified.sh ci.yml "Lint, Typecheck & Test" "Build" "Keepalive & Alert Self-Test"
+        with:
+          fetch-depth: 0
 
-  lint-typecheck-test:
-    needs: verified
-    name: Lint, Typecheck & Test
-    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
+      # Replicates .githooks/pre-commit rule 2 so `git commit --no-verify` cannot bypass it: a PR that
+      # touches app/, components/, lib/ or prisma/ must also update README.md, CLAUDE.md or a cycle doc.
+      - name: Docs sync
+        if: github.event_name == 'pull_request'
+        run: |
+          set -eu
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(app|components|lib|prisma)/' \
+            && ! echo "$CHANGED" | grep -qE '^(README\.md|CLAUDE\.md|docs/cycles/.*\.md)$'; then
+            echo "::error::This PR changes app/, components/, lib/ or prisma/ but updates none of README.md, CLAUDE.md or docs/cycles/*.md."
+            exit 1
+          fi
+          echo "Docs sync OK"
+
+      # The presence check above only proves *a* doc was touched — README and CLAUDE.md can rot while
+      # every PR stays green. This is the truth check: the docs still describe the repo.
+      - name: Doc staleness audit
+        run: bash scripts/audit-docs.sh
+
+      - name: Workflow audit and hook regression tests
+        run: |
+          bash scripts/test-audit-docs.sh
+          bash scripts/test-hooks.sh
+
+      # The shared spec/build/verify-local/ship skills are vendored from agent-workflow. Offline checksum
+      # check: fails when a vendored file was edited here instead of upstream.
+      - name: Vendored agent-workflow skills unchanged
+        run: bash scripts/sync-agent-workflow.sh --check
+
+      # Regression guard for the two scripts that stand between a production outage and somebody
+      # finding out. Both run against local fixtures (a loopback HTTP server, a stub `gh`), so this
+      # cannot touch production. Alerting code only runs during an incident: the inline alert these
+      # replaced was broken for eighteen nights and nothing noticed, since nothing tested it.
+      - name: Shellcheck the keepalive and alert scripts
+        run: shellcheck --severity=warning scripts/keepalive-probe.sh scripts/alert-issue.sh
+
+      - name: Keepalive probe self-test
+        env:
+          # Retries exist to absorb blips in production, not to slow CI down.
+          KEEPALIVE_ATTEMPTS: '2'
+          KEEPALIVE_RETRY_DELAY: '0'
+        run: bash scripts/keepalive-probe.sh self-test
+
+      - name: Alert-issue self-test
+        run: bash scripts/alert-issue.sh self-test
+
+      # The defect that silenced backup.yml for eighteen nights was a gh call in a job with no GH_REPO
+      # and no checkout; the one that silenced every alert until 2026-10-16 was a checkout with no
+      # `contents` permission. Assert by inspection that neither can come back.
+      - name: Assert workflow gh calls have GH_REPO and checkouts can read contents
+        run: |
+          set -euo pipefail
+          # PyYAML is not guaranteed on the runner image, so do not assume it.
+          python3 -c 'import yaml' 2>/dev/null \
+            || python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          # A guard that never fires looks exactly like a clean repo, so prove it fires first.
+          python3 scripts/check-workflow-gh-repo.py --self-test
+          python3 scripts/check-workflow-gh-repo.py .github/workflows/*.yml
+
+  test-build:
+    name: Test & Build
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -70,71 +120,9 @@ jobs:
       - name: API auth coverage guard
         run: bash scripts/verify-api-auth.sh
 
-  build:
-    needs: verified
-    name: Build
-    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Next.js build (runs prisma generate via npm script)
         run: npm run build
         env:
           DEMO_MODE: "true"
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/schoolerp"
           NEXTAUTH_SECRET: "ci-build-dummy-secret"
-
-  keepalive-selftest:
-    needs: verified
-    name: Keepalive & Alert Self-Test
-    if: ${{ !cancelled() && needs.verified.outputs.skip != 'true' && (github.event.pull_request.draft != true) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Regression guard for the two scripts that stand between a production
-    # outage and somebody finding out about it. Both are exercised against
-    # local fixtures — a loopback HTTP server and a stub `gh` — so this job is
-    # fast, needs no service container, and cannot touch production.
-    #
-    # It exists because alerting code only ever runs during an incident. The
-    # inline alert this replaces was broken for eighteen consecutive nights and
-    # nothing noticed, since nothing tested it.
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Shellcheck the keepalive and alert scripts
-        run: shellcheck --severity=warning scripts/keepalive-probe.sh scripts/alert-issue.sh
-
-      - name: Run the keepalive probe self-test
-        env:
-          # Retries exist to absorb blips in production, not to slow CI down.
-          KEEPALIVE_ATTEMPTS: '2'
-          KEEPALIVE_RETRY_DELAY: '0'
-        run: bash scripts/keepalive-probe.sh self-test
-
-      - name: Run the alert-issue self-test
-        run: bash scripts/alert-issue.sh self-test
-
-      # The defect that silenced backup.yml for eighteen nights was a gh call
-      # in a job with no GH_REPO and no checkout. Assert by inspection that no
-      # such call exists in any workflow, so it cannot come back.
-      - name: Assert every workflow gh call has GH_REPO
-        run: |
-          set -euo pipefail
-          # Parsing the workflows properly beats grepping them; PyYAML is not
-          # guaranteed on the runner image, so do not assume it.
-          python3 -c 'import yaml' 2>/dev/null \
-            || python3 -m pip install --quiet --disable-pip-version-check pyyaml
-          # A guard that never fires looks exactly like a clean repo, so prove
-          # it fires first — the fixtures include the real defect's shape.
-          python3 scripts/check-workflow-gh-repo.py --self-test
-          python3 scripts/check-workflow-gh-repo.py .github/workflows/*.yml

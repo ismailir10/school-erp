@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
@@ -361,10 +362,25 @@ export default function AdminLeavePage() {
         return (
           <DataTableLinkCell
             onClick={() => openReview(r, "view")}
-            description={`${r.employee.jabatan} · ${r.employee.campus.name}`}
+            className="whitespace-normal"
+            description={
+              <>
+                <span className="hidden md:inline">
+                  {r.employee.jabatan} · {r.employee.campus.name}
+                </span>
+                <DataTableMobileMeta>
+                  <StatusBadge status={r.leaveType} label={TYPE_LABELS[r.leaveType]} />
+                  <span className="font-medium">{r.days} hari</span>
+                  <span>
+                    {formatDateShort(r.startDate)} — {formatDateShort(r.endDate)}
+                  </span>
+                  <StatusBadge status={r.status} />
+                </DataTableMobileMeta>
+              </>
+            }
           >
-            {r.employee.nama}{" "}
-            <span className="font-currency text-xs text-muted-foreground">
+            {r.employee.nama}
+            <span className="ml-2 font-currency text-xs text-muted-foreground">
               {r.employee.kode}
             </span>
           </DataTableLinkCell>
@@ -374,6 +390,8 @@ export default function AdminLeavePage() {
     {
       id: "leave",
       header: "Cuti",
+      // Type, days, dates and status sit under the name below `md`.
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const r = row.original;
         return (
@@ -421,6 +439,7 @@ export default function AdminLeavePage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {

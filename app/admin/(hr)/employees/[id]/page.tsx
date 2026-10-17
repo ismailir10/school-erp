@@ -20,13 +20,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { toast } from "sonner";
-import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
 import { DISPLAY_TIME_ZONE, formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { employeeEditFormSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
@@ -694,15 +695,15 @@ function EmployeeAttendanceContent({ employeeId }: { employeeId: string }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <Button type="button" size="icon-sm" variant="ghost" onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} aria-label="Bulan sebelumnya" className="text-muted-foreground">
-          <ChevronLeft size={16} />
-        </Button>
-        <span className="text-sm font-semibold capitalize">{monthLabel}</span>
-        <Button type="button" size="icon-sm" variant="ghost" onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} aria-label="Bulan berikutnya" className="text-muted-foreground">
-          <ChevronRight size={16} />
-        </Button>
-      </div>
+      <PeriodStepper
+        label={monthLabel}
+        onPrev={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }}
+        onNext={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }}
+        prevLabel="Bulan sebelumnya"
+        nextLabel="Bulan berikutnya"
+        className="mb-4"
+        labelClassName="capitalize"
+      />
       {attLoading ? <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-40" /></div> : data ? (
         <>
           <div className="grid grid-cols-4 gap-3 mb-4">

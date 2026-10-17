@@ -742,7 +742,7 @@ export default function InvoiceDetailPage() {
           {invoice.xenditPaymentUrl && invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
-              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-text hover:underline break-all">{invoice.xenditPaymentUrl}</a>
+              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex text-xs text-primary-text hover:underline break-all [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
               </Button>

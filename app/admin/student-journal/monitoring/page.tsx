@@ -10,7 +10,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
-import { Button } from "@/components/ui/button";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { toast } from "sonner";
 import { formatDate, formatDateShort } from "@/lib/format";
 import { weekStart } from "@/lib/student-journal/week";
@@ -19,10 +19,9 @@ import {
   CheckSquare,
   MessageSquare,
   CalendarX,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 
 // ------------------------------------------------------------------
 // Types
@@ -68,7 +67,7 @@ function formatWeekLabel(ws: string): string {
 
 function CompletionBar({ pct }: { pct: number }) {
   return (
-    <div className="flex items-center gap-2 min-w-[80px]">
+    <div className="flex items-center gap-2 min-w-[72px]">
       <Progress value={Math.min(pct, 100)} className="h-1.5 flex-1" />
       <span className="text-xs tabular-nums w-9 text-right">{pct}%</span>
     </div>
@@ -144,7 +143,15 @@ export default function MonitoringPage() {
         cell: ({ row }) => (
           <DataTableLinkCell
             href={`/admin/student-journal/classes/${row.original.classSectionId}?weekStart=${ws}`}
-            description={row.original.programName}
+            className="whitespace-normal"
+            description={
+              <>
+                <span className="block">{row.original.programName}</span>
+                <DataTableMobileMeta>
+                  <span>{row.original.studentCount} siswa</span>
+                </DataTableMobileMeta>
+              </>
+            }
           >
             {row.original.className}
           </DataTableLinkCell>
@@ -155,6 +162,7 @@ export default function MonitoringPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Siswa" />
         ),
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-sm tabular-nums">
             {row.original.studentCount}
@@ -214,29 +222,15 @@ export default function MonitoringPage() {
         description="Ringkasan pengisian per kelas untuk minggu berjalan."
         actions={
           <div className="flex items-center gap-2">
-            <Button
+            <PeriodStepper
+              label={formatWeekLabel(ws)}
+              onPrev={() => setWs((w) => addWeeks(w, -1))}
+              onNext={() => setWs((w) => addWeeks(w, 1))}
+              prevLabel="Minggu sebelumnya"
+              nextLabel="Minggu berikutnya"
               variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setWs((w) => addWeeks(w, -1))}
-              title="Minggu sebelumnya"
-              aria-label="Minggu sebelumnya"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="text-sm font-medium min-w-[140px] text-center">
-              {formatWeekLabel(ws)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setWs((w) => addWeeks(w, 1))}
-              title="Minggu berikutnya"
-              aria-label="Minggu berikutnya"
-            >
-              <ChevronRight size={14} />
-            </Button>
+              labelClassName="min-w-[104px] font-medium sm:min-w-[140px]"
+            />
           </div>
         }
       />

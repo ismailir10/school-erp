@@ -249,7 +249,7 @@ export default function PaymentsLedgerPage() {
               setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
-            className="h-9 w-40 text-sm"
+            className="h-9 w-40 text-base md:text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ export default function PaymentsLedgerPage() {
               setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
-            className="h-9 w-40 text-sm"
+            className="h-9 w-40 text-base md:text-sm"
           />
         </div>
       </div>

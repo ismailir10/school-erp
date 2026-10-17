@@ -17,12 +17,16 @@ const {
   fetchPaymentStatusMock,
   processPaymentEventMock,
   invoiceFindUniqueMock,
+  invoiceUpdateMock,
+  invoiceUpdateManyMock,
   rateLimitMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   fetchPaymentStatusMock: vi.fn(),
   processPaymentEventMock: vi.fn(),
   invoiceFindUniqueMock: vi.fn(),
+  invoiceUpdateMock: vi.fn(),
+  invoiceUpdateManyMock: vi.fn(),
   rateLimitMock: vi.fn(),
 }));
 
@@ -33,7 +37,13 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({
-  prisma: { invoice: { findUnique: invoiceFindUniqueMock } },
+  prisma: {
+    invoice: {
+      findUnique: invoiceFindUniqueMock,
+      update: invoiceUpdateMock,
+      updateMany: invoiceUpdateManyMock,
+    },
+  },
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -155,6 +165,8 @@ const COMPLETED_STATUS = {
 beforeEach(() => {
   vi.clearAllMocks();
   rateLimitMock.mockReturnValue({ success: true, remaining: 9 });
+  invoiceUpdateMock.mockResolvedValue({});
+  invoiceUpdateManyMock.mockResolvedValue({ count: 1 });
   getSessionMock.mockResolvedValue(makeSession("SCHOOL_ADMIN"));
   processPaymentEventMock.mockResolvedValue({
     httpStatus: 200,
@@ -372,5 +384,75 @@ describe("reconcileInvoicePayment — event shape + idempotency", () => {
     const out = await reconcileInvoicePayment(INVOICE_ID);
     expect(out.code).toBe("NOT_FOUND");
     expect(fetchPaymentStatusMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateManyMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("reconcileInvoicePayment — paymentCheckedAt stamp + throttle", () => {
+  const NOW = new Date("2026-10-16T08:00:00.000Z");
+
+  it("stamps paymentCheckedAt before polling on a normal reconcile", async () => {
+    stubInvoiceDirect();
+    fetchPaymentStatusMock.mockResolvedValue(PENDING_STATUS);
+
+    const out = await reconcileInvoicePayment(INVOICE_ID, { now: NOW });
+
+    expect(out.code).toBe("NO_CHANGE");
+    expect(invoiceUpdateMock).toHaveBeenCalledWith({
+      where: { id: INVOICE_ID },
+      data: { paymentCheckedAt: NOW },
+    });
+    expect(invoiceUpdateManyMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchPaymentStatusMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("answers NO_CHANGE without a gateway call when the claim finds a recent stamp", async () => {
+    stubInvoiceDirect();
+    invoiceUpdateManyMock.mockResolvedValue({ count: 0 });
+
+    const out = await reconcileInvoicePayment(INVOICE_ID, { minIntervalMs: 10_000, now: NOW });
+
+    expect(out.code).toBe("NO_CHANGE");
+    expect(out.message).toBe("Baru saja diperiksa.");
+    expect(out.statusBefore).toBe("SENT");
+    expect(out.statusAfter).toBe("SENT");
+    expect(fetchPaymentStatusMock).not.toHaveBeenCalled();
+    expect(processPaymentEventMock).not.toHaveBeenCalled();
+  });
+
+  it("claims atomically against a null or older-than-interval stamp, then polls", async () => {
+    stubInvoiceDirect();
+    fetchPaymentStatusMock.mockResolvedValue(PENDING_STATUS);
+
+    const out = await reconcileInvoicePayment(INVOICE_ID, { minIntervalMs: 10_000, now: NOW });
+
+    expect(out.code).toBe("NO_CHANGE");
+    expect(out.message).toBe("Belum ada pembayaran masuk.");
+    expect(invoiceUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: INVOICE_ID,
+        OR: [
+          { paymentCheckedAt: null },
+          { paymentCheckedAt: { lt: new Date(NOW.getTime() - 10_000) } },
+        ],
+      },
+      data: { paymentCheckedAt: NOW },
+    });
+    expect(invoiceUpdateMock).not.toHaveBeenCalled();
+    expect(fetchPaymentStatusMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stamp a missing invoice", async () => {
+    invoiceFindUniqueMock.mockReset();
+    invoiceFindUniqueMock.mockResolvedValue(null);
+
+    const out = await reconcileInvoicePayment(INVOICE_ID, { minIntervalMs: 10_000, now: NOW });
+
+    expect(out.code).toBe("NOT_FOUND");
+    expect(invoiceUpdateMock).not.toHaveBeenCalled();
+    expect(invoiceUpdateManyMock).not.toHaveBeenCalled();
   });
 });

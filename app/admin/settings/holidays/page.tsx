@@ -17,6 +17,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
@@ -125,9 +126,17 @@ export default function HolidaysPage() {
         <DataTableColumnHeader column={column} title="Nama" />
       ),
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{row.original.name}</span>
-          {row.original.isHalfDay && <Badge variant="outline" className="text-xs">½ Hari</Badge>}
+        <div className="min-w-0 whitespace-normal">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">{row.original.name}</span>
+            {row.original.isHalfDay && <Badge variant="outline" className="text-xs">½ Hari</Badge>}
+          </div>
+          <DataTableMobileMeta className="mt-1">
+            <StatusBadge
+              status={row.original.type}
+              label={TYPE_LABELS[row.original.type] ?? row.original.type}
+            />
+          </DataTableMobileMeta>
         </div>
       ),
     },

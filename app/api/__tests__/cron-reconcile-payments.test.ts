@@ -19,14 +19,14 @@ vi.mock("@/lib/payments/reconcile", () => ({
 }));
 
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
-import { POST } from "../cron/reconcile-payments/route";
+import { GET } from "../cron/reconcile-payments/route";
 
 function makeReq(opts: { authorization?: string; userAgent?: string } = {}) {
   const headers: Record<string, string> = {};
   if (opts.authorization !== undefined) headers["authorization"] = opts.authorization;
   if (opts.userAgent !== undefined) headers["user-agent"] = opts.userAgent;
   return new Request("http://localhost:3000/api/cron/reconcile-payments", {
-    method: "POST",
+    method: "GET",
     headers,
   }) as never;
 }
@@ -42,12 +42,12 @@ beforeEach(() => {
   reconcileFeeMock.mockResolvedValue({ code: "NO_CHANGE" });
 });
 
-describe("POST /api/cron/reconcile-payments — auth", () => {
+describe("GET /api/cron/reconcile-payments — auth", () => {
   it("returns 500 when CRON_SECRET is unset, without touching the DB", async () => {
     delete process.env.CRON_SECRET;
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
 
     expect(res.status).toBe(500);
     expect(findManyMock).not.toHaveBeenCalled();
@@ -55,23 +55,23 @@ describe("POST /api/cron/reconcile-payments — auth", () => {
   });
 
   it("returns 401 on a wrong bearer token", async () => {
-    const res = await POST(makeReq({ ...authed, authorization: "Bearer wrong" }));
+    const res = await GET(makeReq({ ...authed, authorization: "Bearer wrong" }));
     expect(res.status).toBe(401);
     expect(findManyMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 when the User-Agent is not vercel-cron/", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const res = await POST(makeReq({ ...authed, userAgent: "curl/8.0" }));
+    const res = await GET(makeReq({ ...authed, userAgent: "curl/8.0" }));
     expect(res.status).toBe(403);
     expect(findManyMock).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
 });
 
-describe("POST /api/cron/reconcile-payments — sweep", () => {
+describe("GET /api/cron/reconcile-payments — sweep", () => {
   it("only considers outstanding invoices that already have a payment URL", async () => {
-    await POST(makeReq(authed));
+    await GET(makeReq(authed));
 
     const where = findManyMock.mock.calls[0][0].where;
     expect(where.status).toEqual({ in: [...UNPAID_INVOICE_STATUSES] });
@@ -84,12 +84,16 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
     expect(where.xenditPaymentUrl).toEqual({ not: null });
   });
 
-  it("prioritises the most-overdue invoice and caps the batch", async () => {
-    await POST(makeReq(authed));
+  it("rotates least recently checked first, then oldest due, and caps the batch", async () => {
+    await GET(makeReq(authed));
 
     const args = findManyMock.mock.calls[0][0];
-    // dueDate is indexed on Invoice; Invoice has no updatedAt column.
-    expect(args.orderBy).toEqual({ dueDate: "asc" });
+    // Never-checked leads; every reconcile stamps paymentCheckedAt, so an
+    // unchanged invoice moves to the back and a backlog > cap is still covered.
+    expect(args.orderBy).toEqual([
+      { paymentCheckedAt: { sort: "asc", nulls: "first" } },
+      { dueDate: "asc" },
+    ]);
     expect(args.take).toBe(200);
   });
 
@@ -101,7 +105,7 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
       .mockResolvedValueOnce({ code: "UPDATED" });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -127,7 +131,7 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
     const body = await res.json();
 
     // The second invoice must still be credited — one gateway hiccup cannot
@@ -144,7 +148,7 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
       Array.from({ length: 200 }, (_, i) => ({ id: `inv-${i}` })),
     );
 
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
     const body = await res.json();
 
     expect(body.cappedAtLimit).toBe(true);
@@ -152,7 +156,7 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
   });
 
   it("does nothing and reports zero when there is no outstanding invoice", async () => {
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -161,9 +165,9 @@ describe("POST /api/cron/reconcile-payments — sweep", () => {
   });
 });
 
-describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
+describe("GET /api/cron/reconcile-payments — pendaftaran fees", () => {
   it("only polls UNPAID fees that ever got a gateway session, least recently checked first, capped", async () => {
-    await POST(makeReq(authed));
+    await GET(makeReq(authed));
 
     const arg = feeFindManyMock.mock.calls[0][0];
     // Keyed on the session, not the stored link: staff changing the amount drops
@@ -180,7 +184,7 @@ describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
     reconcileFeeMock.mockResolvedValueOnce({ code: "UPDATED" }).mockResolvedValueOnce({ code: "NO_CHANGE" });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const body = await (await POST(makeReq(authed))).json();
+    const body = await (await GET(makeReq(authed))).json();
 
     expect(reconcileFeeMock.mock.calls.map((c) => c[0])).toEqual(["fee-1", "fee-2"]);
     expect(body.enrollmentFees).toMatchObject({ scanned: 2, updated: 1, tally: { UPDATED: 1, NO_CHANGE: 1 } });
@@ -194,7 +198,7 @@ describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
     reconcileFeeMock.mockResolvedValueOnce({ code: "NEEDS_REVIEW" }).mockResolvedValueOnce({ code: "NO_CHANGE" });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const body = await (await POST(makeReq(authed))).json();
+    const body = await (await GET(makeReq(authed))).json();
 
     expect(body.enrollmentFees).toMatchObject({ needsReview: 1, updated: 0, tally: { NEEDS_REVIEW: 1, NO_CHANGE: 1 } });
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("need manual review"), { feesNeedingReview: 1 });
@@ -204,7 +208,7 @@ describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
   it("stays quiet when nothing needs review", async () => {
     feeFindManyMock.mockResolvedValue([{ id: "fee-1" }]);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const body = await (await POST(makeReq(authed))).json();
+    const body = await (await GET(makeReq(authed))).json();
     expect(body.enrollmentFees.needsReview).toBe(0);
     expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
@@ -216,7 +220,7 @@ describe("POST /api/cron/reconcile-payments — pendaftaran fees", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const res = await POST(makeReq(authed));
+    const res = await GET(makeReq(authed));
     const body = await res.json();
 
     expect(res.status).toBe(200);

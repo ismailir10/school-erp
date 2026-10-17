@@ -6,6 +6,7 @@ import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy"
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -150,6 +151,7 @@ export default function SalaryComponentsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="#" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">{row.original.sortOrder}</span>
       ),
@@ -162,15 +164,22 @@ export default function SalaryComponentsPage() {
       cell: ({ row }) => {
         const c = row.original;
         return (
-          <div className={!c.isEnabled ? "opacity-50" : ""}>
+          <div className={`whitespace-normal${!c.isEnabled ? " opacity-50" : ""}`}>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{c.label}</span>
-              <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
+              <Badge variant="outline" className="hidden text-xs font-currency md:inline-flex">{c.code}</Badge>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-xs text-muted-foreground">{CALC_LABELS[c.calcType]}</span>
               {c.isProRated && <span className="text-xs text-muted-foreground">· Pro-rata</span>}
             </div>
+            <DataTableMobileMeta className="mt-1">
+              <Badge variant="outline" className="h-auto min-w-0 max-w-full shrink whitespace-normal break-all py-0.5 text-left text-xs font-currency">{c.code}</Badge>
+              <StatusBadge
+                status={c.category}
+                label={c.category === "INCOME" ? "Pendapatan" : "Potongan"}
+              />
+            </DataTableMobileMeta>
           </div>
         );
       },

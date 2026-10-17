@@ -471,7 +471,7 @@ export default function StudentAttendancePage() {
               setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
-            className="h-9 w-40 text-sm"
+            className="h-9 w-40 text-base md:text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -483,7 +483,7 @@ export default function StudentAttendancePage() {
               setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
-            className="h-9 w-40 text-sm"
+            className="h-9 w-40 text-base md:text-sm"
           />
         </div>
         <GroupedClassSelect
@@ -781,7 +781,7 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="h-9 w-44 text-sm"
+            className="h-9 w-44 text-base md:text-sm"
           />
         </div>
         <GroupedClassSelect

@@ -9,6 +9,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -191,7 +192,16 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
       cell: ({ row }) => (
         <DataTableLinkCell
           href={`/admin/semesters/${row.original.id}/themes`}
-          description={NUMBER_LABEL[row.original.number]}
+          className="whitespace-normal"
+          description={
+            <>
+              {NUMBER_LABEL[row.original.number]}
+              {/* Status is hidden below `md`: repeat it under the name for a phone. */}
+              <DataTableMobileMeta className="mt-1">
+                <StatusBadge status={row.original.status} />
+              </DataTableMobileMeta>
+            </>
+          }
         >
           {row.original.academicYear.name}
         </DataTableLinkCell>
@@ -216,6 +226,8 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     {
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+      // Status sits under the name below `md` (DataTableMobileMeta above).
+      meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {

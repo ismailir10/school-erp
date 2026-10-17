@@ -8,14 +8,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { POST } from "../cron/finance-maintenance/route";
+import { GET } from "../cron/finance-maintenance/route";
 
 function makeReq(opts: { authorization?: string; userAgent?: string }) {
   const headers: Record<string, string> = {};
   if (opts.authorization !== undefined) headers["authorization"] = opts.authorization;
   if (opts.userAgent !== undefined) headers["user-agent"] = opts.userAgent;
   return new Request("http://localhost:3000/api/cron/finance-maintenance", {
-    method: "POST",
+    method: "GET",
     headers,
   });
 }
@@ -25,13 +25,13 @@ beforeEach(() => {
   process.env.CRON_SECRET = "test-cron-secret";
 });
 
-describe("POST /api/cron/finance-maintenance", () => {
+describe("GET /api/cron/finance-maintenance", () => {
   it("returns 500 + logs when CRON_SECRET is missing", async () => {
     delete process.env.CRON_SECRET;
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { prisma } = await import("@/lib/db");
 
-    const res = await POST(
+    const res = await GET(
       makeReq({
         authorization: "Bearer anything",
         userAgent: "vercel-cron/1.0",
@@ -51,7 +51,7 @@ describe("POST /api/cron/finance-maintenance", () => {
   it("returns 401 when bearer token is wrong", async () => {
     const { prisma } = await import("@/lib/db");
 
-    const res = await POST(
+    const res = await GET(
       makeReq({
         authorization: "Bearer wrong-token",
         userAgent: "vercel-cron/1.0",
@@ -65,7 +65,7 @@ describe("POST /api/cron/finance-maintenance", () => {
   });
 
   it("returns 401 when authorization header is missing", async () => {
-    const res = await POST(
+    const res = await GET(
       makeReq({ userAgent: "vercel-cron/1.0" }) as never,
     );
     expect(res.status).toBe(401);
@@ -75,7 +75,7 @@ describe("POST /api/cron/finance-maintenance", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { prisma } = await import("@/lib/db");
 
-    const res = await POST(
+    const res = await GET(
       makeReq({
         authorization: "Bearer test-cron-secret",
         userAgent: "curl/8.1.2",
@@ -94,7 +94,7 @@ describe("POST /api/cron/finance-maintenance", () => {
 
   it("returns 403 when UA is missing entirely", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const res = await POST(
+    const res = await GET(
       makeReq({ authorization: "Bearer test-cron-secret" }) as never,
     );
     expect(res.status).toBe(403);
@@ -107,7 +107,7 @@ describe("POST /api/cron/finance-maintenance", () => {
       .mockResolvedValueOnce(7) // purge
       .mockResolvedValueOnce(3); // promote
 
-    const res = await POST(
+    const res = await GET(
       makeReq({
         authorization: "Bearer test-cron-secret",
         userAgent: "vercel-cron/1.0",
@@ -131,7 +131,7 @@ describe("POST /api/cron/finance-maintenance", () => {
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(0);
 
-    await POST(
+    await GET(
       makeReq({
         authorization: "Bearer test-cron-secret",
         userAgent: "vercel-cron/1.0",

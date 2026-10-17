@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { cn } from "@/lib/utils";
 
 /**
@@ -110,23 +111,15 @@ export function RailStatTiles({ tiles }: { tiles: RailTile[] }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {tiles.map((tile) => (
-        <div
+        <StatTile
           key={tile.label}
-          className={cn("rounded-lg border p-2.5", tile.wide && "col-span-2")}
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {tile.label}
-          </p>
-          <p
-            className={cn(
-              "mt-1 text-base font-bold tabular-nums leading-tight",
-              TONE_CLASS[tile.tone ?? "default"],
-            )}
-          >
-            {tile.value}
-          </p>
-          {tile.hint && <p className="mt-0.5 text-xs text-muted-foreground">{tile.hint}</p>}
-        </div>
+          label={tile.label}
+          value={tile.value}
+          hint={tile.hint}
+          tone={tile.tone}
+          size="sm"
+          className={cn("p-2.5", tile.wide && "col-span-2")}
+        />
       ))}
     </div>
   );

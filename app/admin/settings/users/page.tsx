@@ -8,6 +8,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -75,15 +76,19 @@ function buildColumns(
       cell: ({ row }) => {
         const u = row.original;
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 whitespace-normal">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">
                 {(u.name ?? u.email)[0].toUpperCase()}
               </span>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-sm font-medium">{u.name ?? "—"}</span>
-              <p className="text-xs text-muted-foreground">{u.email}</p>
+              <p className="text-xs text-muted-foreground break-all">{u.email}</p>
+              <DataTableMobileMeta className="mt-1">
+                <span>{getRoleLabel(u)}</span>
+                <StatusBadge status={u.status} />
+              </DataTableMobileMeta>
             </div>
           </div>
         );
@@ -92,6 +97,7 @@ function buildColumns(
     {
       id: "role",
       header: "Peran",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm">{getRoleLabel(row.original)}</span>
       ),
@@ -101,6 +107,7 @@ function buildColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Status" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {

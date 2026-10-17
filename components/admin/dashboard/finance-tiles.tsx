@@ -1,14 +1,11 @@
-import Link from "next/link";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
+import { StatTile } from "@/components/ui/stat-tile";
 import { formatRupiah } from "@/lib/format";
 import type { ReceivablesSummary } from "@/lib/dashboard/receivables";
 
 export type FinanceTilesData =
   | ({ status: "ready" } & ReceivablesSummary)
   | { status: "unavailable" };
-
-const tileClass =
-  "flex flex-wrap items-baseline gap-x-2 rounded-lg border px-card py-3 outline-none transition-shadow hover:shadow-sm hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * Cash position on the front page: invoices past due and total piutang
@@ -26,22 +23,20 @@ export function FinanceTiles({ data }: { data: FinanceTilesData }) {
 
   return (
     <div data-testid="dashboard-finance-tiles" className="grid grid-cols-2 gap-3">
-      <Link
+      <StatTile
         href="/admin/invoices?status=OVERDUE"
-        aria-label={`${data.overdueCount} tagihan lewat tempo`}
-        className={tileClass}
-      >
-        <p className="font-currency text-xl font-bold tabular-nums">{data.overdueCount}</p>
-        <p className="text-small text-muted-foreground">Tagihan lewat tempo</p>
-      </Link>
-      <Link
+        ariaLabel={`${data.overdueCount} tagihan lewat tempo`}
+        label="Tagihan lewat tempo"
+        value={data.overdueCount}
+        mono
+      />
+      <StatTile
         href="/admin/invoices"
-        aria-label={`Total piutang ${formatRupiah(data.receivable)}`}
-        className={tileClass}
-      >
-        <p className="font-currency text-xl font-bold tabular-nums">{formatRupiah(data.receivable)}</p>
-        <p className="text-small text-muted-foreground">Piutang (belum dibayar)</p>
-      </Link>
+        ariaLabel={`Total piutang ${formatRupiah(data.receivable)}`}
+        label="Piutang (belum dibayar)"
+        value={formatRupiah(data.receivable)}
+        mono
+      />
     </div>
   );
 }

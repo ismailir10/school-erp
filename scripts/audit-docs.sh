@@ -3,7 +3,7 @@
 #
 # Replaces the prose checklist that /audit-docs used to be. That version was
 # instructions an LLM might follow; this one exits non-zero, runs inside the
-# required "Docs sync" CI check, and therefore cannot be skipped.
+# required "Checks" CI check, and therefore cannot be skipped.
 #
 #   bash scripts/audit-docs.sh           # audit; exit 1 on any fail
 #   bash scripts/audit-docs.sh --write   # regenerate the counts block, then audit
