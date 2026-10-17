@@ -96,6 +96,8 @@ None: no schema, dependency, auth, PII or production write.
 - T5 correction found by looking at the dashboard: `cn()`/tailwind-merge does not know our `text-display`/`text-h2` size tokens and drops them next to `text-foreground`, which silently shrank the tile figures. `StatTile` composes the size as a plain string and merges only the colour (test added). The same trap exists anywhere a size token and a colour meet in one `cn(...)`; not changed here (a global fix would alter other screens).
 - T6: `e2e/mobile-layout.spec.ts` (51 routes: admin 35, teacher 9, parent 7) + `.claude/standards/ui.md` (touch targets, filter grid, calendar rule, new components). The spec caught real defects on its first runs (fees, class roster, payroll detail, teacher date input) and I confirmed it fails on an injected 20px button, a 12px field and a 900px element. A route whose detail row is missing from the seed fails (it does not skip), so the guard can't go vacuous.
 
+- Review fix (Codex, P2): `StatTile` clipped a very long amount (`Rp 10.000.000.000`) because the tile clips overflow; the figure now uses `wrap-anywhere`.
+
 ## Verification
 
 ### Verified locally — 201c4ad, 2026-10-17

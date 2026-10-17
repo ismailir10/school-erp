@@ -66,10 +66,12 @@ export function StatTile({
     <>
       <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p
+        // `wrap-anywhere`: the tile clips overflow (Spotlight glow), so a long amount
+        // ("Rp 10.000.000.000" in a half-width tile) must wrap instead of being cut off.
         // Size is a plain string, not an argument to `cn`: tailwind-merge doesn't know
         // our `text-display` / `text-h2` size tokens and would drop them as a
         // conflicting text *colour* next to `text-foreground`. Only the colour merges.
-        className={`mt-1 font-bold leading-tight tabular-nums ${VALUE_SIZE[size]} ${mono ? "font-currency" : ""} ${cn(TONE_CLASS[tone], valueClassName)}`}
+        className={`mt-1 font-bold leading-tight tabular-nums wrap-anywhere ${VALUE_SIZE[size]} ${mono ? "font-currency" : ""} ${cn(TONE_CLASS[tone], valueClassName)}`}
       >
         {value}
       </p>

@@ -23,6 +23,11 @@ describe("StatTile", () => {
     expect(cls).toContain("text-foreground");
   });
 
+  it("lets a long amount wrap instead of being clipped by the tile", () => {
+    render(<StatTile label="Piutang" value="Rp 10.000.000.000" mono />);
+    expect(screen.getByText("Rp 10.000.000.000").className).toContain("wrap-anywhere");
+  });
+
   it("lets a caller override the tone colour", () => {
     render(<StatTile label="Terlambat" value={3} valueClassName="text-status-late-text" />);
     expect(screen.getByText("3").className).toContain("text-status-late-text");
