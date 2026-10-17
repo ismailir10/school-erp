@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/db";
 import { getGateway } from "./registry";
+import { paymentLinkProvider } from "./link-provider";
 import { GatewayApiError, type GatewayPaymentStatus } from "./types";
 import {
   processPaymentEvent,
   type NormalizedPaymentEvent,
 } from "./webhook-processor";
+
+/** Admin-facing sentence whenever an expired session's dead link was cleared. */
+const EXPIRED_LINK_CLEARED_MESSAGE =
+  "Sesi pembayaran sudah kedaluwarsa. Link lama dihapus — silakan buat link baru.";
 
 /**
  * Invoice status → Indonesian label, for user-facing reconcile messages.
@@ -172,8 +177,6 @@ export async function reconcileInvoicePayment(
   invoiceId: string,
   opts: { minIntervalMs?: number; now?: Date } = {},
 ): Promise<ReconcileResult> {
-  const gateway = getGateway();
-  const provider = gateway.id;
   const now = opts.now ?? new Date();
 
   const before = await prisma.invoice.findUnique({
@@ -183,18 +186,23 @@ export async function reconcileInvoicePayment(
       status: true,
       invoiceNumber: true,
       xenditSessionId: true,
+      xenditPaymentUrl: true,
     },
   });
   if (!before) {
     return {
       code: "NOT_FOUND",
       message: "Tagihan tidak ditemukan.",
-      provider,
+      provider: getGateway().id,
       gatewayStatus: null,
       statusBefore: null,
       statusAfter: null,
     };
   }
+
+  const gateway = getGateway(before.xenditPaymentUrl);
+  const provider = gateway.id;
+  const owner = paymentLinkProvider(before.xenditPaymentUrl);
 
   // Stamp `paymentCheckedAt` BEFORE the network call, on every path, so the
   // nightly sweep rotates (least recently checked first) and admin/parent polls
@@ -225,18 +233,41 @@ export async function reconcileInvoicePayment(
       };
     }
   } else {
-    await prisma.invoice.update({
-      where: { id: invoiceId },
+    // Never overwrite a link-creation claim: while `createPaymentSessionForInvoice` is making a
+    // link it holds a `paymentCheckedAt` stamp in the future, and an admin refresh landing in
+    // that window would otherwise erase it and let a second creator in. A check stamps "now",
+    // so it only ever replaces a stamp that is not in the future.
+    await prisma.invoice.updateMany({
+      where: {
+        id: invoiceId,
+        OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lte: now } }],
+      },
       data: { paymentCheckedAt: now },
     });
   }
 
   let status: GatewayPaymentStatus;
   try {
-    status = await gateway.fetchPaymentStatus({
-      invoiceId: before.id,
-      sessionId: before.xenditSessionId,
-    });
+    if ((owner === "demo-xendit" || owner === "demo-doku") && process.env.DEMO_MODE !== "true") {
+      // These exact hosts are emitted only by our demo factories. They cannot accept money;
+      // retire them through the ordinary expiry processor and its session+URL CAS.
+      status = {
+        state: "EXPIRED", rawStatus: "DEMO_LINK_RETIRED", paymentId: null,
+        amount: null, currency: null, channelCode: null,
+        raw: { source: "demo-link-retirement" },
+      };
+    } else if (before.xenditPaymentUrl && owner === null) {
+      status = {
+        state: "UNAVAILABLE", rawStatus: null, paymentId: null,
+        amount: null, currency: null, channelCode: null, raw: null,
+        unavailableReason: "UNKNOWN_LINK_PROVIDER",
+      };
+    } else {
+      status = await gateway.fetchPaymentStatus({
+        invoiceId: before.id,
+        sessionId: before.xenditSessionId,
+      });
+    }
   } catch (err) {
     const message =
       err instanceof GatewayApiError
@@ -291,11 +322,14 @@ export async function reconcileInvoicePayment(
     };
   }
 
+  // An expired session carries no payment id, so key it on the session: a later
+  // link for the same invoice that also expires is a new event, not a duplicate
+  // of the first (which would leave its dead link in place).
   const eventId = buildManualEventId(
     provider,
     before.id,
     status.state,
-    status.paymentId,
+    status.paymentId ?? before.xenditSessionId,
   );
 
   const normalized: NormalizedPaymentEvent = {
@@ -307,6 +341,7 @@ export async function reconcileInvoicePayment(
     // id directly — no reference_id string surgery, no session fallback needed.
     referenceId: before.id,
     sessionId: before.xenditSessionId,
+    ...(dispatch.kind === "SESSION_EXPIRED" ? { expectedPaymentUrl: before.xenditPaymentUrl } : {}),
     paymentId: status.paymentId,
     amount: status.amount,
     currency: status.currency,
@@ -351,6 +386,18 @@ export async function reconcileInvoicePayment(
     duplicate: outcome.duplicate,
   };
 
+  // An expired link on an invoice that stays owed: the status may not move
+  // (OVERDUE / PARTIALLY_PAID) but the dead link was cleared, which is a real
+  // change the admin needs to hear about.
+  if (outcome.status === "LINK_CLEARED" || outcome.status === "PROMOTED_OVERDUE") {
+    return {
+      ...base,
+      code: "UPDATED",
+      message:
+        EXPIRED_LINK_CLEARED_MESSAGE,
+    };
+  }
+
   if (changed) {
     return {
       ...base,
@@ -361,7 +408,7 @@ export async function reconcileInvoicePayment(
           : statusAfter === "PARTIALLY_PAID"
             ? "Pembayaran sebagian ditemukan di gateway — tagihan diperbarui."
             : statusAfter === "PENDING_PAYMENT_LINK"
-              ? "Sesi pembayaran sudah kedaluwarsa. Link lama dihapus — silakan buat link baru."
+              ? EXPIRED_LINK_CLEARED_MESSAGE
               : `Status tagihan diperbarui menjadi ${INVOICE_STATUS_LABELS[statusAfter] ?? statusAfter}.`,
     };
   }

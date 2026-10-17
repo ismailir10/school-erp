@@ -145,6 +145,35 @@ describe("parseDokuOrderStatus", () => {
     expect(parseDokuOrderStatus({ response: body }).paymentId).toBe("req-abc-123");
   });
 
+  describe("Checkout order.status", () => {
+    const order = (status: string) => ({ order: { invoice_number: "inv1", amount: 20000, status } });
+
+    it("reads ORDER_EXPIRED as expired when no transaction exists (link never opened)", () => {
+      const out = parseDokuOrderStatus(order("ORDER_EXPIRED"));
+      expect(out.state).toBe("EXPIRED");
+      expect(out.rawStatus).toBe("ORDER_EXPIRED");
+    });
+
+    it("upgrades a PENDING transaction on an expired order", () => {
+      const out = parseDokuOrderStatus({ ...order("ORDER_EXPIRED"), transaction: { status: "PENDING" } });
+      expect(out.state).toBe("EXPIRED");
+    });
+
+    it.each([
+      ["SUCCESS", "COMPLETED"],
+      ["FAILED", "FAILED"],
+      ["REFUNDED", "REFUNDED"],
+    ])("never overrides a terminal transaction status (%s)", (status, state) => {
+      const out = parseDokuOrderStatus({ ...order("ORDER_EXPIRED"), transaction: { status } });
+      expect(out.state).toBe(state);
+      expect(out.rawStatus).toBe(status);
+    });
+
+    it("leaves a live order pending", () => {
+      expect(parseDokuOrderStatus(order("ORDER_GENERATED")).state).toBe("PENDING");
+    });
+  });
+
   it("degrades safely on junk", () => {
     const out = parseDokuOrderStatus({});
     expect(out.state).toBe("PENDING");

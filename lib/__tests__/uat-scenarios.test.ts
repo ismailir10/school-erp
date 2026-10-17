@@ -42,7 +42,7 @@ describe("parent-payment scenario", () => {
   });
 
   it("creates a Xendit session for each candidate", async () => {
-    mockCreateSession.mockResolvedValue({ paymentUrl: "https://checkout.xendit.co/x" });
+    mockCreateSession.mockResolvedValue({ paymentUrl: "https://checkout.xendit.co/x", created: true });
     const scenario = getScenario("parent-payment")!;
     const prisma = fakePrisma([
       { id: "i1", invoiceNumber: "INV-2026-0001" },
@@ -55,7 +55,7 @@ describe("parent-payment scenario", () => {
   });
 
   it("is idempotent: second run sees no candidates and does nothing", async () => {
-    mockCreateSession.mockResolvedValue({ paymentUrl: "https://checkout.xendit.co/x" });
+    mockCreateSession.mockResolvedValue({ paymentUrl: "https://checkout.xendit.co/x", created: true });
     const scenario = getScenario("parent-payment")!;
 
     // First run: 1 candidate
@@ -75,7 +75,7 @@ describe("parent-payment scenario", () => {
 
   it("reports per-invoice failures without aborting the run", async () => {
     mockCreateSession
-      .mockResolvedValueOnce({ paymentUrl: "https://ok" })
+      .mockResolvedValueOnce({ paymentUrl: "https://ok", created: true })
       .mockRejectedValueOnce(new Error("Xendit 500"))
       .mockResolvedValueOnce(null);
     const scenario = getScenario("parent-payment")!;

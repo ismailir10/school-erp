@@ -267,7 +267,7 @@ describe("POST /api/invoices — happy path", () => {
     wireHappyPath();
 
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+      paymentUrl: "https://checkout.xendit.co/web/inv-new", created: true,
     });
 
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -333,7 +333,7 @@ describe("POST /api/invoices — guardian lookup", () => {
     wireHappyPath();
 
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+      paymentUrl: "https://checkout.xendit.co/web/inv-new", created: true,
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
@@ -499,7 +499,7 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
       .mockResolvedValueOnce({ id: "inv-new" });
 
     vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
-      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+      paymentUrl: "https://checkout.xendit.co/web/inv-new", created: true,
     });
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({

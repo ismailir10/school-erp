@@ -3,6 +3,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -31,6 +33,8 @@ export type NormalizedPaymentEvent = {
   kind: "PAYMENT_COMPLETED" | "SESSION_EXPIRED" | "UNHANDLED";
   referenceId: string | null; // resolves an Invoice by primary key
   sessionId: string | null; // fallback resolution via Invoice.xenditSessionId
+  /** Manual expiry polls carry the URL they inspected, including URL-only sessions. */
+  expectedPaymentUrl?: string | null;
   paymentId: string | null; // inner idempotency key -> Payment.xenditPaymentId
   amount: number | null;
   currency: string | null;
@@ -283,6 +287,7 @@ async function handleSessionCompleted(
         amount: paymentAmount,
         method,
         xenditPaymentId: paymentId,
+        channelCode: event.channelCode,
         reference: paymentId,
         notes: `${providerLabel} payment via ${channelCode}`,
       },
@@ -376,13 +381,14 @@ async function handleSessionExpired(
   }
   const invoiceId = resolved.id;
 
-  // T5e — soft-revert (NOT destructive). Only revert SENT and
-  // PENDING_PAYMENT_LINK. Already-paid + already-cancelled ignore.
+  // T5e — soft-revert (NOT destructive). SENT → PENDING_PAYMENT_LINK (or OVERDUE
+  // when past due), OVERDUE / PARTIALLY_PAID → link cleared only.
+  // Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -399,21 +405,69 @@ async function handleSessionExpired(
         invoiceNumber: fresh.invoiceNumber,
       };
     }
+    // An expiry for a session that has since been replaced says nothing about the live one: once a
+    // parent or admin makes a new link on the same invoice (cycle 2026-10-17-payment-link-on-demand),
+    // a delayed expiry for the old session must not clear the new link. Only possible to tell
+    // apart when the event names its session (Xendit does; a DOKU notification does not, and
+    // every DOKU session of an invoice shares its invoice number anyway).
+    if (event.expectedPaymentUrl !== undefined && event.expectedPaymentUrl !== fresh.xenditPaymentUrl) {
+      return {
+        type: "IGNORED:stale_session" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
+    if (event.sessionId && (
+      (fresh.xenditSessionId && event.sessionId !== fresh.xenditSessionId) ||
+      (!fresh.xenditSessionId && !fresh.xenditPaymentUrl)
+    )) {
+      return {
+        type: "IGNORED:stale_session" as const,
+        invoiceNumber: fresh.invoiceNumber,
+      };
+    }
+    // OVERDUE and PARTIALLY_PAID are still owed: they keep their status and
+    // only lose the dead link, so the admin and parent are not shown a link
+    // that no longer works (cycle 2026-10-17-expired-link-overdue).
+    // Creators do not hold this advisory lock, so compare the session again in
+    // the write itself; a replacement installed after our read must survive.
+    if (fresh.status === "OVERDUE" || fresh.status === "PARTIALLY_PAID") {
+      const cleared = await tx.invoice.updateMany({
+        where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
+        data: { xenditSessionId: null, xenditPaymentUrl: null },
+      });
+      if (cleared.count === 0) {
+        return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
+      }
+      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber };
+    }
     if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
       return {
         type: "IGNORED:status_not_revertible" as const,
         invoiceNumber: fresh.invoiceNumber,
       };
     }
-    await tx.invoice.update({
-      where: { id: invoiceId },
+    // A link expires at the end of the due date, so every invoice unpaid at its
+    // due date reaches this point. "Link Gagal" (PENDING_PAYMENT_LINK) is not an
+    // outstanding status and `finance-maintenance` only promotes SENT, so
+    // reverting a past-due invoice there made it silently stop being owed.
+    // Past due → OVERDUE; otherwise back to "Link Gagal" so a new link is made.
+    const pastDue =
+      fresh.status === "SENT" && fresh.dueDate < getTodayInTimezone(JAKARTA_TZ);
+    const cleared = await tx.invoice.updateMany({
+      where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
       data: {
-        status: "PENDING_PAYMENT_LINK",
+        status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
       },
     });
-    return { type: "REVERTED" as const, invoiceNumber: fresh.invoiceNumber };
+    if (cleared.count === 0) {
+      return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
+    }
+    return {
+      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("REVERTED" as const),
+      invoiceNumber: fresh.invoiceNumber,
+    };
   });
 
   if (result.type === "IGNORED:invoice_not_found") {
@@ -423,16 +477,20 @@ async function handleSessionExpired(
   if (
     result.type === "IGNORED:already_paid" ||
     result.type === "IGNORED:already_cancelled" ||
+    result.type === "IGNORED:stale_session" ||
     result.type === "IGNORED:status_not_revertible"
   ) {
     await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);
     return { ok: true, status: result.type, eventId, invoiceId };
   }
   await markProcessed(eventId, invoiceId);
-  console.info(
-    `${logPrefix} Invoice ${result.invoiceNumber} → PENDING_PAYMENT_LINK (session expired, soft-revert) eventId=${eventId}`,
-  );
-  return { ok: true, status: "REVERTED", eventId, invoiceId };
+  const outcome = {
+    REVERTED: "→ PENDING_PAYMENT_LINK (session expired, soft-revert)",
+    PROMOTED_OVERDUE: "→ OVERDUE (session expired past due date)",
+    LINK_CLEARED: "dead payment link cleared (session expired, status unchanged)",
+  }[result.type];
+  console.info(`${logPrefix} Invoice ${result.invoiceNumber} ${outcome} eventId=${eventId}`);
+  return { ok: true, status: result.type, eventId, invoiceId };
 }
 
 // ─── Pendaftaran fee (EnrollmentFee) ─────────────────────────────────

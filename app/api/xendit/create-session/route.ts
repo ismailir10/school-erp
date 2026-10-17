@@ -70,6 +70,11 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // OVERDUE / PARTIALLY_PAID are still owed whatever happens to their link:
+    // neither a new link nor a failed attempt may move them out of those
+    // statuses (cycle 2026-10-17-expired-link-overdue).
+    const stillOwed = invoice.status === "OVERDUE" || invoice.status === "PARTIALLY_PAID";
+
     const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
     if (remaining <= 0) {
       failed++;
@@ -101,9 +106,17 @@ export async function POST(req: NextRequest) {
       if (result) {
         // Update status to SENT (helper only stores Xendit fields).
         // Clear paymentLinkError — covers the retry-of-PENDING_PAYMENT_LINK path.
+        // An OVERDUE or PARTIALLY_PAID invoice that gets a fresh link (its
+        // expired one was cleared by the reconcile sweep) keeps its status —
+        // demoting it to SENT would drop the partial-payment state and hide the
+        // overdue label until the next maintenance run.
+        const becomesSent = !stillOwed;
         await prisma.invoice.update({
           where: { id: invoiceId },
-          data: { status: "SENT", sentAt: new Date(), paymentLinkError: null },
+          data: {
+            ...(becomesSent ? { status: "SENT", sentAt: new Date() } : {}),
+            paymentLinkError: null,
+          },
         });
         if (invoice.status !== "SENT") statusChanged = true;
 
@@ -131,11 +144,11 @@ export async function POST(req: NextRequest) {
         await prisma.invoice.update({
           where: { id: invoiceId },
           data: {
-            status: "PENDING_PAYMENT_LINK",
+            ...(stillOwed ? {} : { status: "PENDING_PAYMENT_LINK" }),
             paymentLinkError: formatPaymentLinkError(e),
           },
         });
-        if (invoice.status !== "PENDING_PAYMENT_LINK") statusChanged = true;
+        if (!stillOwed && invoice.status !== "PENDING_PAYMENT_LINK") statusChanged = true;
       } catch {
         // Swallow write-back failure — the original Xendit error is still surfaced
         // to the admin via errors[], counts are still correct.

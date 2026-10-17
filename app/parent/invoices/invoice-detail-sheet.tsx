@@ -105,6 +105,14 @@ export function InvoiceDetailSheet({
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
+  // The invoice a link request is in flight for (not a bare flag): the sheet is reused for
+  // whichever invoice the parent opens next, and a response must only ever touch the invoice
+  // that asked for it.
+  const [requestingLinkFor, setRequestingLinkFor] = useState<string | null>(null);
+  const shownInvoiceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    shownInvoiceIdRef.current = invoice?.id ?? null;
+  }, [invoice]);
 
   if (open && invoiceId && invoiceId !== prevInvoiceId) {
     setPrevInvoiceId(invoiceId);
@@ -180,6 +188,51 @@ export function InvoiceDetailSheet({
     );
   }
 
+  // "Buat link pembayaran" / "Minta link baru": ask the server for a working
+  // link on this invoice. It checks the gateway first when a link is held (an
+  // expired one is cleared), returns a live link unchanged and makes a new one
+  // only when there is none, so pressing it is always safe. Every message is
+  // ours; nothing the server or gateway says is shown (voice.md).
+  async function requestPaymentLink() {
+    if (!invoice) return;
+    const requestedId = invoice.id;
+    const previousUrl = invoice.xenditPaymentUrl;
+    // The parent can close this sheet and open another invoice while the request is out. A
+    // late answer for the first must not put ITS checkout link on the second (they would pay
+    // a different invoice from the one on screen), nor toast about it.
+    const stillShown = () => shownInvoiceIdRef.current === requestedId;
+    setRequestingLinkFor(requestedId);
+    try {
+      const res = await fetch(`/api/guardian/invoices/${requestedId}/payment-link`, { method: "POST" });
+      const d = (await res.json().catch(() => ({}))) as { paymentUrl?: string; created?: boolean };
+      if (res.ok && d.paymentUrl) {
+        const url = d.paymentUrl;
+        setInvoice((prev) => (prev && prev.id === requestedId ? { ...prev, xenditPaymentUrl: url } : prev));
+        if (stillShown()) {
+          toast.success(
+            previousUrl && !d.created
+              ? "Link pembayaran masih berlaku. Silakan ketuk Bayar sekarang."
+              : "Link pembayaran sudah siap. Silakan ketuk Bayar sekarang.",
+          );
+        }
+      } else if (!stillShown()) {
+        // Nothing to say about an invoice that is no longer on screen.
+      } else if (res.status === 409) {
+        toast.info("Tagihan ini sudah tidak bisa dibayar lewat link. Kami muat ulang statusnya.");
+        onRefreshStatus?.();
+      } else if (res.status === 429) {
+        toast.error("Terlalu sering mencoba. Tunggu sebentar ya.");
+      } else {
+        toast.error("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
+      }
+    } catch {
+      if (stillShown()) toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+    } finally {
+      setRequestingLinkFor((current) => (current === requestedId ? null : current));
+    }
+  }
+
+  const requestingLink = requestingLinkFor === invoice.id;
   const remaining = invoice.totalDue - invoice.totalPaid;
   const isPaid = invoice.status === "PAID";
   const isCancelled = invoice.status === "CANCELLED";
@@ -422,17 +475,29 @@ export function InvoiceDetailSheet({
                   ) : null}
                 </div>
               ) : linkState === "ready" ? (
-                <a
-                  href={invoice.xenditPaymentUrl!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <Button className="w-full" size="lg">
-                    <ExternalLink size={16} className="mr-2" />
-                    Bayar sekarang
+                <>
+                  <a
+                    href={invoice.xenditPaymentUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <Button className="w-full" size="lg">
+                      <ExternalLink size={16} className="mr-2" />
+                      Bayar sekarang
+                    </Button>
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={requestPaymentLink}
+                    disabled={requestingLink}
+                    aria-busy={requestingLink}
+                  >
+                    {requestingLink ? "Memeriksa link…" : "Link tidak bisa dibuka? Minta link baru"}
                   </Button>
-                </a>
+                </>
               ) : linkState === "pending" ? (
                 <>
                   <Button className="w-full" size="lg" disabled>
@@ -447,11 +512,23 @@ export function InvoiceDetailSheet({
                   </div>
                 </>
               ) : (
+                <>
+                <Button
+                  type="button"
+                  className="w-full"
+                  size="lg"
+                  onClick={requestPaymentLink}
+                  disabled={requestingLink}
+                  aria-busy={requestingLink}
+                >
+                  <ExternalLink size={16} className="mr-2" />
+                  {requestingLink ? "Menyiapkan link…" : "Buat link pembayaran"}
+                </Button>
                 <div className="space-y-3 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text" data-testid="contact-school">
                   <div className="flex items-start gap-2">
                     <Info size={14} className="mt-0.5 shrink-0" />
                     <span>
-                      Link pembayaran belum tersedia. Silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
+                      Bila link belum bisa dibuat, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
                       pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
                     </span>
                   </div>
@@ -476,6 +553,7 @@ export function InvoiceDetailSheet({
                     );
                   })()}
                 </div>
+                </>
               )}
             </div>
           ) : null}

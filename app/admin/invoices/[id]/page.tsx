@@ -39,7 +39,7 @@ type PaymentFormControl = ReturnType<typeof useZodForm<typeof invoicePaymentForm
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = {
-  id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string;
+  id: string; amount: number; method: string; channelCode?: string | null; reference: string | null; notes: string | null; paidAt: string;
   idempotencyKey?: string | null;
   status: string; xenditPaymentId?: string | null; createdBy: string | null; createdByName: string | null;
 };
@@ -616,7 +616,7 @@ export default function InvoiceDetailPage() {
         title="Batalkan pembayaran?"
         description={
           reverseTarget
-            ? `Pembayaran ${formatRupiah(reverseTarget.amount)} (${paymentMethodLabel(reverseTarget.method)}, ${formatDateShort(reverseTarget.paidAt)}) tidak dihitung lagi dan sisa tagihan bertambah. Riwayat tetap tersimpan sebagai Dibatalkan.`
+            ? `Pembayaran ${formatRupiah(reverseTarget.amount)} (${paymentMethodLabel(reverseTarget.method, reverseTarget.channelCode)}, ${formatDateShort(reverseTarget.paidAt)}) tidak dihitung lagi dan sisa tagihan bertambah. Riwayat tetap tersimpan sebagai Dibatalkan.`
             : undefined
         }
         onConfirm={handleReversePayment}
@@ -764,7 +764,7 @@ export default function InvoiceDetailPage() {
                     <div key={p.id} data-testid={`payment-row-${p.id}`} data-status={p.status} className="border-b border-border/50 last:border-0 pb-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method)}</Badge>
+                          <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method, p.channelCode)}</Badge>
                           {reversed && <StatusBadge status="REVERSED" />}
                         </span>
                         <span className={cn("font-currency text-sm font-bold", reversed ? "text-muted-foreground line-through" : "text-status-present")}>

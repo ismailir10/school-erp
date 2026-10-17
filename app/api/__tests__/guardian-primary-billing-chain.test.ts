@@ -220,6 +220,28 @@ const { state, dbFake } = vi.hoisted(() => {
       if (inv) Object.assign(inv, data);
       return inv ? { ...inv } : null;
     }),
+    // The payment-session helper claims the invoice and persists the link through conditional
+    // `updateMany`s (cycle 2026-10-17-payment-link-on-demand); evaluate just those shapes.
+    updateMany: vi.fn(async ({ where, data }: { where: Row; data: Row }) => {
+      const test = (inv: Row, w: Row): boolean =>
+        Object.entries(w).every(([key, cond]) => {
+          if (key === "OR") return (cond as Row[]).some((o) => test(inv, o));
+          const v = inv[key];
+          if (cond === null) return v === null || v === undefined;
+          if (cond instanceof Date) return v instanceof Date && v.getTime() === cond.getTime();
+          if (typeof cond === "object") {
+            const c = cond as Row;
+            if ("notIn" in c) return !(c.notIn as unknown[]).includes(v);
+            if ("lt" in c) return v instanceof Date && v.getTime() < (c.lt as Date).getTime();
+            if ("lte" in c) return v instanceof Date && v.getTime() <= (c.lte as Date).getTime();
+          }
+          return v === cond;
+        });
+      const inv = state.invoices.find((i) => i.id === where.id);
+      if (!inv || !test(inv, where)) return { count: 0 };
+      Object.assign(inv, data);
+      return { count: 1 };
+    }),
   },
     $queryRaw: vi.fn(async () => [{ lastNumber: ++state.numberSeq }]),
     $transaction: vi.fn(async (cb: unknown) => {
@@ -387,6 +409,10 @@ describe("guardian create -> manual invoice -> payment session (2026-09-23 chain
     // with the gateway mocked, and inspect exactly what it was handed.
     createSession.mockClear();
     const invoiceId = state.invoices[0].id as string;
+    // Raising the invoice already made its link; an invoice that holds one is never given a second
+    // (cycle 2026-10-17-payment-link-on-demand). Clear it, as the expiry sweep does, so this step
+    // can inspect what the gateway is handed when a link is made.
+    Object.assign(state.invoices[0], { xenditPaymentUrl: null, xenditSessionId: null, paymentCheckedAt: null });
     const session = await createPaymentSessionForInvoice(invoiceId, "t1", "https://app.example.test");
     expect(session).not.toBeNull();
     expect(createSession).toHaveBeenCalledTimes(1);
@@ -423,6 +449,7 @@ describe("guardian create -> manual invoice -> payment session (2026-09-23 chain
 
     createSession.mockClear();
     const invoiceId = state.invoices[0].id as string;
+    Object.assign(state.invoices[0], { xenditPaymentUrl: null, xenditSessionId: null, paymentCheckedAt: null });
     await createPaymentSessionForInvoice(invoiceId, "t1", "https://app.example.test");
     expect(createSession).toHaveBeenCalledTimes(1);
     // No guardian to bill → DOKU/Xendit gets the student's name and no email
