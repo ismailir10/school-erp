@@ -8,6 +8,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { PayrollGenerateBlockersAlert, type GenerateBlockers } from "@/components/admin/payroll/generate-blockers";
@@ -62,7 +63,16 @@ const columns: ColumnDef<PayrollRun>[] = [
     cell: ({ row }) => {
       const run = row.original;
       return (
-        <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
+        <DataTableLinkCell
+          href={`/admin/payroll/${run.id}`}
+          className="whitespace-normal"
+          description={
+            <DataTableMobileMeta>
+              <span>{run._count.items} orang</span>
+              <span>{run.actualWorkDays} hari kerja</span>
+            </DataTableMobileMeta>
+          }
+        >
           {formatDateShort(run.periodStart)} — {formatDateShort(run.periodEnd)}
         </DataTableLinkCell>
       );

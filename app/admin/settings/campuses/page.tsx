@@ -159,7 +159,7 @@ export default function CampusesPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
         cell: ({ row }) => (
-          <div>
+          <div className="min-w-0 whitespace-normal">
             <span className="text-sm font-medium">{row.original.name}</span>
             <p className="text-xs text-muted-foreground">
               {row.original._count.employees} karyawan

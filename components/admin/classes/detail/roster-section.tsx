@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Plus, UserMinus } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 import { AddStudentDialog } from "./add-student-dialog";
@@ -58,12 +59,17 @@ export function RosterSection({
           <DataTableColumnHeader column={column} title="Nama" />
         ),
         cell: ({ row }) => (
-          <Link
+          <DataTableLinkCell
             href={`/admin/students/${row.original.student.id}`}
-            className="text-sm font-medium hover:underline"
+            className="whitespace-normal"
+            description={
+              <DataTableMobileMeta>
+                <StatusBadge status={row.original.status} />
+              </DataTableMobileMeta>
+            }
           >
             {row.original.student.name}
-          </Link>
+          </DataTableLinkCell>
         ),
       },
       {
@@ -87,6 +93,8 @@ export function RosterSection({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Status" />
         ),
+        // Status sits under the name below `md` (DataTableMobileMeta above).
+        meta: { priority: "low" },
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
       {
@@ -114,8 +122,9 @@ export function RosterSection({
                 onClick={() => setRemoveStudentTarget(row.original)}
                 aria-label={`Keluarkan ${row.original.student.name} dari Kelas Ini`}
               >
-                <UserMinus size={14} className="mr-1" />
-                <span className="text-xs">Keluarkan</span>
+                <UserMinus size={14} className="md:mr-1" />
+                {/* Icon-only below md so the roster fits 390px without scrolling sideways. */}
+                <span className="sr-only text-xs md:not-sr-only">Keluarkan</span>
               </Button>
             )}
           </div>

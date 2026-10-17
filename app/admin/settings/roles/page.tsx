@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -194,13 +195,17 @@ function buildColumns(
         <DataTableColumnHeader column={column} title="Nama" />
       ),
       cell: ({ row }) => (
-        <div>
+        <div className="min-w-0 whitespace-normal">
           <span className="text-sm font-medium">{row.original.name}</span>
           {row.original.description && (
             <p className="text-xs text-muted-foreground">
               {row.original.description}
             </p>
           )}
+          <DataTableMobileMeta className="mt-1">
+            <span className="font-mono">{row.original.code}</span>
+            <span>{safeParsePermissions(row.original.permissions).length} izin</span>
+          </DataTableMobileMeta>
         </div>
       ),
     },

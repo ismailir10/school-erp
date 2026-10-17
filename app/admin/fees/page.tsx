@@ -361,7 +361,7 @@ export default function FeesPage() {
         const c = row.original;
         return (
           <div className={!c.isEnabled ? "opacity-50" : ""}>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-sm font-medium">{c.label}</span>
               <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
             </div>
