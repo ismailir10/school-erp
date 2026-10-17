@@ -121,7 +121,7 @@ production write and would re-open the gate.
 ## Known residuals (recorded, not built)
 
 - A not-yet-due `SENT` invoice whose link expires early goes to "Link Gagal", outside the outstanding statuses, and `finance-maintenance` never promotes it afterwards (Decision 2, accepted). Rare in practice since links expire at the end of the due date.
-- ~~A stale `EXPIRED` event can clear a newer live link~~ Fixed in the owner review of #666 (cycle `2026-10-17-payment-link-on-demand`): the expiry handler ignores an event whose session is not the invoice's current one.
+- ~~A stale `EXPIRED` event can clear a newer live link~~ Fixed in the owner review of #666 (cycle `2026-10-17-payment-link-on-demand`): the handler rejects a known stale session and its write compares both the current session ID and URL, preserving replacements installed after its read. Unknown stored session IDs remain supported when a current URL exists; DOKU notifications still cannot distinguish reissued sessions sharing one invoice number.
 - The two-job cron-order test named under Test seams is not written: with Decision 2 the order no longer matters, and `finance-maintenance` only touches `SENT`.
 
 ## Follow-ups raised after approval (approved 2026-10-17)
@@ -145,11 +145,26 @@ Verify flows added: (T5) admin opens an invoice paid through DOKU BCA and sees "
 
 - [x] T5 Store and show the payment channel — accept: AC above (deps: schema migration approved)
 - [x] T6 Bulk "Cek semua belum lunas" — accept: AC above (reuse: `reconcileInvoicePayment`, `limit` from `lib/finance/concurrency-limit`)
-- [x] T7 Shared PR review continuation: enforce the exact creator claim when persisting, add the Xendit 10 s creation timeout, include route setup in the bulk-link deadline, and add regressions — implementation and owner-review details live in `2026-10-17-payment-link-on-demand`; full current-tree verification remains pending.
+- [x] T7 Shared PR review continuation: enforce the exact creator claim when persisting, add the Xendit 10 s creation timeout, include route setup in the bulk-link deadline, and add regressions — implementation and owner-review details live in `2026-10-17-payment-link-on-demand`; the final local gate is complete at `e26ada92`, with required CI and post-merge staging verification still pending.
 
 ## Verification
 
-- **Current shared-PR continuation, worker reports only; root full gate pending:** parent-sheet UI 16 passed, focused backend 40 passed, focused routes 38 passed plus 3 real-SQL checks. These cover the claim-owner fence, Xendit creation timeout and setup-inclusive bulk-link deadline; earlier full-gate and browser evidence below predates these fixes. `audit-docs.sh`: 13 ok, 1 existing ADR-age warning, 0 fail.
+- **Earlier focused shared-PR checks, before the final local gate:** parent-sheet UI 16 passed, focused backend 40 passed, focused routes 38 passed plus 3 real-SQL checks. These cover the claim-owner fence, Xendit creation timeout and setup-inclusive bulk-link deadline; earlier full-gate and browser evidence below predates these fixes. `audit-docs.sh`: 13 ok, 1 existing ADR-age warning, 0 fail.
+
+### Verified locally — e26ada92, 2026-10-17
+
+The driver compared `origin/staging` at `c10258b4` with code commit `e26ada921c382fbf4128bfb524f4bb65698ee523` using `git diff --name-only c10258b4..e26ada92`. The local production demo used disposable localhost Postgres and Node 24.15. Complete evidence and screenshots are in [the shared payment-link cycle](2026-10-17-payment-link-on-demand.md#verified-locally--e26ada92-2026-10-17).
+
+- `npx vitest run --maxWorkers=2`: **635 files passed, 2 existing skipped; 7430 passed, 42 todo**. `DEMO_MODE=true npm run build` and `npx tsc --noEmit`: exit 0. `npm run lint -- --ignore-pattern 'lib/generated/prisma/**'`: exit 0 with `--max-warnings=0` and generated Prisma output excluded.
+- `bash scripts/verify-rls-coverage.sh`: **43/43**; `bash scripts/verify-api-auth.sh`: **213/213**; `bash scripts/audit-docs.sh`: **13 ok, 1 existing ADR-age warning, 0 fail**; `bash scripts/test-hooks.sh`: **32 passed**; `bash scripts/sync-agent-workflow.sh --check`: match.
+- `npx vitest run --config /private/tmp/pr666-integration.config.mjs`: **3 real-SQL tests passed**, disposable localhost database and stubbed gateway only.
+- `npx playwright test --config /private/tmp/pr666-playwright.config.mts`: **240 total: 239 passed, 1 flaky** (`e2e/sibling-detect.spec.ts:147` passed on retry). The temporary config retained the original suite/server behavior and saved screenshots for passing tests.
+- `bash scripts/flake-hunt.sh 3 1 'components/ui/__tests__/rupiah-input.test.tsx' 'app/admin/semesters/[id]/objectives/__tests__/client.test.tsx'`: **63 cases passed in all 3 runs** under one CPU hog; both changes synchronize existing tests without runtime changes.
+- **Chrome local demo, design-system walk:** parent at **390 × 844** created a missing link and saw **Bayar sekarang**, then kept an existing live link; admin at **1440 × 900** created **25** links (**80 → 55** missing), then bulk-refresh returned **200 / 1 checked / 0 updated**. Captured admin responses were all 200 and no browser errors occurred. Highlights: `/private/tmp/pr666-highlights/*.png`; public demo embed links: `/private/tmp/pr666-screenshot-links.txt`.
+
+Required CI and signed-in staging verification are pending. Keep `needs-staging-verify` until the staging walk is complete after merge.
+
+### Earlier verification history
 
 **Reproduction against real SQL (T1).** Local Postgres 16, schema pushed and demo seed loaded, four invoices set past
 due with a link; the real `reconcile-payments` and `finance-maintenance` handlers run in production order, only the
@@ -178,7 +193,7 @@ a throwaway test file, not committed.
 
 ## Ship Notes
 
-Not merged. PR [#666](https://github.com/ismailir10/school-erp/pull/666) is ready and labelled `needs-staging-verify` and `e2e`. The review continuation is implemented; current full verification and required CI checks remain pending, followed by signed-in staging verification after merge.
+Not merged. PR [#666](https://github.com/ismailir10/school-erp/pull/666) is ready and labelled `needs-staging-verify` and `e2e`. The review continuation and local gate are complete at `e26ada92`; required CI checks remain pending, followed by signed-in staging verification after merge. Keep `needs-staging-verify` until that walk is complete.
 
 - **Migration:** `20261017000000_add_payment_channel_code`, one nullable `Payment.channelCode` column, additive, no backfill. Applies through `prisma migrate deploy` in the production build.
 - **Env:** none.
