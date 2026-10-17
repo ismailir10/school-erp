@@ -268,6 +268,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
   const [checkingRowId, setCheckingRowId] = useState<string | null>(null);
   const [checkingAll, setCheckingAll] = useState(false);
+  const [creatingLinks, setCreatingLinks] = useState(false);
   const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
   const [overflowConfirm, setOverflowConfirm] = useState<{
     total: number;
@@ -288,6 +289,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     overdue: 0,
     cancelled: 0,
     pendingPaymentLink: 0,
+    unpaidWithoutLink: 0,
     outstanding: 0,
     collectedThisMonth: 0,
   });
@@ -307,6 +309,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           overdue: s.overdue ?? 0,
           cancelled: s.cancelled ?? 0,
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
+          unpaidWithoutLink: s.unpaidWithoutLink ?? 0,
           outstanding: Number(s.outstanding ?? 0),
           collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
@@ -567,6 +570,36 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     }
   }
 
+  // "Buat link baru (N)": the server picks the next 25 unpaid invoices that have
+  // no payment link (an expired one is cleared by the sweep) and makes one for
+  // each. Pressing again continues; the count in the label falls as it goes.
+  async function handleCreateMissingLinks() {
+    setCreatingLinks(true);
+    try {
+      const res = await fetch("/api/invoices/create-missing-links", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "Gagal membuat link pembayaran");
+        return;
+      }
+      if (d.created === 0 && d.failed === 0 && d.skipped === 0) {
+        toast.info("Semua tagihan belum lunas sudah punya link pembayaran.");
+        return;
+      }
+      const left = d.remaining > 0 ? ` Masih ada ${d.remaining} tagihan, tekan lagi untuk melanjutkan.` : "";
+      const summary = `${d.created} link dibuat.${left}`;
+      if (d.failed > 0) toast.warning(`${summary} ${d.failed} gagal dibuat, coba lagi nanti.`);
+      else toast.success(summary);
+    } catch {
+      toast.error("Gagal membuat link pembayaran");
+    } finally {
+      if (mountedRef.current) {
+        setCreatingLinks(false);
+        reloadListRef.current();
+      }
+    }
+  }
+
   async function handleVoidInvoice() {
     if (!voidTarget) return;
     const res = await fetch(`/api/invoices/${voidTarget.id}/void`, { method: "POST" });
@@ -683,6 +716,12 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                 onClickRetry={() => setRetryConfirmOpen(true)}
                 gatewayId={gatewayId}
               />
+            )}
+            {capabilities.create && stats.unpaidWithoutLink > 0 && (
+              <Button size="sm" variant="outline" onClick={handleCreateMissingLinks} disabled={creatingLinks}>
+                <LinkIcon size={14} className="mr-1.5" />
+                {creatingLinks ? "Membuat link..." : `Buat link baru (${stats.unpaidWithoutLink})`}
+              </Button>
             )}
             {capabilities.recordPayment && (
               <Button size="sm" variant="outline" onClick={handleCheckAllPayments} disabled={checkingAll}>

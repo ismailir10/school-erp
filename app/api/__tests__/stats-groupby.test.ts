@@ -7,13 +7,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // - Admin-only (403 for non-admin)
 
 const invoiceGroupBy = vi.fn();
+// Unpaid invoices without a payment link: one count for the "Buat link baru" button, not a per-status loop.
+const invoiceCount = vi.fn().mockResolvedValue(0);
 const studentGroupBy = vi.fn();
 // FIN-13: invoice stats also aggregates this month's collected Rupiah.
 const paymentAggregate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    invoice: { groupBy: invoiceGroupBy },
+    invoice: { groupBy: invoiceGroupBy, count: invoiceCount },
     student: { groupBy: studentGroupBy },
     payment: { aggregate: paymentAggregate },
   },

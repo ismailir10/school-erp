@@ -100,6 +100,12 @@ describe("failure", () => {
     expect(release.data).toEqual({ paymentCheckedAt: new Date("2026-10-17T09:00:00Z") });
   });
 
+  it("a batch caller can keep the claim after a failure so the failed invoice sorts behind the others", async () => {
+    createSession.mockRejectedValue(new Error("gateway down"));
+    expect(await ensurePaymentLink("inv1", "t1", "https://app.test", { now: NOW, waitForWinnerMs: 0, releaseOnFailure: false })).toEqual({ kind: "FAILED" });
+    expect(updateMany).toHaveBeenCalledTimes(1); // the claim only, no release
+  });
+
   it("a session helper that declines (invoice flipped to paid meanwhile) is NOT_PAYABLE and releases the claim", async () => {
     createSession.mockResolvedValue(null);
     expect(await call()).toEqual({ kind: "NOT_PAYABLE" });

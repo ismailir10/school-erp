@@ -39,7 +39,7 @@ export async function ensurePaymentLink(
   invoiceId: string,
   tenantId: string,
   requestOrigin: string,
-  opts: { now?: Date; waitForWinnerMs?: number } = {},
+  opts: { now?: Date; waitForWinnerMs?: number; releaseOnFailure?: boolean } = {},
 ): Promise<EnsureLinkResult> {
   const now = opts.now ?? new Date();
   const invoice = await prisma.invoice.findUnique({
@@ -82,13 +82,18 @@ export async function ensurePaymentLink(
   }
 
   // The failed attempt gives the claim back so the next caller is not held off for 30 s.
-  const release = () =>
-    prisma.invoice
+  // A batch caller keeps it instead (`releaseOnFailure: false`): the failed invoice then
+  // stays stamped, sorts behind the untouched ones, and cannot starve them by being
+  // picked first every time.
+  const release = async () => {
+    if (opts.releaseOnFailure === false) return;
+    await prisma.invoice
       .updateMany({
         where: { id: invoiceId, xenditPaymentUrl: null },
         data: { paymentCheckedAt: invoice.paymentCheckedAt },
       })
       .catch(() => undefined);
+  };
 
   try {
     const session = await createPaymentSessionForInvoice(invoiceId, tenantId, requestOrigin);

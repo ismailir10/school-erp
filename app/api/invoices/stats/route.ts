@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest) {
   }
 
   const month = jakartaMonthRangeUtc();
-  const [groups, collected] = await Promise.all([
+  const [groups, collected, unpaidWithoutLink] = await Promise.all([
     prisma.invoice.groupBy({
       by: ["status"],
       where: { tenantId: session.tenantId },
@@ -40,6 +40,15 @@ export async function GET(_req: NextRequest) {
         invoice: { tenantId: session.tenantId },
       },
       _sum: { amount: true },
+    }),
+    // Unpaid invoices with no payment link (an expired one is cleared by the sweep):
+    // the admin's "Buat link baru (N)" button.
+    prisma.invoice.count({
+      where: {
+        tenantId: session.tenantId,
+        status: { in: [...UNPAID_INVOICE_STATUSES] },
+        xenditPaymentUrl: null,
+      },
     }),
   ]);
 
@@ -69,6 +78,7 @@ export async function GET(_req: NextRequest) {
     overdue: byStatus.OVERDUE ?? 0,
     cancelled: byStatus.CANCELLED ?? 0,
     pendingPaymentLink: byStatus.PENDING_PAYMENT_LINK ?? 0,
+    unpaidWithoutLink,
     totalDue,
     totalPaid,
     outstanding,

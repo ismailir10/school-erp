@@ -4,6 +4,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: {
       groupBy: vi.fn(),
+      count: vi.fn(),
     },
     payment: {
       aggregate: vi.fn(),
@@ -41,6 +42,7 @@ describe("GET /api/invoices/stats", () => {
     vi.clearAllMocks();
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+    vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
   });
 
   it("admin: returns expected shape with correct counts and totals across mixed statuses", async () => {
@@ -71,6 +73,7 @@ describe("GET /api/invoices/stats", () => {
       overdue: 0,
       cancelled: 0,
       pendingPaymentLink: 0,
+      unpaidWithoutLink: 0,
       totalDue: 675_000,
       totalPaid: 125_000,
       // SENT 200k + PARTIALLY_PAID (100k - 50k) = 250k; DRAFT/PAID excluded
@@ -105,6 +108,7 @@ describe("GET /api/invoices/stats", () => {
       overdue: 0,
       cancelled: 0,
       pendingPaymentLink: 0,
+      unpaidWithoutLink: 0,
       totalDue: 0,
       totalPaid: 0,
       outstanding: 0,
@@ -215,5 +219,23 @@ describe("GET /api/invoices/stats", () => {
     expect(body.totalDue).toBe(150_000);
     expect(body.totalPaid).toBe(150_000);
     expect(body.paid).toBe(1);
+  });
+});
+
+describe("GET /api/invoices/stats — unpaidWithoutLink", () => {
+  it("counts the tenant's unpaid invoices that hold no payment link", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+    vi.mocked(prisma.invoice.count).mockResolvedValue(7 as never);
+
+    const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
+
+    expect(body.unpaidWithoutLink).toBe(7);
+    expect(vi.mocked(prisma.invoice.count).mock.calls[0][0]).toEqual({
+      where: { tenantId: "tnt-1", status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] }, xenditPaymentUrl: null },
+    });
   });
 });

@@ -39,11 +39,20 @@ function stubFetch(
     stats?: Record<string, number>;
     refresh?: { status: number; body: Record<string, unknown> };
     refreshAll?: { status: number; body: Record<string, unknown> };
+    createLinks?: { status: number; body: Record<string, unknown> };
   } = {},
 ) {
   const invoices = opts.invoices ?? [invoice];
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url === "/api/invoices/create-missing-links") {
+      const r = opts.createLinks ?? { status: 200, body: { created: 12, failed: 0, skipped: 0, remaining: 0 } };
+      return Promise.resolve({
+        ok: r.status >= 200 && r.status < 300,
+        status: r.status,
+        json: async () => r.body,
+      } as Response);
+    }
     if (url === "/api/invoices/refresh-payments") {
       const r = opts.refreshAll ?? {
         status: 200,
@@ -443,5 +452,99 @@ describe("InvoicesClient — Cek semua belum lunas (cycle 2026-10-17-expired-lin
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: true, void: false }} />);
     expect(await button()).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Buat Tagihan/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-demand, T3)", () => {
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.info).mockClear();
+    vi.mocked(toast.warning).mockClear();
+    vi.mocked(toast.error).mockClear();
+  });
+
+  const withLinksMissing = { unpaidWithoutLink: 12 };
+  const label = /Buat link baru \(\d+\)/;
+
+  it("shows the count of unpaid invoices without a link in the label", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: withLinksMissing }));
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    expect(await screen.findByRole("button", { name: "Buat link baru (12)" })).toBeInTheDocument();
+  });
+
+  it("is absent when every unpaid invoice has a link", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: { unpaidWithoutLink: 0 } }));
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+  });
+
+  it("is absent without the create capability", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: withLinksMissing }));
+    render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: true, void: false }} />);
+    await screen.findByRole("button", { name: "Cek semua belum lunas" });
+    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+  });
+
+  it("POSTs the batch endpoint, toasts how many were made and reloads list + stats", async () => {
+    const f = stubFetch({ stats: withLinksMissing });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    const count = (needle: string) => f.mock.calls.filter((c) => String(c[0]).includes(needle)).length;
+    const listBefore = count("/api/invoices?");
+    const statsBefore = count("/api/invoices/stats");
+
+    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("12 link dibuat."));
+    const post = f.mock.calls.find((c) => String(c[0]) === "/api/invoices/create-missing-links");
+    expect((post as unknown[] | undefined)?.[1]).toMatchObject({ method: "POST" });
+    await waitFor(() => {
+      expect(count("/api/invoices?")).toBeGreaterThan(listBefore);
+      expect(count("/api/invoices/stats")).toBeGreaterThan(statsBefore);
+    });
+  });
+
+  it("says how many are left so the admin knows to press again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ stats: withLinksMissing, createLinks: { status: 200, body: { created: 25, failed: 0, skipped: 0, remaining: 60 } } }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("25 link dibuat. Masih ada 60 tagihan, tekan lagi untuk melanjutkan."),
+    );
+  });
+
+  it("warns when some links could not be made", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ stats: withLinksMissing, createLinks: { status: 200, body: { created: 5, failed: 2, skipped: 0, remaining: 2 } } }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        "5 link dibuat. Masih ada 2 tagihan, tekan lagi untuk melanjutkan. 2 gagal dibuat, coba lagi nanti.",
+      ),
+    );
+  });
+
+  it("shows the server's message when the request is refused (rate limit)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ stats: withLinksMissing, createLinks: { status: 429, body: { error: "Terlalu sering membuat link. Tunggu sebentar lalu coba lagi." } } }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Terlalu sering membuat link. Tunggu sebentar lalu coba lagi."),
+    );
   });
 });
