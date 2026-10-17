@@ -259,7 +259,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       status: "SENT",
       invoiceNumber: "INV-1",
     } as never);
-    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({ count: 1 });
     vi.mocked(prisma.$transaction).mockImplementationOnce(
       async (cb: unknown) =>
         await (cb as (tx: unknown) => unknown)({
@@ -270,8 +270,10 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
               status: "SENT",
               invoiceNumber: "INV-1",
               dueDate: "2099-01-01",
+              xenditSessionId: "sess-1",
+              xenditPaymentUrl: "https://checkout.test/sess-1",
             }),
-            update: txInvoiceUpdate,
+            updateMany: txInvoiceUpdate,
           },
         }),
     );
@@ -280,13 +282,13 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-3",
         event: "payment_session.expired",
-        data: { reference_id: "inv1", status: "EXPIRED" },
+        data: { reference_id: "inv1", payment_session_id: "sess-1", status: "EXPIRED" },
       }) as never,
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "REVERTED" });
     expect(txInvoiceUpdate).toHaveBeenCalledWith({
-      where: { id: "inv1" },
+      where: { id: "inv1", xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" },
       data: {
         status: "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
@@ -756,8 +758,10 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
               id: "inv1",
               status: "SENT",
               invoiceNumber: "INV-1",
+              xenditSessionId: "sess-t6",
+              xenditPaymentUrl: "https://checkout.test/sess-t6",
             }),
-            update: vi.fn().mockResolvedValue({}),
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           },
         }),
     );
@@ -765,7 +769,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       makeReq({
         id: "evt-t6-expired",
         event: "payment_session.expired",
-        data: { reference_id: "inv1", status: "EXPIRED" },
+        data: { reference_id: "inv1", payment_session_id: "sess-t6", status: "EXPIRED" },
       }) as never,
     );
     expect(res.status).toBe(200);

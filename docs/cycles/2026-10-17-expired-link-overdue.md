@@ -99,7 +99,8 @@ production write and would re-open the gate.
 
 ## Implementation
 
-- Plan: driver=claude-sonnet-5, workers=claude-sonnet-5 (two review subagents, standards and spec axes, in parallel); T1 done earlier, T2 and T3 sequential and inline (a small slice in one file the workers would need the whole plan for), T4 inline.
+- Plan: continuation driver=gpt-6, workers=gpt-6 (`review_payments`, `review_routes`, `review_ui_checks`); review the shared payment-session boundary, routes and UI independently, run focused regressions, then the driver completes the full gate and required checks before merge and signed-in staging verification.
+- Original implementation plan: driver=claude-sonnet-5, workers=claude-sonnet-5 (two review subagents, standards and spec axes, in parallel); T1 done earlier, T2 and T3 sequential and inline (a small slice in one file the workers would need the whole plan for), T4 inline.
 - **T1.** `app/api/__tests__/expired-link-past-due.test.ts`: two cases at the processor seam. The control (not-yet-due
   `SENT` reverts to "Link Gagal") passes; the gap-2 case is `it.fails`, asserting a past-due unpaid invoice stays in
   `UNPAID_INVOICE_STATUSES`. `it.fails` keeps CI green while the bug exists and goes red when it is fixed, which is
@@ -144,8 +145,11 @@ Verify flows added: (T5) admin opens an invoice paid through DOKU BCA and sees "
 
 - [x] T5 Store and show the payment channel — accept: AC above (deps: schema migration approved)
 - [x] T6 Bulk "Cek semua belum lunas" — accept: AC above (reuse: `reconcileInvoicePayment`, `limit` from `lib/finance/concurrency-limit`)
+- [x] T7 Shared PR review continuation: enforce the exact creator claim when persisting, add the Xendit 10 s creation timeout, include route setup in the bulk-link deadline, and add regressions — implementation and owner-review details live in `2026-10-17-payment-link-on-demand`; full current-tree verification remains pending.
 
 ## Verification
+
+- **Current shared-PR continuation, worker reports only; root full gate pending:** parent-sheet UI 16 passed, focused backend 40 passed, focused routes 38 passed plus 3 real-SQL checks. These cover the claim-owner fence, Xendit creation timeout and setup-inclusive bulk-link deadline; earlier full-gate and browser evidence below predates these fixes. `audit-docs.sh`: 13 ok, 1 existing ADR-age warning, 0 fail.
 
 **Reproduction against real SQL (T1).** Local Postgres 16, schema pushed and demo seed loaded, four invoices set past
 due with a link; the real `reconcile-payments` and `finance-maintenance` handlers run in production order, only the
@@ -174,12 +178,12 @@ a throwaway test file, not committed.
 
 ## Ship Notes
 
-Not shipped. PR [#666](https://github.com/ismailir10/school-erp/pull/666), draft.
+Not merged. PR [#666](https://github.com/ismailir10/school-erp/pull/666) is ready and labelled `needs-staging-verify` and `e2e`. The review continuation is implemented; current full verification and required CI checks remain pending, followed by signed-in staging verification after merge.
 
 - **Migration:** `20261017000000_add_payment_channel_code`, one nullable `Payment.channelCode` column, additive, no backfill. Applies through `prisma migrate deploy` in the production build.
 - **Env:** none.
 - **Manual steps:** none required. Optional, a production write and therefore the owner's call: fill `channelCode` on the last 90 days of DOKU payments from the stored `WebhookEvent` payloads (older payloads are purged), so recent payments read "Virtual Account BCA" instead of the generic label. Also optional and read-only first: count production invoices already stuck in the gap-2 state (`PENDING_PAYMENT_LINK` while past their due date) before deciding whether to repair them.
 - **Before promoting:** DOKU's `order.status` (`ORDER_EXPIRED`) is read from the status endpoint but was not seen in a live response. After the first production sweep, check one expired invoice's `WebhookEvent` row (`manual.refresh.expired`) to confirm DOKU reports it. It is only returned to merchants registered from December 2024 or enabled by DOKU support.
 - **Post-merge on staging (signed in as an admin with `payments.record`):** open `/admin/invoices`, press "Cek semua belum lunas" and expect a tally toast; open an invoice with a DOKU payment and read its channel. The new route sits under `app/api/**` and reuses the existing `payments.record` gate, so the PR is labelled `needs-staging-verify` until that is done.
-- **CI:** `Docs sync` and the other checks are blocked repo-wide by GitHub not assigning runners (see the PR); nothing merges until that is resolved, and every check passes locally.
+- **CI:** the earlier runner-assignment blocker is historical. The current head must pass `Checks`, `Test & Build` and `E2E`; their final status is pending verification. Earlier local passes above do not substitute for the current gate.
 - **Rollback:** revert the PR. The column can stay; nothing reads it except the label.

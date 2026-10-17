@@ -386,7 +386,7 @@ async function handleSessionExpired(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -408,7 +408,10 @@ async function handleSessionExpired(
     // a delayed expiry for the old session must not clear the new link. Only possible to tell
     // apart when the event names its session (Xendit does; a DOKU notification does not, and
     // every DOKU session of an invoice shares its invoice number anyway).
-    if (event.sessionId && fresh.xenditSessionId && event.sessionId !== fresh.xenditSessionId) {
+    if (event.sessionId && (
+      (fresh.xenditSessionId && event.sessionId !== fresh.xenditSessionId) ||
+      (!fresh.xenditSessionId && !fresh.xenditPaymentUrl)
+    )) {
       return {
         type: "IGNORED:stale_session" as const,
         invoiceNumber: fresh.invoiceNumber,
@@ -417,11 +420,16 @@ async function handleSessionExpired(
     // OVERDUE and PARTIALLY_PAID are still owed: they keep their status and
     // only lose the dead link, so the admin and parent are not shown a link
     // that no longer works (cycle 2026-10-17-expired-link-overdue).
+    // Creators do not hold this advisory lock, so compare the session again in
+    // the write itself; a replacement installed after our read must survive.
     if (fresh.status === "OVERDUE" || fresh.status === "PARTIALLY_PAID") {
-      await tx.invoice.update({
-        where: { id: invoiceId },
+      const cleared = await tx.invoice.updateMany({
+        where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
         data: { xenditSessionId: null, xenditPaymentUrl: null },
       });
+      if (cleared.count === 0) {
+        return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
+      }
       return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber };
     }
     if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
@@ -437,14 +445,17 @@ async function handleSessionExpired(
     // Past due → OVERDUE; otherwise back to "Link Gagal" so a new link is made.
     const pastDue =
       fresh.status === "SENT" && fresh.dueDate < getTodayInTimezone(JAKARTA_TZ);
-    await tx.invoice.update({
-      where: { id: invoiceId },
+    const cleared = await tx.invoice.updateMany({
+      where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
       data: {
         status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
       },
     });
+    if (cleared.count === 0) {
+      return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
+    }
     return {
       type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("REVERTED" as const),
       invoiceNumber: fresh.invoiceNumber,

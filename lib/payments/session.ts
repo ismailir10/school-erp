@@ -213,8 +213,7 @@ export async function createPaymentSessionForInvoice(
         paymentCheckedAt: new Date(),
       },
     });
-  let stored = await persist({ paymentCheckedAt: claimedUntil });
-  if (stored.count === 0) stored = await persist({ xenditPaymentUrl: null });
+  const stored = await persist({ paymentCheckedAt: claimedUntil });
   if (stored.count === 0) {
     const winner = await prisma.invoice.findUnique({
       where: { id: invoiceId },

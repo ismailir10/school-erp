@@ -187,6 +187,30 @@ describe("running the batch", () => {
     }
   });
 
+  it("includes authentication and candidate selection in the function's start budget", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const t0 = new Date("2026-10-17T10:00:00Z").getTime();
+      vi.setSystemTime(t0);
+      getSessionMock.mockImplementationOnce(async () => {
+        vi.setSystemTime(t0 + 12_000);
+        return session();
+      });
+      findManyMock.mockImplementationOnce(async () => {
+        vi.setSystemTime(t0 + 23_000);
+        return ids(3);
+      });
+      countMock.mockResolvedValue(3);
+
+      const body = await (await POST(req())).json();
+
+      expect(ensureMock).not.toHaveBeenCalled();
+      expect(body).toMatchObject({ created: 0, skipped: 3, remaining: 3 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("nothing to do is a clean zero", async () => {
     expect(await (await POST(req())).json()).toEqual({ created: 0, failed: 0, skipped: 0, remaining: 0 });
     expect(ensureMock).not.toHaveBeenCalled();

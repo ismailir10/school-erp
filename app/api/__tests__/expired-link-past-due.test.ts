@@ -16,7 +16,7 @@ const { invoiceUpdate, invoiceFresh } = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => {
   const tx = {
     $executeRaw: vi.fn(),
-    invoice: { findUnique: invoiceFresh, update: invoiceUpdate },
+    invoice: { findUnique: invoiceFresh, updateMany: invoiceUpdate },
   };
   return {
     prisma: {
@@ -60,7 +60,7 @@ type Update = { status?: string; xenditSessionId?: null; xenditPaymentUrl?: null
 
 /** What the processor wrote to the invoice row, or null when it wrote nothing. */
 async function expire(status: string, dueDate: string): Promise<Update | null> {
-  const row = { id: "inv1", status, invoiceNumber: "INV-2026-0001", dueDate };
+  const row = { id: "inv1", status, invoiceNumber: "INV-2026-0001", dueDate, xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" };
   vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
   invoiceFresh.mockResolvedValue(row);
   await processPaymentEvent(expiredEvent());
@@ -74,6 +74,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   vi.clearAllMocks();
+  invoiceUpdate.mockReset().mockResolvedValue({ count: 1 });
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -128,8 +129,8 @@ describe("session expiry — untouched", () => {
 
 describe("session expiry — a superseded session", () => {
   // A parent or admin replaced the link, so S2 is live and a late expiry for S1 arrives.
-  async function expireWith(eventSession: string, storedSession: string | null, status = "OVERDUE") {
-    const row = { id: "inv1", status, invoiceNumber: "INV-2026-0001", dueDate: PAST_DUE, xenditSessionId: storedSession };
+  async function expireWith(eventSession: string, storedSession: string | null, status = "OVERDUE", storedUrl = storedSession ? `https://checkout.test/${storedSession}` : null) {
+    const row = { id: "inv1", status, invoiceNumber: "INV-2026-0001", dueDate: PAST_DUE, xenditSessionId: storedSession, xenditPaymentUrl: storedUrl };
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
     invoiceFresh.mockResolvedValue(row);
     await processPaymentEvent(expiredEvent(eventSession));
@@ -148,8 +149,57 @@ describe("session expiry — a superseded session", () => {
     expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: { xenditSessionId: null, xenditPaymentUrl: null } });
   });
 
+  it("an old named expiry on an already cleared invoice is ignored", async () => {
+    expect(await expireWith("sess-1", null)).toBeNull();
+  });
+
+  it.each(["OVERDUE", "SENT"])("a named expiry still clears a URL-only %s session", async (status) => {
+    expect(await expireWith("sess-1", null, status, "https://checkout.test/url-only")).toMatchObject({
+      where: { id: "inv1", xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/url-only" },
+      data: { xenditSessionId: null, xenditPaymentUrl: null },
+    });
+  });
+
+  it.each(["OVERDUE", "SENT"])("a URL-only replacement installed after the %s read survives the clear", async (status) => {
+    const row = { id: "inv1", status, invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/old" };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ ...row } as never);
+    invoiceFresh.mockResolvedValue({ ...row });
+    invoiceUpdate.mockImplementationOnce(async ({ where, data }) => {
+      row.xenditPaymentUrl = "https://checkout.test/new";
+      if (where.xenditPaymentUrl !== row.xenditPaymentUrl) return { count: 0 };
+      Object.assign(row, data);
+      return { count: 1 };
+    });
+
+    const { body } = await processPaymentEvent(expiredEvent());
+
+    expect(body).toMatchObject({ status: "IGNORED:stale_session" });
+    expect(row).toMatchObject({ status, xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/new" });
+  });
+
+  it.each(["OVERDUE", "PARTIALLY_PAID", "SENT", "PENDING_PAYMENT_LINK"])("a replacement installed after the %s read survives the clear", async (status) => {
+    const row = { id: "inv1", status, invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: null as string | null, xenditPaymentUrl: null as string | null };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ ...row } as never);
+    invoiceFresh.mockResolvedValue({ ...row });
+    invoiceUpdate.mockImplementationOnce(async ({ where, data }) => {
+      // The creator is outside the expiry's advisory lock and installs its replacement
+      // after the read. The database evaluates the session predicate against this new row.
+      row.xenditSessionId = "sess-2";
+      row.xenditPaymentUrl = "https://checkout.test/sess-2";
+      if (where.xenditSessionId !== row.xenditSessionId) return { count: 0 };
+      Object.assign(row, data);
+      return { count: 1 };
+    });
+
+    const { body } = await processPaymentEvent({ ...expiredEvent(), sessionId: null });
+
+    expect(body).toMatchObject({ status: "IGNORED:stale_session" });
+    expect(row).toMatchObject({ status, xenditSessionId: "sess-2", xenditPaymentUrl: "https://checkout.test/sess-2" });
+    expect(invoiceUpdate.mock.calls[0][0].where).toEqual({ id: "inv1", xenditSessionId: null, xenditPaymentUrl: null });
+  });
+
   it("an event that names no session (DOKU) behaves as before", async () => {
-    const row = { id: "inv1", status: "OVERDUE", invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: "sess-2" };
+    const row = { id: "inv1", status: "OVERDUE", invoiceNumber: "INV-1", dueDate: PAST_DUE, xenditSessionId: "sess-2", xenditPaymentUrl: "https://checkout.test/sess-2" };
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
     invoiceFresh.mockResolvedValue(row);
     await processPaymentEvent({ ...expiredEvent(), sessionId: null });

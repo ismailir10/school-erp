@@ -52,6 +52,8 @@ const RESPONSE_OVERHEAD_MS = 6_000;
 const START_DEADLINE_MS = MAX_DURATION_MS - WORST_CASE_CREATE_MS - RESPONSE_OVERHEAD_MS;
 
 export async function POST(req: Request) {
+  // Authentication and candidate selection consume the same function duration as gateway work.
+  const deadline = Date.now() + START_DEADLINE_MS;
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -83,7 +85,6 @@ export async function POST(req: Request) {
     take: BATCH_SIZE,
   });
 
-  const deadline = Date.now() + START_DEADLINE_MS;
   const run = limit(CONCURRENCY);
   const outcomes = await Promise.all(
     candidates.map((invoice) =>

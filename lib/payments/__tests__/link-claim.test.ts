@@ -176,6 +176,21 @@ describe("a payment check cannot erase the creation claim", () => {
 });
 
 describe("persisting only while the claim stands", () => {
+  it("a creator that lost its claim to another in-flight creator leaves that claim untouched", async () => {
+    const nextClaim = new Date(Date.now() + 90_000);
+    gateway.createSession.mockImplementation(async () => {
+      // Our lease expired and a second creator claimed the invoice, but its gateway call
+      // has not returned yet. A missing URL does not make that creator's claim ours.
+      state.row.paymentCheckedAt = nextClaim;
+      return { id: "S1", paymentUrl: "https://checkout.doku.com/S1", expiresAt: new Date().toISOString() };
+    });
+
+    expect(await createPaymentSessionForInvoice("inv1", "t1", ORIGIN, { waitForWinnerMs: 0 })).toBeNull();
+    expect(state.row.paymentCheckedAt?.getTime()).toBe(nextClaim.getTime());
+    expect(state.row.xenditSessionId).toBeNull();
+    expect(state.row.xenditPaymentUrl).toBeNull();
+  });
+
   it("a creator that lost its claim does not overwrite the link that won", async () => {
     gateway.createSession.mockImplementation(async () => {
       // while our gateway call is out, someone else's link lands and our claim is gone
