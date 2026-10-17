@@ -16,8 +16,9 @@ import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel"
 import { AuditDiff } from "@/components/student-journal/audit-diff";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
+import { Pencil, Check } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { PeriodStepper } from "@/components/ui/period-stepper";
 
 // ------------------------------------------------------------------
 // Types
@@ -296,29 +297,15 @@ export default function StudentJournalDetailPage({
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Week picker */}
-            <Button
+            <PeriodStepper
+              label={formatWeekLabel(ws)}
+              onPrev={() => handleWeekChange(-1)}
+              onNext={() => handleWeekChange(1)}
+              prevLabel="Minggu sebelumnya"
+              nextLabel="Minggu berikutnya"
               variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => handleWeekChange(-1)}
-              title="Minggu sebelumnya"
-              aria-label="Minggu sebelumnya"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="min-w-[104px] text-center text-sm font-medium sm:min-w-[140px]">
-              {formatWeekLabel(ws)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => handleWeekChange(1)}
-              title="Minggu berikutnya"
-              aria-label="Minggu berikutnya"
-            >
-              <ChevronRight size={14} />
-            </Button>
+              labelClassName="min-w-[104px] font-medium sm:min-w-[140px]"
+            />
 
             {/* Edit toggle — per-cell edits already PUT immediately (handleToggle),
                 so there is nothing to "save" or "cancel" here: this button only

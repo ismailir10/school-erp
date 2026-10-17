@@ -11,6 +11,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -77,8 +78,24 @@ const columns: ColumnDef<Employee>[] = [
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
           </div>
-          <DataTableLinkCell href={`/admin/employees/${e.id}`} description={e.email}>
-            {e.nama} <span className="font-currency text-xs text-muted-foreground">{e.kode}</span>
+          <DataTableLinkCell
+            href={`/admin/employees/${e.id}`}
+            className="min-w-0 whitespace-normal"
+            description={
+              <>
+                <span className="hidden md:inline">{e.email}</span>
+                <DataTableMobileMeta>
+                  <span className="font-currency">{e.kode}</span>
+                  <span>{e.jabatan}</span>
+                  <StatusBadge status={e.status} />
+                </DataTableMobileMeta>
+              </>
+            }
+          >
+            {e.nama}
+            {/* Code sits under the name below `md` (DataTableMobileMeta). The
+                link is inline-flex, so a plain space collapses — margin keeps the gap. */}
+            <span className="ml-2 hidden font-currency text-xs text-muted-foreground md:inline">{e.kode}</span>
           </DataTableLinkCell>
         </div>
       );
@@ -89,6 +106,8 @@ const columns: ColumnDef<Employee>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Jabatan" />
     ),
+    // Position sits under the name below `md` (DataTableMobileMeta above).
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm">{row.original.jabatan}</span>
     ),
@@ -133,6 +152,8 @@ const columns: ColumnDef<Employee>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    // Status sits under the name below `md` (DataTableMobileMeta above).
+    meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];

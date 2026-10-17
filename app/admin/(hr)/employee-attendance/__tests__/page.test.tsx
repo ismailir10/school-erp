@@ -69,7 +69,9 @@ describe("AttendancePage — weekend view (Alpa fix)", () => {
     expect(alpaLabel.nextElementSibling?.textContent).toBe("0");
 
     const liburBadges = screen.getAllByText("Libur");
-    expect(liburBadges).toHaveLength(2);
+    // Two employees, each badged twice: in the Status column (md+) and in the
+    // phone-only meta line under the name (DataTableMobileMeta).
+    expect(liburBadges).toHaveLength(4);
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

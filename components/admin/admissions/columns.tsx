@@ -73,8 +73,9 @@ function IdentityCell({ admission: a, canEdit, onEdit }: { admission: Admission;
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2">
+    // whitespace-normal: table cells are nowrap, which would force the table wider than a phone.
+    <div className="flex flex-col whitespace-normal">
+      <div className="flex flex-wrap items-center gap-x-2">
         {name}
         {age && <span className="text-xs text-muted-foreground">{age}</span>}
       </div>
