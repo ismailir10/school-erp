@@ -38,7 +38,7 @@ export function UrgentList({ items, total }: { items: AdminWorkItem[]; total: nu
         </ul>
       </CardContent>
       <CardFooter>
-        <Link href="/admin/work-queue" className="inline-flex items-center gap-1 text-small font-medium text-primary hover:underline">
+        <Link href="/admin/work-queue" className="inline-flex items-center gap-1 text-small font-medium text-primary hover:underline [@media(pointer:coarse)]:min-h-11">
           Lihat semua ({total})
           <ArrowRight className="size-3.5" />
         </Link>

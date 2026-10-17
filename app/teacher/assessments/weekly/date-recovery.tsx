@@ -20,7 +20,7 @@ export function WeeklyDateRecovery({ date }: { date: string }) {
         type="date"
         defaultValue={date}
         required
-        className="tap-target w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="tap-target w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
       <Button type="submit" className="tap-target w-full">Lihat penilaian</Button>
     </form>

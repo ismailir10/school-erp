@@ -69,8 +69,10 @@ export function DossierSection({
                 !open && "-rotate-90",
               )}
             />
-            <h2 className="truncate text-sm font-semibold text-foreground">{label}</h2>
-            {badge}
+            {/* Wraps instead of truncating: with a count badge and an action beside it,
+                a 390px header cut "Daftar Siswa" to "Daftar Si…". */}
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">{label}</h2>
+            {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
           </CollapsibleTrigger>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>

@@ -98,4 +98,6 @@ None: no schema, dependency, auth, PII or production write.
 
 ## Verification
 
+_(filled in by verify-local below)_
+
 ## Ship Notes

@@ -7,9 +7,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ArrowLeft, CalendarX } from "lucide-react";
+import { CalendarX } from "lucide-react";
 import { formatMonthLabel } from "@/lib/format";
-import Link from "next/link";
+import { BackLink } from "@/components/portal/back-link";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
 type MonthlyData = {
@@ -100,11 +100,7 @@ export default function MonthlyAttendancePage() {
 
   return (
     <>
-      <div className="mb-4">
-        <Link href="/admin/employee-attendance" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft size={14} /> Kembali ke Harian
-        </Link>
-      </div>
+      <BackLink href="/admin/employee-attendance" label="Kembali ke Harian" className="mb-2" />
       <PageHeader
         title="Kehadiran Bulanan"
         description="Pilih sel untuk menimpa status kehadiran"

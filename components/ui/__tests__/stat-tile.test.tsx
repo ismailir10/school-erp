@@ -16,6 +16,13 @@ describe("StatTile", () => {
     expect(screen.getByRole("link", { name: "16 tagihan lewat tempo" })).toHaveAttribute("href", "/admin/invoices");
   });
 
+  it("keeps the size token next to the tone colour (tailwind-merge would drop it)", () => {
+    render(<StatTile label="Hadir" value={7} size="lg" />);
+    const cls = screen.getByText("7").className;
+    expect(cls).toContain("text-display");
+    expect(cls).toContain("text-foreground");
+  });
+
   it("lets a caller override the tone colour", () => {
     render(<StatTile label="Terlambat" value={3} valueClassName="text-status-late-text" />);
     expect(screen.getByText("3").className).toContain("text-status-late-text");

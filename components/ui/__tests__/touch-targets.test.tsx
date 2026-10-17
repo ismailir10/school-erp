@@ -28,7 +28,7 @@ describe("touch-target floor on shared controls", () => {
     expect(select.className).toContain("text-base");
   });
 
-  it("TabsList grows to 44px on touch", () => {
+  it("Tabs grow to 44px on touch (the list wraps its triggers instead of fixing a height)", () => {
     render(
       <Tabs defaultValue="a">
         <TabsList>
@@ -36,7 +36,8 @@ describe("touch-target floor on shared controls", () => {
         </TabsList>
       </Tabs>,
     );
-    expect(screen.getByRole("tablist").className).toContain("[@media(pointer:coarse)]:h-11");
+    expect(screen.getByRole("tablist").className).toContain("[@media(pointer:coarse)]:h-auto");
+    expect(screen.getByRole("tab", { name: "A" }).className).toContain(COARSE_FLOOR);
   });
 
   it("BreadcrumbLink grows its hit area without changing layout", () => {
