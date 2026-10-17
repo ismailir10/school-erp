@@ -105,6 +105,7 @@ export function InvoiceDetailSheet({
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [prevInvoiceId, setPrevInvoiceId] = useState<string | null>(null);
+  const [requestingLink, setRequestingLink] = useState(false);
 
   if (open && invoiceId && invoiceId !== prevInvoiceId) {
     setPrevInvoiceId(invoiceId);
@@ -178,6 +179,41 @@ export function InvoiceDetailSheet({
         </SheetContent>
       </Sheet>
     );
+  }
+
+  // "Buat link pembayaran" / "Minta link baru": ask the server for a working
+  // link on this invoice. It checks the gateway first when a link is held (an
+  // expired one is cleared), returns a live link unchanged and makes a new one
+  // only when there is none, so pressing it is always safe. Every message is
+  // ours; nothing the server or gateway says is shown (voice.md).
+  async function requestPaymentLink() {
+    if (!invoice) return;
+    const previousUrl = invoice.xenditPaymentUrl;
+    setRequestingLink(true);
+    try {
+      const res = await fetch(`/api/guardian/invoices/${invoice.id}/payment-link`, { method: "POST" });
+      const d = (await res.json().catch(() => ({}))) as { paymentUrl?: string; created?: boolean };
+      if (res.ok && d.paymentUrl) {
+        const url = d.paymentUrl;
+        setInvoice((prev) => (prev ? { ...prev, xenditPaymentUrl: url } : prev));
+        toast.success(
+          previousUrl && !d.created
+            ? "Link pembayaran masih berlaku. Silakan ketuk Bayar sekarang."
+            : "Link pembayaran sudah siap. Silakan ketuk Bayar sekarang.",
+        );
+      } else if (res.status === 409) {
+        toast.info("Tagihan ini sudah tidak bisa dibayar lewat link. Kami muat ulang statusnya.");
+        onRefreshStatus?.();
+      } else if (res.status === 429) {
+        toast.error("Terlalu sering mencoba. Tunggu sebentar ya.");
+      } else {
+        toast.error("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
+      }
+    } catch {
+      toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+    } finally {
+      setRequestingLink(false);
+    }
   }
 
   const remaining = invoice.totalDue - invoice.totalPaid;
@@ -422,17 +458,29 @@ export function InvoiceDetailSheet({
                   ) : null}
                 </div>
               ) : linkState === "ready" ? (
-                <a
-                  href={invoice.xenditPaymentUrl!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <Button className="w-full" size="lg">
-                    <ExternalLink size={16} className="mr-2" />
-                    Bayar sekarang
+                <>
+                  <a
+                    href={invoice.xenditPaymentUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <Button className="w-full" size="lg">
+                      <ExternalLink size={16} className="mr-2" />
+                      Bayar sekarang
+                    </Button>
+                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={requestPaymentLink}
+                    disabled={requestingLink}
+                    aria-busy={requestingLink}
+                  >
+                    {requestingLink ? "Memeriksa link…" : "Link tidak bisa dibuka? Minta link baru"}
                   </Button>
-                </a>
+                </>
               ) : linkState === "pending" ? (
                 <>
                   <Button className="w-full" size="lg" disabled>
@@ -447,6 +495,18 @@ export function InvoiceDetailSheet({
                   </div>
                 </>
               ) : (
+                <>
+                <Button
+                  type="button"
+                  className="w-full"
+                  size="lg"
+                  onClick={requestPaymentLink}
+                  disabled={requestingLink}
+                  aria-busy={requestingLink}
+                >
+                  <ExternalLink size={16} className="mr-2" />
+                  {requestingLink ? "Menyiapkan link…" : "Buat link pembayaran"}
+                </Button>
                 <div className="space-y-3 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text" data-testid="contact-school">
                   <div className="flex items-start gap-2">
                     <Info size={14} className="mt-0.5 shrink-0" />
@@ -476,6 +536,7 @@ export function InvoiceDetailSheet({
                     );
                   })()}
                 </div>
+                </>
               )}
             </div>
           ) : null}
