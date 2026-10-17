@@ -59,7 +59,7 @@ Approved as recommended on 2026-10-17:
 Local app on a disposable Postgres, demo data, gateway poll stubbed to report `EXPIRED`.
 
 1. Admin, `/admin/invoices`: a past-due "Link Dibuat" invoice, run the sweep then the overdue job; it shows
-   "Terlambat", no payment link, and the dossier balance still includes it.
+   "Lewat Tempo", no payment link, and the dossier balance still includes it.
 2. Admin, an `OVERDUE` invoice with a link, same run; status unchanged, link gone, "Buat link pembayaran" available.
 3. Edge: a not-yet-due `SENT` invoice with an expired link goes back to "Link Gagal".
 4. Error: gateway poll fails for one invoice; the rest of the sweep still completes.
@@ -111,6 +111,9 @@ production write and would re-open the gate.
 - T3: DOKU's Checkout check-status also returns `order.status` (`ORDER_GENERATED`, `ORDER_EXPIRED` = "Order expired without payment", changelog 24 Jul 2025). A link nobody opened has no channel and no transaction, so reading `transaction.status` alone leaves it pending forever. `parseDokuOrderStatus` now treats `ORDER_EXPIRED` as expired, **only** when the transaction state would otherwise read pending; a paid, failed or refunded transaction always wins. DOKU's docs say the field is only returned to merchants registered from December 2024 or enabled by DOKU support. **Not verified against a live DOKU response** (no credentials in this environment), and the docs show no example of an expired response.
 - T4: `docs/runbooks/payments-gateway.md` states what an expiry does per status.
 - T5: `prisma/schema.prisma` + `prisma/migrations/20261017000000_add_payment_channel_code/` (nullable `Payment.channelCode`, additive), `lib/constants/payment-channels.ts` (the activity card's formatter, lifted so one owner renders "Virtual Account BCA"), `lib/constants/payment-methods.ts` (`paymentMethodLabel(method, channelCode?)`: only gateway methods take the channel), `lib/payments/webhook-processor.ts` (stores `event.channelCode` on credit; both the notification and the status poll already carry it), `lib/finance/payments-ledger.ts`, `app/admin/invoices/[id]/page.tsx`, `components/admin/invoices/payment-activity-card.tsx` (imports the shared label). Tests: label helper, ledger rows (channel vs older payment, totals still by method), DOKU webhook asserts the channel is written. No frontend layout change: the existing method badge shows the longer text, so the `design-system` reference was cross-checked for the badge only.
+- T6: `app/api/invoices/refresh-payments/route.ts` (new; `payments.record`, tenant-scoped, 6 calls a minute per admin, `maxDuration` 60), `app/admin/invoices/invoices-client.tsx`. The server selects the tenant's `SENT` / `PARTIALLY_PAID` / `OVERDUE` invoices that hold a link, least recently checked first, skipping any checked in the last 10 minutes, takes 50, runs `reconcileInvoicePayment` on them five at a time and answers `{ checked, updated, failed, remaining }`; `remaining` is counted with the same filter after the run, so it is exactly what the next press takes. The header button "Cek semua belum lunas" shows only with `recordPayment` (the create buttons no longer hide it, nor it them) and reloads list and stats afterwards. Tests: route (403 without session, role or permission, 429 before any gateway call, the exact filter, the cap, one failing invoice does not stop the rest, nothing to check) and the client (tally toast, how-many-left toast, warning on failures, empty, refusal, hidden/shown by capability).
+- Docs: README finance line, `docs/uat/jobs/admin.md` (JTBD-ADMIN-INV-02 step 6 and "Last audited").
+- **Not in the original review pass:** T5 and T6 were built after the spec and reviews of T2-T4; their own review is the full gate plus the browser walk below.
 
 ## Known residuals (recorded, not built)
 
@@ -138,7 +141,7 @@ production write and would re-open the gate.
 Verify flows added: (T5) admin opens an invoice paid through DOKU BCA and sees "Virtual Account BCA"; an older payment still reads "Virtual Account (DOKU)". (T6) admin on `/admin/invoices` presses "Cek semua belum lunas" with more than 50 unpaid, sees "N diperbarui, M tersisa", presses again and the remainder shrinks; error case: gateway down returns a warning toast and the list stays intact.
 
 - [x] T5 Store and show the payment channel — accept: AC above (deps: schema migration approved)
-- [ ] T6 Bulk "Cek semua belum lunas" — accept: AC above (reuse: `reconcileInvoicePayment`, `limit` from `lib/finance/concurrency-limit`)
+- [x] T6 Bulk "Cek semua belum lunas" — accept: AC above (reuse: `reconcileInvoicePayment`, `limit` from `lib/finance/concurrency-limit`)
 
 ## Verification
 
@@ -162,8 +165,19 @@ a throwaway test file, not committed.
 - `npx vitest run`: `Test Files 623 passed | 2 skipped (625)`, `Tests 7290 passed | 42 todo`.
 - `npm run build` with a placeholder `DATABASE_URL`: exit 0. Without it the build fails identically on the untouched base, because this container has no `.env`.
 - The real-database reproduction was not re-run against the fix: CI has no database and the Postgres cluster was removed after T1. The processor seam is covered by the tests above.
-- No frontend file changed; `design-system` frontend gate not applicable.
+- T5 and T6, final gate on this branch: `npm run lint` (max-warnings 0) and `npx tsc --noEmit` clean; `npx vitest run` `Test Files 625 passed | 2 skipped (627)`, `Tests 7317 passed | 42 todo`; `bash scripts/verify-api-auth.sh` "211 / 211 routes"; `bash scripts/verify-rls-coverage.sh` "43 / 43"; `bash scripts/audit-docs.sh` 0 fail; `bash scripts/test-hooks.sh` 32 passed; `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build` exit 0.
+- **Playwright**, full suite on a disposable Postgres 16 with the demo seed, Chromium, against `DEMO_MODE=true npm run start`: `188 passed (5.7m)`, `1 flaky`. The flaky test is `enrollment-fee-payment.spec.ts:187` (Pendaftaran admin list, a `toHaveURL` timeout) which failed once and passed on its retry; this diff does not touch that page. A pre-existing flake is the likely cause but I did not re-run it on the base to prove it. The pre-installed Chromium was launched by path through a throwaway config override (deleted), since the pinned Playwright's own browser build is not present in this container.
+- **Walk of the new UI** (Playwright script, super admin cookie, 82 unpaid invoices holding a link, demo gateway polls report pending): `/admin/invoices` shows "Cek semua belum lunas" beside Tagihan Manual / Buat Tagihan. Three presses answered `{checked:50, remaining:32}`, then `{checked:32, remaining:0}`, then `{checked:0}`, with the toasts "50 tagihan diperiksa, 0 diperbarui. Masih ada 32 tagihan, tekan lagi untuk melanjutkan.", "32 tagihan diperiksa, 0 diperbarui." and "Tidak ada tagihan belum lunas yang perlu diperiksa sekarang."; all 82 invoices ended with a `paymentCheckedAt` stamp. Invoice detail: a DOKU payment with `channelCode = VIRTUAL_ACCOUNT_BCA` reads "Virtual Account BCA", a DOKU payment with no channel reads "Virtual Account (DOKU)". The screenshots matched `design-system`: outline button, same size and icon as the neighbouring header buttons, the badge keeps its size with the longer label. A note for later, not this diff: the toast sits over the bottom-right table rows for a few seconds.
+- **T2 against real SQL after the fix** (same throwaway-test method as T1, gateway poll stubbed, handlers in production order): a past-due `SENT` invoice with an expired link ends `OVERDUE` with no link; `OVERDUE` stays `OVERDUE` with no link; `PARTIALLY_PAID` keeps its status and loses the link; a not-yet-due `SENT` goes to "Link Gagal"; an alive past-due `SENT` is promoted by the overdue job as before. A second sweep scanned 1 invoice (the alive one) and updated 0.
 
 ## Ship Notes
 
-Not shipped.
+Not shipped. PR [#666](https://github.com/ismailir10/school-erp/pull/666), draft.
+
+- **Migration:** `20261017000000_add_payment_channel_code`, one nullable `Payment.channelCode` column, additive, no backfill. Applies through `prisma migrate deploy` in the production build.
+- **Env:** none.
+- **Manual steps:** none required. Optional, a production write and therefore the owner's call: fill `channelCode` on the last 90 days of DOKU payments from the stored `WebhookEvent` payloads (older payloads are purged), so recent payments read "Virtual Account BCA" instead of the generic label. Also optional and read-only first: count production invoices already stuck in the gap-2 state (`PENDING_PAYMENT_LINK` while past their due date) before deciding whether to repair them.
+- **Before promoting:** DOKU's `order.status` (`ORDER_EXPIRED`) is read from the status endpoint but was not seen in a live response. After the first production sweep, check one expired invoice's `WebhookEvent` row (`manual.refresh.expired`) to confirm DOKU reports it. It is only returned to merchants registered from December 2024 or enabled by DOKU support.
+- **Post-merge on staging (signed in as an admin with `payments.record`):** open `/admin/invoices`, press "Cek semua belum lunas" and expect a tally toast; open an invoice with a DOKU payment and read its channel. The new route sits under `app/api/**` and reuses the existing `payments.record` gate, so the PR is labelled `needs-staging-verify` until that is done.
+- **CI:** `Docs sync` and the other checks are blocked repo-wide by GitHub not assigning runners (see the PR); nothing merges until that is resolved, and every check passes locally.
+- **Rollback:** revert the PR. The column can stay; nothing reads it except the label.
