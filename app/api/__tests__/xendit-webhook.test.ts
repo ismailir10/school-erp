@@ -42,7 +42,7 @@ vi.mock("@/lib/generated/prisma/client", () => {
       super(msg);
     }
   }
-  // Minimal Decimal shim — webhook + sumDecimals use add / greaterThanOrEqualTo.
+  // Minimal Decimal shim — webhook + sumDecimals use add / gte / gt.
   class FakeDecimal {
     private n: number;
     constructor(v: unknown) {
@@ -53,6 +53,12 @@ vi.mock("@/lib/generated/prisma/client", () => {
     }
     greaterThanOrEqualTo(other: unknown): boolean {
       return this.n >= new FakeDecimal(other).n;
+    }
+    gte(other: unknown): boolean {
+      return this.n >= new FakeDecimal(other).n;
+    }
+    gt(other: unknown): boolean {
+      return this.n > new FakeDecimal(other).n;
     }
     toString(): string {
       return String(this.n);
@@ -479,6 +485,55 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     expect(arg).toBeDefined();
     expect(arg!.data.eventId).toMatch(
       /^payment_session\.completed:ps_x:COMPLETED:[a-f0-9]{16}$/,
+    );
+  });
+
+  it.each([
+    ["past its due date", "2020-01-31", "OVERDUE"],
+    ["not yet due", "2999-12-31", "PARTIALLY_PAID"],
+  ])("a partial gateway payment on an invoice %s leaves it %s", async (_label, dueDate, expected) => {
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      status: "SENT",
+      totalDue: 1000,
+      totalPaid: 0,
+      invoiceNumber: "INV-1",
+    } as never);
+    const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "inv1",
+              status: "SENT",
+              totalDue: 1000,
+              totalPaid: 0,
+              dueDate,
+            }),
+            update: txInvoiceUpdate,
+          },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            create: vi.fn().mockResolvedValue({ id: "p1" }),
+            findMany: vi.fn().mockResolvedValue([{ amount: 400 }]),
+          },
+        }),
+    );
+
+    const res = await POST(
+      makeReq({
+        id: "evt-partial",
+        event: "payment_session.completed",
+        data: { reference_id: "inv1", status: "COMPLETED", payment_id: "pay-partial", amount: 400 },
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: expected });
+    expect(txInvoiceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: expected, paidAt: null }) }),
     );
   });
 

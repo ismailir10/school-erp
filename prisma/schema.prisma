@@ -953,6 +953,9 @@ model Invoice {
   xenditPaymentUrl String? // Xendit hosted checkout URL
   paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
   paymentCheckedAt DateTime? // stamped by every reconcile; throttles the parent check and rotates the nightly sweep
+  lastRemindedAt   DateTime? // WhatsApp reminder opened from the reminder queue / detail page (cycle 2026-10-17-payment-link-reminders)
+  lastRemindedBy   String? // User id of that admin; a plain actor id like createdBy, not an FK
+  remindCount      Int       @default(0)
   createdAt        DateTime  @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)

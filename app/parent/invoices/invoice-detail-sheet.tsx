@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 import { parentPaymentMethodLabel } from "@/lib/parent-payment-method";
+import { hasReceipt } from "@/lib/finance/invoice-receipt";
 import { telHref, whatsappHrefWithText } from "@/lib/contact";
 
 type InvoiceLine = {
@@ -386,7 +387,7 @@ export function InvoiceDetailSheet({
           ) : null}
 
           {/* Bukti pembayaran — once money has been received (fully or in part) */}
-          {isPaid || isPartiallyPaid ? (
+          {hasReceipt(invoice) ? (
             <section>
               <SectionLabel>Bukti pembayaran</SectionLabel>
               <a

@@ -45,7 +45,15 @@ export function unpaidStatusFor(
   return "DRAFT";
 }
 
-/** Pure status/paidAt derivation from a paid total. */
+/**
+ * Pure status/paidAt derivation from a paid total.
+ *
+ * Money still owed after the due date is OVERDUE whether or not part of it
+ * was paid, so the overdue figures count the families the school chases
+ * (cycle 2026-10-17-payment-link-reminders D3). The paid amount lives in
+ * `totalPaid`, not in the status; PARTIALLY_PAID is only "paid some, not yet
+ * due". `todayYmd` is today's Jakarta calendar day, like `dueDate`.
+ */
 export function deriveInvoicePaymentState(
   invoice: InvoiceForState,
   totalPaid: Prisma.Decimal,
@@ -54,7 +62,7 @@ export function deriveInvoicePaymentState(
   const totalDue = new Prisma.Decimal(invoice.totalDue.toString());
   let status = invoice.status;
   if (totalPaid.gte(totalDue) && totalDue.gt(0)) status = "PAID";
-  else if (totalPaid.gt(0)) status = "PARTIALLY_PAID";
+  else if (totalPaid.gt(0)) status = invoice.dueDate < todayYmd ? "OVERDUE" : "PARTIALLY_PAID";
   else if (status === "PAID" || status === "PARTIALLY_PAID") {
     status = unpaidStatusFor(invoice, todayYmd);
   }

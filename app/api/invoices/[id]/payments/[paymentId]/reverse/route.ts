@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
@@ -10,6 +11,8 @@ import { reversePaymentSchema } from "@/lib/validations/invoice";
 import { isGatewayPayment } from "@/lib/constants/payment-methods";
 import { recomputeInvoiceFromPayments } from "@/lib/finance/invoice-payment-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
+import { scheduleRelink, staleLinkCleared } from "@/lib/payments/ensure-link";
 
 /**
  * POST /api/invoices/[id]/payments/[paymentId]/reverse
@@ -60,7 +63,7 @@ export async function POST(
       if (!payment || payment.invoiceId !== invoiceId) throw new Error("NOT_FOUND");
 
       if (payment.status === "REVERSED") {
-        return { payment, invoiceStatus: invoice.status, alreadyReversed: true };
+        return { payment, invoiceStatus: invoice.status, alreadyReversed: true, relink: false };
       }
       if (isGatewayPayment(payment)) throw new Error("GATEWAY");
       if (invoice.status === "CANCELLED") throw new Error("CANCELLED");
@@ -76,6 +79,16 @@ export async function POST(
       });
 
       const after = await recomputeInvoiceFromPayments(tx, invoice, stamp);
+      // Still owing: the old link was cut for the paid-up balance, so drop it and make a
+      // new one below. Dropped after the recompute (which reads `xenditPaymentUrl` for the
+      // unpaid status). An invoice that is no longer owing keeps its link fields, so a
+      // "Link Gagal" category survives.
+      const relink =
+        (UNPAID_INVOICE_STATUSES as readonly string[]).includes(after.status) &&
+        new Prisma.Decimal(invoice.totalDue.toString()).gt(after.totalPaid);
+      if (relink) {
+        await tx.invoice.update({ where: { id: invoiceId }, data: staleLinkCleared(new Date()) });
+      }
 
       await recordAudit(
         {
@@ -101,13 +114,14 @@ export async function POST(
         tx,
       );
 
-      return { payment: reversed, invoiceStatus: after.status, alreadyReversed: false };
+      return { payment: reversed, invoiceStatus: after.status, alreadyReversed: false, relink };
     });
 
     if (!result.alreadyReversed) {
       revalidateTag("parent-invoice-list", { expire: 0 });
       revalidateTag("student-invoices", { expire: 0 });
     }
+    if (result.relink) scheduleRelink(invoiceId, tenantId, new URL(req.url).origin, "REVERSE PAYMENT");
     return NextResponse.json({
       ok: true,
       alreadyReversed: result.alreadyReversed,

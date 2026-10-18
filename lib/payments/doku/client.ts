@@ -604,7 +604,13 @@ export function parseDokuOrderStatus(envelope: unknown): GatewayPaymentStatus {
   const orderExpired =
     orderStatus?.toUpperCase() === "ORDER_EXPIRED" &&
     mapDokuTransactionState(transactionStatus) === "PENDING";
-  const rawStatus = orderExpired ? orderStatus : transactionStatus;
+  // `rawStatus` is the caption and the "did the gateway answer" signal: reconcile reports a
+  // null one only when the check never reached DOKU (skipped, throttled, unavailable), and the
+  // link routes treat that as "no evidence". A 200 with an order envelope but no `transaction`
+  // is a live order nobody has paid on yet, so it must not read as null; with no `order.status`
+  // either (pre-Dec-2024 merchants) it is synthesised as PENDING. `state` is untouched: it
+  // still comes from the transaction alone, so no terminal logic reads the fallback.
+  const rawStatus = orderExpired ? orderStatus : (transactionStatus ?? orderStatus ?? "PENDING");
 
   // Same float-tolerant coercion as the notification route — some channels
   // send `20000.00` rather than `20000`.

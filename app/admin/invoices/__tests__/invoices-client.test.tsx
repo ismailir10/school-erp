@@ -40,6 +40,7 @@ function stubFetch(
     refresh?: { status: number; body: Record<string, unknown> };
     refreshAll?: { status: number; body: Record<string, unknown> };
     createLinks?: { status: number; body: Record<string, unknown> };
+    reminders?: Array<Record<string, unknown>>;
   } = {},
 ) {
   const invoices = opts.invoices ?? [invoice];
@@ -73,6 +74,17 @@ function stubFetch(
         ok: r.status >= 200 && r.status < 300,
         status: r.status,
         json: async () => r.body,
+      } as Response);
+    }
+    if (url.startsWith("/api/invoices/reminders")) {
+      const data = opts.reminders ?? [];
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data,
+          pagination: { page: 1, pageSize: 50, total: data.length, totalPages: 1 },
+          meta: { excludedNoNumber: 0, truncated: false },
+        }),
       } as Response);
     }
     if (url.includes("/api/invoices/stats")) {
@@ -452,6 +464,50 @@ describe("InvoicesClient — Cek semua belum lunas (cycle 2026-10-17-expired-lin
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: true, void: false }} />);
     expect(await button()).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Buat Tagihan/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoicesClient — Pengingat WhatsApp (cycle 2026-10-17-payment-link-reminders, T8)", () => {
+  const reminderButton = () => screen.findByRole("button", { name: "Pengingat WhatsApp" });
+
+  it("is offered with the recordPayment capability and opens the reminder queue", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({
+        reminders: [
+          {
+            id: "inv1", invoiceNumber: "INV-0001", periodLabel: "September 2026", dueDate: "2026-09-30",
+            status: "SENT", totalDue: 500000, totalPaid: 0, remaining: 500000, studentName: "Aisyah Putri",
+            guardianName: "Siti", hasLink: true, waUrl: "https://wa.me/6281200000000?text=halo",
+            lastRemindedAt: null, lastRemindedByName: null, remindCount: 0,
+          },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
+
+    await user.click(await reminderButton());
+
+    const dialog = await screen.findByRole("dialog", { name: "Pengingat WhatsApp" });
+    expect(await within(dialog).findByRole("link", { name: /Buka WhatsApp/ })).toHaveAttribute(
+      "href",
+      "https://wa.me/6281200000000?text=halo",
+    );
+  });
+
+  it("is offered to an admin who can record payments but not create invoices", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: true, void: false }} />);
+    expect(await reminderButton()).toBeInTheDocument();
+  });
+
+  it("is hidden without the recordPayment capability, and does not take the create buttons with it", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="doku" capabilities={{ create: true, recordPayment: false, void: false }} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByRole("button", { name: "Pengingat WhatsApp" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Buat Tagihan/ })).toBeInTheDocument();
   });
 });
 

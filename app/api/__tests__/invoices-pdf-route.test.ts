@@ -1,7 +1,7 @@
 /**
  * GET /api/invoices/[id]/pdf — the admin kuitansi (FINX-9). Same PDF as the
  * guardian route (shared builder in lib/pdf/receipt-data.ts); this file covers
- * the admin gate, tenant scoping and the PAID / PARTIALLY_PAID-only rule.
+ * the admin gate, tenant scoping and the money-received-only rule (any status but CANCELLED).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -96,8 +96,8 @@ describe("GET /api/invoices/[id]/pdf", () => {
     expect(renderToBuffer).not.toHaveBeenCalled();
   });
 
-  it.each(["DRAFT", "SENT", "OVERDUE", "CANCELLED"])("409 with Indonesian copy for a %s invoice", async (status) => {
-    db.invoice.findFirst.mockResolvedValue(paidInvoice({ status }));
+  it.each(["DRAFT", "SENT", "OVERDUE"])("409 with Indonesian copy for an unpaid %s invoice", async (status) => {
+    db.invoice.findFirst.mockResolvedValue(paidInvoice({ status, totalPaid: 0, paidAt: null, payments: [] }));
     const res = await GET({} as never, ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("Kuitansi hanya tersedia untuk tagihan yang sudah dibayar.");
@@ -122,6 +122,19 @@ describe("GET /api/invoices/[id]/pdf", () => {
     const data = renderToBuffer.mock.calls[0]![0].props.data;
     expect(data.remaining).toBe(300_000);
     expect(data.paidAt).toBeNull();
+  });
+
+  it("200 for an OVERDUE invoice that has payments: Lewat Tempo keeps its kuitansi", async () => {
+    db.invoice.findFirst.mockResolvedValue(paidInvoice({ status: "OVERDUE", totalPaid: 200_000, paidAt: null }));
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    expect(renderToBuffer.mock.calls[0]![0].props.data.remaining).toBe(300_000);
+  });
+
+  it("409 for a CANCELLED invoice even when money was paid", async () => {
+    db.invoice.findFirst.mockResolvedValue(paidInvoice({ status: "CANCELLED", totalPaid: 200_000 }));
+    expect((await GET({} as never, ctx)).status).toBe(409);
+    expect(renderToBuffer).not.toHaveBeenCalled();
   });
 
   it("SUPER_ADMIN with the permission is allowed too", async () => {

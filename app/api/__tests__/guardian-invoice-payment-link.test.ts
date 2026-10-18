@@ -155,6 +155,18 @@ describe("getting a link", () => {
     expect(await (await call()).json()).toEqual({ paymentUrl: "https://checkout.doku.com/live", created: false });
   });
 
+  it.each(["ORDER_GENERATED", "PENDING"])(
+    "a live order nobody has paid on yet (%s) comes back as a usable link",
+    async (gatewayStatus) => {
+      invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: "https://checkout.doku.com/live" }));
+      reconcileMock.mockResolvedValue({ code: "NO_CHANGE", gatewayStatus });
+      ensureMock.mockResolvedValue({ kind: "READY", paymentUrl: "https://checkout.doku.com/live", created: false });
+      const res = await call();
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ paymentUrl: "https://checkout.doku.com/live", created: false });
+    },
+  );
+
   it("a failing pre-check preserves the link but does not claim that it still works", async () => {
     invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: "https://checkout.doku.com/live" }));
     reconcileMock.mockRejectedValue(new Error("gateway down"));

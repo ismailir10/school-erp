@@ -22,7 +22,7 @@ vi.mock("@/lib/auth", () => ({
   getSession: getSessionMock,
   isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
 }));
-vi.mock("@/lib/db", () => ({ prisma: { invoice: { findMany: findManyMock, count: countMock } } }));
+vi.mock("@/lib/db", () => ({ prisma: { invoice: { findMany: findManyMock, count: countMock, fields: { totalDue: "totalDue-ref" } } } }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: rateLimitMock }));
 vi.mock("@/lib/payments/ensure-link", () => ({ ensurePaymentLink: ensureMock }));
 vi.mock("next/cache", () => ({ revalidateTag: revalidateMock }));
@@ -32,7 +32,7 @@ import { POST } from "../invoices/create-missing-links/route";
 function session(permissions: string[] = ["invoices.create"], role: SessionUser["role"] = "SCHOOL_ADMIN"): SessionUser {
   return { id: "u1", email: "a@t.local", name: "Admin", role, tenantId: "t1", employeeId: null, parentId: null, permissions, customRoleCode: null };
 }
-const ids = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `inv-${i}` }));
+const ids = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `inv-${i}`, tenantId: "t1" }));
 const req = () => new Request("http://localhost:3000/api/invoices/create-missing-links", { method: "POST" });
 const ready = (created: boolean) => ({ kind: "READY", paymentUrl: "https://checkout.doku.com/x", created });
 

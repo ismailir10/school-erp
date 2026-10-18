@@ -5,13 +5,15 @@ import { hasPermission } from "@/lib/permissions";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceReceiptPdf } from "@/lib/pdf/invoice-receipt";
 import { RECEIPT_INVOICE_SELECT, buildReceiptData } from "@/lib/pdf/receipt-data";
+import { hasReceipt } from "@/lib/finance/invoice-receipt";
 import React from "react";
 
 /**
  * GET /api/invoices/[id]/pdf
  * Admin kuitansi (FINX-9): the same receipt PDF a guardian downloads, for
  * finance staff who can record payments. Tenant-scoped; only invoices that
- * have received money (PAID / PARTIALLY_PAID) have a receipt.
+ * have received money have a receipt, whatever their status label (a partly
+ * paid invoice that turned Lewat Tempo keeps it).
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -26,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (invoice.status !== "PAID" && invoice.status !== "PARTIALLY_PAID") {
+  if (!hasReceipt(invoice)) {
     return NextResponse.json(
       { error: "Kuitansi hanya tersedia untuk tagihan yang sudah dibayar." },
       { status: 409 },

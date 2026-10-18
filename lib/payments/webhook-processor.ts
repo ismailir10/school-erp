@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
-import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
+import { ACTIVE_PAYMENT_FILTER, deriveInvoicePaymentState } from "@/lib/finance/invoice-payment-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
 
@@ -296,17 +296,17 @@ async function handleSessionCompleted(
     // REVERSED manual payments must not count toward the paid total.
     const allPayments = await tx.payment.findMany({ where: { invoiceId, ...ACTIVE_PAYMENT_FILTER } });
     const totalPaid = sumDecimals(allPayments.map((p) => p.amount));
-    const totalDue = new Prisma.Decimal(invoice.totalDue as never);
-    const status = totalPaid.greaterThanOrEqualTo(totalDue) ? "PAID" : "PARTIALLY_PAID";
+    // Same derivation as a manual payment: paid in full -> PAID, still owing
+    // after the due date -> OVERDUE, otherwise PARTIALLY_PAID.
+    const { status, paidAt } = deriveInvoicePaymentState(
+      fresh,
+      totalPaid,
+      getTodayInTimezone(JAKARTA_TZ),
+    );
 
     await tx.invoice.update({
       where: { id: invoiceId },
-      data: {
-        totalPaid,
-        status,
-        paymentLinkError: null,
-        paidAt: status === "PAID" ? new Date() : null,
-      },
+      data: { totalPaid, status, paymentLinkError: null, paidAt },
     });
     return { status, overpaid } as const;
   });

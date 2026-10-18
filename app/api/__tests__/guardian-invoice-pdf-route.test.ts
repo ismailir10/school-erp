@@ -243,6 +243,32 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
     expect(props.payments[0].reference).toBeNull();
   });
 
+  it("issues a receipt for an OVERDUE invoice that has payments (Lewat Tempo keeps its kuitansi)", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
+    db.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "Juli 2026",
+      dueDate: new Date("2026-07-30"),
+      totalDue: 850_000,
+      totalPaid: 400_000,
+      status: "OVERDUE",
+      paidAt: null,
+      lines: [],
+      payments: [{ id: "p1", amount: 400_000, method: "CASH", reference: null, paidAt: new Date("2026-07-10") }],
+      student: { name: "Anak", nickname: "Nak", enrollments: [] },
+    });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    expect(renderToBuffer.mock.calls[0]![0].props.data.remaining).toBe(450_000);
+  });
+
   it("404 for a non-PAID invoice — no unpaid receipt leaks", async () => {
     getSession.mockResolvedValue(guardianSession());
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
@@ -251,6 +277,7 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
       tenantId: "t-1",
       studentId: "stu-1",
       status: "SENT",
+      totalPaid: 0,
       lines: [],
       payments: [],
       student: { name: "X", nickname: null, enrollments: [] },

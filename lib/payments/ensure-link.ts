@@ -1,3 +1,6 @@
+// `after` runs work once the response is out; callers also have locals of that name.
+import { after as afterResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
@@ -59,5 +62,52 @@ export async function ensurePaymentLink(
       error: err instanceof Error ? err.message : String(err),
     });
     return { kind: "FAILED" };
+  }
+}
+
+/**
+ * What a payment write sets on the invoice when it drops the link that charges the old
+ * balance (cycle 2026-10-17-payment-link-reminders). Apply it in the same transaction as
+ * the payment, and only when `scheduleRelink` will follow.
+ *
+ * `paymentCheckedAt: now` is the point: a link creator that read the balance before this
+ * payment holds a claim stamp in the future and persists only while that stamp is
+ * unchanged. Overwriting it makes that creator's write miss, so a link for the old balance
+ * is never stored. "Now", not null, keeps the reconcile rotation honest, and the relink
+ * below can still claim because a claim needs the stamp null or at most the current time.
+ */
+export const staleLinkCleared = (now: Date) => ({
+  xenditSessionId: null,
+  xenditPaymentUrl: null,
+  paymentLinkError: null,
+  paymentCheckedAt: now,
+});
+
+/**
+ * Make the replacement link once the response is out, so the admin does not wait on the
+ * gateway. A failure leaves the invoice without a link; the nightly heal picks it up.
+ * `origin` is the raw request origin: the session helper resolves it against the app URL.
+ */
+export function scheduleRelink(invoiceId: string, tenantId: string, origin: string, logTag: string): void {
+  try {
+    afterResponse(async () => {
+      try {
+        const link = await ensurePaymentLink(invoiceId, tenantId, origin, { waitForWinnerMs: 0 });
+        if (link.kind === "READY" && link.created) {
+          revalidateTag("parent-invoice-list", { expire: 0 });
+          revalidateTag("student-invoices", { expire: 0 });
+        }
+      } catch (err) {
+        console.error(`[${logTag}] relink failed`, {
+          invoiceId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+  } catch (err) {
+    console.error(`[${logTag}] could not schedule relink`, {
+      invoiceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

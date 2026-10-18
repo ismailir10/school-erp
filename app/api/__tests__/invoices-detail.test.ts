@@ -108,6 +108,62 @@ describe("GET /api/invoices/[id]", () => {
     expect(json.payments[2].status).toBe("REVERSED");
   });
 
+  it("returns the reminder stamp and resolves its actor name, tenant-scoped", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "tnt-1",
+      status: "SENT",
+      lines: [],
+      payments: [{ id: "p1", createdBy: "u-9", status: "RECORDED" }],
+      lastRemindedAt: "2026-10-16T03:00:00.000Z",
+      lastRemindedBy: "u-7",
+      remindCount: 2,
+      student: { guardians: [] },
+    });
+    userFindMany.mockResolvedValueOnce([
+      { id: "u-9", name: "Bu Nur", email: "nur@x.id" },
+      { id: "u-7", name: null, email: "kasir@x.id" },
+    ]);
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    const json = await res.json();
+
+    expect(userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["u-9", "u-7"] }, tenantId: "tnt-1" } }),
+    );
+    expect(json).toMatchObject({
+      lastRemindedAt: "2026-10-16T03:00:00.000Z",
+      remindCount: 2,
+      lastRemindedByName: "kasir@x.id",
+    });
+  });
+
+  it("never-reminded invoice reports a null actor name without a user lookup", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "tnt-1",
+      status: "SENT",
+      lines: [],
+      payments: [],
+      lastRemindedAt: null,
+      lastRemindedBy: null,
+      remindCount: 0,
+      student: { guardians: [] },
+    });
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    const json = await res.json();
+
+    expect(userFindMany).not.toHaveBeenCalled();
+    expect(json).toMatchObject({ lastRemindedAt: null, remindCount: 0, lastRemindedByName: null });
+  });
+
   it("only resolves an ACTIVE primary guardian as the billing contact", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(adminSession());

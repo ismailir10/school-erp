@@ -3,6 +3,7 @@
  * Validation-only cases live in invoices-record-payment.test.ts (which mocks
  * Prisma.Decimal); this file runs the real Decimal maths against a tx double.
  */
+import { createHash } from "node:crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Prisma } from "@/lib/generated/prisma/client";
 
@@ -13,9 +14,17 @@ const tx = vi.hoisted(() => ({
   auditLog: { create: vi.fn() },
 }));
 const db = vi.hoisted(() => ({ invoice: { findFirst: vi.fn() }, $transaction: vi.fn() }));
+const scheduled = vi.hoisted(() => ({ scheduleRelink: vi.fn(), revalidateTag: vi.fn() }));
+const rateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({ prisma: db }));
-vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidateTag: scheduled.revalidateTag }));
+vi.mock("@/lib/rate-limit", () => ({ rateLimit: rateLimitMock }));
+// The link helpers have their own tests (ensure-link.test.ts); here only that the route calls them.
+vi.mock("@/lib/payments/ensure-link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/payments/ensure-link")>()),
+  scheduleRelink: scheduled.scheduleRelink,
+}));
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };
@@ -59,6 +68,7 @@ const invoice = (over: object = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(ADMIN as never);
+  rateLimitMock.mockReturnValue({ success: true, remaining: 19 });
   db.invoice.findFirst.mockResolvedValue({ id: "inv-1" });
   db.$transaction.mockImplementation(async (cb: (t: unknown) => unknown) => cb(tx));
   tx.invoice.findUnique.mockResolvedValue(invoice());
@@ -119,7 +129,7 @@ describe("POST /api/invoices/[id]/payments — transaction", () => {
       const day = daysAgo(2);
       await POST(req({ amount: 600_000, method: "CASH", paidAt: day }), ctx);
       const updates = tx.invoice.update.mock.calls.map((c) => c[0]);
-      expect(updates.at(-1)).toEqual({
+      expect(updates).toContainEqual({
         where: { id: "inv-1" },
         data: { paidAt: new Date(`${day}T00:00:00+07:00`) },
       });
@@ -128,7 +138,7 @@ describe("POST /api/invoices/[id]/payments — transaction", () => {
     it("a back-dated partial payment leaves the invoice paidAt alone", async () => {
       tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
       await POST(req({ amount: 100_000, method: "CASH", paidAt: daysAgo(2) }), ctx);
-      expect(tx.invoice.update).toHaveBeenCalledTimes(1); // only the recompute
+      expect(tx.invoice.update).toHaveBeenCalledTimes(2); // the recompute + dropping the stale link
     });
 
     it("a future date is a 400 with the Indonesian message and writes nothing", async () => {
@@ -159,6 +169,69 @@ describe("POST /api/invoices/[id]/payments — transaction", () => {
   });
 });
 
+
+describe("stale payment link after a manual payment", () => {
+  const LINK_CLEARED = {
+    xenditSessionId: null,
+    xenditPaymentUrl: null,
+    paymentLinkError: null,
+    paymentCheckedAt: expect.any(Date),
+  };
+  const partial = () => tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(500_000) }]);
+  const settles = () => tx.payment.findMany.mockResolvedValue([{ amount: new Prisma.Decimal(1_000_000) }]);
+
+  beforeEach(() => {
+    tx.invoice.findUnique.mockResolvedValue(invoice({ xenditSessionId: "s-1", xenditPaymentUrl: "https://pay/old" }));
+  });
+
+  it("clears the link fields in the tx, after the recompute, and invalidates any open creation claim", async () => {
+    partial();
+    const res = await POST(req({ amount: 100_000, method: "CASH" }), ctx);
+    expect(res.status).toBe(201);
+    const updates = tx.invoice.update.mock.calls.map((c) => c[0]);
+    expect(updates).toHaveLength(2);
+    expect(updates[0].data.status).toBe("PARTIALLY_PAID"); // recompute first
+    expect(updates[1]).toEqual({ where: { id: "inv-1" }, data: LINK_CLEARED });
+    expect(tx.invoice.update.mock.invocationCallOrder[1]).toBeLessThan(tx.auditLog.create.mock.invocationCallOrder[0]);
+  });
+
+  it("still owing: schedules the relink with the raw request origin", async () => {
+    partial();
+    await POST(req({ amount: 100_000, method: "CASH" }), ctx);
+    expect(scheduled.scheduleRelink).toHaveBeenCalledTimes(1);
+    expect(scheduled.scheduleRelink).toHaveBeenCalledWith("inv-1", "t-1", "http://localhost", "RECORD PAYMENT");
+  });
+
+  it("settling the invoice leaves the link fields alone and schedules no replacement", async () => {
+    settles();
+    const res = await POST(req({ amount: 600_000, method: "CASH" }), ctx);
+    expect(res.status).toBe(201);
+    expect(tx.invoice.update.mock.calls.map((c) => c[0].data).some((d) => "xenditPaymentUrl" in d)).toBe(false);
+    expect(scheduled.scheduleRelink).not.toHaveBeenCalled();
+  });
+
+  it("an idempotent replay touches no link and schedules nothing", async () => {
+    tx.payment.findFirst.mockResolvedValue({ id: "pay-9", requestHash: createHash("sha256").update(JSON.stringify({
+      amount: 100_000, method: "CASH", reference: null, notes: null, paidAt: null,
+    })).digest("hex") });
+    const res = await POST(req({ amount: 100_000, method: "CASH", idempotencyKey: "af9699cd-4451-4a74-9893-a04d74a91c01" }), ctx);
+    expect(res.status).toBe(200);
+    expect(tx.invoice.update).not.toHaveBeenCalled();
+    expect(scheduled.scheduleRelink).not.toHaveBeenCalled();
+  });
+});
+
+describe("rate limit", () => {
+  it("answers 429 in Indonesian past 20 recordings a minute, before touching the database", async () => {
+    rateLimitMock.mockReturnValue({ success: false, remaining: 0 });
+    const res = await POST(req({ amount: 100_000, method: "CASH" }), ctx);
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toMatch(/Terlalu banyak/);
+    expect(rateLimitMock).toHaveBeenCalledWith("record-payment:u-admin", 20, 60_000);
+    expect(db.invoice.findFirst).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+});
 
 describe("manual payment retry identity", () => {
   const key = "af9699cd-4451-4a74-9893-a04d74a91c01";
