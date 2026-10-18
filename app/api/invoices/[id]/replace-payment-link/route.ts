@@ -127,6 +127,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!fresh) return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });
       if (settled(fresh)) return NextResponse.json(PAID_ANSWER);
       if (!owes(fresh)) return NextResponse.json({ error: NOT_NEEDED }, { status: 409 });
+      // Another caller may have replaced the link while the gateway check was in flight.
+      // Reconciliation also reads the invoice itself, so conservatively keep any replacement
+      // since our first read rather than applying a check to a different session or URL.
+      if (
+        fresh.xenditPaymentUrl &&
+        (fresh.xenditSessionId !== found.xenditSessionId || fresh.xenditPaymentUrl !== found.xenditPaymentUrl)
+      ) {
+        return NextResponse.json({ outcome: "REPLACED", url: fresh.xenditPaymentUrl, created: false });
+      }
       // Nothing moved, yet the gateway shows something other than a plain unpaid checkout.
       if (
         check.code === "NO_CHANGE" &&
