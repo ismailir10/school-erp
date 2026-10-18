@@ -224,6 +224,22 @@ describe("replacing the link", () => {
     expect(invUpdateMany).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["session and URL", { xenditSessionId: "sess-2", xenditPaymentUrl: "https://checkout.doku.com/theirs" }],
+    ["session only", { xenditSessionId: "sess-2", xenditPaymentUrl: OLD.xenditPaymentUrl }],
+    ["URL only", { xenditSessionId: OLD.xenditSessionId, xenditPaymentUrl: "https://checkout.doku.com/theirs" }],
+  ])("preserves a concurrent replacement during the gateway check (%s changed)", async (_name, replacement) => {
+    invFindFirst
+      .mockResolvedValueOnce(invoice()) // the request starts with A
+      .mockResolvedValueOnce(invoice(replacement)); // another caller has stored B during the check
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ outcome: "REPLACED", url: replacement.xenditPaymentUrl, created: false });
+    expect(invUpdateMany).not.toHaveBeenCalled();
+    expect(ensureMock).not.toHaveBeenCalled();
+    expect(auditMock).not.toHaveBeenCalled();
+  });
+
   it("another admin replaced it first (CAS count 0): their link is returned and no third is made", async () => {
     invUpdateMany.mockResolvedValue({ count: 0 });
     invFindFirst
