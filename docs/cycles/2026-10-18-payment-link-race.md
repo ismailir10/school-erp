@@ -18,7 +18,7 @@ Promotion review reproduced an A → B → C race in the invoice replacement rou
 ## Implementation
 
 - Plan: driver=gpt-6, workers=inherited agent; T1 sequential in the delegated payment worker; environment setup and verification preparation parallel in separate workers. One atomic fix task, no unrelated cleanup.
-- T1: `app/api/invoices/[id]/replace-payment-link/route.ts` now returns a concurrent replacement when either its session ID or URL changed during the gateway check. `app/api/__tests__/invoice-replace-payment-link.test.ts` adds three regressions covering both identity fields changing and either field changing alone. Implementation, focused regressions, spec/security review, and build/lint/full Vitest gates complete; local E2E and the fixed staging deployment smoke remain pending.
+- T1: `app/api/invoices/[id]/replace-payment-link/route.ts` now returns a concurrent replacement when either its session ID or URL changed during the gateway check. `app/api/__tests__/invoice-replace-payment-link.test.ts` adds three regressions covering both identity fields changing and either field changing alone. Implementation, focused regressions, spec/security review, and build/lint/full Vitest gates complete; local E2E complete; the fixed staging deployment smoke remains pending.
 
 ## Verification
 
@@ -29,7 +29,7 @@ Promotion review reproduced an A → B → C race in the invoice replacement rou
 - Independent spec and security reviewers: clean; no remaining findings in the narrow fix.
 - Build and lint: passed. Full Vitest: `644 passed | 2 skipped` files; `7635 passed | 42 todo` tests.
 - Documentation audit: passed. RLS coverage: `43/43`. API-auth guard: `216/216`.
-- Local Playwright E2E: in progress against freshly seeded disposable local Postgres, bundled Node 24.19, Chromium 1248, one worker. First 157 tests passed without a failure or retry; final result pending.
+- Local Playwright E2E: `241 passed (4.3m)`, exit 0, no skips, retries, or flaky tests. Freshly seeded disposable local Postgres, bundled Node 24.19, Chromium 1248, one worker. Hook self-test: `32 passed, 0 failed`. Documentation audit: `13 OK, 1 existing ADR warning, 0 fail`.
 - Baseline staging browser verification at `5f4f770` (before this fix), using normal Chrome UI:
   - Signed in as SUPER_ADMIN Ismail and created Bilal's fixture `INV-2026-0071` (`cmvclspbb000007jq9dvnungr`), period `Verifikasi race 18 Oktober 2026`, due 16 October, Rp100,000. Link creation produced a real staging DOKU URL; forced replacement produced a different URL.
   - Recorded Rp25,000 manually. The invoice remained OVERDUE with Rp75,000 remaining, and its background relink produced a different URL.
@@ -38,6 +38,19 @@ Promotion review reproduced an A → B → C race in the invoice replacement rou
   - Screenshots: `/private/tmp/payment-race-verification/partial-payment.png`, `/private/tmp/payment-race-verification/reminder-queue.png`, `/private/tmp/payment-race-verification/parent-link.png`.
   - SCHOOL_ADMIN was covered by permission tests; no signed-in SCHOOL_ADMIN browser pass is claimed. Raw browser network access was declined; these checks used ordinary UI only.
 - Fixed staging deployment replacement smoke: pending deployment; the baseline staging pass does not verify the new guard.
+
+### Verified locally — a2c00328, 2026-10-18
+
+- Diff: `origin/staging...HEAD`, base `5f4f770021d97f022f03ec8b0651b1a007265978` → runtime `a2c00328232754f2a5abfa775e907321bc35b0e3`. Changed paths: `CLAUDE.md`, `app/api/invoices/[id]/replace-payment-link/route.ts`, `app/api/__tests__/invoice-replace-payment-link.test.ts`, `docs/cycles/2026-10-18-payment-link-race.md`.
+- Classification: other code — payment concurrency only; no auth, dependency, session, or UI changes. This later evidence-only documentation commit does not change the verified runtime.
+- Gate: `npm run lint`, `npx vitest run`, RLS/API-auth guards, `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build`, `npx playwright test` → build/lint exit 0; `644 passed | 2 skipped` test files, `7635 passed | 42 todo` tests; RLS `43/43`; API-auth `216/216`; E2E `241 passed (4.3m)`, no retries/flaky/skips. `bash scripts/test-hooks.sh` → `32 passed, 0 failed`; docs audit → `13 OK, 1 existing ADR warning, 0 fail`.
+- App: production build, demo auth + disposable local Postgres; Chromium 1248, one worker, Node 24.19.0.
+- Walked: full automated local E2E suite passed. Edge/error: the 32 focused API cases passed, including concurrent replacement before/after the fresh read, either identity field changing, cleared-link recovery, paid invoices, gateway errors, and access/tenant guards. Actual-source race regression failed before the fix and passed afterward with no third checkout.
+- Console/network: no broad clean claim; raw staging network inspection was declined. Automated E2E passed; manual staging evidence above used ordinary UI only.
+- Screenshots: baseline staging evidence listed above; no UI change in this fix.
+- Highlight: n/a (no UI change).
+- Rounds: 1 — preserve the concurrent winner by comparing both session ID and URL; no runtime changes after the recorded passing gates.
+- Not checked: fixed staging deployment smoke awaits merge/deployment. The baseline reminder queue had no missing-link fixture (all 112 eligible invoices already held links); no signed-in SCHOOL_ADMIN or raw network pass is claimed.
 
 ## Ship Notes
 
