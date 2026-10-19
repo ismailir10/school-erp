@@ -16,6 +16,7 @@ import { ContactActions } from "@/components/admin/contact-actions";
 import { Pencil, Plus, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
+import { familyReminderWaUrl, guardianChatNumber } from "@/lib/finance/invoice-reminder";
 import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
 import { parentFormSchema } from "@/lib/validations/parent";
 import { useZodForm } from "@/lib/forms/use-zod-form";
@@ -95,6 +96,8 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
+  // Guards a double click while the stamps are in flight (the chat is already open).
+  const reminding = useRef(false);
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
@@ -250,6 +253,50 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const canEdit = parent.canEdit === true;
+
+  /**
+   * "Ingatkan via WhatsApp": one message to THIS wali listing every unpaid
+   * invoice. The chat opens first and synchronously, inside the click, so a
+   * popup blocker treats it as user-initiated. Only then is each invoice
+   * stamped ("Terakhir diingatkan") through the existing per-invoice endpoint.
+   * That endpoint builds its own wa.me URL for the *student's primary* wali;
+   * the returned URL is ignored here and only the stamp is used. A stamp can
+   * be refused (409 nothing to chase, 422 no number on the primary wali, 429)
+   * without undoing the message, so the toast reports how many were recorded.
+   */
+  async function remindByWhatsApp() {
+    if (!parent || reminding.current) return;
+    const items = parent.unpaidInvoices;
+    const total = items.reduce((sum, i) => sum + i.remaining, 0);
+    const url = familyReminderWaUrl({
+      guardian: { name: parent.name, whatsapp: parent.whatsapp, phone: parent.phone },
+      items,
+      total,
+      payUrl: `${window.location.origin}/parent/invoices`,
+    });
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    reminding.current = true;
+    try {
+      const results = await Promise.allSettled(
+        items.map((i) => fetch(`/api/invoices/${i.id}/reminder`, { method: "POST" })),
+      );
+      const recorded = results.filter((r) => r.status === "fulfilled" && r.value.ok).length;
+      if (recorded > 0) {
+        toast.success(`Pengingat dicatat untuk ${recorded} dari ${items.length} tagihan`);
+      } else {
+        toast.error("Pengingat belum tercatat, tetapi WhatsApp sudah dibuka.");
+      }
+    } finally {
+      reminding.current = false;
+    }
+  }
+  const canSendReminder =
+    parent.canRemind === true &&
+    parent.unpaidInvoices.length > 0 &&
+    guardianChatNumber({ whatsapp: parent.whatsapp, phone: parent.phone }) !== null;
+
   const studentCount = parent.guardians.length;
   const summary = parent.invoiceSummary;
 
@@ -273,6 +320,9 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
         </>
       ),
       action: { label: "Lihat tagihan", onClick: () => jumpToSection(SECTION_INVOICES), testId: "attention-owed" },
+      secondaryAction: canSendReminder
+        ? { label: "Ingatkan via WhatsApp", onClick: () => void remindByWhatsApp(), testId: "attention-remind" }
+        : undefined,
     });
   }
   const missingDocs = missingDocumentsText(parent);

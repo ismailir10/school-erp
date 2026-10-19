@@ -61,4 +61,40 @@ describe("AttentionStrip", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  it("renders a secondary action beside the primary one and fires each separately", async () => {
+    const user = userEvent.setup();
+    const primary = vi.fn();
+    const secondary = vi.fn();
+    render(
+      <AttentionStrip
+        items={[
+          {
+            id: "a",
+            message: "Piutang",
+            action: { label: "Lihat tagihan", onClick: primary },
+            secondaryAction: { label: "Ingatkan via WhatsApp", onClick: secondary, testId: "remind" },
+          },
+        ]}
+      />,
+    );
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((b) => b.textContent)).toEqual(["Lihat tagihan", "Ingatkan via WhatsApp"]);
+    expect(screen.getByTestId("remind")).toBe(buttons[1]);
+
+    await user.click(buttons[1]);
+    expect(secondary).toHaveBeenCalledTimes(1);
+    expect(primary).not.toHaveBeenCalled();
+    await user.click(buttons[0]);
+    expect(primary).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a lone secondary action when there is no primary one", () => {
+    render(
+      <AttentionStrip
+        items={[{ id: "a", message: "Piutang", secondaryAction: { label: "Ingatkan", onClick: vi.fn() } }]}
+      />,
+    );
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
 });
