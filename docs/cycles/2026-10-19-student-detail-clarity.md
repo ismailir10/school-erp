@@ -77,13 +77,16 @@ None expected: no schema, no new dependency, no API change. No auth or PII chang
 
 ## Tasks
 
-- [ ] T1 Shared groups: `DossierGroup` (card + collapsible group with summary while closed) and `DossierSubsection` (flat headed block, optionally collapsible with `keepMounted`) — accept: component tests (deps: none, reuse: `DossierSection`)
+- [x] T1 Shared groups: `DossierGroup` (card + collapsible group with summary while closed) and `DossierSubsection` (flat headed block, optionally collapsible with `keepMounted`) — accept: component tests (deps: none, reuse: `DossierSection`)
 - [ ] T2 Student page grouping: five groups holding the 13 sections as sub-sections, group nav, summaries, default open state, "Kelas saat ini" block, jump/hash/aksi handling that opens the right group then the right sub-section and fires the lazy latches — accept: deep links work, lazy fetch only on open (deps: T1)
 - [ ] T3 Header by state and Edit in Data Anak — accept: header per state, Edit relocated, guards intact (deps: T2)
 - [ ] T4 "Perlu perhatian" strip, family contact strip, slim rail and no rail block on a phone — accept: strip items and contact per criteria (deps: T2, reuse: `AttentionStrip`, `ContactActions`)
 - [ ] T5 Terminology and docs: wali rail Piutang → Tunggakan, `voice.md` glossary row, admin JTBD (STUDENT jobs), README clause if needed, e2e updates, counts via `audit-docs.sh --write` (deps: T2–T4)
 
 ## Implementation
+
+- Plan: T1-T4 built sequentially by one worker subagent (claude-sonnet-5-5) on the driver's instruction, one commit per task (T2 edits the student page, T3 and T4 edit it again, so no safe parallel slice); the driver reviews and runs the full gates. Driver tier is recorded by the driver.
+- T1: `components/admin/dossier-section.tsx`, `components/admin/__tests__/dossier-group.test.tsx` — `DossierGroup` (card, h2, summary only while closed, `keepMounted`, divided body) and `DossierSubsection` (flat headed block unless `onOpenChange` is given, then a collapsible row with a 44px trigger, h3, `keepMounted`); both keep their anchor id and `scroll-mt-28`. The collapsible header markup is now one internal `DisclosureTrigger` shared with `DossierSection`, whose behaviour is unchanged (existing summary suite passes). design-system tokens only (`px-card`, `text-small`, `text-muted-foreground`, 44px floor).
 
 ## Verification
 
