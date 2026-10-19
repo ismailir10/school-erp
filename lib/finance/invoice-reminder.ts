@@ -66,3 +66,62 @@ export function invoiceReminderWaUrl(input: {
     }),
   );
 }
+
+export type FamilyReminderItem = {
+  studentName: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  remaining: number;
+};
+
+/**
+ * One message for a wali with several unpaid invoices (the wali page, cycle
+ * 2026-10-19-wali-detail-clarity). Same courteous voice as `invoiceReminderText`:
+ * one line per invoice, the total, the portal address (where every invoice can
+ * be paid), and an easy out for a family that has already paid.
+ */
+export function familyReminderText(input: {
+  guardianName: string | null | undefined;
+  items: FamilyReminderItem[];
+  /** The whole debt, not just the listed items: the list is capped. */
+  total: number;
+  /** Unpaid invoices beyond `items`, named as one trailing line. */
+  moreCount?: number;
+  /** The parent portal's invoice list. */
+  payUrl: string;
+}): string {
+  const who = input.guardianName?.trim() ? `Bapak/Ibu ${input.guardianName.trim()}` : "Bapak/Ibu";
+  const lines = input.items.map(
+    (i) => `- ${i.periodLabel} untuk ananda ${i.studentName} (${i.invoiceNumber}): ${formatRupiah(i.remaining)}`,
+  );
+  if (input.moreCount && input.moreCount > 0) lines.push(`- dan ${input.moreCount} tagihan lainnya`);
+  return [
+    `Assalamu'alaikum ${who}.`,
+    ["Tagihan berikut masih tersisa:", ...lines, `Total: ${formatRupiah(input.total)}`].join("\n"),
+    `Bapak/Ibu bisa melihat dan membayarnya lewat tautan berikut: ${input.payUrl}`,
+    "Jika sudah membayar, mohon abaikan pesan ini. Jazakumullah khairan.",
+  ].join("\n\n");
+}
+
+/** `wa.me` URL with the family reminder prefilled, or null when there is nothing to chase or no number WhatsApp can open. */
+export function familyReminderWaUrl(input: {
+  guardian: Guardian;
+  items: FamilyReminderItem[];
+  total: number;
+  moreCount?: number;
+  payUrl: string;
+}): string | null {
+  if (input.items.length === 0) return null;
+  const phone = guardianChatNumber(input.guardian);
+  if (!phone) return null;
+  return whatsappHrefWithText(
+    phone,
+    familyReminderText({
+      guardianName: input.guardian?.name,
+      items: input.items,
+      total: input.total,
+      moreCount: input.moreCount,
+      payUrl: input.payUrl,
+    }),
+  );
+}
