@@ -62,7 +62,7 @@ export function kelasSummary({
   return join([
     className?.trim() ? className.trim() : "Belum terdaftar di kelas",
     attendance && attendance.total > 0 ? `Hadir ${attendance.present}/${attendance.total}` : null,
-    raport && raport.total > 0 ? `Raport ${raport.published}/${raport.total} terbit` : null,
+    raport && raport.total > 0 ? `Rapor ${raport.published}/${raport.total} terbit` : null,
   ]);
 }
 
@@ -79,7 +79,7 @@ export function keuanganSummary({
   keringananCount: number | null;
 }): string {
   if (loading) return "Memuat…";
-  if (error) return "—";
+  if (error) return "Gagal memuat";
   const money =
     summary.outstanding > 0
       ? `${formatRupiah(summary.outstanding)} belum dibayar`

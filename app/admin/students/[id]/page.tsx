@@ -52,7 +52,14 @@ import { InformasiTambahanSection } from "@/components/admin/students/detail/inf
 import { StudentLifecycleDialogs } from "@/components/admin/students/detail/lifecycle-dialogs";
 import { StudentRail } from "@/components/admin/students/detail/rail-content";
 import { buildRailTiles } from "@/components/admin/students/detail/rail-tiles";
-import { buildStudentAttentionItems } from "@/components/admin/students/detail/attention-items";
+import {
+  buildStudentAttentionItems,
+  DOC_TARGET_FOTO,
+  DOC_TARGET_KK,
+  DOC_TARGET_PENDAFTARAN,
+  guardianDocumentsHref,
+  type MissingDoc,
+} from "@/components/admin/students/detail/attention-items";
 import { FamilyContactStrip } from "@/components/admin/students/detail/family-strip";
 import { KelasSaatIniSection } from "@/components/admin/students/detail/kelas-saat-ini";
 import {
@@ -335,17 +342,19 @@ export default function StudentDetailPage() {
    */
   const hashHandled = useRef(false);
   useEffect(() => {
-    if (loading || hashHandled.current) return;
+    // No student yet (first fetch failed, "Coba Lagi" pending): nothing to jump
+    // to, and the intent must survive until there is.
+    if (loading || !student || hashHandled.current) return;
     const target = window.location.hash.replace(/^#/, "");
     if (!target) { hashHandled.current = true; return; }
     const known = isKnownTarget(target, {
       hasApplication: !!overview?.enrollmentApplication,
-      lifecycleShown: student?.status === "WITHDRAWN" || student?.status === "GRADUATED",
+      lifecycleShown: student.status === "WITHDRAWN" || student.status === "GRADUATED",
     });
     if (!known) return;
     hashHandled.current = true;
     jumpToSection(target);
-  }, [loading, jumpToSection, overview, student?.status]);
+  }, [loading, student, jumpToSection, overview]);
 
   /**
    * `?aksi=daftarkan-kelas` opens "Daftarkan ke Kelas" — the pendaftaran convert toast links
@@ -503,17 +512,19 @@ export default function StudentDetailPage() {
 
   // Presence only — this is "is the file on record", not a required-documents
   // policy. The school has not defined one, so nothing here is called missing.
-  const docItems = [
-    { label: "Foto siswa", present: !!student.photoUrl },
-    { label: "KK keluarga", present: hasKk },
+  const docItems: Array<MissingDoc & { present: boolean }> = [
+    { label: "Foto siswa", present: !!student.photoUrl, ...DOC_TARGET_FOTO },
+    { label: "KK keluarga", present: hasKk, ...DOC_TARGET_KK },
+    // The guardian page owns KTP upload, so that row leaves this page.
     ...activeGuardians.map((g) => ({
       label: `KTP ${g.parent.name}`,
       present: g.parent.hasKtp,
+      href: guardianDocumentsHref(g.parent.id),
     })),
     // Only for a student who came from the form. A hand-entered student never
     // had a consent letter to sign, so listing it as missing would invent a gap.
     ...(overview?.enrollmentApplication
-      ? [{ label: "Surat persetujuan", present: overview.documents?.consent === true }]
+      ? [{ label: "Surat persetujuan", present: overview.documents?.consent === true, ...DOC_TARGET_PENDAFTARAN }]
       : []),
     // Paper-form checklist (x / N). Only for a converted student, same reason.
     ...(overview?.documents?.enrollment
@@ -521,6 +532,7 @@ export default function StudentDetailPage() {
           {
             label: `Berkas pendaftaran (${overview.documents.enrollment.done} / ${overview.documents.enrollment.required})`,
             present: overview.documents.enrollment.done >= overview.documents.enrollment.required,
+            ...DOC_TARGET_PENDAFTARAN,
           },
         ]
       : []),
@@ -631,7 +643,7 @@ export default function StudentDetailPage() {
     invoices: { loading: invoicesLoading, error: invoicesError !== null, summary: invoiceSummary },
     activeGuardianCount: activeGuardians.length,
     hasPrimaryGuardian: activeGuardians.some((g) => g.isPrimary),
-    missingDocLabels: docItems.filter((d) => !d.present).map((d) => d.label),
+    missingDocs: docItems.filter((d) => !d.present).map(({ label, section, href }) => ({ label, section, href })),
     raportDraft: raportTally?.draft ?? null,
     onJump: jumpToSection,
     onEnroll: () => setEnrollDialog(true),
@@ -697,6 +709,7 @@ export default function StudentDetailPage() {
           <DossierGroup
             id={GROUP_PROFIL}
             label="Profil"
+            keepMounted
             summary={summaries[GROUP_PROFIL]}
             open={openSections[GROUP_PROFIL] ?? true}
             onOpenChange={(o) => handleSectionOpenChange(GROUP_PROFIL, o)}
@@ -818,7 +831,7 @@ export default function StudentDetailPage() {
           >
             <DossierSubsection
               id={SECTION_KEUANGAN}
-              label="Keuangan"
+              label="Tagihan"
               badge={
                 invoiceSummary.unpaidCount > 0 ? (
                   <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">

@@ -81,7 +81,7 @@ describe("student page — five groups", () => {
     const user = userEvent.setup();
     await renderLoaded({ invoices: INVOICES_OWED });
     await waitFor(() => expect(summaryOf("group-kelas")?.textContent).toContain("Hadir 18/20"));
-    expect(summaryOf("group-kelas")).toHaveTextContent("KB A · Hadir 18/20 · Raport 0/2 terbit");
+    expect(summaryOf("group-kelas")).toHaveTextContent("KB A · Hadir 18/20 · Rapor 0/2 terbit");
 
     await user.click(groupTrigger("group-kelas"));
     expect(summaryOf("group-kelas")).toBeNull();

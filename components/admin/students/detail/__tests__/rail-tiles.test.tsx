@@ -18,9 +18,9 @@ function show(t: ReturnType<typeof tiles>) {
 }
 
 describe("buildRailTiles", () => {
-  it("has exactly Tunggakan (wide), Hadir bulan ini and Raport", () => {
+  it("has exactly Tunggakan (wide), Hadir bulan ini and Rapor", () => {
     const t = tiles();
-    expect(t.map((x) => x.label)).toEqual(["Tunggakan", "Hadir bulan ini", "Raport"]);
+    expect(t.map((x) => x.label)).toEqual(["Tunggakan", "Hadir bulan ini", "Rapor"]);
     expect(t[0].wide).toBe(true);
   });
 

@@ -42,7 +42,7 @@ export function DokumenSection({
             href={`/api/parents/${kkGuardian.parent.id}/kk`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block text-sm text-primary-text hover:underline"
+            className="inline-flex items-center text-sm text-primary-text hover:underline [@media(pointer:coarse)]:min-h-11"
           >
             Buka di tab baru →
           </a>

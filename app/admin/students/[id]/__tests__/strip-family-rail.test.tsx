@@ -122,7 +122,7 @@ describe("student page — Perlu perhatian", () => {
     expect(within(region).getByText("Belum ada wali")).toBeInTheDocument();
   });
 
-  it("names the missing berkas and Lengkapi berkas jumps to Dokumen", async () => {
+  it("names the missing berkas and Lengkapi berkas jumps to the first one, Foto siswa in Data Anak", async () => {
     const user = userEvent.setup();
     await renderLoaded({
       student: makeStudent({
@@ -135,17 +135,17 @@ describe("student page — Perlu perhatian", () => {
     const region = await screen.findByRole("region", { name: "Perlu perhatian" });
     expect(within(region).getByText("Berkas belum ada: Foto siswa, KK keluarga, KTP Fatimah Rahman")).toBeInTheDocument();
     await user.click(within(region).getByRole("button", { name: "Lengkapi berkas" }));
-    await waitFor(() => expect(scrolledTo()).toContain("dokumen"));
+    await waitFor(() => expect(scrolledTo()).toContain("data-anak"));
   });
 
   it("lists a draft raport and Buka raport opens Akademik, fetching it once", async () => {
     const user = userEvent.setup();
     const { calls } = await renderLoaded({ overview: OVERVIEW_DRAFT });
     const region = await screen.findByRole("region", { name: "Perlu perhatian" });
-    await waitFor(() => expect(within(region).getByText("Raport: 2 masih draf")).toBeInTheDocument());
+    await waitFor(() => expect(within(region).getByText("Rapor: 2 masih draf")).toBeInTheDocument());
     expect(urlsMatching(calls, "/academics")).toHaveLength(0);
 
-    await user.click(within(region).getByRole("button", { name: "Buka raport" }));
+    await user.click(within(region).getByRole("button", { name: "Buka rapor" }));
     await waitFor(() => expect(urlsMatching(calls, "/academics")).toHaveLength(1));
     expect(expanded("group-kelas")).toBe("true");
     expect(expanded("akademik")).toBe("true");
@@ -165,7 +165,7 @@ describe("student page — Perlu perhatian", () => {
       "Belum terdaf",
       "Belum ada wa",
       "Berkas belum",
-      "Raport: 2 ma",
+      "Rapor: 2 mas",
     ]);
   });
 
@@ -252,13 +252,13 @@ describe("student page — slim rail", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("holds Tunggakan, Hadir bulan ini and Raport tiles plus Jejak, and nothing of the old rail", async () => {
+  it("holds Tunggakan, Hadir bulan ini and Rapor tiles plus Jejak, and nothing of the old rail", async () => {
     await renderLoaded({ invoices: INVOICES_OWED });
     const rail = screen.getByLabelText("Ringkasan", { selector: "aside" });
     expect(rail.className).toContain("hidden");
     expect(rail.className).toContain("lg:flex");
     await waitFor(() => expect(within(rail).getByText("18/20")).toBeInTheDocument());
-    for (const label of ["Tunggakan", "Hadir bulan ini", "Raport"]) {
+    for (const label of ["Tunggakan", "Hadir bulan ini", "Rapor"]) {
       expect(within(rail).getByText(label)).toBeInTheDocument();
     }
     expect(within(rail).getByText("Rp 1.250.000")).toBeInTheDocument();

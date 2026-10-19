@@ -1,7 +1,25 @@
 import type { AttentionItem } from "@/components/admin/attention-strip";
 import { formatRupiah } from "@/lib/format";
 import type { StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
-import { SECTION_AKADEMIK, SECTION_DOKUMEN, SECTION_KELUARGA, SECTION_KEUANGAN } from "./sections";
+import {
+  SECTION_AKADEMIK,
+  SECTION_DATA_ANAK,
+  SECTION_DOKUMEN,
+  SECTION_KELUARGA,
+  SECTION_KEUANGAN,
+  SECTION_PENDAFTARAN,
+} from "./sections";
+
+/**
+ * A berkas the student is missing, and where it can be fixed: a section of this
+ * page (`section`) or another page (`href`, the wali's, which owns KTP upload).
+ */
+export type MissingDoc = { label: string; section?: string; href?: string };
+
+export const DOC_TARGET_FOTO = { section: SECTION_DATA_ANAK } as const;
+export const DOC_TARGET_KK = { section: SECTION_DOKUMEN } as const;
+export const DOC_TARGET_PENDAFTARAN = { section: SECTION_PENDAFTARAN } as const;
+export const guardianDocumentsHref = (parentId: string) => `/admin/guardians/${parentId}#documents`;
 
 /**
  * "Perlu perhatian" for a student: only what applies, in the order an admin
@@ -20,7 +38,7 @@ export function buildStudentAttentionItems({
   invoices,
   activeGuardianCount,
   hasPrimaryGuardian,
-  missingDocLabels,
+  missingDocs,
   raportDraft,
   onJump,
   onEnroll,
@@ -34,7 +52,8 @@ export function buildStudentAttentionItems({
   invoices: { loading: boolean; error: boolean; summary: StudentInvoiceSummary };
   activeGuardianCount: number;
   hasPrimaryGuardian: boolean;
-  missingDocLabels: string[];
+  /** In the order an admin fixes them; the button lands on the first one. */
+  missingDocs: MissingDoc[];
   /** Null until the overview has loaded (or when it failed). */
   raportDraft: number | null;
   onJump: (sectionId: string) => void;
@@ -57,17 +76,19 @@ export function buildStudentAttentionItems({
     });
   }
 
-  if (isActive && !isPlaced && canEdit) {
+  if (isActive && !isPlaced) {
     items.push({
       id: "no-class",
       message: "Belum terdaftar di kelas",
       // The header carries the same words; a longer name tells them apart.
-      action: {
-        label: "Daftarkan ke Kelas",
-        ariaLabel: `Daftarkan ke Kelas untuk ${studentName}`,
-        onClick: onEnroll,
-        testId: "attention-enroll",
-      },
+      action: canEdit
+        ? {
+            label: "Daftarkan ke Kelas",
+            ariaLabel: `Daftarkan ke Kelas untuk ${studentName}`,
+            onClick: onEnroll,
+            testId: "attention-enroll",
+          }
+        : undefined,
     });
   }
 
@@ -81,12 +102,19 @@ export function buildStudentAttentionItems({
     });
   }
 
-  if (missingDocLabels.length > 0) {
+  if (missingDocs.length > 0) {
+    const first = missingDocs[0];
     items.push({
       id: "documents",
-      message: `Berkas belum ada: ${missingDocLabels.join(", ")}`,
+      message: `Berkas belum ada: ${missingDocs.map((d) => d.label).join(", ")}`,
       action: canEdit
-        ? { label: "Lengkapi berkas", onClick: () => onJump(SECTION_DOKUMEN), testId: "attention-documents" }
+        ? {
+            label: "Lengkapi berkas",
+            testId: "attention-documents",
+            ...(first.href
+              ? { href: first.href }
+              : { onClick: () => onJump(first.section ?? SECTION_DOKUMEN) }),
+          }
         : undefined,
     });
   }
@@ -94,8 +122,8 @@ export function buildStudentAttentionItems({
   if (raportDraft != null && raportDraft > 0) {
     items.push({
       id: "raport",
-      message: `Raport: ${raportDraft} masih draf`,
-      action: { label: "Buka raport", onClick: () => onJump(SECTION_AKADEMIK), testId: "attention-raport" },
+      message: `Rapor: ${raportDraft} masih draf`,
+      action: { label: "Buka rapor", onClick: () => onJump(SECTION_AKADEMIK), testId: "attention-raport" },
     });
   }
 

@@ -27,7 +27,7 @@ function build(over: Partial<Input> = {}) {
     invoices: { loading: false, error: false, summary: EMPTY_INVOICE_SUMMARY },
     activeGuardianCount: 2,
     hasPrimaryGuardian: true,
-    missingDocLabels: [],
+    missingDocs: [],
     raportDraft: 0,
     onJump,
     onEnroll,
@@ -35,6 +35,9 @@ function build(over: Partial<Input> = {}) {
   });
   return { items, onJump, onEnroll };
 }
+
+const KK = { label: "KK keluarga", section: "dokumen" };
+const KTP = { label: "KTP Ibu Fatimah", href: "/admin/guardians/p-1#documents" };
 
 const ids = (items: { id: string }[]) => items.map((i) => i.id);
 
@@ -49,7 +52,7 @@ describe("buildStudentAttentionItems", () => {
       isPlaced: false,
       activeGuardianCount: 0,
       hasPrimaryGuardian: false,
-      missingDocLabels: ["KK keluarga"],
+      missingDocs: [KK],
       raportDraft: 2,
     });
     expect(ids(items)).toEqual(["owed", "no-class", "no-guardian", "documents", "raport"]);
@@ -78,10 +81,10 @@ describe("buildStudentAttentionItems", () => {
     expect(ids(build({ invoices: { ...state, summary: OWED } }).items)).not.toContain("owed");
   });
 
-  it("shows the no-class row only for an ACTIVE, unplaced child the viewer can edit", () => {
+  it("shows the no-class row only for an ACTIVE, unplaced child", () => {
     expect(ids(build({ isPlaced: false }).items)).toContain("no-class");
     expect(ids(build({ isPlaced: false, isActive: false }).items)).not.toContain("no-class");
-    expect(ids(build({ isPlaced: false, canEdit: false }).items)).not.toContain("no-class");
+    expect(ids(build({ isPlaced: false, canEdit: false }).items)).toContain("no-class");
     expect(ids(build({ isPlaced: true }).items)).not.toContain("no-class");
   });
 
@@ -94,7 +97,7 @@ describe("buildStudentAttentionItems", () => {
   });
 
   it("names every missing berkas", () => {
-    const { items } = build({ missingDocLabels: ["KK keluarga", "KTP Ibu Fatimah"] });
+    const { items } = build({ missingDocs: [KK, KTP] });
     render(<AttentionStrip items={items} />);
     expect(screen.getByText("Berkas belum ada: KK keluarga, KTP Ibu Fatimah")).toBeInTheDocument();
   });
@@ -104,7 +107,7 @@ describe("buildStudentAttentionItems", () => {
     expect(ids(build({ raportDraft: 0 }).items)).not.toContain("raport");
     const { items } = build({ raportDraft: 2 });
     render(<AttentionStrip items={items} />);
-    expect(screen.getByText("Raport: 2 masih draf")).toBeInTheDocument();
+    expect(screen.getByText("Rapor: 2 masih draf")).toBeInTheDocument();
   });
 
   it("gives each row one distinct, descriptive button that does the thing", async () => {
@@ -113,7 +116,7 @@ describe("buildStudentAttentionItems", () => {
       invoices: { loading: false, error: false, summary: OWED },
       isPlaced: false,
       hasPrimaryGuardian: false,
-      missingDocLabels: ["KK keluarga"],
+      missingDocs: [KK],
       raportDraft: 1,
     });
     render(<AttentionStrip items={items} />);
@@ -124,7 +127,7 @@ describe("buildStudentAttentionItems", () => {
       "Daftarkan ke Kelas untuk Aisyah Putri",
       "Atur wali",
       "Lengkapi berkas",
-      "Buka raport",
+      "Buka rapor",
     ]);
     expect(new Set(names).size).toBe(names.length);
 
@@ -134,11 +137,79 @@ describe("buildStudentAttentionItems", () => {
   });
 
   it("keeps the message but drops the fix-it button for staff who cannot edit", () => {
-    const { items } = build({ canEdit: false, hasPrimaryGuardian: false, missingDocLabels: ["KK keluarga"] });
+    const { items } = build({ canEdit: false, hasPrimaryGuardian: false, missingDocs: [KK] });
     render(<AttentionStrip items={items} />);
     expect(screen.getByText("Belum ada wali utama")).toBeInTheDocument();
     expect(screen.getByText("Berkas belum ada: KK keluarga")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Atur wali" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Lengkapi berkas" })).not.toBeInTheDocument();
+  });
+
+  describe("Lengkapi berkas lands where the first missing item can be fixed", () => {
+    const FOTO = { label: "Foto siswa", section: "data-anak" };
+    const SURAT = { label: "Surat persetujuan", section: "pendaftaran" };
+    const FORM = { label: "Berkas pendaftaran (1 / 3)", section: "pendaftaran" };
+
+    async function press(missingDocs: Input["missingDocs"]) {
+      const user = userEvent.setup();
+      const { items, onJump } = build({ missingDocs });
+      render(<AttentionStrip items={items} />);
+      const control = screen.getByTestId("attention-documents");
+      await user.click(control);
+      return { control, onJump };
+    }
+
+    it("Foto siswa jumps to Data Anak", async () => {
+      const { onJump } = await press([FOTO, KK, KTP]);
+      expect(onJump).toHaveBeenCalledExactlyOnceWith("data-anak");
+    });
+
+    it("KK keluarga jumps to Dokumen", async () => {
+      const { onJump } = await press([KK, KTP]);
+      expect(onJump).toHaveBeenCalledExactlyOnceWith("dokumen");
+    });
+
+    it("KTP wali is a link to that wali's documents, not a jump", async () => {
+      const { control, onJump } = await press([KTP, SURAT]);
+      expect(control).toHaveAttribute("href", "/admin/guardians/p-1#documents");
+      expect(onJump).not.toHaveBeenCalled();
+    });
+
+    it("Surat persetujuan jumps to Pendaftaran", async () => {
+      expect((await press([SURAT, FORM])).onJump).toHaveBeenCalledExactlyOnceWith("pendaftaran");
+    });
+
+    it("the paper-form checklist jumps to Pendaftaran", async () => {
+      expect((await press([FORM])).onJump).toHaveBeenCalledExactlyOnceWith("pendaftaran");
+    });
+
+    it("keeps the label and lists every missing item whichever is first", () => {
+      const { items } = build({ missingDocs: [FOTO, KK, KTP, SURAT] });
+      render(<AttentionStrip items={items} />);
+      expect(
+        screen.getByText("Berkas belum ada: Foto siswa, KK keluarga, KTP Ibu Fatimah, Surat persetujuan"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("attention-documents")).toHaveTextContent("Lengkapi berkas");
+    });
+  });
+
+  describe("no class", () => {
+    it("shows the row with its button for staff who can edit", () => {
+      const { items } = build({ isPlaced: false });
+      render(<AttentionStrip items={items} />);
+      expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+      expect(screen.getByTestId("attention-enroll")).toBeInTheDocument();
+    });
+
+    it("shows the fact without a button to a read-only viewer", () => {
+      const { items } = build({ isPlaced: false, canEdit: false });
+      render(<AttentionStrip items={items} />);
+      expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+      expect(screen.queryByTestId("attention-enroll")).not.toBeInTheDocument();
+    });
+
+    it("stays absent for a student who is not active", () => {
+      expect(ids(build({ isPlaced: false, isActive: false }).items)).not.toContain("no-class");
+    });
   });
 });

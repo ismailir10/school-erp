@@ -288,7 +288,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
 
     await waitFor(() => expect(screen.getAllByText("0/1").length).toBeGreaterThan(0));
-    expect(screen.getAllByText("Belum ada raport").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Belum ada rapor").length).toBeGreaterThan(0);
     expect(screen.queryByText("terbit")).not.toBeInTheDocument();
   });
 

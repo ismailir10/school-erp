@@ -8,7 +8,7 @@ const muted = (text: string): ReactNode => <span className="text-muted-foregroun
 
 /**
  * The three numbers the header and the strip do not already say: Tunggakan,
- * Hadir bulan ini and Raport. Each distinguishes "still loading" (Memuat…) from
+ * Hadir bulan ini and Rapor. Each distinguishes "still loading" (Memuat…) from
  * "could not load" and "nothing yet" (a dash), and never shows a bare 0 for a
  * request that has not answered — an admin would read it as a real answer.
  */
@@ -69,7 +69,7 @@ export function buildRailTiles({
                 .join(" · ") || "Hadir penuh",
     },
     {
-      label: "Raport",
+      label: "Rapor",
       value: overviewError
         ? muted("—")
         : !raportTally
@@ -87,7 +87,7 @@ export function buildRailTiles({
               ? `${raportTally.draft} draf`
               : raportTally.published === 0
                 ? // With 0 published and 0 draft "terbit" would read as though a raport had been issued.
-                  "Belum ada raport"
+                  "Belum ada rapor"
                 : "semua terbit",
     },
   ];

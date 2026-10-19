@@ -39,7 +39,7 @@ describe("kelasSummary", () => {
   it("shows class, attendance and raport once the overview is in", () => {
     expect(
       kelasSummary({ className: "KB A", attendance: { present: 18, total: 20 }, raport: { published: 0, total: 2 } }),
-    ).toBe("KB A · Hadir 18/20 · Raport 0/2 terbit");
+    ).toBe("KB A · Hadir 18/20 · Rapor 0/2 terbit");
   });
   it("leaves out the overview parts while it loads or fails (null), never a 0", () => {
     expect(kelasSummary({ className: "KB A", attendance: null, raport: null })).toBe("KB A");
@@ -68,7 +68,7 @@ describe("keuanganSummary", () => {
   it("is Memuat… while loading and a dash on error, with no keringanan part", () => {
     const summary = { invoiceCount: 0, outstanding: 0 };
     expect(keuanganSummary({ ...base, loading: true, summary, keringananCount: 2 })).toBe("Memuat…");
-    expect(keuanganSummary({ ...base, error: true, summary, keringananCount: 2 })).toBe("—");
+    expect(keuanganSummary({ ...base, error: true, summary, keringananCount: 2 })).toBe("Gagal memuat");
   });
   it("leaves the keringanan part out until it is known and above zero", () => {
     const summary = { invoiceCount: 1, outstanding: 0 };
