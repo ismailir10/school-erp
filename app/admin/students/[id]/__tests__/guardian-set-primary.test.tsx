@@ -8,7 +8,7 @@
  * `{ isPrimary: true }` PUT to the right guardian, then a refetch.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -150,7 +150,7 @@ describe("student dossier — Jadikan wali utama (T4)", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
     await waitFor(() => expect(screen.getAllByText("Ibu Fatimah").length).toBeGreaterThan(0));
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit data anak" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ganti Foto" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tambah Field" })).not.toBeInTheDocument();
@@ -165,7 +165,10 @@ describe("student dossier — Jadikan wali utama (T4)", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
     await screen.findByRole("heading", { name: "Aisyah Putri" });
-    expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    // Said in the closed group's summary, in "Kelas saat ini" and in the Riwayat Kelas empty state.
+    for (const where of ["kelas-saat-ini", "riwayat-kelas"]) {
+      expect(within(document.getElementById(where)!).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    }
     expect(screen.getByText("Belum ada data wali")).toBeInTheDocument();
     const instructions = [
       /Klik “Ubah” untuk mengisi/,

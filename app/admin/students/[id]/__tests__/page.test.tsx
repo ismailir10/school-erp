@@ -21,7 +21,7 @@
  * needs to actually pick a value (app/teacher/class-attendance/__tests__/page.test.tsx).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -362,6 +362,12 @@ describe("StudentDetailPage — enroll override-confirm (T7)", () => {
  * enrollment; wrong the moment this cycle allowed two. The same predicate
  * also gated the "Naik Kelas" button.
  */
+/** The header's subtitle; "Kelas saat ini" below repeats the class names, so scope to it. */
+async function headerSubtitle(): Promise<HTMLElement> {
+  const title = await screen.findByRole("heading", { level: 1, name: "Aisyah Putri" });
+  return title.parentElement!.parentElement!;
+}
+
 describe("StudentDetailPage — header placement (preview-verify regression)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -379,7 +385,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     );
     render(<StudentDetailPage />);
 
-    const header = await screen.findByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    const header = within(await headerSubtitle()).getByText(/TK Islam Terpadu Kelas B · TKIT-B/);
     // Both placements are shown, school first — never day care alone.
     expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B + D'Care (Day Care) · DCARE");
   });
@@ -395,7 +401,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     );
     render(<StudentDetailPage />);
 
-    const header = await screen.findByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    const header = within(await headerSubtitle()).getByText(/TK Islam Terpadu Kelas B · TKIT-B/);
     expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B");
     expect(header).not.toHaveTextContent("TKIT-A");
   });
@@ -412,7 +418,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     // Substring match, like the sibling cases above: the dossier header's
     // description also carries nickname and age, so the placement is one
     // segment of a longer subtitle rather than the whole string.
-    const header = await screen.findByText(/D'Care \(Day Care\) · DCARE/);
+    const header = within(await headerSubtitle()).getByText(/D'Care \(Day Care\) · DCARE/);
     expect(header).toHaveTextContent("D'Care (Day Care) · DCARE");
   });
 
@@ -420,7 +426,8 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     vi.stubGlobal("fetch", stubFetchWithEnrollments([]));
     render(<StudentDetailPage />);
 
-    expect(await screen.findByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    expect(within(await headerSubtitle()).getByText(/Belum terdaftar di kelas/)).toBeInTheDocument();
+    expect(within(document.getElementById("kelas-saat-ini")!).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
   });
 });
 

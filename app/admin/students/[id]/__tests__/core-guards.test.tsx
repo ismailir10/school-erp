@@ -156,8 +156,17 @@ beforeEach(() => {
 });
 
 describe("ADM-1 — header actions follow the student's status", () => {
-  it("ACTIVE: Daftarkan ke Kelas is offered, Aktifkan kembali is not", async () => {
+  it("ACTIVE and placed: no visible enrol button (it moves into the ⋯ menu), no Aktifkan kembali", async () => {
     vi.stubGlobal("fetch", stubFetch(makeStudent()));
+    render(<StudentDetailPage />);
+
+    await screen.findByRole("button", { name: "Aksi lainnya" });
+    expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aktifkan kembali" })).not.toBeInTheDocument();
+  });
+
+  it("ACTIVE and unplaced: Daftarkan ke Kelas is the visible action, Aktifkan kembali is not", async () => {
+    vi.stubGlobal("fetch", stubFetch(makeStudent({ enrollments: [] })));
     render(<StudentDetailPage />);
 
     expect(await screen.findByRole("button", { name: "Daftarkan ke Kelas" })).toBeInTheDocument();
@@ -362,7 +371,7 @@ describe("ADM-3 / ADM-2 — Data Anak edit", () => {
     render(<StudentDetailPage />);
 
     expect(guardCalls.at(-1)?.dirty ?? false).toBe(false);
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await screen.findByRole("button", { name: "Simpan Perubahan" });
     expect(guardCalls.at(-1)?.dirty).toBe(false);
 
@@ -391,7 +400,7 @@ describe("ADM-3 / ADM-2 — Data Anak edit", () => {
     );
     render(<StudentDetailPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await user.type(screen.getByLabelText("Nama Panggilan"), "Eef");
     await user.dblClick(screen.getByRole("button", { name: "Simpan Perubahan" }));
     release();
@@ -413,7 +422,7 @@ describe("ADM-3 / ADM-2 — Data Anak edit", () => {
     );
     render(<StudentDetailPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await user.type(screen.getByLabelText("NIS"), "002");
     await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
 
@@ -449,7 +458,7 @@ describe("R2-ADMIN-7 — the back link respects unsaved Data Anak edits", () => 
         <StudentDetailPage />
       </UnsavedChangesProvider>,
     );
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await user.type(screen.getByLabelText("Nama Panggilan"), "Aisy");
   }
 
@@ -476,7 +485,7 @@ describe("R2-ADMIN-7 — the back link respects unsaved Data Anak edits", () => 
         <StudentDetailPage />
       </UnsavedChangesProvider>,
     );
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     // Next's Link would navigate; jsdom has no router, so just assert no dialog.
     const link = screen.getByRole("link", { name: /Kembali ke Daftar Siswa/ });
     link.addEventListener("click", (e) => e.preventDefault());
@@ -492,7 +501,7 @@ describe("R2-ADMIN-7 — the back link respects unsaved Data Anak edits", () => 
         <StudentDetailPage />
       </UnsavedChangesProvider>,
     );
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     const clean = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(clean);
     expect(clean.defaultPrevented).toBe(false);

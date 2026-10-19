@@ -28,7 +28,7 @@ const student: Student = {
 
 async function openLinkDialog() {
   const user = userEvent.setup();
-  render(<KeluargaSection student={student} studentId="s1" open onOpenChange={() => {}} onSaved={() => {}} />);
+  render(<KeluargaSection student={student} studentId="s1" onSaved={() => {}} />);
   await user.click(screen.getByRole("button", { name: /Tambah/ }));
   await user.click(await screen.findByRole("button", { name: "Pilih Fajar" }));
   return user;

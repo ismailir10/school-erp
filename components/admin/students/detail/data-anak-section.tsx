@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { MaskedValue } from "@/components/admin/masked-value";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { User, MapPin, Save, X } from "lucide-react";
+import { User, MapPin, Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
@@ -27,32 +27,37 @@ type FormOutput = z4.output<typeof studentDetailEditFormSchema>;
  * (edit-in-place, RHF), and Identitas Resmi (NIS/NISN/NIK/No. KK/birth
  * place/tinggal dengan).
  *
- * `editing`/`form` are owned by the page, not this component: the trigger
- * that flips `editing` to true is the "Edit" button in `DetailPageHeader`,
- * which lives outside this section's own subtree (and the page also has to
- * gate it on Informasi Tambahan's dirty state — a sibling section). Photo
- * upload has no such cross-component reason to live on the page, so it stays
- * local to this component.
+ * `editing`/`form` are owned by the page, not this component: starting an
+ * edit has to check Informasi Tambahan's dirty state (a sibling section) and
+ * the unsaved-changes guard hangs off the same form, so the page passes
+ * `onEdit`. The "Edit" button itself sits here, in the section's `actions`,
+ * next to the data it edits. Photo upload has no such cross-component reason
+ * to live on the page, so it stays local to this component.
+ *
+ * Starting an edit unmounts the focused Edit button and finishing one unmounts
+ * the form, so focus moves with the change: into the first field when editing
+ * starts, back to Edit when it ends.
  */
 export function DataAnakSection({
   student,
   age,
-  open,
-  onOpenChange,
+  canEdit,
   editing,
   form,
   formId,
+  onEdit,
   onSave,
   onCancel,
   onSaved,
 }: {
   student: Student;
   age: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  canEdit: boolean;
   editing: boolean;
   form: UseFormReturn<FormValues, unknown, FormOutput>;
   formId: string;
+  /** Starts the edit; the page may refuse (unsaved Informasi Tambahan) and then `editing` stays false. */
+  onEdit: () => void;
   onSave: (e?: React.BaseSyntheticEvent) => Promise<void>;
   onCancel: () => void;
   /** Called after a successful photo upload/delete so the page can refetch. */
@@ -116,12 +121,21 @@ export function DataAnakSection({
 
   const saving = form.formState.isSubmitting;
 
+  const editButtonRef = useRef<HTMLButtonElement | null>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (editing) {
+      document.getElementById(formId)?.querySelector<HTMLElement>("input, textarea, select")?.focus();
+    } else if (wasEditing.current) {
+      editButtonRef.current?.focus();
+    }
+    wasEditing.current = editing;
+  }, [editing, formId]);
+
   return (
-    <DossierSection
+    <DossierSubsection
       id="data-anak"
       label="Data Anak"
-      open={open}
-      onOpenChange={onOpenChange}
       actions={
         editing ? (
           <>
@@ -132,6 +146,12 @@ export function DataAnakSection({
               <Save size={14} className="mr-1" aria-hidden="true" /> {saving ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
           </>
+        ) : canEdit ? (
+          // Named for what it edits: Kesehatan and Riwayat Status carry their own
+          // "Ubah", so a bare "Edit" would not say which data this changes.
+          <Button ref={editButtonRef} size="sm" variant="outline" onClick={onEdit} aria-label="Edit data anak">
+            <Pencil size={14} className="mr-1" aria-hidden="true" /> Edit
+          </Button>
         ) : undefined
       }
     >
@@ -344,7 +364,7 @@ export function DataAnakSection({
           )}
         </>
       )}
-    </DossierSection>
+    </DossierSubsection>
   );
 }
 

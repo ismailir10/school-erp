@@ -298,20 +298,27 @@ test.describe("Enrollment documents follow-ups", () => {
     expect(ibuKtp.headers()["content-type"]).toContain("image/png");
   });
 
-  test("student page shows Kelengkapan Berkas in the Pendaftaran section and the rail row", async () => {
+  test("student page shows Kelengkapan Berkas in the Pendaftaran section and in Perlu perhatian", async () => {
     expect(studentId, "needs the student created by the convert test").toBeTruthy();
     const page = await admin.newPage();
     try {
       await page.goto(`/admin/students/${studentId}`);
 
-      // The Pendaftaran section is lazy and starts collapsed: open it.
+      // The Pendaftaran section is lazy and sits in the closed "Pendaftaran & Catatan" group: open both.
+      // Scoped to the group: the sticky nav (lg+) has a button with the same name.
+      await page.locator("#group-catatan").getByRole("button", { name: /Pendaftaran & Catatan/ }).click();
       await page.getByRole("button", { name: /Formulir Pendaftaran/ }).click();
       const card = page.locator("#pendaftaran").getByRole("region", { name: "Kelengkapan Berkas" });
       await expect(card).toBeVisible();
-      await expect(card.getByText(/\d+ \/ 9 berkas lengkap/)).toBeVisible();
+      const counted = card.getByText(/\d+ \/ 9 berkas lengkap/);
+      await expect(counted).toBeVisible();
 
-      // Rail checklist row (supplied by /api/students/[id]/overview).
-      await expect(page.getByText(/Berkas pendaftaran \(\d+ \/ 9\)/).first()).toBeVisible();
+      // The same count (from /api/students/[id]/overview) reaches the top of the page: while berkas are
+      // missing, "Perlu perhatian" names them, "Berkas pendaftaran (n / 9)" among them.
+      const done = Number(/(\d+) \/ 9/.exec((await counted.textContent()) ?? "")?.[1] ?? "9");
+      if (done < 9) {
+        await expect(page.getByRole("region", { name: "Perlu perhatian" })).toContainText(/Berkas pendaftaran \(\d+ \/ 9\)/);
+      }
     } finally {
       await page.close();
     }

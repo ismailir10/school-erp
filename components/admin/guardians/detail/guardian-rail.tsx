@@ -16,7 +16,7 @@ export function GuardianRail({ parent }: { parent: ParentDetail }) {
 
   const tiles: RailTile[] = [
     {
-      label: "Piutang",
+      label: "Tunggakan",
       value: formatRupiah(s.outstanding),
       tone: s.outstanding > 0 ? "critical" : "positive",
       hint: s.outstanding > 0 ? `${s.unpaidCount} dari ${s.invoiceCount} tagihan belum lunas` : "Tidak ada tunggakan",
