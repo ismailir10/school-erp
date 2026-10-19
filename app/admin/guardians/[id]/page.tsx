@@ -13,7 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
 import { AttentionStrip, type AttentionItem } from "@/components/admin/attention-strip";
 import { ContactActions } from "@/components/admin/contact-actions";
-import { Pencil, X, Save } from "lucide-react";
+import { Pencil, Plus, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
@@ -40,6 +40,7 @@ import { ChildrenList } from "@/components/admin/guardians/detail/children-list"
 import { InvoicesList } from "@/components/admin/guardians/detail/invoices-list";
 import { DocumentsPanel } from "@/components/admin/guardians/detail/documents-section";
 import { GuardianRail } from "@/components/admin/guardians/detail/guardian-rail";
+import { LinkStudentDialog } from "@/components/admin/guardians/link-student-dialog";
 
 type ParentFormValues = z4.input<typeof parentFormSchema>;
 
@@ -93,6 +94,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const [parent, setParent] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
@@ -284,7 +286,11 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     });
   }
   if (studentCount === 0) {
-    attentionItems.push({ id: "no-student", message: "Belum tertaut ke siswa" });
+    attentionItems.push({
+      id: "no-student",
+      message: "Belum tertaut ke siswa",
+      action: canEdit ? { label: "Tautkan anak", onClick: () => setLinkOpen(true), testId: "attention-link-child" } : undefined,
+    });
   }
 
   return (
@@ -325,9 +331,21 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             summary={childrenSummary(parent.guardians)}
             open={openSections[SECTION_CHILDREN] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_CHILDREN, o)}
+            actions={
+              canEdit ? (
+                <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
+                  <Plus size={14} className="mr-1" /> Tautkan anak
+                </Button>
+              ) : undefined
+            }
           >
             {studentCount === 0 ? (
-              <EmptyState title="Belum ada anak terdaftar" description="Belum ada siswa yang ditautkan ke wali ini." />
+              <EmptyState
+                title="Belum ada anak terdaftar"
+                description="Belum ada siswa yang ditautkan ke wali ini."
+                actionLabel={canEdit ? "Tautkan anak" : undefined}
+                onAction={canEdit ? () => setLinkOpen(true) : undefined}
+              />
             ) : (
               <ChildrenList guardians={parent.guardians} />
             )}
@@ -398,6 +416,10 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
 
         <GuardianRail parent={parent} />
       </div>
+
+      {canEdit && (
+        <LinkStudentDialog parentId={parent.id} open={linkOpen} onOpenChange={setLinkOpen} onLinked={fetchParent} />
+      )}
     </>
   );
 }
