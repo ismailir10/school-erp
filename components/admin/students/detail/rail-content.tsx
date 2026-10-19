@@ -1,78 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { RailCard, RailKV, RailChecklist, type RailItem } from "@/components/admin/detail-rail";
-import { Button } from "@/components/ui/button";
-import { telHref, whatsappHref } from "@/lib/contact";
+import { DetailRail, RailCard, RailKV, RailStatTiles, type RailTile } from "@/components/admin/detail-rail";
 import { formatDateShort } from "@/lib/format";
-import { REL_LABELS } from "@/lib/constants/parent-options";
-import type { Guardian } from "./types";
 
 /**
- * The dossier's right rail body: Ringkasan, Kontak Cepat (primary/first
- * active wali), Kelengkapan Berkas, Jejak. Everything here is read-only and
- * derived from data the page already fetched — no local state, no fetch.
+ * The student dossier's right rail, desktop only. Below `lg` it is hidden
+ * outright: on a phone the header, "Perlu perhatian", the family strip and the
+ * closed groups' summaries already carry these numbers, and a stacked tile
+ * block would only push the sections down.
  *
- * Rendered both inside `DetailRail` (desktop, sticky) and, on mobile, inline
- * above the sections — the page decides the wrapper, this decides the content.
+ * Tunggakan, Hadir bulan ini and Raport as tiles, then Jejak (when the record
+ * was made and where it came from). Everything else the old rail said now lives
+ * with the section it belongs to or in the strip.
  */
-export function StudentRailContent({
-  summaryItems,
-  contactGuardian,
-  docItems,
+export function StudentRail({
+  tiles,
   createdAt,
   fromEnrollmentApplication,
 }: {
-  summaryItems: RailItem[];
-  contactGuardian: Guardian | null;
-  docItems: { label: string; present: boolean }[];
+  tiles: RailTile[];
   createdAt: string | null;
   fromEnrollmentApplication: string | null;
 }) {
   return (
-    <>
-      <RailCard title="Ringkasan">
-        <RailKV items={summaryItems} />
-      </RailCard>
-      {contactGuardian && (
-        <RailCard title="Kontak Cepat">
-          <p className="text-small font-semibold">{contactGuardian.parent.name}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {REL_LABELS[contactGuardian.relationship] ?? contactGuardian.relationship}
-            {contactGuardian.parent.phone ? ` · ${contactGuardian.parent.phone}` : ""}
-          </p>
-          <div className="mt-3 flex gap-2">
-            {whatsappHref(contactGuardian.parent.whatsapp ?? contactGuardian.parent.phone) && (
-              <Button
-                size="sm"
-                className="flex-1"
-                render={
-                  <a
-                    href={whatsappHref(contactGuardian.parent.whatsapp ?? contactGuardian.parent.phone)!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  />
-                }
-              >
-                WhatsApp
-              </Button>
-            )}
-            {telHref(contactGuardian.parent.phone) && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                render={<a href={telHref(contactGuardian.parent.phone)!} />}
-              >
-                Telepon
-              </Button>
-            )}
-          </div>
-        </RailCard>
-      )}
-      <RailCard title="Kelengkapan Berkas">
-        <RailChecklist items={docItems} />
-      </RailCard>
+    <DetailRail className="hidden lg:flex">
+      <RailStatTiles tiles={tiles} />
       <RailCard title="Jejak">
         <RailKV
           items={[
@@ -82,7 +35,7 @@ export function StudentRailContent({
               value: fromEnrollmentApplication ? (
                 <Link
                   href={`/admin/enrollments/${fromEnrollmentApplication}`}
-                  className="text-primary-text hover:underline"
+                  className="inline-flex items-center text-primary-text hover:underline [@media(pointer:coarse)]:min-h-11"
                 >
                   Formulir pendaftaran →
                 </Link>
@@ -93,6 +46,6 @@ export function StudentRailContent({
           ]}
         />
       </RailCard>
-    </>
+    </DetailRail>
   );
 }

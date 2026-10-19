@@ -13,7 +13,7 @@
  * spelled out in `page.test.tsx`.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -458,7 +458,7 @@ describe("student dossier — increment 3", () => {
     expect(tick).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("adds a Berkas pendaftaran row to the rail checklist for a converted student", async () => {
+  it("names the unfinished paper-form checklist in Perlu perhatian for a converted student", async () => {
     const { fn } = stubFetch({
       overview: {
         ...OVERVIEW,
@@ -468,12 +468,11 @@ describe("student dossier — increment 3", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
 
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
-    );
+    const strip = await screen.findByRole("region", { name: "Perlu perhatian" });
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(6 \/ 9\)/)).toBeInTheDocument());
   });
 
-  it("refreshes the rail count after a Diterima fisik tick is saved", async () => {
+  it("refreshes the Perlu perhatian count after a Diterima fisik tick is saved", async () => {
     const user = userEvent.setup();
     let done = 6;
     const { fn, calls } = stubFetch();
@@ -497,21 +496,18 @@ describe("student dossier — increment 3", () => {
     });
     vi.stubGlobal("fetch", wrapped);
     render(<StudentDetailPage />);
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
-    );
+    const strip = await screen.findByRole("region", { name: "Perlu perhatian" });
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(6 \/ 9\)/)).toBeInTheDocument());
 
     await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
     await user.click(await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" }));
 
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (7 / 9)").length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(7 \/ 9\)/)).toBeInTheDocument());
     expect(urlsMatching(calls, "/overview").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("omits the Berkas pendaftaran rail row when there is no application", async () => {
+  it("omits the Berkas pendaftaran item when there is no application", async () => {
     const { fn } = stubFetch({
       overview: {
         ...OVERVIEW,

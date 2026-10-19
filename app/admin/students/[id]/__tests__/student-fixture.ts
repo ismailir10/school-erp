@@ -165,6 +165,8 @@ export type FetchOptions = {
   /** `null` = the overview request fails. */
   overview?: unknown | null;
   adjustments?: unknown[];
+  /** The invoice request never answers (loading state). */
+  invoicesPending?: boolean;
 };
 
 /** Records every request, so "fetches nothing until opened" is assertable. */
@@ -181,6 +183,7 @@ export function stubFetch(opts: FetchOptions = {}) {
       return ok(opts.overview ?? OVERVIEW);
     }
     if (url.startsWith("/api/invoices")) {
+      if (opts.invoicesPending) return new Promise<Response>(() => {});
       const status = opts.invoiceStatus ?? 200;
       return Promise.resolve({ ok: status < 300, status, json: async () => ({ data: opts.invoices ?? [] }) } as Response);
     }

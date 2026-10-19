@@ -26,6 +26,12 @@ export type AttentionAction = {
   onClick?: () => void;
   /** Greys the button out while the action it starts is still running. */
   disabled?: boolean;
+  /**
+   * Accessible name when the visible label alone is ambiguous on the page (a
+   * header button with the same words). Must start with the visible label so
+   * voice-control users can still say what they see.
+   */
+  ariaLabel?: string;
   testId?: string;
 };
 
@@ -95,6 +101,7 @@ function AttentionButton({ action }: { action: AttentionAction }) {
     variant: "outline" as const,
     className: "w-full shrink-0 sm:w-auto",
     "data-testid": action.testId,
+    "aria-label": action.ariaLabel,
   };
   if (action.href) {
     return (

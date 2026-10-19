@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { formatDateShort, formatRupiah } from "@/lib/format";
+import { formatDateShort } from "@/lib/format";
 import { studentDetailEditFormSchema } from "@/lib/validations/student";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { sendStudentJson, applyStudentErrors } from "@/components/admin/students/student-request";
@@ -20,7 +20,7 @@ import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import type { ClassSection } from "@/components/admin/class-section-picker";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 import { DossierNav, DossierGroup, DossierSubsection } from "@/components/admin/dossier-section";
-import { DetailRail, RailCard, RailKV, RailStatTiles, RailChecklist, type RailItem } from "@/components/admin/detail-rail";
+import { AttentionStrip } from "@/components/admin/attention-strip";
 import { StudentFinanceBlock } from "@/components/admin/student-finance-block";
 import { StudentKeringananBlock } from "@/components/admin/student-keringanan-block";
 import { StudentJournalBlock } from "@/components/admin/student-journal-block";
@@ -50,7 +50,10 @@ import { DokumenSection } from "@/components/admin/students/detail/dokumen-secti
 import { RiwayatStatusSection } from "@/components/admin/students/detail/riwayat-status-section";
 import { InformasiTambahanSection } from "@/components/admin/students/detail/informasi-tambahan-section";
 import { StudentLifecycleDialogs } from "@/components/admin/students/detail/lifecycle-dialogs";
-import { StudentRailContent } from "@/components/admin/students/detail/rail-content";
+import { StudentRail } from "@/components/admin/students/detail/rail-content";
+import { buildRailTiles } from "@/components/admin/students/detail/rail-tiles";
+import { buildStudentAttentionItems } from "@/components/admin/students/detail/attention-items";
+import { FamilyContactStrip } from "@/components/admin/students/detail/family-strip";
 import { KelasSaatIniSection } from "@/components/admin/students/detail/kelas-saat-ini";
 import {
   catatanSummary,
@@ -70,6 +73,7 @@ import {
   SECTION_AKADEMIK,
   SECTION_JURNAL,
   SECTION_KEHADIRAN,
+  SECTION_KELUARGA,
   SECTION_KERINGANAN,
   SECTION_KEUANGAN,
   SECTION_PENDAFTARAN,
@@ -567,112 +571,6 @@ export default function StudentDetailPage() {
     }),
   };
 
-  const statTiles = [
-    { label: "Usia", value: age ?? "—", hint: student.dateOfBirth ? formatDateShort(student.dateOfBirth) : undefined },
-    { label: "Kelas Aktif", value: currentEnrollments.length, hint: currentEnrollments.length > 1 ? "sekolah + day care" : undefined },
-    { label: "Wali Aktif", value: activeGuardians.length, hint: siblings.length > 0 ? `${siblings.length} saudara` : undefined },
-    {
-      label: "Berkas",
-      value: `${docsPresent}/${docItems.length}`,
-      tone: (docsPresent < docItems.length ? "warning" : "positive") as "warning" | "positive",
-    },
-    // Kehadiran and Raport are the two tiles increments 1 and 2 left out rather
-    // than ship blank. They read the aggregate route, so neither costs a row
-    // dump — and both distinguish "not loaded" from a real zero.
-    {
-      label: "Hadir Bln Ini",
-      value: overviewError ? (
-        <span className="text-muted-foreground">—</span>
-      ) : !attendanceCounts ? (
-        <span className="text-muted-foreground">Memuat…</span>
-      ) : attendanceCounts.total === 0 ? (
-        <span className="text-muted-foreground">—</span>
-      ) : (
-        `${attendanceCounts.present}/${attendanceCounts.total}`
-      ),
-      tone: (attendanceCounts && attendanceCounts.total > 0 && attendanceCounts.absent > 0
-        ? "warning"
-        : "default") as "warning" | "default",
-      hint:
-        !attendanceCounts || overviewError
-          ? undefined
-          : attendanceCounts.total === 0
-            ? "Belum ada absensi bulan ini"
-            : [
-                attendanceCounts.absent > 0 ? `${attendanceCounts.absent} alpa` : null,
-                attendanceCounts.sick > 0 ? `${attendanceCounts.sick} sakit` : null,
-                attendanceCounts.permission > 0 ? `${attendanceCounts.permission} izin` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Hadir penuh",
-    },
-    {
-      label: "Raport",
-      value: overviewError ? (
-        <span className="text-muted-foreground">—</span>
-      ) : !raportTally ? (
-        <span className="text-muted-foreground">Memuat…</span>
-      ) : raportTally.total === 0 ? (
-        <span className="text-muted-foreground">—</span>
-      ) : (
-        `${raportTally.published}/${raportTally.total}`
-      ),
-      tone: "default" as const,
-      hint:
-        !raportTally || overviewError
-          ? undefined
-          : raportTally.total === 0
-            ? "Triwulan belum dibuat"
-            : raportTally.draft > 0
-              ? `${raportTally.draft} draf`
-              : raportTally.published === 0
-                ? // Found in smoke: with 0 published and 0 draft this said
-                  // "terbit", which reads as though a raport had been issued.
-                  "Belum ada raport"
-                : "semua terbit",
-    },
-    // Real figure or an honest dash — never a zero that could mean either
-    // "paid up" or "we could not load it".
-    {
-      label: "Tunggakan",
-      wide: true,
-      value: invoicesLoading ? (
-        <span className="text-muted-foreground">Memuat…</span>
-      ) : invoicesError ? (
-        <span className="text-muted-foreground">—</span>
-      ) : (
-        <span className="font-currency">{formatRupiah(invoiceSummary.outstanding)}</span>
-      ),
-      tone: (invoiceSummary.outstanding > 0 ? "critical" : "positive") as "critical" | "positive",
-      hint: invoicesLoading || invoicesError
-        ? undefined
-        : invoiceSummary.unpaidCount > 0
-          ? `${invoiceSummary.unpaidCount} tagihan belum lunas${
-              invoiceSummary.nearestDue ? ` · ${formatDateShort(invoiceSummary.nearestDue)}` : ""
-            }`
-          : "Lunas semua",
-    },
-  ];
-
-  const summaryItems: RailItem[] = [
-    { label: "Status", value: <StatusBadge status={student.status} /> },
-    ...(primaryEnrollment
-      ? [{ label: "Kelas utama", value: `${primaryEnrollment.classSection.name}` }]
-      : []),
-    ...(orderedEnrollments.slice(1).map((e) => ({
-      label: e.classSection.program.name,
-      value: e.classSection.name,
-    }))),
-    ...(primaryEnrollment
-      ? [{ label: "Tahun ajaran", value: primaryEnrollment.classSection.academicYear.name }]
-      : []),
-    ...(primaryEnrollment
-      ? [{ label: "Kampus", value: primaryEnrollment.classSection.campus.name }]
-      : []),
-    ...(joinedDate ? [{ label: "Masuk sejak", value: formatDateShort(joinedDate) }] : []),
-    ...(student.nis ? [{ label: "NIS", value: <span className="font-currency">{student.nis}</span> }] : []),
-  ];
-
   // The header carries at most one visible action, chosen by the child's state
   // (a second filled button would compete with it, and "Edit" now lives in Data
   // Anak). Everything else is in the ⋯ menu, on every viewport.
@@ -725,18 +623,25 @@ export default function StudentDetailPage() {
       : []),
   ];
 
-  const railContent = (
-    <>
-      <RailStatTiles tiles={statTiles} />
-      <StudentRailContent
-        summaryItems={summaryItems}
-        contactGuardian={contactGuardian}
-        docItems={docItems}
-        createdAt={student.createdAt}
-        fromEnrollmentApplication={metaSystem.fromEnrollmentApplication}
-      />
-    </>
-  );
+  const attentionItems = buildStudentAttentionItems({
+    studentName: student.name,
+    canEdit: canManage,
+    isActive: isActiveStudent,
+    isPlaced,
+    invoices: { loading: invoicesLoading, error: invoicesError !== null, summary: invoiceSummary },
+    activeGuardianCount: activeGuardians.length,
+    hasPrimaryGuardian: activeGuardians.some((g) => g.isPrimary),
+    missingDocLabels: docItems.filter((d) => !d.present).map((d) => d.label),
+    raportDraft: raportTally?.draft ?? null,
+    onJump: jumpToSection,
+    onEnroll: () => setEnrollDialog(true),
+  });
+  const railTiles = buildRailTiles({
+    invoices: { loading: invoicesLoading, error: invoicesError !== null, summary: invoiceSummary },
+    overviewError,
+    attendanceCounts,
+    raportTally,
+  });
 
   return (
     <>
@@ -776,9 +681,13 @@ export default function StudentDetailPage() {
         menuActions={menuHeaderActions}
       />
 
-      {/* Mobile: the rail's numbers move above the sections so the first
-          viewport still answers "who is this child". */}
-      {isMobile && <div className="mb-4"><RailStatTiles tiles={statTiles} /></div>}
+      <AttentionStrip items={attentionItems} className="mb-4" />
+
+      <FamilyContactStrip
+        guardian={contactGuardian}
+        guardianCount={activeGuardians.length}
+        onSeeAll={() => jumpToSection(SECTION_KELUARGA)}
+      />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
@@ -999,16 +908,13 @@ export default function StudentDetailPage() {
           </DossierGroup>
         </div>
 
-        {/* Desktop rail. On mobile the tiles already rendered above and the
-            remaining cards fall to the end of the document, after the sections. */}
-        {isMobile ? (
-          <div className="mt-2 flex flex-col gap-4">
-            <RailCard title="Ringkasan"><RailKV items={summaryItems} /></RailCard>
-            <RailCard title="Kelengkapan Berkas"><RailChecklist items={docItems} /></RailCard>
-          </div>
-        ) : (
-          <DetailRail>{railContent}</DetailRail>
-        )}
+        {/* Desktop only: below lg the rail is hidden and the strip, the family
+            row and the closed groups' summaries carry the same facts. */}
+        <StudentRail
+          tiles={railTiles}
+          createdAt={student.createdAt}
+          fromEnrollmentApplication={metaSystem.fromEnrollmentApplication}
+        />
       </div>
 
       <StudentEnrollDialog
