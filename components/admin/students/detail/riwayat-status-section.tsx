@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField, FormRootError } from "@/components/ui/form";
@@ -22,13 +22,9 @@ import type { Student } from "./types";
  */
 export function RiwayatStatusSection({
   student,
-  open,
-  onOpenChange,
   onSaved,
 }: {
   student: Student;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
   const formId = useId();
@@ -69,7 +65,7 @@ export function RiwayatStatusSection({
   const saving = form.formState.isSubmitting;
 
   return (
-    <DossierSection id="riwayat-status" label="Riwayat Status" open={open} onOpenChange={onOpenChange}>
+    <DossierSubsection id="riwayat-status" label="Riwayat Status">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {student.status === "WITHDRAWN" && (
           <>
@@ -121,6 +117,6 @@ export function RiwayatStatusSection({
           </div>
         )}
       </div>
-    </DossierSection>
+    </DossierSubsection>
   );
 }

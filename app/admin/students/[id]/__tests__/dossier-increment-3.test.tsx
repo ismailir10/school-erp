@@ -234,6 +234,19 @@ async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
   });
 }
 
+/**
+ * The groups that hold the lazy rows (Kelas & Akademik, Pendaftaran & Catatan)
+ * start closed, so an admin opens the group before the row inside it.
+ */
+async function openGroup(groupId: string): Promise<void> {
+  const trigger = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[aria-controls="${groupId}-content"]`);
+    if (!el) throw new Error(`no disclosure trigger for group "${groupId}"`);
+    return el;
+  });
+  if (trigger.getAttribute("aria-expanded") !== "true") await userEvent.click(trigger);
+}
+
 describe("student dossier — increment 3", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -321,6 +334,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-kelas");
     const trigger = await sectionTrigger("akademik");
     await user.click(trigger);
 
@@ -340,6 +354,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-kelas");
     await user.click(await sectionTrigger("akademik"));
     await waitFor(() => expect(screen.getByText("TW1 · Sem 1 · 2025/2026")).toBeInTheDocument());
 
@@ -356,6 +371,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     await waitFor(() => expect(urlsMatching(calls, "/enrollment-application")).toHaveLength(1));
@@ -374,6 +390,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     await waitFor(() => expect(screen.getByText("kk-aisyah.pdf")).toBeInTheDocument());
@@ -405,6 +422,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     // The rest of the form still renders; only the card is withheld.
@@ -433,6 +451,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     const tick = await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" });
@@ -482,6 +501,7 @@ describe("student dossier — increment 3", () => {
       expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
     );
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
     await user.click(await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" }));
 

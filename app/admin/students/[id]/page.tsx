@@ -19,7 +19,7 @@ import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provi
 import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import type { ClassSection } from "@/components/admin/class-section-picker";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
-import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
+import { DossierNav, DossierGroup, DossierSubsection } from "@/components/admin/dossier-section";
 import { DetailRail, RailCard, RailKV, RailStatTiles, RailChecklist, type RailItem } from "@/components/admin/detail-rail";
 import { StudentFinanceBlock } from "@/components/admin/student-finance-block";
 import { StudentKeringananBlock } from "@/components/admin/student-keringanan-block";
@@ -51,6 +51,32 @@ import { RiwayatStatusSection } from "@/components/admin/students/detail/riwayat
 import { InformasiTambahanSection } from "@/components/admin/students/detail/informasi-tambahan-section";
 import { StudentLifecycleDialogs } from "@/components/admin/students/detail/lifecycle-dialogs";
 import { StudentRailContent } from "@/components/admin/students/detail/rail-content";
+import { KelasSaatIniSection } from "@/components/admin/students/detail/kelas-saat-ini";
+import {
+  catatanSummary,
+  keluargaSummary,
+  keuanganSummary,
+  kelasSummary,
+  profilSummary,
+} from "@/components/admin/students/detail/group-summaries";
+import {
+  GROUPS,
+  GROUP_CATATAN,
+  GROUP_KELAS,
+  GROUP_KELUARGA,
+  GROUP_KEUANGAN,
+  GROUP_PROFIL,
+  LAZY_SECTIONS,
+  SECTION_AKADEMIK,
+  SECTION_JURNAL,
+  SECTION_KEHADIRAN,
+  SECTION_KERINGANAN,
+  SECTION_KEUANGAN,
+  SECTION_PENDAFTARAN,
+  defaultOpenSections,
+  groupOf,
+  isKnownTarget,
+} from "@/components/admin/students/detail/sections";
 import type { Student } from "@/components/admin/students/detail/types";
 
 const EMPTY_SYSTEM_METADATA: StudentSystemMetadata = {
@@ -58,24 +84,6 @@ const EMPTY_SYSTEM_METADATA: StudentSystemMetadata = {
   dcareAddon: false,
   priorFamilyAttendees: [],
 };
-
-/**
- * Section ids double as DOM anchor targets for `DossierNav`. Order here is the
- * render order and the nav order — one list, no second place to forget.
- */
-const SECTION_DATA_ANAK = "data-anak";
-const SECTION_KESEHATAN = "kesehatan";
-const SECTION_KELUARGA = "keluarga";
-const SECTION_RIWAYAT_KELAS = "riwayat-kelas";
-const SECTION_KEHADIRAN = "kehadiran";
-const SECTION_KEUANGAN = "keuangan";
-const SECTION_KERINGANAN = "keringanan";
-const SECTION_JURNAL = "buku-penghubung";
-const SECTION_AKADEMIK = "akademik";
-const SECTION_PENDAFTARAN = "pendaftaran";
-const SECTION_DOKUMEN = "dokumen";
-const SECTION_STATUS = "riwayat-status";
-const SECTION_TAMBAHAN = "informasi-tambahan";
 
 const EMPTY_DATA_ANAK_FORM: z4.input<typeof studentDetailEditFormSchema> = {
   name: "",
@@ -186,26 +194,11 @@ export default function StudentDetailPage() {
   const [akademikActive, setAkademikActive] = useState(false);
   const [pendaftaranActive, setPendaftaranActive] = useState(false);
 
-  // --- Section open/collapse state ---
-  // Kehadiran starts closed on every viewport: it is the one section that costs
-  // a second request, and opening it is what triggers the fetch.
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    [SECTION_DATA_ANAK]: true,
-    [SECTION_KESEHATAN]: true,
-    [SECTION_KELUARGA]: true,
-    [SECTION_RIWAYAT_KELAS]: true,
-    [SECTION_KEHADIRAN]: false,
-    [SECTION_KEUANGAN]: true,
-    // Both cost a request, so both start closed — same rule as Kehadiran.
-    [SECTION_KERINGANAN]: false,
-    [SECTION_JURNAL]: false,
-    // Increment 3's two sections follow the same rule: each costs a request.
-    [SECTION_AKADEMIK]: false,
-    [SECTION_PENDAFTARAN]: false,
-    [SECTION_DOKUMEN]: true,
-    [SECTION_STATUS]: true,
-    [SECTION_TAMBAHAN]: true,
-  }));
+  // --- Group / lazy-row open state ---
+  // Holds the five groups and the five lazy rows inside them; every other
+  // sub-section is a flat block with nothing to open. The lazy rows start
+  // closed on every viewport: opening one is what triggers its request.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => defaultOpenSections(false));
   // Once the admin has collapsed or expanded anything, stop rearranging the
   // page underneath them on a resize.
   const sectionsTouched = useRef(false);
@@ -283,33 +276,39 @@ export default function StudentDetailPage() {
 
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
 
-  // Mobile default: one open section, not eight. Runs only while the admin has
-  // not touched a disclosure themselves.
+  // Mobile default: only Profil open, not three groups. Runs only while the
+  // admin has not touched a disclosure themselves.
   useEffect(() => {
     if (!isMobile || sectionsTouched.current) return;
-    setOpenSections((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const key of Object.keys(prev)) next[key] = key === SECTION_DATA_ANAK;
-      return next;
-    });
+    setOpenSections(defaultOpenSections(true));
   }, [isMobile]);
 
   const handleSectionOpenChange = useCallback(
     (sectionId: string, open: boolean) => {
       setSectionOpen(sectionId, open);
-      if (open && sectionId === SECTION_KEHADIRAN) setKehadiranActive(true);
-      if (open && sectionId === SECTION_KERINGANAN) setKeringananActive(true);
-      if (open && sectionId === SECTION_JURNAL) setJurnalActive(true);
-      if (open && sectionId === SECTION_AKADEMIK) setAkademikActive(true);
-      if (open && sectionId === SECTION_PENDAFTARAN) setPendaftaranActive(true);
+      if (!open) return;
+      // Opening a lazy row is what pays for its fetch (a one-way latch).
+      if (sectionId === SECTION_KEHADIRAN) setKehadiranActive(true);
+      if (sectionId === SECTION_KERINGANAN) setKeringananActive(true);
+      if (sectionId === SECTION_JURNAL) setJurnalActive(true);
+      if (sectionId === SECTION_AKADEMIK) setAkademikActive(true);
+      if (sectionId === SECTION_PENDAFTARAN) setPendaftaranActive(true);
     },
     [setSectionOpen],
   );
 
-  /** Nav click: expand first (a collapsed target is nothing to scroll to), then scroll. */
+  /**
+   * Nav click, strip button or hash: open what contains the target (a closed
+   * group is nothing to scroll to), open the target itself when it is a lazy
+   * row (which fires its latch), then scroll. Works for a group id and for every
+   * sub-section id the page has ever had.
+   */
   const jumpToSection = useCallback(
     (sectionId: string) => {
-      handleSectionOpenChange(sectionId, true);
+      const group = groupOf(sectionId);
+      if (!group) return;
+      handleSectionOpenChange(group, true);
+      if (LAZY_SECTIONS.has(sectionId)) handleSectionOpenChange(sectionId, true);
       requestAnimationFrame(() => {
         document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -320,24 +319,29 @@ export default function StudentDetailPage() {
   /**
    * `#pendaftaran`, `#akademik`, `#keuangan` … — every section id is already a
    * DOM anchor, but the browser's own hash scroll fires before the section
-   * exists and lands on nothing when the section is collapsed. Honouring the
+   * exists and lands on nothing when its group is collapsed. Honouring the
    * hash ourselves is what makes a link into the dossier actually work, which
-   * is the whole point of "deep-linkable": the Pendaftaran section is a lazy,
-   * collapsed section three quarters down a long page.
+   * is the whole point of "deep-linkable": the Pendaftaran section is a lazy
+   * row inside a closed group three quarters down a long page.
    *
    * Runs once the student has loaded (before that there are no sections to
    * jump to) and only marks the intent as handled after it fires, so a hash
-   * pointing at a section that renders conditionally still lands.
+   * pointing at a section that renders conditionally still lands. A closed
+   * group may not be in the DOM, so "does it exist" is answered from state.
    */
   const hashHandled = useRef(false);
   useEffect(() => {
     if (loading || hashHandled.current) return;
     const target = window.location.hash.replace(/^#/, "");
     if (!target) { hashHandled.current = true; return; }
-    if (!document.getElementById(target)) return;
+    const known = isKnownTarget(target, {
+      hasApplication: !!overview?.enrollmentApplication,
+      lifecycleShown: student?.status === "WITHDRAWN" || student?.status === "GRADUATED",
+    });
+    if (!known) return;
     hashHandled.current = true;
     jumpToSection(target);
-  }, [loading, jumpToSection, overview]);
+  }, [loading, jumpToSection, overview, student?.status]);
 
   /**
    * `?aksi=daftarkan-kelas` opens "Daftarkan ke Kelas" — the pendaftaran convert toast links
@@ -374,7 +378,7 @@ export default function StudentDetailPage() {
       nik: student.nik ?? "", kkNumber: student.kkNumber ?? "", livingWith: student.livingWith ?? "",
     });
     setIsEditingDataAnak(true);
-    setSectionOpen(SECTION_DATA_ANAK, true);
+    setSectionOpen(GROUP_PROFIL, true);
   }
 
   // Unsaved Data Anak edits: sidebar / breadcrumb clicks ask before leaving
@@ -536,23 +540,32 @@ export default function StudentDetailPage() {
   const invoiceSummary = invoices ? summarizeStudentInvoices(invoices) : EMPTY_INVOICE_SUMMARY;
   const invoicesLoading = invoices === null && !invoicesError;
 
-  const navSections: DossierSectionDef[] = [
-    { id: SECTION_DATA_ANAK, label: "Data Anak" },
-    { id: SECTION_KESEHATAN, label: "Kesehatan & Kelahiran" },
-    { id: SECTION_KELUARGA, label: "Keluarga & Wali" },
-    { id: SECTION_RIWAYAT_KELAS, label: "Riwayat Kelas" },
-    { id: SECTION_KEHADIRAN, label: "Kehadiran" },
-    { id: SECTION_KEUANGAN, label: "Keuangan" },
-    { id: SECTION_KERINGANAN, label: "Keringanan" },
-    { id: SECTION_JURNAL, label: "Buku Penghubung" },
-    { id: SECTION_AKADEMIK, label: "Akademik" },
-    // Listed only when the student actually came from a pendaftaran form —
-    // a nav entry that scrolls to nothing is worse than no entry.
-    ...(application ? [{ id: SECTION_PENDAFTARAN, label: "Pendaftaran" }] : []),
-    { id: SECTION_DOKUMEN, label: "Dokumen" },
-    ...(lifecycleShown ? [{ id: SECTION_STATUS, label: "Riwayat Status" }] : []),
-    { id: SECTION_TAMBAHAN, label: "Informasi Tambahan" },
-  ];
+  // One line per group, shown only while the group is closed. The overview-
+  // backed parts stay null until that request lands, so nothing reads as zero.
+  const summaries = {
+    [GROUP_PROFIL]: profilSummary({ nis: student.nis, gender: student.gender, allergy: flags.allergy }),
+    [GROUP_KELUARGA]: keluargaSummary({
+      guardianCount: activeGuardians.length,
+      siblingCount: siblings.length,
+      docsPresent,
+      docsTotal: docItems.length,
+    }),
+    [GROUP_KELAS]: kelasSummary({
+      className: primaryEnrollment?.classSection.name ?? null,
+      attendance: attendanceCounts,
+      raport: raportTally,
+    }),
+    [GROUP_KEUANGAN]: keuanganSummary({
+      loading: invoicesLoading,
+      error: invoicesError !== null,
+      summary: invoiceSummary,
+      keringananCount,
+    }),
+    [GROUP_CATATAN]: catatanSummary({
+      application: overview ? application : undefined,
+      fromFormulir: !!metaSystem.fromEnrollmentApplication,
+    }),
+  };
 
   const statTiles = [
     { label: "Usia", value: age ?? "—", hint: student.dateOfBirth ? formatDateShort(student.dateOfBirth) : undefined },
@@ -759,194 +772,219 @@ export default function StudentDetailPage() {
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
-          <DossierNav sections={navSections} onJump={jumpToSection} />
+          <DossierNav sections={GROUPS} onJump={jumpToSection} />
 
-          <DataAnakSection
-            student={student}
-            age={age}
-            open={openSections[SECTION_DATA_ANAK] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_DATA_ANAK, o)}
-            editing={isEditingDataAnak}
-            form={dataAnakForm}
-            formId={dataAnakFormId}
-            onSave={saveDataAnak}
-            onCancel={() => setIsEditingDataAnak(false)}
-            onSaved={fetchStudent}
-          />
-
-          <KesehatanSection
-            canEdit={student.canEdit === true}
-            known={metaKnown}
-            system={metaSystem}
-            hasAllergy={!!flags.allergy}
-            open={openSections[SECTION_KESEHATAN] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_KESEHATAN, o)}
-            persistMetadata={persistMetadata}
-            getExtraRows={() => tambahanRef.current.rows}
-            onSaved={fetchStudent}
-          />
-
-          <KeluargaSection
-            student={student}
-            studentId={id}
-            open={openSections[SECTION_KELUARGA] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_KELUARGA, o)}
-            onSaved={fetchStudent}
-          />
-
-          <RiwayatKelasSection
-            canEdit={student.canEdit === true}
-            enrollments={student.enrollments}
-            open={openSections[SECTION_RIWAYAT_KELAS] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_RIWAYAT_KELAS, o)}
-          />
-
-          <KehadiranSection
-            studentId={id}
-            active={kehadiranActive}
-            open={openSections[SECTION_KEHADIRAN] ?? false}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_KEHADIRAN, o)}
-          />
-
-          {/* ---------- Keuangan (increment 2) ----------
-              Read-only over GET /api/invoices?studentId=. Every write still
-              belongs to the Tagihan module, so each row deep-links there. */}
-          <DossierSection
-            id={SECTION_KEUANGAN}
-            label="Keuangan"
-            badge={
-              invoiceSummary.unpaidCount > 0 ? (
-                <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">
-                  {invoiceSummary.unpaidCount} belum lunas
-                </Badge>
-              ) : undefined
-            }
-            open={openSections[SECTION_KEUANGAN] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_KEUANGAN, o)}
+          {/* ---------- Profil ---------- */}
+          <DossierGroup
+            id={GROUP_PROFIL}
+            label="Profil"
+            summary={summaries[GROUP_PROFIL]}
+            open={openSections[GROUP_PROFIL] ?? true}
+            onOpenChange={(o) => handleSectionOpenChange(GROUP_PROFIL, o)}
           >
-            <StudentFinanceBlock
-              invoices={invoices ?? []}
-              summary={invoiceSummary}
-              statusGroups={overview?.finance?.byStatus ?? null}
-              loading={invoicesLoading}
-              error={invoicesError !== null}
-              forbidden={invoicesError === "denied"}
-              onRetry={fetchInvoices}
-            />
-          </DossierSection>
-
-          {/* ---------- Keringanan (increment 2, lazy) ---------- */}
-          <DossierSection
-            id={SECTION_KERINGANAN}
-            label="Keringanan"
-            badge={
-              keringananCount != null && keringananCount > 0 ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {keringananCount}
-                </span>
-              ) : undefined
-            }
-            open={openSections[SECTION_KERINGANAN] ?? false}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_KERINGANAN, o)}
-            keepMounted
-          >
-            <StudentKeringananBlock
-              studentId={id}
-              active={keringananActive}
-              onCountChange={setKeringananCount}
-            />
-          </DossierSection>
-
-          {/* ---------- Buku Penghubung (increment 2, lazy) ---------- */}
-          <DossierSection
-            id={SECTION_JURNAL}
-            label="Buku Penghubung"
-            open={openSections[SECTION_JURNAL] ?? false}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_JURNAL, o)}
-            keepMounted
-          >
-            <StudentJournalBlock studentId={id} active={jurnalActive} />
-          </DossierSection>
-
-          {/* ---------- Akademik (increment 3, lazy) ----------
-              Raport state per triwulan + that term's penilaian coverage, over
-              GET /api/students/[id]/academics. Read-only: every row deep-links
-              to /admin/report-cards, which owns the authoring and the publish. */}
-          <DossierSection
-            id={SECTION_AKADEMIK}
-            label="Akademik"
-            badge={
-              raportTally && raportTally.total > 0 ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {raportTally.published}/{raportTally.total} terbit
-                </span>
-              ) : undefined
-            }
-            open={openSections[SECTION_AKADEMIK] ?? false}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_AKADEMIK, o)}
-            keepMounted
-          >
-            <StudentAcademicsBlock
-              studentId={id}
-              classSectionId={primaryClassSectionId}
-              active={akademikActive}
-            />
-          </DossierSection>
-
-          {/* ---------- Pendaftaran (increment 3, lazy) ----------
-              The original paper form, read-only. Rendered only for a student
-              converted from one — `overview` answers that from the FK, so a
-              hand-entered student never sees an empty section. */}
-          {application && (
-            <DossierSection
-              id={SECTION_PENDAFTARAN}
-              label="Formulir Pendaftaran"
-              badge={
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {application.submittedAt
-                    ? formatDateShort(application.submittedAt)
-                    : "Belum dikirim"}
-                </span>
-              }
-              open={openSections[SECTION_PENDAFTARAN] ?? false}
-              onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}
-              keepMounted
-            >
-              <StudentEnrollmentApplicationBlock
-                studentId={id}
-                active={pendaftaranActive}
-                onDocumentsChange={fetchOverview}
-              />
-            </DossierSection>
-          )}
-
-          <DokumenSection
-            canEdit={student.canEdit === true}
-            kkGuardian={kkGuardian}
-            hasKk={hasKk}
-            open={openSections[SECTION_DOKUMEN] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_DOKUMEN, o)}
-          />
-
-          {lifecycleShown && (
-            <RiwayatStatusSection
+            <DataAnakSection
               student={student}
-              open={openSections[SECTION_STATUS] ?? true}
-              onOpenChange={(o) => handleSectionOpenChange(SECTION_STATUS, o)}
+              age={age}
+              editing={isEditingDataAnak}
+              form={dataAnakForm}
+              formId={dataAnakFormId}
+              onSave={saveDataAnak}
+              onCancel={() => setIsEditingDataAnak(false)}
               onSaved={fetchStudent}
             />
-          )}
 
-          <InformasiTambahanSection
-            canEdit={student.canEdit === true}
-            extra={metaExtra}
-            known={metaKnown}
-            open={openSections[SECTION_TAMBAHAN] ?? true}
-            onOpenChange={(o) => handleSectionOpenChange(SECTION_TAMBAHAN, o)}
-            persistMetadata={persistMetadata}
-            onSaved={fetchStudent}
-            onStateChange={(state) => { tambahanRef.current = state; }}
-          />
+            <KesehatanSection
+              canEdit={student.canEdit === true}
+              known={metaKnown}
+              system={metaSystem}
+              hasAllergy={!!flags.allergy}
+              persistMetadata={persistMetadata}
+              getExtraRows={() => tambahanRef.current.rows}
+              onSaved={fetchStudent}
+            />
+
+            <InformasiTambahanSection
+              canEdit={student.canEdit === true}
+              extra={metaExtra}
+              known={metaKnown}
+              persistMetadata={persistMetadata}
+              onSaved={fetchStudent}
+              onStateChange={(state) => { tambahanRef.current = state; }}
+            />
+          </DossierGroup>
+
+          {/* ---------- Keluarga & Berkas ---------- */}
+          <DossierGroup
+            id={GROUP_KELUARGA}
+            label="Keluarga & Berkas"
+            summary={summaries[GROUP_KELUARGA]}
+            open={openSections[GROUP_KELUARGA] ?? true}
+            onOpenChange={(o) => handleSectionOpenChange(GROUP_KELUARGA, o)}
+          >
+            <KeluargaSection
+              student={student}
+              studentId={id}
+              onSaved={fetchStudent}
+            />
+
+            <DokumenSection
+              canEdit={student.canEdit === true}
+              kkGuardian={kkGuardian}
+              hasKk={hasKk}
+            />
+          </DossierGroup>
+
+          {/* ---------- Kelas & Akademik ----------
+              Holds the lazy Kehadiran and Akademik rows, so the group keeps its
+              children mounted while closed: what they fetched survives a collapse. */}
+          <DossierGroup
+            id={GROUP_KELAS}
+            label="Kelas & Akademik"
+            summary={summaries[GROUP_KELAS]}
+            open={openSections[GROUP_KELAS] ?? false}
+            onOpenChange={(o) => handleSectionOpenChange(GROUP_KELAS, o)}
+            keepMounted
+          >
+            <KelasSaatIniSection enrollments={orderedEnrollments} joinedDate={joinedDate} />
+
+            <RiwayatKelasSection canEdit={student.canEdit === true} enrollments={student.enrollments} />
+
+            <KehadiranSection
+              studentId={id}
+              active={kehadiranActive}
+              open={openSections[SECTION_KEHADIRAN] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_KEHADIRAN, o)}
+            />
+
+            {/* Akademik (lazy): raport state per triwulan + that term's penilaian
+                coverage, over GET /api/students/[id]/academics. Read-only: every
+                row deep-links to /admin/report-cards, which owns the authoring
+                and the publish. */}
+            <DossierSubsection
+              id={SECTION_AKADEMIK}
+              label="Akademik"
+              badge={
+                raportTally && raportTally.total > 0 ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {raportTally.published}/{raportTally.total} terbit
+                  </span>
+                ) : undefined
+              }
+              open={openSections[SECTION_AKADEMIK] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_AKADEMIK, o)}
+              keepMounted
+            >
+              <StudentAcademicsBlock
+                studentId={id}
+                classSectionId={primaryClassSectionId}
+                active={akademikActive}
+              />
+            </DossierSubsection>
+
+            {lifecycleShown && <RiwayatStatusSection student={student} onSaved={fetchStudent} />}
+          </DossierGroup>
+
+          {/* ---------- Keuangan ----------
+              Read-only over GET /api/invoices?studentId=. Every write still
+              belongs to the Tagihan module, so each row deep-links there. */}
+          <DossierGroup
+            id={GROUP_KEUANGAN}
+            label="Keuangan"
+            summary={summaries[GROUP_KEUANGAN]}
+            open={openSections[GROUP_KEUANGAN] ?? true}
+            onOpenChange={(o) => handleSectionOpenChange(GROUP_KEUANGAN, o)}
+            keepMounted
+          >
+            <DossierSubsection
+              id={SECTION_KEUANGAN}
+              label="Keuangan"
+              badge={
+                invoiceSummary.unpaidCount > 0 ? (
+                  <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">
+                    {invoiceSummary.unpaidCount} belum lunas
+                  </Badge>
+                ) : undefined
+              }
+            >
+              <StudentFinanceBlock
+                invoices={invoices ?? []}
+                summary={invoiceSummary}
+                statusGroups={overview?.finance?.byStatus ?? null}
+                loading={invoicesLoading}
+                error={invoicesError !== null}
+                forbidden={invoicesError === "denied"}
+                onRetry={fetchInvoices}
+              />
+            </DossierSubsection>
+
+            {/* Keringanan (lazy) */}
+            <DossierSubsection
+              id={SECTION_KERINGANAN}
+              label="Keringanan"
+              badge={
+                keringananCount != null && keringananCount > 0 ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {keringananCount}
+                  </span>
+                ) : undefined
+              }
+              open={openSections[SECTION_KERINGANAN] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_KERINGANAN, o)}
+              keepMounted
+            >
+              <StudentKeringananBlock
+                studentId={id}
+                active={keringananActive}
+                onCountChange={setKeringananCount}
+              />
+            </DossierSubsection>
+          </DossierGroup>
+
+          {/* ---------- Pendaftaran & Catatan ---------- */}
+          <DossierGroup
+            id={GROUP_CATATAN}
+            label="Pendaftaran & Catatan"
+            summary={summaries[GROUP_CATATAN]}
+            open={openSections[GROUP_CATATAN] ?? false}
+            onOpenChange={(o) => handleSectionOpenChange(GROUP_CATATAN, o)}
+            keepMounted
+          >
+            {/* Formulir Pendaftaran (lazy): the original paper form, read-only.
+                Rendered only for a student converted from one — `overview`
+                answers that from the FK, so a hand-entered student never sees
+                an empty row. */}
+            {application && (
+              <DossierSubsection
+                id={SECTION_PENDAFTARAN}
+                label="Formulir Pendaftaran"
+                badge={
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {application.submittedAt ? formatDateShort(application.submittedAt) : "Belum dikirim"}
+                  </span>
+                }
+                open={openSections[SECTION_PENDAFTARAN] ?? false}
+                onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}
+                keepMounted
+              >
+                <StudentEnrollmentApplicationBlock
+                  studentId={id}
+                  active={pendaftaranActive}
+                  onDocumentsChange={fetchOverview}
+                />
+              </DossierSubsection>
+            )}
+
+            {/* Buku Penghubung (lazy) */}
+            <DossierSubsection
+              id={SECTION_JURNAL}
+              label="Buku Penghubung"
+              open={openSections[SECTION_JURNAL] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_JURNAL, o)}
+              keepMounted
+            >
+              <StudentJournalBlock studentId={id} active={jurnalActive} />
+            </DossierSubsection>
+          </DossierGroup>
         </div>
 
         {/* Desktop rail. On mobile the tiles already rendered above and the

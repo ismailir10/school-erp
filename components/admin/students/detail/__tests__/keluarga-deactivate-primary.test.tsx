@@ -26,7 +26,7 @@ const ibu = { id: "g2", relationship: "IBU", isPrimary: false, childOrder: null,
 
 function renderSection(guardians: Student["guardians"]) {
   return render(
-    <KeluargaSection student={student(guardians)} studentId="s1" open onOpenChange={() => {}} onSaved={() => {}} />,
+    <KeluargaSection student={student(guardians)} studentId="s1" onSaved={() => {}} />,
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { MaskedValue } from "@/components/admin/masked-value";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,6 @@ type FormOutput = z4.output<typeof studentDetailEditFormSchema>;
 export function DataAnakSection({
   student,
   age,
-  open,
-  onOpenChange,
   editing,
   form,
   formId,
@@ -48,8 +46,6 @@ export function DataAnakSection({
 }: {
   student: Student;
   age: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   editing: boolean;
   form: UseFormReturn<FormValues, unknown, FormOutput>;
   formId: string;
@@ -117,11 +113,9 @@ export function DataAnakSection({
   const saving = form.formState.isSubmitting;
 
   return (
-    <DossierSection
+    <DossierSubsection
       id="data-anak"
       label="Data Anak"
-      open={open}
-      onOpenChange={onOpenChange}
       actions={
         editing ? (
           <>
@@ -344,7 +338,7 @@ export function DataAnakSection({
           )}
         </>
       )}
-    </DossierSection>
+    </DossierSubsection>
   );
 }
 

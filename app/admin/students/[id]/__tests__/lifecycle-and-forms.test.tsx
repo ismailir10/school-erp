@@ -174,6 +174,9 @@ describe("Riwayat Status — withdrawal reason inline edit", () => {
     );
     render(<StudentDetailPage />);
 
+    // Riwayat Status sits in Kelas & Akademik, which starts closed.
+    await screen.findByRole("heading", { name: "Aisyah Putri" });
+    await user.click(document.querySelector<HTMLElement>('[aria-controls="group-kelas-content"]')!);
     await waitFor(() => expect(document.getElementById("riwayat-status")).toBeTruthy());
     const section = document.getElementById("riwayat-status") as HTMLElement;
     await user.click(within(section).getByRole("button", { name: "Ubah" }));

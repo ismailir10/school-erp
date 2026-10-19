@@ -8,7 +8,7 @@
  * `{ isPrimary: true }` PUT to the right guardian, then a refetch.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -165,7 +165,10 @@ describe("student dossier — Jadikan wali utama (T4)", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
     await screen.findByRole("heading", { name: "Aisyah Putri" });
-    expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    // Said in the closed group's summary, in "Kelas saat ini" and in the Riwayat Kelas empty state.
+    for (const where of ["kelas-saat-ini", "riwayat-kelas"]) {
+      expect(within(document.getElementById(where)!).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    }
     expect(screen.getByText("Belum ada data wali")).toBeInTheDocument();
     const instructions = [
       /Klik “Ubah” untuk mengisi/,
