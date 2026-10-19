@@ -85,7 +85,7 @@ describe("guardian page — Ingatkan via WhatsApp click", () => {
     // Stamps hang until released: if the chat only opened after them, the spy would still be empty.
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const { user, fetchMock } = await renderWith(makeParent({ unpaidInvoices: TWO_UNPAID }), async () => {
+    const { user, fetchMock } = await renderWith(makeParent({ unpaidInvoices: TWO_UNPAID, invoiceSummary: { ...makeParent().invoiceSummary, outstanding: 900_000, unpaidCount: 2 } }), async () => {
       await gate;
       return okJson({});
     });
@@ -107,6 +107,19 @@ describe("guardian page — Ingatkan via WhatsApp click", () => {
 
     release();
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
+  });
+
+  it("states the whole debt and names the invoices beyond the listed ones", async () => {
+    const { user } = await renderWith(
+      makeParent({
+        unpaidInvoices: TWO_UNPAID,
+        invoiceSummary: { ...makeParent().invoiceSummary, outstanding: 5_000_000, unpaidCount: 27 },
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: REMIND }));
+    const text = decodeURIComponent((openSpy.mock.calls[0][0] as string).split("?text=")[1]);
+    expect(text).toContain("Total: Rp 5.000.000");
+    expect(text).toContain("- dan 25 tagihan lainnya");
   });
 
   it("stamps each unpaid invoice and reports how many were recorded", async () => {

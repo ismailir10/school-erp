@@ -26,6 +26,13 @@ describe("familyReminderText", () => {
     expect(text).toContain(`lewat tautan berikut: ${PAY_URL}`);
   });
 
+  it("names the invoices beyond the listed ones instead of under-stating the debt", () => {
+    const t = familyReminderText({ guardianName: "Fatimah", items: ITEMS, total: 9_000_000, moreCount: 3, payUrl: PAY_URL });
+    expect(t).toContain("- dan 3 tagihan lainnya");
+    expect(t).toContain("Total: Rp 9.000.000");
+    expect(familyReminderText({ guardianName: "Fatimah", items: ITEMS, total: 1, moreCount: 0, payUrl: PAY_URL })).not.toContain("lainnya");
+  });
+
   it("falls back to a bare greeting when the name is blank", () => {
     const t = familyReminderText({ guardianName: "  ", items: ITEMS, total: 1, payUrl: PAY_URL });
     expect(t.startsWith("Assalamu'alaikum Bapak/Ibu.")).toBe(true);

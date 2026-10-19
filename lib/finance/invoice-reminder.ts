@@ -83,7 +83,10 @@ export type FamilyReminderItem = {
 export function familyReminderText(input: {
   guardianName: string | null | undefined;
   items: FamilyReminderItem[];
+  /** The whole debt, not just the listed items: the list is capped. */
   total: number;
+  /** Unpaid invoices beyond `items`, named as one trailing line. */
+  moreCount?: number;
   /** The parent portal's invoice list. */
   payUrl: string;
 }): string {
@@ -91,6 +94,7 @@ export function familyReminderText(input: {
   const lines = input.items.map(
     (i) => `- ${i.periodLabel} untuk ananda ${i.studentName} (${i.invoiceNumber}): ${formatRupiah(i.remaining)}`,
   );
+  if (input.moreCount && input.moreCount > 0) lines.push(`- dan ${input.moreCount} tagihan lainnya`);
   return [
     `Assalamu'alaikum ${who}.`,
     ["Tagihan berikut masih tersisa:", ...lines, `Total: ${formatRupiah(input.total)}`].join("\n"),
@@ -104,6 +108,7 @@ export function familyReminderWaUrl(input: {
   guardian: Guardian;
   items: FamilyReminderItem[];
   total: number;
+  moreCount?: number;
   payUrl: string;
 }): string | null {
   if (input.items.length === 0) return null;
@@ -115,6 +120,7 @@ export function familyReminderWaUrl(input: {
       guardianName: input.guardian?.name,
       items: input.items,
       total: input.total,
+      moreCount: input.moreCount,
       payUrl: input.payUrl,
     }),
   );

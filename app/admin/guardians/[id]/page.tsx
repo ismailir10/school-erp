@@ -267,11 +267,13 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   async function remindByWhatsApp() {
     if (!parent || reminding.current) return;
     const items = parent.unpaidInvoices;
-    const total = items.reduce((sum, i) => sum + i.remaining, 0);
+    // `items` is capped at 25 by the API; the total is the whole debt, and the
+    // rest are named as one trailing line instead of silently under-stating it.
     const url = familyReminderWaUrl({
       guardian: { name: parent.name, whatsapp: parent.whatsapp, phone: parent.phone },
       items,
-      total,
+      total: parent.invoiceSummary.outstanding,
+      moreCount: Math.max(0, parent.invoiceSummary.unpaidCount - items.length),
       payUrl: `${window.location.origin}/parent/invoices`,
     });
     if (!url) return;
