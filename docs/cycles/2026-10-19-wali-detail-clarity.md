@@ -88,7 +88,7 @@ None expected: no schema change (additive response fields only), no new dependen
 ## Tasks
 
 - [x] T1 Wali invoice truth: route returns the all-invoices summary, a capped unpaid-first list with student names, per-child class and owed, `canRemind` — accept: route tests incl. 25 invoices (deps: none, reuse: `summarizeStudentInvoices`, `pickPrimaryEnrollment`) — parallel with T2
-- [ ] T2 Shared blocks: `DossierSection` `summary`, `AttentionStrip`, `ContactActions` — accept: component tests (deps: none, reuse: `telHref`, `whatsappHref`, `DetailRail` look) — parallel with T1
+- [x] T2 Shared blocks: `DossierSection` `summary`, `AttentionStrip`, `ContactActions` — accept: component tests (deps: none, reuse: `telHref`, `whatsappHref`, `DetailRail` look) — parallel with T1
 - [ ] T3 Wali page restructure: header contact, strip, summaries and default open state, Belum diisi, children rows, error states, "Edit" label, tiles from the server summary — accept: page tests + updated section test (deps: T1, T2)
 - [ ] T4 Dokumen on demand: preview only after "Lihat" — accept: test no preview request before click (deps: T3)
 - [ ] T5 Tautkan anak dialog — accept: test link and duplicate (deps: T3, reuse: `StudentPicker`, `ResponsiveFormDialog`, `RELATIONSHIP_OPTIONS`)
@@ -99,6 +99,7 @@ None expected: no schema change (additive response fields only), no new dependen
 
 - Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (subagents; no cheaper tier is available for the driver). T1 and T2 parallel (disjoint files), T3 then T4, T5, T6 sequential (all edit the wali page, one worker or the driver per slice), T7 inline (docs, small).
 - T1: `app/api/parents/[id]/route.ts`, `lib/parent/detail-invoices.ts` (+ tests) — GET now selects every invoice of the wali (tenant + parent scoped, minimal fields, no cap) and returns `invoiceSummary`, a 10-row unpaid-first `invoices` list with `studentName`, `unpaidInvoices` (25, oldest due first), per-guardian `outstanding` and `student.className`, and `canRemind` (`payments.record`). Amounts are numbers now. Driver reviewed the diff for the sensitive-path checklist: session, admin role, tenant filter and rate limit unchanged; ktp/kk tokens still stripped; enrollments used only to name the class and stripped from the response.
+- T2: `components/admin/dossier-section.tsx`, `attention-strip.tsx`, `contact-actions.tsx` (+ 3 test files) — `DossierSection` takes an optional `summary` shown only while collapsed (design-system tokens, wraps under the label on a phone); `AttentionStrip` renders nothing when empty, one outline button per row, message text in `text-foreground` because `text-status-late-text` on `status-late-subtle` measures 4.35:1 (under AA), count badge `bg-status-late-text` white text 4.72:1; `ContactActions` shows WhatsApp / Telepon only for usable numbers and falls back from a blank WhatsApp to the phone. Gate: eslint + tsc clean, `vitest` on students, guardians, classes and components/admin 441 passed.
 
 ## Verification
 
