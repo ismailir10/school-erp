@@ -305,7 +305,8 @@ test.describe("Enrollment documents follow-ups", () => {
       await page.goto(`/admin/students/${studentId}`);
 
       // The Pendaftaran section is lazy and sits in the closed "Pendaftaran & Catatan" group: open both.
-      await page.getByRole("button", { name: /Pendaftaran & Catatan/ }).click();
+      // Scoped to the group: the sticky nav (lg+) has a button with the same name.
+      await page.locator("#group-catatan").getByRole("button", { name: /Pendaftaran & Catatan/ }).click();
       await page.getByRole("button", { name: /Formulir Pendaftaran/ }).click();
       const card = page.locator("#pendaftaran").getByRole("region", { name: "Kelengkapan Berkas" });
       await expect(card).toBeVisible();
