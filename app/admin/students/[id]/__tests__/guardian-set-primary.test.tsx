@@ -150,7 +150,7 @@ describe("student dossier — Jadikan wali utama (T4)", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
     await waitFor(() => expect(screen.getAllByText("Ibu Fatimah").length).toBeGreaterThan(0));
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit data anak" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ganti Foto" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Daftarkan ke Kelas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tambah Field" })).not.toBeInTheDocument();

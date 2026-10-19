@@ -138,7 +138,7 @@ describe("Data Anak — gender-null fix", () => {
     );
     render(<StudentDetailPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await user.click(await screen.findByRole("button", { name: "Simpan Perubahan" }));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Data siswa diperbarui"));

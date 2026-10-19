@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Pencil, RotateCcw } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort, formatRupiah } from "@/lib/format";
 import { studentDetailEditFormSchema } from "@/lib/validations/student";
@@ -108,9 +108,9 @@ export default function StudentDetailPage() {
   const [loadError, setLoadError] = useState<"failed" | "not-found" | "denied" | null>(null);
 
   // --- Data Anak edit toggle ---
-  // Owned here, not by `DataAnakSection`: the trigger is the "Edit" button in
-  // `DetailPageHeader`, outside that section's own subtree, and starting an
-  // edit has to check Informasi Tambahan's dirty state — a sibling section.
+  // Owned here, not by `DataAnakSection`: starting an edit has to check
+  // Informasi Tambahan's dirty state — a sibling section — and the unsaved-
+  // changes guard below hangs off the same form.
   const [isEditingDataAnak, setIsEditingDataAnak] = useState(false);
   const dataAnakFormId = useId();
   const dataAnakForm = useZodForm(studentDetailEditFormSchema, { defaultValues: EMPTY_DATA_ANAK_FORM });
@@ -673,25 +673,31 @@ export default function StudentDetailPage() {
     ...(student.nis ? [{ label: "NIS", value: <span className="font-currency">{student.nis}</span> }] : []),
   ];
 
-  // DetailPageHeader caps visible buttons at two — Edit and the most-used
-  // action (Daftarkan ke Kelas) stay visible; the rest (including the
-  // destructive Keluarkan) live in its `⋯` overflow menu, on every viewport,
-  // so there is one action layout instead of a separate mobile one.
+  // The header carries at most one visible action, chosen by the child's state
+  // (a second filled button would compete with it, and "Edit" now lives in Data
+  // Anak). Everything else is in the ⋯ menu, on every viewport.
+  //   ACTIVE, no class        → "Daftarkan ke Kelas", filled: the one job left to do.
+  //   WITHDRAWN or GRADUATED  → "Aktifkan kembali", the way back (R2-ADMIN-8: a
+  //                             mistaken Luluskan used to be a dead end). Never
+  //                             "Daftarkan ke Kelas": the API refuses anyone not
+  //                             ACTIVE with STUDENT_NOT_ACTIVE.
+  //   ACTIVE and placed       → no visible button.
+  // "Placed" is what the page shows as placed (a current, non-archived class,
+  // day care included) — the same test as the header subtitle, not the looser
+  // "any ACTIVE row" that the Luluskan guard below mirrors from the server.
+  const canManage = student.canEdit === true;
+  const isActiveStudent = student.status === "ACTIVE";
+  const isPlaced = !!activeEnrollment;
   const primaryHeaderActions: DetailPageHeaderAction[] = [
-    ...(student.canEdit && !isEditingDataAnak
-      ? [{ label: "Edit", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditingDataAnak }]
-      : []),
-    // Only an ACTIVE student can be enrolled (the API refuses anyone else with
-    // STUDENT_NOT_ACTIVE). A WITHDRAWN or GRADUATED student gets the way back
-    // instead (R2-ADMIN-8: a mistaken Luluskan used to be a dead end).
-    ...(student.canEdit && student.status === "ACTIVE"
+    ...(canManage && isActiveStudent && !isPlaced
       ? [{
           label: "Daftarkan ke Kelas",
           icon: <Plus size={14} aria-hidden="true" />,
           onClick: () => setEnrollDialog(true),
+          variant: "default" as const,
         }]
       : []),
-    ...(student.canEdit && (student.status === "WITHDRAWN" || student.status === "GRADUATED")
+    ...(canManage && (student.status === "WITHDRAWN" || student.status === "GRADUATED")
       ? [{
           label: "Aktifkan kembali",
           icon: <RotateCcw size={14} aria-hidden="true" />,
@@ -701,16 +707,20 @@ export default function StudentDetailPage() {
   ];
 
   const menuHeaderActions: DetailPageHeaderAction[] = [
-    ...(student.canEdit && student.status === "ACTIVE" && activeEnrollment
+    // Already placed: this adds a second placement (day care next to school).
+    ...(canManage && isActiveStudent && isPlaced
+      ? [{ label: "Daftarkan ke Kelas", onClick: () => setEnrollDialog(true) }]
+      : []),
+    ...(canManage && isActiveStudent && activeEnrollment
       ? [{ label: "Naik Kelas", onClick: openPromoteDialog }]
       : []),
     // Graduating ends the active enrolments — with none there is nothing to
     // graduate from (the API answers 409 "kelas aktif"). Any ACTIVE row counts,
     // including a stale one in an archived year, matching the server's check.
-    ...(student.canEdit && student.status === "ACTIVE" && hasActiveEnrollment
+    ...(canManage && isActiveStudent && hasActiveEnrollment
       ? [{ label: "Luluskan", onClick: () => setGraduateOpen(true) }]
       : []),
-    ...(student.canEdit && student.status === "ACTIVE"
+    ...(canManage && isActiveStudent
       ? [{ label: "Keluarkan", onClick: () => setWithdrawDialogOpen(true), destructive: true }]
       : []),
   ];
@@ -785,9 +795,11 @@ export default function StudentDetailPage() {
             <DataAnakSection
               student={student}
               age={age}
+              canEdit={student.canEdit === true}
               editing={isEditingDataAnak}
               form={dataAnakForm}
               formId={dataAnakFormId}
+              onEdit={startEditingDataAnak}
               onSave={saveDataAnak}
               onCancel={() => setIsEditingDataAnak(false)}
               onSaved={fetchStudent}
