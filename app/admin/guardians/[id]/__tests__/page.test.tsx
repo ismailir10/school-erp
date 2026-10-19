@@ -291,10 +291,10 @@ describe("guardian page — Tagihan", () => {
 });
 
 describe("guardian page — rail", () => {
-  it("shows Piutang, Anak Terdaftar and Berkas tiles from the server summary", async () => {
+  it("shows Tunggakan, Anak Terdaftar and Berkas tiles from the server summary", async () => {
     await renderWith(makeParent());
     const rail = screen.getByRole("complementary", { name: "Ringkasan" });
-    expect(within(rail).getByText("Piutang")).toBeInTheDocument();
+    expect(within(rail).getByText("Tunggakan")).toBeInTheDocument();
     expect(within(rail).getByText("Rp 400.000")).toBeInTheDocument();
     expect(within(rail).getByText("1 dari 1 tagihan belum lunas")).toBeInTheDocument();
     expect(within(rail).getByText("Anak Terdaftar")).toBeInTheDocument();

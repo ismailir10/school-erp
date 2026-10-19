@@ -93,6 +93,7 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Link Dibuat (invoice status: a payment link exists) | Terkirim (nothing is sent — DOKU dispatches no notification and the admin shares the link manually; "Terkirim" overclaims delivery) |
 | Perkembangan (parent-facing developmental progress) | Capaian (keep Capaian only for the per-element achievement level inside the page, never as the nav or page label) |
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
+| Tunggakan (what one child or family still owes: the student and wali pages, their Perlu perhatian row and rail tile; in a sentence "belum dibayar") | Piutang on a family page, Menunggak (**Piutang** stays the school-wide receivable KPI on the invoice list; one number, one word per screen) |
 | Kelas | Class, Classroom |
 | Ketuk (tap an on-screen control) | Tap ("Tap Masuk" shipped on the session roster for a year — the rest of the app has always said Ketuk) |
 | Bu Guru / Pak Guru | Ustadz / Ustadzah (not used at this school, even though it is an Islamic school; the teachers are *Bu Guru*, and *Pak Guru* is the male form should one join) |
