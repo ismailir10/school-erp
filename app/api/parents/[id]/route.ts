@@ -5,12 +5,15 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateParentSchema, toggleParentStatusSchema } from "@/lib/validations/parent";
+import { buildParentInvoiceView, primaryClassName } from "@/lib/parent/detail-invoices";
 
 /**
  * Parent-level routes — operate on a Parent row by its id, the shape returned
  * by GET /api/guardians (which despite the URL queries `prisma.parent`).
  *
- * GET   — full parent with linked students + invoices (guardian detail page)
+ * GET   — full parent with linked students (class + amount owed), an
+ *         all-invoices summary, a capped unpaid-first invoice list and the
+ *         unpaid invoices to remind (guardian detail page)
  * PUT   — edit parent contact + government-compliance fields
  * PATCH — toggle Parent.status (ACTIVE ↔ INACTIVE) used by Nonaktifkan
  *
@@ -64,21 +67,33 @@ export async function GET(
         where: { status: "ACTIVE" },
         include: {
           student: {
-            select: { id: true, name: true, status: true, gender: true },
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              gender: true,
+              // Only to name the class; stripped from the response below.
+              enrollments: {
+                where: {
+                  status: "ACTIVE",
+                  classSection: { academicYear: { status: { not: "ARCHIVED" } } },
+                },
+                select: {
+                  id: true,
+                  enrollDate: true,
+                  status: true,
+                  classSection: {
+                    select: {
+                      name: true,
+                      program: { select: { type: true } },
+                      academicYear: { select: { status: true } },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-      invoices: {
-        select: {
-          id: true,
-          invoiceNumber: true,
-          periodLabel: true,
-          totalDue: true,
-          totalPaid: true,
-          status: true,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 20,
       },
     },
   });
@@ -87,11 +102,47 @@ export async function GET(
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   }
 
+  // Every invoice billed to this wali (minimal fields, no cap): the totals on
+  // the page must not depend on how many rows the list shows.
+  const invoiceRows = await prisma.invoice.findMany({
+    where: { tenantId: session.tenantId, parentId: parent.id },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      periodLabel: true,
+      dueDate: true,
+      totalDue: true,
+      totalPaid: true,
+      status: true,
+      studentId: true,
+      createdAt: true,
+      student: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const { invoiceSummary, invoices, unpaidInvoices, owedByStudent } = buildParentInvoiceView(invoiceRows);
+
+  const guardians = parent.guardians.map(({ student: { enrollments, ...student }, ...g }) => ({
+    ...g,
+    outstanding: owedByStudent[g.studentId] ?? 0,
+    student: { ...student, className: primaryClassName(enrollments) },
+  }));
+
   // Document scans are auth-proxy storage tokens — the detail page only ever
   // needs "is a file on record", never the token itself (that's resolved
   // server-side by /api/parents/[id]/ktp|kk from the parent id).
-  const { ktpUrl, kkUrl, ...rest } = parent;
-  return NextResponse.json({ ...rest, canEdit: hasPermission(session, "students.edit"), hasKtp: !!ktpUrl, hasKk: !!kkUrl });
+  const { ktpUrl, kkUrl, guardians: _guardians, ...rest } = parent;
+  return NextResponse.json({
+    ...rest,
+    guardians,
+    invoices,
+    invoiceSummary,
+    unpaidInvoices,
+    canEdit: hasPermission(session, "students.edit"),
+    canRemind: hasPermission(session, "payments.record"),
+    hasKtp: !!ktpUrl,
+    hasKk: !!kkUrl,
+  });
 }
 
 export async function PUT(
