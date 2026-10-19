@@ -1,111 +1,48 @@
 /**
- * T6a — the wali (guardian) detail page moved from `AdminTabs` ("Anak
- * Terdaftar" / "Tagihan" behind clicks, "Data Wali" / "Dokumen" in plain
- * cards above them) to the Recipe 2b Dossier layout: one scroll,
- * `DossierNav` + `DossierSection[]`, exactly mirroring
- * `app/admin/students/[id]/page.tsx`.
+ * The wali (guardian) detail page is a Recipe 2b Dossier: one scroll,
+ * `DossierNav` + `DossierSection[]`, mirroring `app/admin/students/[id]`.
  *
- * This pins the one behavioural contract that layout migration must not lose:
- * every section is a real DOM anchor (`document.getElementById(id)`) an admin
- * can deep-link to — `#profile`, `#documents`, `#children`, `#invoices` — and
- * every one of those ids also appears as a disclosure trigger and a nav
- * button, so nothing that used to live in a tab is now unreachable.
+ * Pins the contracts a layout change must not lose: every section is a real
+ * DOM anchor (`#profile`, `#documents`, `#children`, `#invoices`) an admin can
+ * deep-link to, each is also a disclosure trigger and a nav button, the order
+ * is answer-first, and a closed section still says what is inside it.
  */
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import GuardianDetailPage from "../page";
+import { fulfilledParams, makeParent, stubFetchWith } from "./parent-fixture";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-/**
- * `use(params)` suspends on first render for a "cold" Promise — React only
- * reads a `use()`-d thenable synchronously once it carries a `status`/`value`
- * pair. Pre-attach the fulfilled marker React itself would set once the
- * promise settles, so `use()` returns synchronously on first render, mirroring
- * Next.js pre-resolving route params before paint (see the identical helper in
- * `app/admin/enrollments/[id]/__tests__/page.test.tsx`).
- */
-function fulfilledParams(value: { id: string }): Promise<{ id: string }> {
-  const p = Promise.resolve(value) as Promise<{ id: string }> & {
-    status?: string;
-    value?: { id: string };
-  };
-  p.status = "fulfilled";
-  p.value = value;
-  return p;
-}
-
-const PARENT = {
-  id: "p1",
-  canEdit: true,
-  name: "Ibu Siti Aminah",
-  email: "siti@example.test",
-  phone: "081234567890",
-  whatsapp: "081234567890",
-  address: "Jl. Melati No. 1",
-  nik: "3201010101010001",
-  education: "S1",
-  occupation: "Guru",
-  employer: "SDN 1",
-  employerAddress: null,
-  employerCity: "Bandung",
-  incomeRange: "5-10 juta",
-  childrenTotal: 2,
-  hasKtp: true,
-  hasKk: false,
-  status: "ACTIVE",
-  guardians: [
-    {
-      id: "sg-1",
-      relationship: "IBU",
-      isPrimary: true,
-      status: "ACTIVE",
-      student: { id: "s1", name: "Ahmad Fajar", status: "ACTIVE", gender: "L" },
-    },
-  ],
-  invoices: [
-    {
-      id: "inv-1",
-      invoiceNumber: "INV-2026-0001",
-      periodLabel: "2026-01",
-      totalDue: 500000,
-      totalPaid: 100000,
-      status: "OVERDUE",
-    },
-  ],
-};
-
+// Answer-first order: children, invoices, then the wali's own data and files.
 const SECTIONS = [
-  { id: "profile", label: "Data Wali" },
-  { id: "documents", label: "Dokumen" },
   { id: "children", label: "Anak Terdaftar" },
   { id: "invoices", label: "Tagihan" },
+  { id: "profile", label: "Data Wali" },
+  { id: "documents", label: "Dokumen" },
 ];
 
-function stubFetch() {
-  return vi.fn(() =>
-    Promise.resolve({ ok: true, json: async () => PARENT } as Response),
+async function renderPage() {
+  stubFetchWith(makeParent());
+  const user = userEvent.setup();
+  render(<GuardianDetailPage params={fulfilledParams({ id: "p1" })} />);
+  await waitFor(() =>
+    expect(screen.getByRole("heading", { name: "Ibu Siti Aminah" })).toBeInTheDocument(),
   );
+  return user;
 }
 
 describe("guardian dossier — section anchors", () => {
-  it("renders every former tab as a hash-addressable DossierSection", async () => {
-    vi.stubGlobal("fetch", stubFetch());
-    render(<GuardianDetailPage params={fulfilledParams({ id: "p1" })} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "Ibu Siti Aminah" })).toBeInTheDocument(),
-    );
+  it("renders every section as a hash-addressable DossierSection, in answer-first order", async () => {
+    await renderPage();
 
     for (const { id, label } of SECTIONS) {
       const section = document.getElementById(id);
       expect(section, `#${id} should exist as a DOM anchor`).not.toBeNull();
-      // The section heading lives inside its own anchor — not just anywhere
-      // on the page — proving the id and the visible label are the same
-      // element, the thing a `DossierNav` jump or a `#invoices` link relies on.
       expect(
         section!.querySelector('[data-slot="collapsible-trigger"]'),
         `#${id} should have a disclosure trigger`,
@@ -113,27 +50,48 @@ describe("guardian dossier — section anchors", () => {
       expect(section!.textContent).toContain(label);
     }
 
-    // The sticky nav lists every section once, in the same order.
-    const nav = screen.getByRole("navigation", { name: "Bagian halaman" });
-    for (const { label } of SECTIONS) {
+    // DOM order of the anchors matches the nav order below.
+    const domOrder = SECTIONS.map(({ id }) => document.getElementById(id)!);
+    for (let i = 1; i < domOrder.length; i++) {
       expect(
-        Array.from(nav.querySelectorAll("button")).some((b) => b.textContent === label),
-      ).toBe(true);
+        domOrder[i - 1].compareDocumentPosition(domOrder[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+        `${SECTIONS[i - 1].id} should come before ${SECTIONS[i].id}`,
+      ).toBeTruthy();
     }
+
+    const nav = screen.getByRole("navigation", { name: "Bagian halaman" });
+    const navLabels = Array.from(nav.querySelectorAll("button")).map((b) => b.textContent);
+    expect(navLabels).toEqual(SECTIONS.map((s) => s.label));
   });
 
-  it("keeps every section open by default so nothing is hidden behind a click", async () => {
-    vi.stubGlobal("fetch", stubFetch());
-    render(<GuardianDetailPage params={fulfilledParams({ id: "p1" })} />);
+  it("opens children, invoices and profile by default and keeps Dokumen collapsed with its summary", async () => {
+    const user = await renderPage();
 
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "Ibu Siti Aminah" })).toBeInTheDocument(),
-    );
-
-    // Content from every section is simultaneously visible — no tab click
-    // required, unlike the pre-migration AdminTabs layout.
+    // Content of the three open sections is visible without a click.
     expect(screen.getByText("Ahmad Fajar")).toBeInTheDocument();
     expect(screen.getByText("INV-2026-0001")).toBeInTheDocument();
-    expect(screen.getByText(/Unggah KTP|Ganti KTP/)).toBeInTheDocument();
+    expect(screen.getByText("siti@example.test")).toBeInTheDocument();
+
+    // Dokumen is closed: no upload control, and the header carries the summary.
+    const documents = document.getElementById("documents")!;
+    expect(screen.queryByText(/Unggah KTP|Ganti KTP/)).not.toBeInTheDocument();
+    expect(within(documents).getByText("KTP ada · KK belum ada")).toBeInTheDocument();
+
+    // Expanding via its trigger shows the content and hides the summary.
+    await user.click(documents.querySelector('[data-slot="collapsible-trigger"]') as HTMLElement);
+    expect(await screen.findByText(/Ganti KTP/)).toBeInTheDocument();
+    expect(within(documents).queryByText("KTP ada · KK belum ada")).not.toBeInTheDocument();
+  });
+
+  it("expands a collapsed section from the nav before scrolling to it", async () => {
+    const user = await renderPage();
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+
+    const nav = screen.getByRole("navigation", { name: "Bagian halaman" });
+    await user.click(within(nav).getByRole("button", { name: "Dokumen" }));
+
+    expect(await screen.findByText(/Ganti KTP/)).toBeInTheDocument();
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
   });
 });

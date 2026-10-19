@@ -8,40 +8,21 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
 import GuardianDetailPage from "../page";
+import { CLEAN_SUMMARY, fulfilledParams, makeParent } from "./parent-fixture";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-function fulfilledParams(value: { id: string }): Promise<{ id: string }> {
-  const p = Promise.resolve(value) as Promise<{ id: string }> & { status?: string; value?: { id: string } };
-  p.status = "fulfilled";
-  p.value = value;
-  return p;
-}
-
-const PARENT = {
-  id: "p1",
-  canEdit: true,
-  name: "Ibu Siti Aminah",
-  email: "siti@example.test",
-  phone: "081234567890",
-  whatsapp: "081234567890",
-  address: "Jl. Melati No. 1",
-  nik: "3201010101010001",
-  education: "S1",
-  occupation: "Guru",
-  employer: "SDN 1",
-  employerAddress: null,
-  employerCity: "Bandung",
-  incomeRange: "5-10 juta",
+const PARENT = makeParent({
   childrenTotal: 0,
   hasKtp: true,
   hasKk: true,
-  status: "ACTIVE",
   guardians: [],
   invoices: [],
-};
+  unpaidInvoices: [],
+  invoiceSummary: CLEAN_SUMMARY,
+});
 
 const deleteCalls = () =>
   vi.mocked(fetch).mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE");
@@ -50,6 +31,10 @@ async function renderPage() {
   const user = userEvent.setup();
   render(<GuardianDetailPage params={fulfilledParams({ id: "p1" })} />);
   await screen.findByRole("heading", { name: "Ibu Siti Aminah" });
+  // Dokumen starts collapsed; open it the way an admin would.
+  const documents = document.getElementById("documents")!;
+  await user.click(documents.querySelector('[data-slot="collapsible-trigger"]') as HTMLElement);
+  await screen.findByText(/Ganti KTP/);
   return user;
 }
 
