@@ -89,6 +89,9 @@ const MOBILE_OPEN: Record<string, boolean> = {
 // are, what is owed, then the wali's own data and documents.
 // ------------------------------------------------------------------
 
+/** Invoices named line by line in the WhatsApp message; the rest become "dan N tagihan lainnya". */
+const REMINDER_TEXT_LINES = 15;
+
 export default function GuardianDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const isMobile = useIsMobile();
@@ -98,10 +101,24 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const [linkOpen, setLinkOpen] = useState(false);
   // Guards a double click while the stamps are in flight (the chat is already open).
   const reminding = useRef(false);
+  // The ref blocks a second click in the same tick; the state is what disables the button and tells the admin it is working.
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
   const editFormId = useId();
+  // Edit unmounts the focused button and Save/Batal unmounts the form, so move focus with the change:
+  // into the first field when editing starts, back to Edit when it ends.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (isEditing) {
+      document.getElementById(editFormId)?.querySelector<HTMLElement>("input, textarea, select")?.focus();
+    } else if (wasEditing.current) {
+      editButtonRef.current?.focus();
+    }
+    wasEditing.current = isEditing;
+  }, [isEditing, editFormId]);
   const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
 
   // --- Section open/collapse state ---
@@ -267,31 +284,38 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   async function remindByWhatsApp() {
     if (!parent || reminding.current) return;
     const items = parent.unpaidInvoices;
-    // `items` is capped at 25 by the API; the total is the whole debt, and the
-    // rest are named as one trailing line instead of silently under-stating it.
+    // The API lists at most 25 unpaid invoices and a chat message stays readable at about 15 lines.
+    // The total is the whole debt; invoices not listed are named as one trailing line instead of
+    // silently under-stating it.
+    const listed = items.slice(0, REMINDER_TEXT_LINES);
     const url = familyReminderWaUrl({
       guardian: { name: parent.name, whatsapp: parent.whatsapp, phone: parent.phone },
-      items,
+      items: listed,
       total: parent.invoiceSummary.outstanding,
-      moreCount: Math.max(0, parent.invoiceSummary.unpaidCount - items.length),
+      moreCount: Math.max(0, parent.invoiceSummary.unpaidCount - listed.length),
       payUrl: `${window.location.origin}/parent/invoices`,
     });
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
 
     reminding.current = true;
+    setSendingReminder(true);
     try {
       const results = await Promise.allSettled(
         items.map((i) => fetch(`/api/invoices/${i.id}/reminder`, { method: "POST" })),
       );
       const recorded = results.filter((r) => r.status === "fulfilled" && r.value.ok).length;
       if (recorded > 0) {
-        toast.success(`Pengingat dicatat untuk ${recorded} dari ${items.length} tagihan`);
+        const capped = parent.invoiceSummary.unpaidCount > items.length;
+        toast.success(
+          `Pengingat dicatat untuk ${recorded} dari ${items.length} tagihan${capped ? " (paling lama jatuh tempo lebih dulu)" : ""}`,
+        );
       } else {
         toast.error("Pengingat belum tercatat, tetapi WhatsApp sudah dibuka.");
       }
     } finally {
       reminding.current = false;
+      setSendingReminder(false);
     }
   }
   const canSendReminder =
@@ -323,7 +347,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
       ),
       action: { label: "Lihat tagihan", onClick: () => jumpToSection(SECTION_INVOICES), testId: "attention-owed" },
       secondaryAction: canSendReminder
-        ? { label: "Ingatkan via WhatsApp", onClick: () => void remindByWhatsApp(), testId: "attention-remind" }
+        ? { label: "Ingatkan via WhatsApp", onClick: () => void remindByWhatsApp(), disabled: sendingReminder, testId: "attention-remind" }
         : undefined,
     });
   }
@@ -333,7 +357,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
       id: "documents",
       message: missingDocs,
       action: canEdit
-        ? { label: "Unggah", onClick: () => jumpToSection(SECTION_DOCUMENTS), testId: "attention-documents" }
+        ? { label: "Unggah berkas", onClick: () => jumpToSection(SECTION_DOCUMENTS), testId: "attention-documents" }
         : undefined,
     });
   }
@@ -357,7 +381,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
           <>
             <ContactActions phone={parent.phone} whatsapp={parent.whatsapp} className="w-full sm:w-auto" />
             {canEdit && !isEditing && (
-              <Button size="sm" variant="outline" onClick={startEditing}>
+              <Button ref={editButtonRef} size="sm" variant="outline" onClick={startEditing}>
                 <Pencil size={14} className="mr-1" /> Edit
               </Button>
             )}
@@ -375,16 +399,20 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
           <DossierSection
             id={SECTION_CHILDREN}
             label="Anak Terdaftar"
+            // The collapsed summary already says the count; the badge is for an open section's header.
             badge={
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {studentCount} anak
-              </span>
+              (openSections[SECTION_CHILDREN] ?? true) ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {studentCount} anak
+                </span>
+              ) : undefined
             }
             summary={childrenSummary(parent.guardians)}
             open={openSections[SECTION_CHILDREN] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_CHILDREN, o)}
             actions={
-              canEdit ? (
+              // With no child yet the empty state below carries the same button.
+              canEdit && studentCount > 0 ? (
                 <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
                   <Plus size={14} className="mr-1" /> Tautkan anak
                 </Button>
@@ -408,9 +436,11 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             id={SECTION_INVOICES}
             label="Tagihan"
             badge={
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {summary.invoiceCount} tagihan
-              </span>
+              (openSections[SECTION_INVOICES] ?? true) ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {summary.invoiceCount} tagihan
+                </span>
+              ) : undefined
             }
             summary={invoicesSummary(summary)}
             open={openSections[SECTION_INVOICES] ?? true}

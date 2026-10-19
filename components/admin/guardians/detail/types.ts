@@ -3,6 +3,9 @@
  * JSON numbers (the route converts Decimals before it responds).
  */
 
+import type { DetailInvoice, UnpaidInvoice } from "@/lib/parent/detail-invoices";
+import type { StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
+
 export type GuardianChild = {
   id: string;
   relationship: string;
@@ -19,35 +22,10 @@ export type GuardianChild = {
   };
 };
 
-export type ParentInvoiceRow = {
-  id: string;
-  invoiceNumber: string;
-  periodLabel: string;
-  totalDue: number;
-  totalPaid: number;
-  status: string;
-  dueDate: string | null;
-  studentId: string;
-  studentName: string;
-};
-
-export type UnpaidInvoiceRow = {
-  id: string;
-  invoiceNumber: string;
-  periodLabel: string;
-  studentName: string;
-  remaining: number;
-};
-
-export type ParentInvoiceSummary = {
-  invoiceCount: number;
-  totalBilled: number;
-  totalPaid: number;
-  outstanding: number;
-  unpaidCount: number;
-  nearestDue: string | null;
-  overdueCount: number;
-};
+// The API's own types (Prisma-free), so the page and the route cannot drift apart.
+export type ParentInvoiceRow = DetailInvoice;
+export type UnpaidInvoiceRow = UnpaidInvoice;
+export type ParentInvoiceSummary = StudentInvoiceSummary;
 
 export type ParentDetail = {
   canEdit: boolean;

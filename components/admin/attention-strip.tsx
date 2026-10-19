@@ -24,6 +24,8 @@ export type AttentionAction = {
   /** Navigates; takes precedence over `onClick`. */
   href?: string;
   onClick?: () => void;
+  /** Greys the button out while the action it starts is still running. */
+  disabled?: boolean;
   testId?: string;
 };
 
@@ -102,7 +104,7 @@ function AttentionButton({ action }: { action: AttentionAction }) {
     );
   }
   return (
-    <Button {...common} type="button" onClick={action.onClick}>
+    <Button {...common} type="button" onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Button>
   );

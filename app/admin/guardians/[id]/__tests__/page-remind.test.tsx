@@ -122,6 +122,39 @@ describe("guardian page — Ingatkan via WhatsApp click", () => {
     expect(text).toContain("- dan 25 tagihan lainnya");
   });
 
+  it("disables the button while the reminders are being recorded", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { user } = await renderWith(makeParent({ unpaidInvoices: TWO_UNPAID }), async () => {
+      await gate;
+      return okJson({});
+    });
+    await user.click(screen.getByRole("button", { name: REMIND }));
+    expect(screen.getByRole("button", { name: REMIND })).toBeDisabled();
+    release();
+    await waitFor(() => expect(screen.getByRole("button", { name: REMIND })).toBeEnabled());
+  });
+
+  it("names at most 15 invoices line by line and counts the rest", async () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: `inv-${i}`,
+      invoiceNumber: `INV-${i}`,
+      periodLabel: "2026-01",
+      studentName: "Ahmad Fajar",
+      remaining: 1000,
+    }));
+    const { user } = await renderWith(
+      makeParent({
+        unpaidInvoices: many,
+        invoiceSummary: { ...makeParent().invoiceSummary, outstanding: 20_000, unpaidCount: 20 },
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: REMIND }));
+    const text = decodeURIComponent((openSpy.mock.calls[0][0] as string).split("?text=")[1]);
+    expect(text.split("\n").filter((l) => l.startsWith("- ") && !l.includes("lainnya"))).toHaveLength(15);
+    expect(text).toContain("- dan 5 tagihan lainnya");
+  });
+
   it("stamps each unpaid invoice and reports how many were recorded", async () => {
     const { user, fetchMock } = await renderWith(makeParent({ unpaidInvoices: TWO_UNPAID }));
 

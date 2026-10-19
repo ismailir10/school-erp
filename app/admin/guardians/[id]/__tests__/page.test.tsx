@@ -4,7 +4,7 @@
  * the three load-failure states and the capped invoice list footer.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import GuardianDetailPage from "../page";
@@ -73,7 +73,7 @@ describe("guardian page — Perlu perhatian", () => {
     expect(within(region).queryByText(/belum dibayar/)).not.toBeInTheDocument();
 
     Element.prototype.scrollIntoView = vi.fn();
-    await user.click(within(region).getByRole("button", { name: "Unggah" }));
+    await user.click(within(region).getByRole("button", { name: "Unggah berkas" }));
     expect(await screen.findByText(/Unggah KK/)).toBeInTheDocument();
   });
 
@@ -81,7 +81,7 @@ describe("guardian page — Perlu perhatian", () => {
     await renderWith(makeParent({ ...HEALTHY, hasKtp: false, hasKk: false, canEdit: false }));
     const region = strip()!;
     expect(within(region).getByText("KTP dan KK belum diunggah")).toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: "Unggah" })).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Unggah berkas" })).not.toBeInTheDocument();
   });
 
   it("flags a wali with no linked student", async () => {
@@ -130,6 +130,16 @@ describe("guardian page — header", () => {
     await user.click(trigger("profile"));
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(await screen.findByRole("button", { name: "Simpan Perubahan" })).toBeInTheDocument();
+  });
+
+  it("moves focus into the form on Edit and back to Edit on Batal", async () => {
+    const user = await renderWith(makeParent());
+    Element.prototype.scrollIntoView = vi.fn();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await screen.findByRole("button", { name: "Simpan Perubahan" });
+    await waitFor(() => expect(document.activeElement?.tagName).toBe("INPUT"));
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit" })).toHaveFocus());
   });
 });
 
@@ -243,7 +253,8 @@ describe("guardian page — Tagihan", () => {
     const invoices = document.getElementById("invoices")!;
     expect(within(invoices).getByText("Belum dibayar")).toBeInTheDocument();
     expect(within(invoices).getByText("1 dari 1 tagihan belum lunas")).toBeInTheDocument();
-    expect(within(invoices).getByText(/Ahmad Fajar · 2026-01 · Rp 500\.000/)).toBeInTheDocument();
+    const row = within(invoices).getByText("INV-2026-0001").closest("a")!;
+    expect(row).toHaveTextContent("Ahmad Fajar · 2026-01 · Rp 500.000");
     expect(within(invoices).queryByText(/Menampilkan/)).not.toBeInTheDocument();
   });
 
@@ -269,7 +280,7 @@ describe("guardian page — Tagihan", () => {
     expect(within(section).getByText("Menampilkan 10 dari 25 tagihan")).toBeInTheDocument();
     expect(within(section).getByText("Rp 2.500.000")).toBeInTheDocument();
     expect(within(section).getByText("25 dari 25 tagihan belum lunas")).toBeInTheDocument();
-    const all = within(section).getByRole("link", { name: "Semua tagihan Ahmad →" });
+    const all = within(section).getByRole("link", { name: "Semua tagihan Ahmad Fajar →" });
     expect(all).toHaveAttribute("href", "/admin/students/s1#keuangan");
   });
 

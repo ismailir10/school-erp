@@ -55,7 +55,7 @@ describe("guardian page — KTP/KK delete confirmation", () => {
   it("Hapus asks first and sends no DELETE until 'Ya, Hapus'", async () => {
     const user = await renderPage();
 
-    await user.click(screen.getAllByRole("button", { name: "Hapus" })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^Hapus/ })[0]);
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Hapus KTP?")).toBeInTheDocument();
     expect(
@@ -81,7 +81,7 @@ describe("guardian page — KTP/KK delete confirmation", () => {
     );
     const user = await renderPage();
 
-    await user.click(screen.getAllByRole("button", { name: "Hapus" })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^Hapus/ })[0]);
     const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Ya, Hapus" }));
 
@@ -92,7 +92,7 @@ describe("guardian page — KTP/KK delete confirmation", () => {
   it("Batal closes the dialog and deletes nothing", async () => {
     const user = await renderPage();
 
-    await user.click(screen.getAllByRole("button", { name: "Hapus" })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^Hapus/ })[0]);
     const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Batal" }));
 
@@ -103,7 +103,7 @@ describe("guardian page — KTP/KK delete confirmation", () => {
   it("the KK row confirms with its own title and deletes the KK", async () => {
     const user = await renderPage();
 
-    await user.click(screen.getAllByRole("button", { name: "Hapus" })[1]);
+    await user.click(screen.getAllByRole("button", { name: /^Hapus/ })[1]);
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("Hapus KK?")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Ya, Hapus" }));

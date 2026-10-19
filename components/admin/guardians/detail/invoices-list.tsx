@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatTile } from "@/components/ui/stat-tile";
 import { formatRupiah } from "@/lib/format";
 import type { GuardianChild, ParentInvoiceRow, ParentInvoiceSummary } from "./types";
 
@@ -26,15 +27,18 @@ export function InvoicesList({
   const truncated = summary.invoiceCount > invoices.length;
   return (
     <div>
-      <div className="mb-3 rounded-lg bg-muted/50 px-3 py-2.5">
-        <p className="text-xs text-muted-foreground">Belum dibayar</p>
-        <p className="font-currency text-h2 font-semibold text-foreground">{formatRupiah(summary.outstanding)}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {summary.unpaidCount > 0
+      <StatTile
+        label="Belum dibayar"
+        value={formatRupiah(summary.outstanding)}
+        mono
+        tone={summary.outstanding > 0 ? "critical" : "positive"}
+        hint={
+          summary.unpaidCount > 0
             ? `${summary.unpaidCount} dari ${summary.invoiceCount} tagihan belum lunas`
-            : "Tidak ada tunggakan"}
-        </p>
-      </div>
+            : "Tidak ada tunggakan"
+        }
+        className="mb-3"
+      />
 
       <ul className="space-y-0">
         {invoices.map((inv) => (
@@ -44,7 +48,8 @@ export function InvoicesList({
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{inv.invoiceNumber}</p>
                   <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                    {inv.studentName} &middot; {inv.periodLabel} &middot; {formatRupiah(inv.totalDue)}
+                    {inv.studentName} &middot; {inv.periodLabel} &middot;{" "}
+                    <span className="font-currency">{formatRupiah(inv.totalDue)}</span>
                   </p>
                 </div>
                 <StatusBadge status={inv.status} />
@@ -65,9 +70,9 @@ export function InvoicesList({
                 <li key={g.id}>
                   <Link
                     href={`/admin/students/${g.student.id}#keuangan`}
-                    className="inline-flex min-h-8 items-center text-small text-primary-text hover:underline"
+                    className="tap-target inline-flex items-center text-small text-primary-text hover:underline"
                   >
-                    Semua tagihan {g.student.name.trim().split(/\s+/)[0]} →
+                    Semua tagihan {g.student.name} →
                   </Link>
                 </li>
               ))}

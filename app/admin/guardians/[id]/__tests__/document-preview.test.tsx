@@ -57,7 +57,7 @@ describe("guardian page — documents on request", () => {
     // The only requests so far are the page's own JSON, never the document.
     expect(vi.mocked(fetch).mock.calls.every(([u]) => !String(u).endsWith("/ktp"))).toBe(true);
 
-    await user.click(within(ktp).getByRole("button", { name: "Lihat" }));
+    await user.click(within(ktp).getByRole("button", { name: /^Lihat/ }));
 
     expect(embeds()).toHaveLength(1);
     expect(embeds()[0]).toHaveAttribute("src", "/api/parents/p1/ktp?v=0");
@@ -69,10 +69,10 @@ describe("guardian page — documents on request", () => {
 
   it("closes the preview again", async () => {
     const { user, ktp } = await renderOpen();
-    await user.click(within(ktp).getByRole("button", { name: "Lihat" }));
+    await user.click(within(ktp).getByRole("button", { name: /^Lihat/ }));
     expect(embeds()).toHaveLength(1);
 
-    await user.click(within(ktp).getByRole("button", { name: "Tutup" }));
+    await user.click(within(ktp).getByRole("button", { name: /^Tutup/ }));
     expect(embeds()).toHaveLength(0);
   });
 
@@ -80,14 +80,14 @@ describe("guardian page — documents on request", () => {
     const { kk } = await renderOpen();
     expect(within(kk).getByText("Belum ada")).toBeInTheDocument();
     expect(within(kk).getByRole("button", { name: "Unggah KK" })).toBeInTheDocument();
-    expect(within(kk).queryByRole("button", { name: "Lihat" })).not.toBeInTheDocument();
-    expect(within(kk).queryByRole("button", { name: "Hapus" })).not.toBeInTheDocument();
+    expect(within(kk).queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
+    expect(within(kk).queryByRole("button", { name: /^Hapus/ })).not.toBeInTheDocument();
   });
 
   it("a viewer who cannot edit can look but not change", async () => {
     const { ktp } = await renderOpen({ ...PARENT, canEdit: false });
-    expect(within(ktp).getByRole("button", { name: "Lihat" })).toBeInTheDocument();
-    expect(within(ktp).queryByRole("button", { name: "Hapus" })).not.toBeInTheDocument();
+    expect(within(ktp).getByRole("button", { name: /^Lihat/ })).toBeInTheDocument();
+    expect(within(ktp).queryByRole("button", { name: /^Hapus/ })).not.toBeInTheDocument();
     expect(within(ktp).queryByRole("button", { name: /Ganti KTP/ })).not.toBeInTheDocument();
   });
 
@@ -121,10 +121,10 @@ describe("guardian page — documents on request", () => {
 
   it("deleting an open preview closes it", async () => {
     const { user, ktp } = await renderOpen();
-    await user.click(within(ktp).getByRole("button", { name: "Lihat" }));
+    await user.click(within(ktp).getByRole("button", { name: /^Lihat/ }));
     expect(embeds()).toHaveLength(1);
 
-    await user.click(within(ktp).getByRole("button", { name: "Hapus" }));
+    await user.click(within(ktp).getByRole("button", { name: /^Hapus/ }));
     const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Ya, Hapus" }));
 

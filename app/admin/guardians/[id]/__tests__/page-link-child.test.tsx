@@ -42,10 +42,11 @@ afterEach(() => {
 });
 
 describe("guardian page — Tautkan anak", () => {
-  it("offers it from the section header, the empty state and the attention strip when no child is linked", async () => {
+  it("offers it from the empty state and the attention strip (not a third time in the header) when no child is linked", async () => {
     const { user } = await renderWith(makeParent(NO_CHILD));
 
-    expect(linkButtons()).toHaveLength(3);
+    expect(linkButtons()).toHaveLength(2);
+    expect(within(document.getElementById("children")!).getAllByRole("button", { name: "Tautkan anak" })).toHaveLength(1);
     const strip = screen.getByRole("region", { name: "Perlu perhatian" });
     await user.click(within(strip).getByRole("button", { name: "Tautkan anak" }));
 

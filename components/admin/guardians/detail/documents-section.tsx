@@ -116,6 +116,7 @@ function DocumentUploadCell({
               aria-expanded={showPreview}
               aria-controls={previewId}
               onClick={() => setPreviewOpen((o) => !o)}
+              aria-label={`${showPreview ? "Tutup pratinjau" : "Lihat"} ${label}`}
             >
               {showPreview ? "Tutup" : "Lihat"}
             </Button>
@@ -133,7 +134,7 @@ function DocumentUploadCell({
                 {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
               </Button>
               {hasFile && (
-                <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy}>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy} aria-label={`Hapus ${label}`}>
                   Hapus
                 </Button>
               )}
@@ -156,7 +157,7 @@ function DocumentUploadCell({
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block text-xs text-primary-text hover:underline"
+              className="tap-target inline-flex items-center text-xs text-primary-text hover:underline"
             >
               Buka di tab baru →
             </a>
