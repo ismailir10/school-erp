@@ -1,0 +1,90 @@
+# Student detail page: answer first, five groups (2026-10-19)
+
+## Context
+
+Cycle B of two (cycle A, the wali page, shipped as #675). The user's request: "improve student and parent detail page, applying don't-make-me-think principles while making sure admin can do their key task and flexibility". The proposal and the clickable mockup (Claude canvas "Student & Wali detail mockup", Siswa desktop and mobile) were approved with "proceed". This cycle applies the same design to `/admin/students/[id]` and reuses the pieces cycle A shipped: `AttentionStrip`, `ContactActions`, `DossierSection` collapsed `summary`.
+
+Facts from reading the page, its sections and its tests (2,659 lines of tests across six files):
+
+- **Thirteen places to look.** The dossier has 13 sections and a 13-chip nav, plus a rail with 7 number tiles and 4 cards. "Berkas" appears three times (tile, rail checklist, Dokumen section). Usia, Kelas Aktif and Wali Aktif repeat what the header and the family section already say.
+- **Nothing says what to do next.** An owed amount, a missing KK, a child with no class, no wali utama and a draft raport each live in a different tile or section; the admin scans to find the problem.
+- **Contact is missing on a phone.** The "Kontak Cepat" card is part of the desktop-only rail; on mobile the page has no call or WhatsApp button for the family.
+- **"Edit" is ambiguous.** The header button edits only the Data Anak section; Kesehatan and Informasi Tambahan have their own edit controls, and the edit form sits several screens below the button that starts it.
+- **Header actions are not about the child's state.** "Daftarkan ke Kelas" is shown to every active student, placed or not; the one action an admin most needs depends on whether the child has a class.
+- **Three words for one number.** The student page says "Tunggakan", the wali page rail says "Piutang" (the invoice list's school-wide KPI word) and the strip says "belum dibayar".
+- UAT 2026-09-29 (possibly stale: later cycles touched these files) flagged on this page: Luluskan offered without an enrolment and Daftarkan ke Kelas shown for a withdrawn student (CORE-13), no warning when the primary wali is deactivated (CORE-4). Both are already handled by guards on the page; this cycle must not regress them.
+
+## Decisions
+
+Approved with the proposal (all recommended options):
+
+1. **Structure:** grouped single scroll (Recipe 2b). Five groups: Profil, Keluarga & Berkas, Kelas & Akademik, Keuangan, Pendaftaran & Catatan. No tabs. All 13 existing sections stay reachable and keep their anchor ids and deep links (`#keuangan`, `#pendaftaran`, `#akademik`, `?aksi=daftarkan-kelas`).
+2. **Answer first:** a "Perlu perhatian" strip under the header (only when something needs action, one button per row) and a family contact strip (WhatsApp / Telepon, the wali utama) in the first screen on every viewport.
+3. **Collapsed means summarised:** every group shows a one-line summary while collapsed.
+4. **Edit where you read:** the header keeps one action that depends on the child's state; "Edit" moves into the Data Anak section next to the data it edits.
+5. **Slim rail:** only numbers the header does not already say.
+
+Made while building:
+
+- **Groups hold the old sections.** The 13 sections become sub-sections inside the five groups. Eager sub-sections (their data is already loaded) render as plain headed blocks; the five lazy ones (Kehadiran, Keringanan, Buku Penghubung, Akademik, Pendaftaran) stay collapsible rows that fetch only when first opened, exactly as before.
+- **Header action by state.** Active and no class: **Daftarkan ke Kelas** (filled). Withdrawn or graduated: **Aktifkan kembali**. Active and placed: no visible button; Daftarkan ke Kelas (to add a day-care or second placement), Naik Kelas, Luluskan and Keluarkan live in the ⋯ menu with the same guards as today.
+- **Ringkasan card goes.** Its facts move to where they belong: Status and class are in the header; NIS in Data Anak; Kelas, Tahun ajaran, Kampus and Masuk sejak in a "Kelas saat ini" block at the top of Kelas & Akademik; Jejak (dibuat / asal data) stays in the rail.
+- **Terminology.** "Tunggakan" is what a family owes (student and wali pages). "Piutang" stays the school-wide receivable on the invoice list. The wali rail tile is renamed from Piutang to Tunggakan, and `voice.md` gets a glossary row.
+- Work happens on the harness-assigned branch `claude/serene-ptolemy-rsgsk1`, restarted from the latest `staging` after #675 merged.
+
+## Acceptance criteria
+
+- [ ] The page shows five groups in the nav, in this order: Profil, Keluarga & Berkas, Kelas & Akademik, Keuangan, Pendaftaran & Catatan. Every one of the old 13 sections is still on the page and its anchor id still expands what contains it and scrolls to it (including from the URL hash and from `?aksi=daftarkan-kelas`).
+- [ ] Profil, Keluarga & Berkas and Keuangan start open on desktop; Kelas & Akademik and Pendaftaran & Catatan start closed; on a phone only Profil starts open. A closed group shows its one-line summary; an open one does not.
+- [ ] "Perlu perhatian" lists, only when they apply and in this order: money owed (amount, how many tagihan, how many overdue), no class (active student only), no wali utama / no wali, missing berkas (names them), raport still draft. It is absent when nothing applies. Each row's button does the thing (opens Daftarkan ke Kelas, or expands and scrolls to the right section).
+- [ ] The family strip shows the wali utama (or first active wali) with relationship and number and the WhatsApp / Telepon buttons, on desktop and on a phone (≥ 44 px); "N wali · Lihat semua" jumps to Keluarga & Wali. With no usable number no dead button shows.
+- [ ] The header shows one visible action chosen by the child's state (see Decisions); Naik Kelas, Luluskan, Keluarkan keep their guards and confirm dialogs; a withdrawn or graduated student still gets Aktifkan kembali and no Daftarkan ke Kelas.
+- [ ] "Edit" sits in the Data Anak section header; edit, save, cancel and the unsaved-changes guard behave as before (including the "Simpan informasi tambahan dulu" guard).
+- [ ] The rail has only Tunggakan, Hadir bulan ini and Raport tiles plus Jejak; no Usia, Kelas Aktif, Wali Aktif or Berkas tile, no Ringkasan, Kontak Cepat or Kelengkapan Berkas card, and no rail block above the sections on a phone.
+- [ ] Kelas & Akademik opens with "Kelas saat ini" (kelas, tahun ajaran, kampus, masuk sejak) or "Belum terdaftar di kelas".
+- [ ] The wali page rail says Tunggakan, not Piutang; `voice.md` records the three terms.
+- [ ] Vitest, lint and the build are green; the existing student-page e2e specs pass (updated where a label or location moved on purpose).
+
+## Verify flows
+
+1. **Triage a child, desktop.** `u_super_admin`, a student with an owed invoice, a missing KK and a draft raport: the strip lists all three with working buttons, the family strip has WhatsApp / Telepon, groups show summaries. Edge: a student with nothing wrong shows no strip. Error: a student whose wali has no number shows no contact buttons and no dead link.
+2. **Phone, 390×844.** Same student: header, strip and family contact are in the first screen, buttons ≥ 44 px, only Profil open, summaries on the other groups; opening Keuangan loads nothing extra; opening Kehadiran fetches once.
+3. **State-driven header.** A placed active student shows no header button but the ⋯ menu; an unplaced one shows Daftarkan ke Kelas filled and the strip row; a withdrawn one shows Aktifkan kembali; Daftarkan ke Kelas (`?aksi=daftarkan-kelas`) still opens the dialog.
+4. **Edit in place.** Edit in Data Anak → change nickname → Simpan: persists. With unsaved Informasi Tambahan rows, Edit is refused with the existing toast.
+
+## UX notes
+
+Primary action per screen: the family WhatsApp button and the strip's buttons; the header carries at most one visible action. Labels: "Perlu perhatian", "Lihat tagihan", "Daftarkan ke Kelas", "Lengkapi berkas", "Buka raport", "Kelas saat ini", "Edit". Summaries use "·" separators. Empty and loading states keep "Memuat…" vs "—" (never a bare 0 while a request is pending). Voice follows `voice.md`; the design-system tokens (status tints, `font-currency`, 44 px touch floor) are the same as cycle A.
+
+## Test seams
+
+- Vitest (jsdom): `DossierGroup` / `DossierSubsection`; pure helpers for the attention items and group summaries; the student page (strip, family strip, header by state, grouping, jump to a section inside a closed group, lazy latches, edit in Data Anak); the six existing student-page suites updated for the new structure.
+- Playwright: `e2e/admin-students-full-crud.spec.ts` and `mobile-layout` updated where needed; one new spec for the strip, family contact and a deep link into a closed group.
+
+## Non-goals
+
+The wali page (done in A); tabs; the students list; the parent portal; lifecycle rules (promote, graduate, withdraw, reactivate) and their dialogs; any API, schema or permission change; Kesehatan, Informasi Tambahan, Keluarga & Wali and Dokumen internals beyond where they sit; moving the reminder to the student page.
+
+## Assumptions
+
+1. The data the strip needs is already on the page (student, invoices, overview aggregate); no new request is added.
+2. Keeping each lazy section's own collapse preserves the "fetch only when opened" cost model.
+3. Existing labels stay unless named above; tests that encode the old location of Edit or the old rail are updated, not removed.
+
+## Gate re-openers
+
+None expected: no schema, no new dependency, no API change. No auth or PII change (the page shows the same data; contact buttons reuse numbers already on the page).
+
+## Tasks
+
+- [ ] T1 Shared groups: `DossierGroup` (card + collapsible group with summary while closed) and `DossierSubsection` (flat headed block, optionally collapsible with `keepMounted`) — accept: component tests (deps: none, reuse: `DossierSection`)
+- [ ] T2 Student page grouping: five groups holding the 13 sections as sub-sections, group nav, summaries, default open state, "Kelas saat ini" block, jump/hash/aksi handling that opens the right group then the right sub-section and fires the lazy latches — accept: deep links work, lazy fetch only on open (deps: T1)
+- [ ] T3 Header by state and Edit in Data Anak — accept: header per state, Edit relocated, guards intact (deps: T2)
+- [ ] T4 "Perlu perhatian" strip, family contact strip, slim rail and no rail block on a phone — accept: strip items and contact per criteria (deps: T2, reuse: `AttentionStrip`, `ContactActions`)
+- [ ] T5 Terminology and docs: wali rail Piutang → Tunggakan, `voice.md` glossary row, admin JTBD (STUDENT jobs), README clause if needed, e2e updates, counts via `audit-docs.sh --write` (deps: T2–T4)
+
+## Implementation
+
+## Verification
+
+## Ship Notes
