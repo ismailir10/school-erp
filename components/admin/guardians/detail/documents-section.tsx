@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { ParentDetail } from "./types";
@@ -35,6 +36,7 @@ function DocumentUploadCell({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   // Cache-bust the auth-proxied URL after upload/delete so <embed> reloads.
   const [version, setVersion] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,6 +79,7 @@ function DocumentUploadCell({
       const res = await fetch(`/api/parents/${parentId}/${field}`, { method: "DELETE" });
       if (res.ok) {
         toast.success(`${label} dihapus`);
+        setPreviewOpen(false);
         setVersion((v) => v + 1);
         onMutated();
       } else {
@@ -89,48 +92,77 @@ function DocumentUploadCell({
     }
   }
 
+  const previewId = `${parentId}-${field}-preview`;
+  const url = `/api/parents/${parentId}/${field}?v=${version}`;
+  // A deleted file has nothing to preview, whatever the toggle says.
+  const showPreview = hasFile && previewOpen;
+
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      {hasFile ? (
-        <>
-          <embed
-            key={version}
-            src={`/api/parents/${parentId}/${field}?v=${version}`}
-            className="w-full h-48 border rounded-lg bg-muted"
-            aria-label={`Pratinjau ${label}`}
-          />
-          <a
-            href={`/api/parents/${parentId}/${field}?v=${version}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-primary-text hover:underline inline-block"
-          >
-            Buka di tab baru →
-          </a>
-        </>
-      ) : (
-        <div className="w-full h-48 border border-dashed rounded-lg bg-muted/50 flex items-center justify-center">
-          <p className="text-xs text-muted-foreground">{label} belum diunggah</p>
+    <div role="group" aria-label={label} className="py-3 first:pt-0 last:pb-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-sm font-medium">{label}</span>
+          {hasFile ? (
+            <Badge className="border-transparent bg-status-present-subtle text-xs text-status-present-text">Ada</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground">Belum ada</Badge>
+          )}
         </div>
-      )}
-      {canEdit && <div className="flex gap-2">
-        <input
-          ref={inputRef}
-          type="file"
-          accept={DOC_ACCEPT}
-          className="hidden"
-          onChange={handleFile}
-        />
-        <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
-        </Button>
-        {hasFile && (
-          <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy}>
-            Hapus
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {hasFile && (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-expanded={showPreview}
+              aria-controls={previewId}
+              onClick={() => setPreviewOpen((o) => !o)}
+            >
+              {showPreview ? "Tutup" : "Lihat"}
+            </Button>
+          )}
+          {canEdit && (
+            <>
+              <input
+                ref={inputRef}
+                type="file"
+                accept={DOC_ACCEPT}
+                className="hidden"
+                onChange={handleFile}
+              />
+              <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
+                {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
+              </Button>
+              {hasFile && (
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy}>
+                  Hapus
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      {/* The file is requested only here, after "Lihat": a KTP/KK is personal
+          data (UU PDP) and used to load on every visit. */}
+      <div id={previewId}>
+        {showPreview && (
+          <div className="mt-3 space-y-2">
+            <embed
+              key={version}
+              src={url}
+              className="h-64 w-full rounded-lg border bg-muted"
+              aria-label={`Pratinjau ${label}`}
+            />
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs text-primary-text hover:underline"
+            >
+              Buka di tab baru →
+            </a>
+          </div>
         )}
-      </div>}
+      </div>
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -149,9 +181,9 @@ export function DocumentsPanel({ parent, onMutated }: { parent: ParentDetail; on
   return (
     <>
       <p className="mb-4 text-xs text-muted-foreground">
-        KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF
+        KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF · pratinjau dibuka sesuai permintaan
       </p>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="divide-y divide-border/50">
         <DocumentUploadCell
           parentId={parent.id}
           parentName={parent.name}
