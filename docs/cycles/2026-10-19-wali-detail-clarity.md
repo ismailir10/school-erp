@@ -93,7 +93,7 @@ None expected: no schema change (additive response fields only), no new dependen
 - [x] T4 Dokumen on demand: preview only after "Lihat" — accept: test no preview request before click (deps: T3)
 - [x] T5 Tautkan anak dialog — accept: test link and duplicate (deps: T3, reuse: `StudentPicker`, `ResponsiveFormDialog`, `RELATIONSHIP_OPTIONS`)
 - [x] T6 Ingatkan via WhatsApp — accept: helper + page test (deps: T3, reuse: `invoice-reminder.ts`, `POST /api/invoices/[id]/reminder`)
-- [ ] T7 Docs and e2e: admin JTBD (GUARD jobs), README module line, e2e spec update, counts via `audit-docs.sh --write` (deps: T3–T6)
+- [x] T7 Docs and e2e: admin JTBD (GUARD jobs), README module line, e2e spec update, counts via `audit-docs.sh --write` (deps: T3–T6)
 
 ## Implementation
 
@@ -105,6 +105,7 @@ None expected: no schema change (additive response fields only), no new dependen
 - T5: `components/admin/guardians/link-student-dialog.tsx`, `lib/validations/guardian.ts` (`linkChildFormSchema`: student + relationship; the page adds `parentId`), the wali page, README `students` row (+ tests in `components/admin/guardians/__tests__` and `page-link-child.test.tsx`) — `ResponsiveFormDialog` with `StudentPicker` and a relationship select (Ayah, Ibu, Wali default, Lainnya; legacy PARENT excluded); POSTs `{ parentId, relationship }` (no `isPrimary`) to the existing `/api/students/[id]/guardians`; 409 `GUARDIAN_LINK_EXISTS` lands on the student field, other failures in the form's root error; entry points are the Anak Terdaftar section action, its empty state and the "Belum tertaut ke siswa" strip row, all `canEdit` only. README row trimmed elsewhere to stay under 600 chars.
 - T6: `lib/finance/invoice-reminder.ts` (`familyReminderText`, `familyReminderWaUrl`; tests in `lib/finance/__tests__/family-reminder.test.ts`), `components/admin/attention-strip.tsx` (additive `secondaryAction` + test), the wali page, README `students` row (+ `page-remind.test.tsx`) — "Ingatkan via WhatsApp" sits on the owed row of the strip, shown only with `canRemind`, unpaid invoices and a usable number; the click opens wa.me to this wali synchronously (`noopener,noreferrer`), then stamps every unpaid invoice with `POST /api/invoices/[id]/reminder` through `Promise.allSettled` (the returned URL is ignored: that route targets the student's primary wali) and toasts "Pengingat dicatat untuk N dari M tagihan", or an error when none were recorded. The message total is the sum of the listed unpaid invoices (max 25).
 - T6 follow-up (driver review): the WhatsApp message totals the whole debt (`invoiceSummary.outstanding`) and names invoices beyond the 25 listed as "dan N tagihan lainnya" instead of under-stating it.
+- T7: `e2e/admin-guardian-detail.spec.ts` (Edit label; new spec: header contact, KTP/KK strip, Tautkan anak), `docs/uat/jobs/admin.md` (GUARD-01 updated, GUARD-05 chase a debt, GUARD-06 link a child), counts block via `audit-docs.sh --write`. README row was updated with T5.
 
 ## Verification
 
