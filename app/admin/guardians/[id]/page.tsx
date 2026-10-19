@@ -3,34 +3,45 @@
 import { useEffect, useState, useCallback, use, useId, useRef } from "react";
 import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
-import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { FormRootError } from "@/components/ui/form";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
-import { DetailRail, RailCard, RailStatTiles, RailChecklist } from "@/components/admin/detail-rail";
-import { Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Baby, Pencil, X, Save } from "lucide-react";
+import { AttentionStrip, type AttentionItem } from "@/components/admin/attention-strip";
+import { ContactActions } from "@/components/admin/contact-actions";
+import { Pencil, Plus, X, Save } from "lucide-react";
 import { toast } from "sonner";
-import { REL_LABELS } from "@/lib/constants/parent-options";
 import { formatRupiah } from "@/lib/format";
-import { telHref, whatsappHref } from "@/lib/contact";
-import { summarizeStudentInvoices, EMPTY_INVOICE_SUMMARY } from "@/lib/finance/student-invoice-summary";
+import { familyReminderWaUrl, guardianChatNumber } from "@/lib/finance/invoice-reminder";
 import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
 import { parentFormSchema } from "@/lib/validations/parent";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
-
-// ------------------------------------------------------------------
-// Types
-// ------------------------------------------------------------------
+import {
+  SECTION_CHILDREN,
+  SECTION_DOCUMENTS,
+  SECTION_INVOICES,
+  SECTION_PROFILE,
+  type ParentDetail,
+} from "@/components/admin/guardians/detail/types";
+import {
+  childrenSummary,
+  documentsSummary,
+  invoicesSummary,
+  missingDocumentsText,
+  profileSummary,
+} from "@/components/admin/guardians/detail/summaries";
+import { GuardianProfileView } from "@/components/admin/guardians/detail/profile-view";
+import { ChildrenList } from "@/components/admin/guardians/detail/children-list";
+import { InvoicesList } from "@/components/admin/guardians/detail/invoices-list";
+import { DocumentsPanel } from "@/components/admin/guardians/detail/documents-section";
+import { GuardianRail } from "@/components/admin/guardians/detail/guardian-rail";
+import { LinkStudentDialog } from "@/components/admin/guardians/link-student-dialog";
 
 type ParentFormValues = z4.input<typeof parentFormSchema>;
 
@@ -50,213 +61,70 @@ const EMPTY_PARENT_FORM: ParentFormValues = {
   childrenTotal: "",
 };
 
-type ParentDetail = {
-  canEdit: boolean;
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  whatsapp: string | null;
-  address: string | null;
-  nik: string | null;
-  education: string | null;
-  occupation: string | null;
-  employer: string | null;
-  employerAddress: string | null;
-  employerCity: string | null;
-  incomeRange: string | null;
-  childrenTotal: number | null;
-  hasKtp: boolean;
-  hasKk: boolean;
-  status: string;
-  guardians: {
-    id: string;
-    relationship: string;
-    isPrimary: boolean;
-    status: string;
-    student: { id: string; name: string; status: string; gender: string | null };
-  }[];
-  invoices: {
-    id: string;
-    invoiceNumber: string;
-    periodLabel: string;
-    totalDue: number;
-    totalPaid: number;
-    status: string;
-  }[];
+type LoadError = "failed" | "not-found" | "denied";
+
+const LIST_HREF = "/admin/guardians";
+
+// Default disclosure state. The answer-first sections (children, invoices) and
+// the profile start open on desktop; Dokumen is sensitive and heavy, so it
+// starts closed and its collapsed header says what is on file.
+const DESKTOP_OPEN: Record<string, boolean> = {
+  [SECTION_CHILDREN]: true,
+  [SECTION_INVOICES]: true,
+  [SECTION_PROFILE]: true,
+  [SECTION_DOCUMENTS]: false,
+};
+// Phone: only the two sections that answer "who and what do they owe".
+const MOBILE_OPEN: Record<string, boolean> = {
+  [SECTION_CHILDREN]: true,
+  [SECTION_INVOICES]: true,
+  [SECTION_PROFILE]: false,
+  [SECTION_DOCUMENTS]: false,
 };
 
 // ------------------------------------------------------------------
-// Document upload control (T14 + T6) — KTP / KK admin-only auth-proxied
+// Page — Recipe 2b Dossier: a thin orchestrator (state, disclosure, hash,
+// fetch, edit toggle). Each section body lives in
+// components/admin/guardians/detail/*. Order is answer-first: who the children
+// are, what is owed, then the wali's own data and documents.
 // ------------------------------------------------------------------
 
-const DOC_MAX_BYTES = 5 * 1024 * 1024;
-const DOC_ACCEPT = "image/jpeg,image/png,application/pdf";
-
-function DocumentUploadCell({
-  parentId,
-  parentName,
-  field,
-  label,
-  hasFile,
-  onMutated,
-  canEdit,
-}: {
-  parentId: string;
-  parentName: string;
-  field: "ktp" | "kk";
-  label: string;
-  hasFile: boolean;
-  onMutated: () => void;
-  canEdit: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  // Cache-bust the auth-proxied URL after upload/delete so <embed> reloads.
-  const [version, setVersion] = useState(0);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > DOC_MAX_BYTES) {
-      toast.error(`Ukuran ${label} maksimal 5 MB`);
-      return;
-    }
-    const okMime = ["image/jpeg", "image/png", "application/pdf"].includes(file.type);
-    if (!okMime) {
-      toast.error(`Format ${label} harus JPG, PNG, atau PDF`);
-      return;
-    }
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await fetch(`/api/parents/${parentId}/${field}`, { method: "POST", body: fd });
-      if (res.ok) {
-        toast.success(`${label} diperbarui`);
-        setVersion((v) => v + 1);
-        onMutated();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error === "UNSUPPORTED_MEDIA_TYPE"
-          ? `Format ${label} tidak sesuai isi berkas. Pastikan file JPG, PNG, atau PDF asli — bukan hasil ubah ekstensi.`
-          : d.error || `Gagal mengunggah ${label}`);
-      }
-    } catch {
-      toast.error("Terjadi kesalahan jaringan");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleDelete() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/parents/${parentId}/${field}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success(`${label} dihapus`);
-        setVersion((v) => v + 1);
-        onMutated();
-      } else {
-        toast.error(`Gagal menghapus ${label}`);
-      }
-    } catch {
-      toast.error("Terjadi kesalahan jaringan");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      {hasFile ? (
-        <>
-          <embed
-            key={version}
-            src={`/api/parents/${parentId}/${field}?v=${version}`}
-            className="w-full h-48 border rounded-lg bg-muted"
-            aria-label={`Pratinjau ${label}`}
-          />
-          <a
-            href={`/api/parents/${parentId}/${field}?v=${version}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-primary-text hover:underline inline-block"
-          >
-            Buka di tab baru →
-          </a>
-        </>
-      ) : (
-        <div className="w-full h-48 border border-dashed rounded-lg bg-muted/50 flex items-center justify-center">
-          <p className="text-xs text-muted-foreground">{label} belum diunggah</p>
-        </div>
-      )}
-      {canEdit && <div className="flex gap-2">
-        <input
-          ref={inputRef}
-          type="file"
-          accept={DOC_ACCEPT}
-          className="hidden"
-          onChange={handleFile}
-        />
-        <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? "Memproses..." : hasFile ? `Ganti ${label}` : `Unggah ${label}`}
-        </Button>
-        {hasFile && (
-          <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteOpen(true)} disabled={busy}>
-            Hapus
-          </Button>
-        )}
-      </div>}
-      <ConfirmDialog
-        open={confirmDeleteOpen}
-        onOpenChange={setConfirmDeleteOpen}
-        title={`Hapus ${label}?`}
-        description={`${label} ${parentName} akan dihapus. Unggah lagi jika masih diperlukan.`}
-        confirmLabel="Ya, Hapus"
-        destructive
-        onConfirm={handleDelete}
-      />
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// Page — Recipe 2b Dossier: single scroll, hash-addressable sections,
-// mirrors app/admin/students/[id]/page.tsx's layout (DetailPageHeader +
-// DossierNav + DossierSection[] + DetailRail). No fetch this page didn't
-// already make — the rail derives entirely from the /api/parents/[id] payload.
-// ------------------------------------------------------------------
-
-const SECTION_PROFILE = "profile";
-const SECTION_DOCUMENTS = "documents";
-const SECTION_CHILDREN = "children";
-const SECTION_INVOICES = "invoices";
+/** Invoices named line by line in the WhatsApp message; the rest become "dan N tagihan lainnya". */
+const REMINDER_TEXT_LINES = 15;
 
 export default function GuardianDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const isMobile = useIsMobile();
   const [parent, setParent] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  // Guards a double click while the stamps are in flight (the chat is already open).
+  const reminding = useRef(false);
+  // The ref blocks a second click in the same tick; the state is what disables the button and tells the admin it is working.
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
   const editFormId = useId();
+  // Edit unmounts the focused button and Save/Batal unmounts the form, so move focus with the change:
+  // into the first field when editing starts, back to Edit when it ends.
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (isEditing) {
+      document.getElementById(editFormId)?.querySelector<HTMLElement>("input, textarea, select")?.focus();
+    } else if (wasEditing.current) {
+      editButtonRef.current?.focus();
+    }
+    wasEditing.current = isEditing;
+  }, [isEditing, editFormId]);
   const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
 
   // --- Section open/collapse state ---
-  // Nothing on this page costs a second request to open, unlike the student
-  // dossier's Kehadiran/Keringanan/etc — so every section starts open on
-  // desktop and there is no lazy-fetch-on-open wiring to replicate.
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
-    [SECTION_PROFILE]: true,
-    [SECTION_DOCUMENTS]: true,
-    [SECTION_CHILDREN]: true,
-    [SECTION_INVOICES]: true,
-  }));
+  // Nothing on this page costs a second request to open, so there is no
+  // lazy-fetch-on-open wiring to replicate from the student dossier.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({ ...DESKTOP_OPEN }));
   // Once the admin has collapsed or expanded anything, stop rearranging the
   // page underneath them on a resize.
   const sectionsTouched = useRef(false);
@@ -277,22 +145,18 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     [setSectionOpen],
   );
 
-  // Mobile default: one open section, not four. Runs only while the admin has
-  // not touched a disclosure themselves.
+  // Mobile default: children + invoices open, the rest closed. Runs only while
+  // the admin has not touched a disclosure themselves.
   useEffect(() => {
     if (!isMobile || sectionsTouched.current) return;
-    setOpenSections((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const key of Object.keys(prev)) next[key] = key === SECTION_PROFILE;
-      return next;
-    });
+    setOpenSections({ ...MOBILE_OPEN });
   }, [isMobile]);
 
   /**
    * `#documents`, `#invoices` … — every section id is already a DOM anchor,
    * but the browser's own hash scroll fires before the section exists and
-   * lands on nothing when the section is collapsed on mobile. Honouring the
-   * hash ourselves (same trick as the student dossier) is what makes a link
+   * lands on nothing when the section is collapsed. Honouring the hash
+   * ourselves (same trick as the student dossier) is what makes a link
    * straight into "Tagihan" actually work.
    */
   const hashHandled = useRef(false);
@@ -308,10 +172,19 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const fetchParent = useCallback(async () => {
     try {
       const res = await fetch(`/api/parents/${id}`);
-      if (!res.ok) { toast.error("Gagal memuat data wali"); return; }
+      if (!res.ok) {
+        setLoadError(res.status === 404 ? "not-found" : res.status === 401 || res.status === 403 ? "denied" : "failed");
+        toast.error("Gagal memuat data wali");
+        return;
+      }
       setParent(await res.json());
-    } catch { toast.error("Terjadi kesalahan"); }
-    finally { setLoading(false); }
+      setLoadError(null);
+    } catch {
+      setLoadError("failed");
+      toast.error("Terjadi kesalahan");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => { fetchParent(); }, [fetchParent]);
@@ -340,6 +213,8 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
       childrenTotal: parent.childrenTotal != null ? String(parent.childrenTotal) : "",
     });
     setIsEditing(true);
+    // Data Wali can be collapsed (phone default): open it so the form is in view.
+    jumpToSection(SECTION_PROFILE);
   }
 
   // Bio lives on Parent, so save through the parent's own route. This page
@@ -361,102 +236,224 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   });
 
   if (loading) return <DetailPageSkeleton />;
-  if (!parent) return <EmptyState title="Wali tidak ditemukan" description="Data wali tidak tersedia atau telah dihapus." />;
+  if (!parent) {
+    if (loadError === "not-found") {
+      return (
+        <EmptyState
+          title="Wali tidak ditemukan"
+          description="Periksa kembali tautan wali atau pilih wali dari daftar."
+          actionLabel="Kembali ke Daftar Wali"
+          actionHref={LIST_HREF}
+        />
+      );
+    }
+    if (loadError === "denied") {
+      return (
+        <EmptyState
+          title="Data wali tidak bisa diakses"
+          description="Sesi Anda berakhir atau akun Anda tidak memiliki akses."
+          actionLabel="Kembali ke Daftar Wali"
+          actionHref={LIST_HREF}
+        />
+      );
+    }
+    return (
+      <div role="alert">
+        <EmptyState
+          title="Data wali belum bisa dimuat"
+          description="Periksa koneksi Anda, lalu coba lagi."
+          actionLabel="Coba Lagi"
+          onAction={() => { setLoading(true); fetchParent(); }}
+        />
+      </div>
+    );
+  }
+
+  const canEdit = parent.canEdit === true;
+
+  /**
+   * "Ingatkan via WhatsApp": one message to THIS wali listing every unpaid
+   * invoice. The chat opens first and synchronously, inside the click, so a
+   * popup blocker treats it as user-initiated. Only then is each invoice
+   * stamped ("Terakhir diingatkan") through the existing per-invoice endpoint.
+   * That endpoint builds its own wa.me URL for the *student's primary* wali;
+   * the returned URL is ignored here and only the stamp is used. A stamp can
+   * be refused (409 nothing to chase, 422 no number on the primary wali, 429)
+   * without undoing the message, so the toast reports how many were recorded.
+   */
+  async function remindByWhatsApp() {
+    if (!parent || reminding.current) return;
+    const items = parent.unpaidInvoices;
+    // The API lists at most 25 unpaid invoices and a chat message stays readable at about 15 lines.
+    // The total is the whole debt; invoices not listed are named as one trailing line instead of
+    // silently under-stating it.
+    const listed = items.slice(0, REMINDER_TEXT_LINES);
+    const url = familyReminderWaUrl({
+      guardian: { name: parent.name, whatsapp: parent.whatsapp, phone: parent.phone },
+      items: listed,
+      total: parent.invoiceSummary.outstanding,
+      moreCount: Math.max(0, parent.invoiceSummary.unpaidCount - listed.length),
+      payUrl: `${window.location.origin}/parent/invoices`,
+    });
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    reminding.current = true;
+    setSendingReminder(true);
+    try {
+      const results = await Promise.allSettled(
+        items.map((i) => fetch(`/api/invoices/${i.id}/reminder`, { method: "POST" })),
+      );
+      const recorded = results.filter((r) => r.status === "fulfilled" && r.value.ok).length;
+      if (recorded > 0) {
+        const capped = parent.invoiceSummary.unpaidCount > items.length;
+        toast.success(
+          `Pengingat dicatat untuk ${recorded} dari ${items.length} tagihan${capped ? " (paling lama jatuh tempo lebih dulu)" : ""}`,
+        );
+      } else {
+        toast.error("Pengingat belum tercatat, tetapi WhatsApp sudah dibuka.");
+      }
+    } finally {
+      reminding.current = false;
+      setSendingReminder(false);
+    }
+  }
+  const canSendReminder =
+    parent.canRemind === true &&
+    parent.unpaidInvoices.length > 0 &&
+    guardianChatNumber({ whatsapp: parent.whatsapp, phone: parent.phone }) !== null;
 
   const studentCount = parent.guardians.length;
-  const invoiceSummary = parent.invoices.length > 0 ? summarizeStudentInvoices(parent.invoices) : EMPTY_INVOICE_SUMMARY;
+  const summary = parent.invoiceSummary;
 
   const navSections: DossierSectionDef[] = [
-    { id: SECTION_PROFILE, label: "Data Wali" },
-    { id: SECTION_DOCUMENTS, label: "Dokumen" },
     { id: SECTION_CHILDREN, label: "Anak Terdaftar" },
     { id: SECTION_INVOICES, label: "Tagihan" },
+    { id: SECTION_PROFILE, label: "Data Wali" },
+    { id: SECTION_DOCUMENTS, label: "Dokumen" },
   ];
 
-  const docItems = [
-    { label: "KTP", present: parent.hasKtp },
-    { label: "KK", present: parent.hasKk },
-  ];
-
-  const statTiles = [
-    { label: "Anak Terdaftar", value: studentCount },
-    {
-      label: "Tagihan",
-      value: parent.invoices.length,
-      hint: invoiceSummary.unpaidCount > 0 ? `${invoiceSummary.unpaidCount} belum lunas` : undefined,
-    },
-    {
-      label: "Piutang",
-      value: formatRupiah(invoiceSummary.outstanding),
-      tone: invoiceSummary.outstanding > 0 ? ("warning" as const) : ("default" as const),
-      wide: true,
-    },
-  ];
-
-  const waHref = whatsappHref(parent.whatsapp ?? parent.phone);
-  const telephoneHref = telHref(parent.phone);
-  const contactCard = (waHref || telephoneHref) && (
-    <RailCard title="Kontak Cepat">
-      <p className="text-small font-semibold">{parent.name}</p>
-      {parent.phone && <p className="mt-0.5 text-xs text-muted-foreground">{parent.phone}</p>}
-      <div className="mt-3 flex gap-2">
-        {waHref && (
-          <Button
-            size="sm"
-            className="flex-1"
-            render={<a href={waHref} target="_blank" rel="noopener noreferrer" />}
-          >
-            WhatsApp
-          </Button>
-        )}
-        {telephoneHref && (
-          <Button size="sm" variant="outline" className="flex-1" render={<a href={telephoneHref} />}>
-            Telepon
-          </Button>
-        )}
-      </div>
-    </RailCard>
-  );
-
-  const railContent = (
-    <>
-      <RailStatTiles tiles={statTiles} />
-      {contactCard}
-      <RailCard title="Kelengkapan Berkas">
-        <RailChecklist items={docItems} />
-      </RailCard>
-    </>
-  );
+  // "Perlu perhatian": only what applies, owed money first.
+  const attentionItems: AttentionItem[] = [];
+  if (summary.outstanding > 0) {
+    attentionItems.push({
+      id: "owed",
+      message: (
+        <>
+          <strong className="font-currency font-semibold">{formatRupiah(summary.outstanding)}</strong> belum dibayar
+          {" · "}
+          {summary.unpaidCount} tagihan{summary.overdueCount > 0 ? `, ${summary.overdueCount} lewat tempo` : ""}
+        </>
+      ),
+      action: { label: "Lihat tagihan", onClick: () => jumpToSection(SECTION_INVOICES), testId: "attention-owed" },
+      secondaryAction: canSendReminder
+        ? { label: "Ingatkan via WhatsApp", onClick: () => void remindByWhatsApp(), disabled: sendingReminder, testId: "attention-remind" }
+        : undefined,
+    });
+  }
+  const missingDocs = missingDocumentsText(parent);
+  if (missingDocs) {
+    attentionItems.push({
+      id: "documents",
+      message: missingDocs,
+      action: canEdit
+        ? { label: "Unggah berkas", onClick: () => jumpToSection(SECTION_DOCUMENTS), testId: "attention-documents" }
+        : undefined,
+    });
+  }
+  if (studentCount === 0) {
+    attentionItems.push({
+      id: "no-student",
+      message: "Belum tertaut ke siswa",
+      action: canEdit ? { label: "Tautkan anak", onClick: () => setLinkOpen(true), testId: "attention-link-child" } : undefined,
+    });
+  }
 
   return (
     <>
       <DetailPageHeader
-        backHref="/admin/guardians"
+        backHref={LIST_HREF}
         backLabel="Kembali ke Daftar Wali"
         title={parent.name}
-        description={`${studentCount} siswa terdaftar`}
+        description={`${studentCount} siswa${parent.phone?.trim() ? ` · ${parent.phone.trim()}` : ""}`}
         badge={<StatusBadge status={parent.status} />}
         actions={
-          parent.canEdit === true && !isEditing ? (
-            <Button size="sm" variant="outline" onClick={startEditing}>
-              <Pencil size={14} className="mr-1" /> Ubah
-            </Button>
-          ) : undefined
+          <>
+            <ContactActions phone={parent.phone} whatsapp={parent.whatsapp} className="w-full sm:w-auto" />
+            {canEdit && !isEditing && (
+              <Button ref={editButtonRef} size="sm" variant="outline" onClick={startEditing}>
+                <Pencil size={14} className="mr-1" /> Edit
+              </Button>
+            )}
+          </>
         }
       />
 
-      {/* Mobile: the rail's numbers move above the sections so the first
-          viewport still answers "who is this wali". */}
-      {isMobile && <div className="mb-4"><RailStatTiles tiles={statTiles} /></div>}
+      <AttentionStrip items={attentionItems} className="mb-4" />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
           <DossierNav sections={navSections} onJump={jumpToSection} />
 
+          {/* ---------- Anak Terdaftar ---------- */}
+          <DossierSection
+            id={SECTION_CHILDREN}
+            label="Anak Terdaftar"
+            // The collapsed summary already says the count; the badge is for an open section's header.
+            badge={
+              (openSections[SECTION_CHILDREN] ?? true) ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {studentCount} anak
+                </span>
+              ) : undefined
+            }
+            summary={childrenSummary(parent.guardians)}
+            open={openSections[SECTION_CHILDREN] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_CHILDREN, o)}
+            actions={
+              // With no child yet the empty state below carries the same button.
+              canEdit && studentCount > 0 ? (
+                <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
+                  <Plus size={14} className="mr-1" /> Tautkan anak
+                </Button>
+              ) : undefined
+            }
+          >
+            {studentCount === 0 ? (
+              <EmptyState
+                title="Belum ada anak terdaftar"
+                description="Belum ada siswa yang ditautkan ke wali ini."
+                actionLabel={canEdit ? "Tautkan anak" : undefined}
+                onAction={canEdit ? () => setLinkOpen(true) : undefined}
+              />
+            ) : (
+              <ChildrenList guardians={parent.guardians} />
+            )}
+          </DossierSection>
+
+          {/* ---------- Tagihan ---------- */}
+          <DossierSection
+            id={SECTION_INVOICES}
+            label="Tagihan"
+            badge={
+              (openSections[SECTION_INVOICES] ?? true) ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {summary.invoiceCount} tagihan
+                </span>
+              ) : undefined
+            }
+            summary={invoicesSummary(summary)}
+            open={openSections[SECTION_INVOICES] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_INVOICES, o)}
+          >
+            <InvoicesList summary={summary} invoices={parent.invoices} guardians={parent.guardians} />
+          </DossierSection>
+
           {/* ---------- Data Wali — View/Edit toggle ---------- */}
           <DossierSection
             id={SECTION_PROFILE}
             label="Data Wali"
+            summary={profileSummary(parent)}
             open={openSections[SECTION_PROFILE] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_PROFILE, o)}
             actions={
@@ -483,213 +480,28 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 />
               </form>
             ) : (
-              <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <User size={16} className="text-muted-foreground shrink-0" />
-                    <div className="min-w-0"><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium break-words">{parent.name}</p></div>
-                  </div>
-                  {parent.email && (
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <div className="min-w-0"><p className="text-xs text-muted-foreground">Email</p><p className="text-sm font-medium break-all">{parent.email}</p></div>
-                    </div>
-                  )}
-                  {parent.phone && (
-                    <div className="flex items-center gap-3">
-                      <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Telepon</p><p className="text-sm font-medium">{parent.phone}</p></div>
-                    </div>
-                  )}
-                  {parent.whatsapp && (
-                    <div className="flex items-center gap-3">
-                      <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">WhatsApp</p><p className="text-sm font-medium">{parent.whatsapp}</p></div>
-                    </div>
-                  )}
-                  {parent.address && (
-                    <div className="flex items-start gap-3 sm:col-span-2">
-                      <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                      <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{parent.address}</p></div>
-                    </div>
-                  )}
-                  {parent.nik && (
-                    <div className="flex items-center gap-3">
-                      <User size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-medium font-currency">{parent.nik}</p></div>
-                    </div>
-                  )}
-                  {parent.childrenTotal != null && (
-                    <div className="flex items-center gap-3">
-                      <Baby size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Jumlah Anak</p><p className="text-sm font-medium">{parent.childrenTotal}</p></div>
-                    </div>
-                  )}
-                </div>
-
-                {(parent.education || parent.occupation || parent.employer || parent.incomeRange) && (
-                  <>
-                    <div className="mt-6"><SectionHeading label="Data Pekerjaan" /></div>
-                    <div className="grid grid-cols-2 gap-4">
-                      {parent.education && (
-                        <div className="flex items-center gap-3">
-                          <GraduationCap size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Pendidikan</p><p className="text-sm font-medium">{parent.education}</p></div>
-                        </div>
-                      )}
-                      {parent.occupation && (
-                        <div className="flex items-center gap-3">
-                          <Briefcase size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Pekerjaan</p><p className="text-sm font-medium">{parent.occupation}</p></div>
-                        </div>
-                      )}
-                      {parent.incomeRange && (
-                        <div className="flex items-center gap-3">
-                          <Wallet size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Penghasilan</p><p className="text-sm font-medium">{parent.incomeRange}</p></div>
-                        </div>
-                      )}
-                      {parent.employer && (
-                        <div className="flex items-center gap-3">
-                          <Building size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Tempat Kerja</p><p className="text-sm font-medium">{parent.employer}</p></div>
-                        </div>
-                      )}
-                      {parent.employerAddress && (
-                        <div className="flex items-center gap-3">
-                          <MapPin size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Alamat Kantor</p><p className="text-sm font-medium">{parent.employerAddress}</p></div>
-                        </div>
-                      )}
-                      {parent.employerCity && (
-                        <div className="flex items-center gap-3">
-                          <Building size={16} className="text-muted-foreground shrink-0" />
-                          <div><p className="text-xs text-muted-foreground">Kota/Kab</p><p className="text-sm font-medium">{parent.employerCity}</p></div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </>
+              <GuardianProfileView parent={parent} />
             )}
           </DossierSection>
 
-          {/* ---------- Dokumen (T14 + T6) — admin-only auth-proxied uploads.
-              Sensitive PII under UU PDP 27/2022 — files written under .data/
-              (never public/), reads stream through requireAdmin-gated GET. ---------- */}
+          {/* ---------- Dokumen — admin-only auth-proxied uploads (UU PDP). Closed by default. ---------- */}
           <DossierSection
             id={SECTION_DOCUMENTS}
             label="Dokumen"
-            open={openSections[SECTION_DOCUMENTS] ?? true}
+            summary={documentsSummary(parent)}
+            open={openSections[SECTION_DOCUMENTS] ?? false}
             onOpenChange={(o) => setSectionOpen(SECTION_DOCUMENTS, o)}
           >
-            <p className="mb-4 text-xs text-muted-foreground">
-              KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DocumentUploadCell
-                parentId={parent.id}
-                parentName={parent.name}
-                field="ktp"
-                label="KTP"
-                canEdit={parent.canEdit === true}
-                hasFile={parent.hasKtp}
-                onMutated={fetchParent}
-              />
-              <DocumentUploadCell
-                parentId={parent.id}
-                parentName={parent.name}
-                field="kk"
-                label="KK"
-                canEdit={parent.canEdit === true}
-                hasFile={parent.hasKk}
-                onMutated={fetchParent}
-              />
-            </div>
-          </DossierSection>
-
-          {/* ---------- Anak Terdaftar ---------- */}
-          <DossierSection
-            id={SECTION_CHILDREN}
-            label="Anak Terdaftar"
-            badge={
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {studentCount} anak
-              </span>
-            }
-            open={openSections[SECTION_CHILDREN] ?? true}
-            onOpenChange={(o) => setSectionOpen(SECTION_CHILDREN, o)}
-          >
-            {parent.guardians.length === 0 ? (
-              <EmptyState title="Belum ada anak terdaftar" description="Belum ada siswa yang ditautkan ke wali ini." />
-            ) : (
-              <div className="space-y-2">
-                {parent.guardians.map(g => (
-                  <Link key={g.id} href={`/admin/students/${g.student.id}`} className="block">
-                    <div className="flex flex-col gap-2 py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="min-w-0 break-words text-sm font-medium">{g.student.name}</span>
-                          <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                          {g.isPrimary && <Badge className="bg-primary/10 text-primary-text text-xs">Utama</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {g.student.gender === "L" ? "Laki-laki" : g.student.gender === "P" ? "Perempuan" : ""}
-                        </p>
-                      </div>
-                      <StatusBadge status={g.student.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </DossierSection>
-
-          {/* ---------- Tagihan ---------- */}
-          <DossierSection
-            id={SECTION_INVOICES}
-            label="Tagihan"
-            badge={
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {parent.invoices.length} tagihan
-              </span>
-            }
-            open={openSections[SECTION_INVOICES] ?? true}
-            onOpenChange={(o) => setSectionOpen(SECTION_INVOICES, o)}
-          >
-            {parent.invoices.length === 0 ? (
-              <EmptyState title="Belum ada tagihan" description="Belum ada tagihan untuk wali ini." />
-            ) : (
-              <div className="space-y-0">
-                {parent.invoices.map(inv => (
-                  <Link key={inv.id} href={`/admin/invoices/${inv.id}`} className="block">
-                    <div className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors">
-                      <div>
-                        <p className="text-sm font-medium">{inv.invoiceNumber}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {inv.periodLabel} &middot; {formatRupiah(inv.totalDue)}
-                        </p>
-                      </div>
-                      <StatusBadge status={inv.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+            <DocumentsPanel parent={parent} onMutated={fetchParent} />
           </DossierSection>
         </div>
 
-        {/* Desktop rail. On mobile the stat tiles already rendered above and the
-            remaining cards fall to the end of the document, after the sections. */}
-        {isMobile ? (
-          <div className="mt-2 flex flex-col gap-4">
-            {contactCard}
-            <RailCard title="Kelengkapan Berkas"><RailChecklist items={docItems} /></RailCard>
-          </div>
-        ) : (
-          <DetailRail>{railContent}</DetailRail>
-        )}
+        <GuardianRail parent={parent} />
       </div>
+
+      {canEdit && (
+        <LinkStudentDialog parentId={parent.id} open={linkOpen} onOpenChange={setLinkOpen} onLinked={fetchParent} />
+      )}
     </>
   );
 }

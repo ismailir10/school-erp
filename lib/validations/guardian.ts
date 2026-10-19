@@ -65,6 +65,18 @@ export const linkGuardianSchema = z.object({
   childOrder: childOrderField,
 });
 
+/**
+ * Form-side schema for "Tautkan anak" on the wali page: the wali is the page
+ * itself, so the form only picks the student and the relationship. The page
+ * adds `parentId` when it posts to POST /api/students/[id]/guardians, whose
+ * body is `linkGuardianSchema`. `isPrimary` is deliberately not offered: the
+ * route makes the first guardian primary and leaves an existing one alone.
+ */
+export const linkChildFormSchema = z.object({
+  studentId: z.string().min(1, "Pilih siswa terlebih dahulu"),
+  relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]),
+});
+
 export const updateGuardianSchema = z.object({
   name: nameText({ required: "Nama wali wajib diisi" }).optional(),
   phone: short(20).optional().nullable(),

@@ -24,6 +24,7 @@ export function DossierSection({
   id,
   label,
   badge,
+  summary,
   actions,
   open,
   onOpenChange,
@@ -34,6 +35,15 @@ export function DossierSection({
   label: string;
   /** Glanceable summary shown in the collapsed header, e.g. "2 wali". */
   badge?: ReactNode;
+  /**
+   * One-line answer shown after the label **only while the section is
+   * collapsed**, so a closed section still says what is inside it (e.g.
+   * "KTP ada · KK belum ada"). Wraps rather than truncates, and disappears on
+   * open because the content itself is then on screen. It sits inside the
+   * trigger, so it is part of the trigger's accessible name; nothing extra is
+   * announced.
+   */
+  summary?: ReactNode;
   /** Rendered outside the trigger — must not be a nested interactive element. */
   actions?: ReactNode;
   open: boolean;
@@ -70,9 +80,21 @@ export function DossierSection({
               )}
             />
             {/* Wraps instead of truncating: with a count badge and an action beside it,
-                a 390px header cut "Daftar Siswa" to "Daftar Si…". */}
-            <h2 className="min-w-0 text-sm font-semibold text-foreground">{label}</h2>
-            {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
+                a 390px header cut "Daftar Siswa" to "Daftar Si…". The summary joins the
+                same wrapping row, so on a phone it drops under the label when it does
+                not fit beside it. */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+              <h2 className="min-w-0 text-sm font-semibold text-foreground">{label}</h2>
+              {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
+              {!open && summary != null && summary !== false && (
+                <span
+                  data-slot="dossier-summary"
+                  className="min-w-0 text-small font-normal text-muted-foreground"
+                >
+                  {summary}
+                </span>
+              )}
+            </div>
           </CollapsibleTrigger>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>

@@ -101,11 +101,11 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(initialPhone).first()).toBeVisible();
 
-    // ---------- Edit via the detail page Ubah dialog ----------
-    // The detail page exposes an "Ubah" button in the DetailPageHeader actions
+    // ---------- Edit via the detail page Edit button ----------
+    // The detail page exposes an "Edit" button in the DetailPageHeader actions
     // slot. Click → renders the inline GuardianFormBody with editForm hydrated
     // from the GET /api/parents/[id] payload.
-    await page.getByRole("button", { name: /^Ubah$/ }).click();
+    await page.getByRole("button", { name: /^Edit$/ }).click();
 
     // Wait for the form fields to mount — the address Input has a stable
     // placeholder via GuardianFormBody.
@@ -258,6 +258,66 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
       await page.request
         .put(`/api/students/${s}`, { data: { status: "INACTIVE" } })
         .catch(() => undefined);
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Cycle 2026-10-19-wali-detail-clarity: the page answers first. Contact in
+  // the header, "Perlu perhatian" for what is missing, and a child can be
+  // linked from the wali side.
+  // ────────────────────────────────────────────────────────────────────────
+  test("shows contact and what needs attention first, and links a child from the wali page", async ({
+    page,
+  }) => {
+    const suffix = Date.now();
+    const hostRes = await page.request.post("/api/students", { data: { name: `E2E Host ${suffix}` } });
+    expect(hostRes.status()).toBe(201);
+    const host = (await hostRes.json()) as { id: string };
+    const newcomerName = `E2E Anak Baru ${suffix}`;
+    const newRes = await page.request.post("/api/students", { data: { name: newcomerName } });
+    expect(newRes.status()).toBe(201);
+    const newcomer = (await newRes.json()) as { id: string };
+
+    const waliName = `E2E Wali Perhatian ${suffix}`;
+    const waliRes = await page.request.post(`/api/students/${host.id}/guardians`, {
+      data: {
+        name: waliName,
+        relationship: "IBU",
+        phone: `0812555${String(suffix).slice(-4)}`,
+        isPrimary: true,
+      },
+    });
+    expect(waliRes.status()).toBe(201);
+    const parentId = ((await waliRes.json()) as { parent: { id: string } }).parent.id;
+
+    await page.goto(`/admin/guardians/${parentId}`);
+    await expect(page.getByRole("heading", { name: waliName, level: 1 })).toBeVisible({ timeout: 15_000 });
+
+    // Contact is in the header, before any section.
+    await expect(page.getByRole("link", { name: "WhatsApp" }).first()).toHaveAttribute("href", /^https:\/\/wa\.me\/62/);
+    await expect(page.getByRole("link", { name: "Telepon" }).first()).toHaveAttribute("href", /^tel:/);
+
+    // No KTP / KK uploaded: the strip says so, with one action that opens Dokumen.
+    const strip = page.getByRole("region", { name: "Perlu perhatian" });
+    await expect(strip.getByText("KTP dan KK belum diunggah")).toBeVisible();
+    await strip.getByRole("button", { name: "Unggah" }).click();
+    await expect(page.getByRole("button", { name: "Lihat" })).toHaveCount(0); // nothing on file, so no preview button
+
+    // Link a second child from this side.
+    await page.getByRole("button", { name: "Tautkan anak" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Tautkan anak" });
+    await dialog.getByRole("combobox", { name: /Siswa/ }).click();
+    await page.getByPlaceholder("Cari nama siswa...").fill(newcomerName);
+    await page.getByRole("option", { name: new RegExp(newcomerName) }).click();
+    const linked = page.waitForResponse(
+      (res) => res.url().includes(`/api/students/${newcomer.id}/guardians`) && res.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Tautkan anak" }).click();
+    expect((await linked).ok()).toBe(true);
+    await expect(page.getByRole("link", { name: new RegExp(newcomerName) })).toBeVisible({ timeout: 15_000 });
+
+    for (const s of [host.id, newcomer.id]) {
+      await page.request.put(`/api/students/${s}`, { data: { status: "INACTIVE" } }).catch(() => undefined);
     }
   });
 });

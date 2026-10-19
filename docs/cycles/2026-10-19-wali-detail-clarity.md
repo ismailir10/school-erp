@@ -1,0 +1,135 @@
+# Wali detail page: answer first, act second (2026-10-19)
+
+## Context
+
+Request: "improve the student and parent detail page, applying don't-make-me-think while making sure admin can do their key task and flexibility. Propose to me." The user approved the proposal and the clickable mockup (the Claude canvas "Student & Wali detail mockup") and said "proceed". This is **cycle A of two**: the wali page plus the shared building blocks. Cycle B (the student page) follows in its own doc and reuses what lands here.
+
+"Parent detail page" = the admin Wali Murid dossier at `/admin/guardians/[id]`, not the parent portal.
+
+Facts from reading the page, its API route and its tests:
+
+- **The money is under-reported.** The page's API returns only the latest 20 invoices. The "Tagihan" count, "belum lunas" and **Piutang** are all computed from those 20, so a family with more than 20 invoices sees a smaller debt than it owes. The same number then drives the rail tile.
+- **The most common admin job is buried.** Contacting a wali (WhatsApp / call) only exists in a rail card. On a phone the rail falls to the very end of the document. The header shows "N siswa terdaftar" and no phone number.
+- **Nothing says what to do next.** Piutang is a tile in the rail; a missing KK is a checklist line in the rail. The admin has to scan to find the problem.
+- **Missing data vanishes.** The view mode hides every empty field, so "no email" and "not shown" look the same.
+- **Heavy and risky by default.** Two 192 px KTP/KK previews load immediately on every visit (personal data under UU PDP).
+- **Failures read wrong.** Any load failure says "Wali tidak ditemukan", where the student page has separate not-found, denied and retry states.
+- **Children are thin.** Rows show name and relationship only, no class, no amount owed, and there is no way to link a child from the wali side (UAT CORE-22, 2026-09-29, possibly stale: later cycles touched these files).
+- **Label drift.** This page says "Ubah", the voice standard says "Edit" is the generic word (Ubah data is for the formulir only).
+- The invoice module already has a per-invoice WhatsApp reminder (`POST /api/invoices/[id]/reminder`: stamps "Terakhir diingatkan", writes an audit row, needs `payments.record`) and pure helpers in `lib/finance/invoice-reminder.ts`.
+
+## Decisions
+
+Approved by the user with the proposal (all recommended options):
+
+1. **Scope:** the admin Wali Murid page. Structure stays the single-scroll Dossier (Recipe 2b); no tabs.
+2. **Answer first.** A "Perlu perhatian" strip under the header appears only when something needs action (money owed, missing KK/KTP, no linked student), one button per row.
+3. **Contact in the header.** WhatsApp and Telepon sit in the header on every viewport.
+4. **Collapsed means summarised.** `DossierSection` gains an optional one-line `summary`, shown only while collapsed.
+5. **Two cycles.** A (this) = wali page + shared blocks + the invoice-total fix. B = student page.
+6. **Include** "Ingatkan via WhatsApp" and "Tautkan anak" on the wali page.
+
+Made while building:
+
+- **Totals come from the server over all invoices.** The route selects the minimal fields for every invoice of the wali, summarises them with the existing pure `summarizeStudentInvoices`, and returns the summary; the list is capped at 10 rows, unpaid first. Per-child owed amounts come from the same rows.
+- **Ingatkan via WhatsApp** opens `wa.me` to *this wali's* number with one message listing the unpaid invoices, then stamps each remindable invoice through the existing per-invoice endpoint so "Terakhir diingatkan" on the invoice screens stays truthful. It is shown only to a viewer with `payments.record` (new `canRemind` flag in the payload). A stamp that fails (409/422/429) does not block the message; the toast says how many were recorded.
+- **Tautkan anak** reuses `StudentPicker` and `POST /api/students/[id]/guardians` with `parentId` (the existing link branch). No new route.
+- **Dokumen** starts collapsed and each file's preview opens only on "Lihat" (no new route; the existing auth-proxied GET is requested on demand).
+- **Back link restore** (the student page remembers the list's search/page) is out of scope: the guardians list does not mirror its query yet.
+- Work happens on the harness-assigned branch `claude/serene-ptolemy-rsgsk1` instead of `feat/<slug>` in a worktree (the session was started on it), as the previous cycles did.
+
+## Acceptance criteria
+
+- [ ] A wali with more than 20 invoices shows the correct Piutang, unpaid count and overdue count (all invoices), while the list shows at most 10 rows, unpaid first, with per-child links to each child's full billing on the student page (`#keuangan`); the invoice list has no wali filter and this cycle does not add one.
+- [ ] The header shows the phone and WhatsApp / Telepon buttons (only the ones that have a usable number); on a phone they are in the first screen, above the sections.
+- [ ] "Perlu perhatian" lists: money owed (amount, count, how many overdue), missing KTP, missing KK, no linked student. It is absent when nothing applies.
+- [ ] Each collapsed section shows a one-line summary; expanding hides it. Deep links `#profile`, `#documents`, `#children`, `#invoices` still expand and scroll.
+- [ ] Empty contact fields read "Belum diisi" (not hidden); NIK stays masked.
+- [ ] Anak Terdaftar rows show class and the amount owed per child, and link to the student.
+- [ ] "Tautkan anak" links an ACTIVE student to this wali; a student already linked is rejected with the existing message; the list refreshes.
+- [ ] "Ingatkan via WhatsApp" opens a prefilled chat to this wali's number for all unpaid invoices and records the reminder; it is absent without `payments.record` or without a usable number.
+- [ ] KTP/KK previews load only after "Lihat"; Unggah / Ganti / Hapus (with its confirm) still work.
+- [ ] Not-found, denied and failed loads show different states; failed offers "Coba Lagi".
+- [ ] The edit action reads "Edit".
+- [ ] Vitest, lint and the build are green; existing e2e specs for the wali page pass.
+
+## Verify flows
+
+1. **Chase a debt, desktop.** `u_super_admin`, a wali with unpaid invoices: open the wali page. Expect the amount owed in "Perlu perhatian", WhatsApp / Telepon in the header, "Ingatkan via WhatsApp" opens wa.me with the invoice list and the invoice shows "Terakhir diingatkan". Edge: a wali with 25+ invoices shows the full total. Error: a wali with no phone shows no contact buttons and no reminder, and Data Wali says "Belum diisi".
+2. **Phone, 390×844.** Same wali: header contact buttons are in the first screen and ≥ 44 px; groups collapse with their summaries; the Dokumen header reads "KTP ada · KK belum ada".
+3. **Link a child.** "Tautkan anak" → pick a student and a relationship → the child appears with class and amount owed. Error: linking the same student again shows "Wali ini sudah tertaut ke siswa tersebut."
+4. **Documents.** Open Dokumen: no preview is requested until "Lihat"; upload and delete still confirm and refresh the checklist.
+
+## UX notes
+
+Primary action per screen: contact (WhatsApp) in the header, the strip's button when something is wrong. Labels: "Perlu perhatian", "Ingatkan via WhatsApp", "Tautkan anak", "Belum diisi", "Lihat semua N tagihan", "Edit". Voice follows `voice.md` (Indonesian, courteous, no exclamation). Empty states: no children → "Belum ada anak terdaftar" + the Tautkan anak button; no invoices → "Belum ada tagihan". The design-system reference was checked for tokens (teal primary, status colours, `font-currency` for amounts).
+
+## Test seams
+
+- Vitest (node): the parent detail route (all-invoices summary, list cap and order, per-child owed, `canRemind`, tenant scoping); pure helpers for the attention items and the family reminder text.
+- Vitest (jsdom): `DossierSection` summary, `AttentionStrip`, `ContactActions`; the wali page (strip, header contact, Belum diisi, error states, on-demand preview, Tautkan anak, reminder).
+- Playwright: extend `e2e/admin-guardian-detail.spec.ts` (header contact, strip, link a child); `e2e/mobile-layout.spec.ts` keeps covering 390 px.
+
+## Non-goals
+
+The student page (cycle B); tabs; the guardians list; the parent portal; a new reminder route or reminder wording change; recording payments from this page; the list-query back link; any schema, permission or lifecycle-rule change.
+
+## Assumptions
+
+1. A wali's invoices are the ones billed to that wali (`Invoice.parentId`), as today.
+2. A tenant's wali has tens of invoices at most, so selecting the minimal fields of all of them is cheap.
+3. `payments.record` is the right gate for reminders (it is what the invoice endpoint requires).
+4. Existing labels are kept unless named above.
+
+## Gate re-openers
+
+None expected: no schema change (additive response fields only), no new dependency. The route is a sensitive path (`app/api/**`), so it gets the security review. The personal-data exposure goes *down* (previews on demand).
+
+## Tasks
+
+- [x] T1 Wali invoice truth: route returns the all-invoices summary, a capped unpaid-first list with student names, per-child class and owed, `canRemind` — accept: route tests incl. 25 invoices (deps: none, reuse: `summarizeStudentInvoices`, `pickPrimaryEnrollment`) — parallel with T2
+- [x] T2 Shared blocks: `DossierSection` `summary`, `AttentionStrip`, `ContactActions` — accept: component tests (deps: none, reuse: `telHref`, `whatsappHref`, `DetailRail` look) — parallel with T1
+- [x] T3 Wali page restructure: header contact, strip, summaries and default open state, Belum diisi, children rows, error states, "Edit" label, tiles from the server summary — accept: page tests + updated section test (deps: T1, T2)
+- [x] T4 Dokumen on demand: preview only after "Lihat" — accept: test no preview request before click (deps: T3)
+- [x] T5 Tautkan anak dialog — accept: test link and duplicate (deps: T3, reuse: `StudentPicker`, `ResponsiveFormDialog`, `RELATIONSHIP_OPTIONS`)
+- [x] T6 Ingatkan via WhatsApp — accept: helper + page test (deps: T3, reuse: `invoice-reminder.ts`, `POST /api/invoices/[id]/reminder`)
+- [x] T7 Docs and e2e: admin JTBD (GUARD jobs), README module line, e2e spec update, counts via `audit-docs.sh --write` (deps: T3–T6)
+
+## Implementation
+
+- Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (subagents; no cheaper tier is available for the driver). T1 and T2 parallel (disjoint files), T3 then T4, T5, T6 sequential (all edit the wali page, one worker or the driver per slice), T7 inline (docs, small).
+- T1: `app/api/parents/[id]/route.ts`, `lib/parent/detail-invoices.ts` (+ tests) — GET now selects every invoice of the wali (tenant + parent scoped, minimal fields, no cap) and returns `invoiceSummary`, a 10-row unpaid-first `invoices` list with `studentName`, `unpaidInvoices` (25, oldest due first), per-guardian `outstanding` and `student.className`, and `canRemind` (`payments.record`). Amounts are numbers now. Driver reviewed the diff for the sensitive-path checklist: session, admin role, tenant filter and rate limit unchanged; ktp/kk tokens still stripped; enrollments used only to name the class and stripped from the response.
+- T2: `components/admin/dossier-section.tsx`, `attention-strip.tsx`, `contact-actions.tsx` (+ 3 test files) — `DossierSection` takes an optional `summary` shown only while collapsed (design-system tokens, wraps under the label on a phone); `AttentionStrip` renders nothing when empty, one outline button per row, message text in `text-foreground` because `text-status-late-text` on `status-late-subtle` measures 4.35:1 (under AA), count badge `bg-status-late-text` white text 4.72:1; `ContactActions` shows WhatsApp / Telepon only for usable numbers and falls back from a blank WhatsApp to the phone. Gate: eslint + tsc clean, `vitest` on students, guardians, classes and components/admin 441 passed.
+- T3: `app/admin/guardians/[id]/page.tsx` (now a thin orchestrator), `components/admin/guardians/detail/{types,summaries,profile-view,children-list,invoices-list,documents-section,guardian-rail}` + tests (`dossier-sections`, `document-delete-confirm`, new `page`, `page-mobile`, shared `parent-fixture`) — order Anak Terdaftar, Tagihan, Data Wali, Dokumen; "Perlu perhatian" strip and header contact; per-section summaries; Dokumen closed by default (phone: only children + invoices open); "Belum diisi" view mode; child rows with class and owed; invoice total block with a capped-list footer linking each child's `#keuangan`; desktop-only rail tiles (Piutang, Anak Terdaftar, Berkas) via `hidden lg:flex`; separate not-found / denied / retry states; "Edit" label (starting an edit opens a collapsed Data Wali). design-system tokens only (status-late tones, `font-currency`, DossierSection/StatTile).
+- T4: `components/admin/guardians/detail/documents-section.tsx` + `document-preview.test.tsx` — KTP and KK are rows (`Ada` / `Belum ada` badge, Lihat, Ganti or Unggah, Hapus); the 192 px `<embed>` is gone and the auth-proxied file is requested only after Lihat (button reads Tutup while open, with `aria-expanded`); upload validation, toasts and the delete confirm are unchanged; deleting closes an open preview.
+- T5: `components/admin/guardians/link-student-dialog.tsx`, `lib/validations/guardian.ts` (`linkChildFormSchema`: student + relationship; the page adds `parentId`), the wali page, README `students` row (+ tests in `components/admin/guardians/__tests__` and `page-link-child.test.tsx`) — `ResponsiveFormDialog` with `StudentPicker` and a relationship select (Ayah, Ibu, Wali default, Lainnya; legacy PARENT excluded); POSTs `{ parentId, relationship }` (no `isPrimary`) to the existing `/api/students/[id]/guardians`; 409 `GUARDIAN_LINK_EXISTS` lands on the student field, other failures in the form's root error; entry points are the Anak Terdaftar section action, its empty state and the "Belum tertaut ke siswa" strip row, all `canEdit` only. README row trimmed elsewhere to stay under 600 chars.
+- T6: `lib/finance/invoice-reminder.ts` (`familyReminderText`, `familyReminderWaUrl`; tests in `lib/finance/__tests__/family-reminder.test.ts`), `components/admin/attention-strip.tsx` (additive `secondaryAction` + test), the wali page, README `students` row (+ `page-remind.test.tsx`) — "Ingatkan via WhatsApp" sits on the owed row of the strip, shown only with `canRemind`, unpaid invoices and a usable number; the click opens wa.me to this wali synchronously (`noopener,noreferrer`), then stamps every unpaid invoice with `POST /api/invoices/[id]/reminder` through `Promise.allSettled` (the returned URL is ignored: that route targets the student's primary wali) and toasts "Pengingat dicatat untuk N dari M tagihan", or an error when none were recorded. The message total is the sum of the listed unpaid invoices (max 25).
+- T6 follow-up (driver review): the WhatsApp message totals the whole debt (`invoiceSummary.outstanding`) and names invoices beyond the 25 listed as "dan N tagihan lainnya" instead of under-stating it.
+- T7: `e2e/admin-guardian-detail.spec.ts` (Edit label; new spec: header contact, KTP/KK strip, Tautkan anak), `docs/uat/jobs/admin.md` (GUARD-01 updated, GUARD-05 chase a debt, GUARD-06 link a child), counts block via `audit-docs.sh --write`. README row was updated with T5.
+- Review round (driver ran a standards reviewer and a spec + security reviewer on `origin/staging...HEAD`; no blockers, no tenant, permission or URL-injection findings). Fixed: "Semua tagihan" links and "Buka di tab baru" now meet the 44 px touch floor (they would have failed `e2e/mobile-layout.spec.ts` for a wali with more than 10 invoices) and name the full child; KTP/KK buttons carry descriptive names ("Lihat KTP", "Hapus KK"); "Unggah" reads "Unggah berkas"; focus moves into the form on Edit and back to Edit after Batal/Simpan; the reminder button is disabled while stamps are being recorded and the message lists at most 15 invoices; the open-section badge no longer repeats the collapsed summary; "Tautkan anak" is not offered a third time in the header when there is no child; the Belum dibayar tile is the shared `StatTile`; the page types come from the API's own types; README keeps "pay after submit".
+- Accepted, not changed (all small and recorded for follow-up): stamping goes through the per-invoice endpoint, which targets the student's primary wali and can answer 422 for a secondary wali; each click can add one reminder per invoice, and 25 parallel stamps can meet the 60/min limit on an immediate second click; the unbounded per-wali invoice select (assumption 2); the guardians link route does not check Student/Parent status server-side (pre-existing, UI picker lists ACTIVE only; worth its own cycle); the GET shows invoice amounts to any admin role (pre-existing); header actions still use the legacy `actions` slot because they mix Contact and Edit; hand-rolled row lists and `text-xs` instead of `Item` and type tokens (match the student dossier today); Title Case section labels predate this cycle.
+- Terminology to settle in cycle B: the wali rail says "Piutang" (the invoice list's KPI word), the strip and the Tagihan tile say "belum dibayar", the student page says "Tunggakan". Cycle B picks one and adds it to `voice.md`.
+
+## Verification
+
+- **App:** production build, demo auth + disposable local Postgres. Docker is not available in this sandbox, so the database is a throwaway local Postgres 16 cluster on port 54329 created from scratch; the schema went in with a plain `prisma db push` (Prisma refuses `--force-reset` from an agent without the user's consent, and a brand-new empty database needs none), then `prisma db seed`. Never a shared database. Staging check: not required (not auth-impacting, see Ship Notes).
+- **Full gate at the final head (`8078f47` plus docs):** `npm run lint` clean with `--max-warnings=0`; `tsc --noEmit` 0 errors; `npx vitest run` 655 files passed, 2 skipped, 7,736 tests passed, 42 todo; `verify-rls-coverage` 43/43; `verify-api-auth` 216/216; `audit-docs.sh` 13 ok, 1 warn (ADR age, not this cycle), 0 fail; `DEMO_MODE=true npm run build` succeeds.
+- **Playwright (Chromium, workers 1):** the full suite, 242 specs, passed (7.6 min) before the review fixes. After them the app was rebuilt and `admin-guardian-detail`, `admin-guardian-primary-invariant`, `mobile-layout` (admin, teacher, parent at 390 px, including `/admin/guardians/:`) and `enrollment-docs-followups` ran again: 59 passed. The new spec covers header contact links, the "KTP dan KK belum diunggah" strip row and linking a second child from the wali page. The sandbox lacks the pinned Playwright browser, so the runs used a throwaway wrapper config (outside the repo) that points at the pre-installed Chromium; `playwright.config.ts` is untouched.
+- **Flows walked in a real browser** (seeded wali with 3 children and 9 invoices, 6 unpaid, 1 overdue; admin cookie):
+  1. Chase a debt, desktop 1360: header shows name, "3 siswa · 08129876543", WhatsApp / Telepon / Edit; "Perlu perhatian" says Rp 4.700.000 belum dibayar, 6 tagihan, 1 lewat tempo, with Lihat tagihan and Ingatkan via WhatsApp, plus "KTP dan KK belum diunggah"; rail shows Piutang, Anak Terdaftar and Berkas; Data Wali and Dokumen are collapsed with "Email belum diisi · Alamat belum diisi" and "KTP belum ada · KK belum ada". Matches the approved mockup.
+  2. Phone 390×844 with touch emulation: the contact buttons are in the first screen; every control measured 44 px (WhatsApp, Telepon, Edit, Lihat tagihan, Ingatkan via WhatsApp, Unggah berkas, Tautkan anak); no sideways scroll.
+  3. Link a child: walked by the new e2e spec (picks a student in the dialog, asserts the POST and that the child appears). The duplicate case (409 message) is covered by a unit test and the existing API test, not walked in the browser.
+  4. Documents: preview-on-demand, upload validation and the delete confirm are covered by unit tests (`document-preview`, `document-delete-confirm`); the seed has no KTP/KK files, so the file viewer itself was not opened in the browser.
+- **Not exercised in a browser, only in tests:** the 25+ invoice case (route and page tests with 25 invoices; the seed wali has 9) and the real WhatsApp window plus the reminder stamps (unit tests prove `window.open` runs before any stamp request, the text, and the stamp count; a browser cannot open wa.me here).
+- **Critique:** console shows only 404s for Vercel's `/_vercel/insights/script.js` (analytics, absent off Vercel) and one favicon-class probe: minor. No 5xx, no layout overflow, no clipped text. design-system: colours, type and spacing use the `@theme` tokens that `.claude/standards/design-system.html` documents (teal primary, status-late tint with 4.5:1 text, `font-currency` amounts, `StatTile`, the 44 px touch floor); I did not diff against that page itself.
+- **Independent review:** a standards reviewer and a spec + security reviewer ran on `origin/staging...HEAD`. No blockers. Findings fixed or accepted are listed under Implementation, "Review round".
+
+## Ship Notes
+
+- **Migrations:** none. **Env vars:** none. **Manual steps:** none. **Dependencies:** none.
+- **API:** `GET /api/parents/[id]` is additive (new fields) with two shape changes: `invoices` is at most 10 rows (it was the latest 20) and its amounts are JSON numbers (they were Decimal strings). The wali page is the only caller in the repo.
+- **Writes:** "Ingatkan via WhatsApp" stamps real reminders (`lastRemindedAt`, `remindCount`, an audit row) per unpaid invoice, only on an admin's click and only for `payments.record`.
+- **Auth-impacting?** No: no change to sign-in, roles or tenant logic. The route is a sensitive path, so it got a security review (tenant and parent scoping on both queries, ktp/kk tokens stripped, permissions re-checked server-side by the reminder and link routes). No `needs-staging-verify` label. After merge, an optional look at one wali page on staging as an admin.
+- **Post-merge:** Vercel staging deploy READY for the merge SHA.
+- **Rollback:** revert the squash commit. Nothing to undo in data except any reminder stamps an admin already recorded.
+- **Follow-ups:** cycle B (the student page); settle Piutang / Tunggakan / Belum dibayar in `voice.md`; the guardians link route does not check Student/Parent status server-side (pre-existing).
