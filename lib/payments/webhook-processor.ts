@@ -342,6 +342,27 @@ async function handleSessionCompleted(
   return { ok: true, status: newStatus, eventId };
 }
 
+/**
+ * A poll (manual refresh or the nightly sweep) that reports a session expired while the stored
+ * expiry is still well in the future is evidence the gateway answered for a different (older)
+ * order than the current link (cycle 2026-10-20-payment-link-expiry-display, D11). The poll still
+ * clears the link exactly as before; this only leaves one warning line so the case is visible.
+ */
+export const EARLY_EXPIRY_WARN_MS = 5 * 60 * 1000;
+
+function warnIfExpiryReportedEarly(
+  event: NormalizedPaymentEvent,
+  invoiceNumber: string,
+  storedExpiry: Date | null,
+  logPrefix: string,
+): void {
+  if (!event.eventType.startsWith("manual.refresh.") || !storedExpiry) return;
+  if (storedExpiry.getTime() - Date.now() <= EARLY_EXPIRY_WARN_MS) return;
+  console.warn(
+    `${logPrefix} expired poll reported expiry early invoice=${invoiceNumber} storedExpiresAt=${storedExpiry.toISOString()} sessionId=${event.sessionId ?? ""} eventId=${event.eventId}`,
+  );
+}
+
 async function handleSessionExpired(
   event: NormalizedPaymentEvent,
   logPrefix: string,
@@ -391,7 +412,7 @@ async function handleSessionExpired(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true, paymentLinkExpiresAt: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -441,7 +462,7 @@ async function handleSessionExpired(
       if (cleared.count === 0) {
         return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
       }
-      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber };
+      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber, storedExpiry: fresh.paymentLinkExpiresAt };
     }
     if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
       return {
@@ -468,6 +489,7 @@ async function handleSessionExpired(
     return {
       type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("LINK_CLEARED" as const),
       invoiceNumber: fresh.invoiceNumber,
+      storedExpiry: fresh.paymentLinkExpiresAt,
     };
   });
 
@@ -484,6 +506,7 @@ async function handleSessionExpired(
     await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);
     return { ok: true, status: result.type, eventId, invoiceId };
   }
+  warnIfExpiryReportedEarly(event, result.invoiceNumber, result.storedExpiry, logPrefix);
   await markProcessed(eventId, invoiceId);
   const outcome = {
     PROMOTED_OVERDUE: "→ OVERDUE (session expired past due date)",
