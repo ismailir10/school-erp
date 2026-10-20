@@ -9,7 +9,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
-import { createManualInvoiceSchema } from "@/lib/validations/invoice";
+import { createManualInvoiceSchema, invoiceListStatusSchema } from "@/lib/validations/invoice";
+import { needsLinkWhere, owingInvoiceWhere } from "@/lib/finance/invoice-owes";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -20,19 +21,40 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
   const sort = parseSort(searchParams, {
-    allow: ["createdAt", "invoiceNumber", "dueDate", "totalDue", "totalPaid", "status", "periodLabel"],
+    allow: ["createdAt", "invoiceNumber", "dueDate", "totalDue", "totalPaid", "status", "periodLabel", "paymentLinkExpiresAt"],
     default: "createdAt",
     defaultOrder: "desc",
   });
   if (sort instanceof Response) return sort;
-  const { orderBy } = sort;
-  const status = searchParams.get("status");
+  // Every sort ends in `id` so rows that tie (a batch shares one createdAt/dueDate; most
+  // invoices share a null link date) keep one order and paging never repeats or skips a row.
+  // The link date is nullable: invoices without one go last in BOTH directions (D6).
+  const [[sortKey, sortDir]] = Object.entries(sort.orderBy);
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
+    sortKey === "paymentLinkExpiresAt"
+      ? { paymentLinkExpiresAt: { sort: sortDir, nulls: "last" } }
+      : { [sortKey]: sortDir },
+    { id: "asc" },
+  ];
+  const statusParam = searchParams.get("status");
   const studentId = searchParams.get("studentId");
   const search = escapeLike(cleanSearch(searchParams.get("search")));
 
+  // An unknown status is a 400, not a Prisma enum crash. Blank means "all".
+  const statusResult = invoiceListStatusSchema.safeParse(statusParam?.trim() || "all");
+  if (!statusResult.success) {
+    return NextResponse.json({ error: "Status tagihan tidak dikenal" }, { status: 400 });
+  }
+  const status = statusResult.data;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
-  if (status && status !== "all") where.status = status;
+  // "Belum lunas" (UNPAID) and "Perlu link" (NEEDS_LINK) are derived, not stored statuses
+  // (D12). They go under AND so they compose with the search `OR` below. Every other value
+  // is a raw status and still works, so old links such as `?status=OVERDUE` keep working.
+  if (status === "UNPAID") where.AND = [owingInvoiceWhere()];
+  else if (status === "NEEDS_LINK") where.AND = [needsLinkWhere()];
+  else if (status !== "all") where.status = status;
   if (studentId) where.studentId = studentId;
   if (search) {
     where.OR = [

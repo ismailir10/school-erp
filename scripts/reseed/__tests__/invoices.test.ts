@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {
   buildInvoicePeriods,
   computeInvoiceTotal,
   assertXenditReferencingSmokeRow,
+  applyLinkExpiryFixtures,
 } from "../invoices";
 
 describe("buildInvoicePeriods", () => {
@@ -117,5 +118,55 @@ describe("computeInvoiceTotal", () => {
     expect(computeInvoiceTotal("KB")).toBe(800_000);
     expect(computeInvoiceTotal("TKIT-A")).toBe(975_000);
     expect(computeInvoiceTotal("TKIT-B")).toBe(1_025_000);
+  });
+});
+
+describe("applyLinkExpiryFixtures", () => {
+  const now = new Date("2026-10-20T03:00:00Z");
+  const row = (n: number) => ({
+    id: `inv${n}`,
+    invoiceNumber: `INV-2026-${String(n).padStart(4, "0")}`,
+    totalDue: 800_000,
+    createdBy: "u1",
+  });
+
+  function fakePrisma(liveCount: number, paid: { id: string; invoiceNumber: string } | null) {
+    const update = vi.fn().mockResolvedValue({});
+    const prisma = {
+      invoice: {
+        findMany: vi.fn().mockResolvedValue(Array.from({ length: liveCount }, (_, i) => row(i + 1))),
+        findFirst: vi.fn().mockResolvedValue(paid),
+        update,
+      },
+      webhookEvent: { upsert: vi.fn().mockResolvedValue({}) },
+      payment: { create: vi.fn().mockResolvedValue({}) },
+    };
+    return { prisma, update };
+  }
+
+  it("builds every fixture role relative to now", async () => {
+    const { prisma, update } = fakePrisma(9, { id: "p1", invoiceNumber: "INV-2025-0001" });
+    const picked = await applyLinkExpiryFixtures(prisma as never, "t1", now);
+    expect(Object.keys(picked).sort()).toEqual([
+      "earlyExpiredNoLink", "expiredEvent", "future", "noDate", "overdueLink", "overdueNoLink",
+      "paidStaleLink", "partialLink", "partialNoLink", "past",
+    ]);
+    const dataFor = (id: string) => update.mock.calls.filter((c) => c[0].where.id === id).map((c) => c[0].data);
+    expect(dataFor("inv2")[0].paymentLinkExpiresAt.getTime()).toBeLessThan(now.getTime());
+    expect(dataFor("inv3")[0].paymentLinkExpiresAt).toBeNull();
+    expect(dataFor("inv4")[0].paymentLinkExpiresAt.getTime()).toBeGreaterThan(now.getTime());
+    const early = dataFor("inv5")[0];
+    expect(early).toMatchObject({ xenditPaymentUrl: null, xenditSessionId: null, paymentLinkExpiresAt: null });
+    expect(early.dueDate > "2026-10-20").toBe(true);
+    // paid invoice: past date, never cleared
+    expect(dataFor("p1")[0].paymentLinkExpiresAt.getTime()).toBeLessThan(now.getTime());
+    expect(prisma.webhookEvent.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.payment.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("copes with fewer live invoices than roles and no paid invoice", async () => {
+    const { prisma } = fakePrisma(2, null);
+    const picked = await applyLinkExpiryFixtures(prisma as never, "t1", now);
+    expect(Object.keys(picked).sort()).toEqual(["future", "past"]);
   });
 });

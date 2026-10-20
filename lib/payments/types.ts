@@ -127,7 +127,7 @@ export type GatewayStatusRef = {
  * map one onto the other without inventing new transitions:
  *
  *   COMPLETED   → kind "PAYMENT_COMPLETED"  (credit the invoice)
- *   EXPIRED     → kind "SESSION_EXPIRED"    (soft-revert to PENDING_PAYMENT_LINK)
+ *   EXPIRED     → kind "SESSION_EXPIRED"    (clear the dead link; past due: OVERDUE)
  *   REFUNDED    → kind "UNHANDLED" + REFUND_UNHANDLED (surface to admin)
  *   PENDING     → no transition (nobody has paid yet)
  *   FAILED      → no transition (a failed/voided attempt is not an expiry;

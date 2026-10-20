@@ -74,6 +74,11 @@ export async function POST(req: NextRequest) {
     // neither a new link nor a failed attempt may move them out of those
     // statuses (cycle 2026-10-17-expired-link-overdue).
     const stillOwed = invoice.status === "OVERDUE" || invoice.status === "PARTIALLY_PAID";
+    // A failed create never demotes an invoice that is already billed: a Link Dibuat
+    // invoice whose link expired before its due date has no link (cycle
+    // 2026-10-20-payment-link-expiry-display, D10), and "Link Gagal" would drop it out of
+    // everything that tracks money owed. Only a not-yet-billed invoice becomes Link Gagal.
+    const keepsStatusOnFailure = stillOwed || invoice.status === "SENT";
 
     const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
     if (remaining <= 0) {
@@ -144,11 +149,11 @@ export async function POST(req: NextRequest) {
         await prisma.invoice.update({
           where: { id: invoiceId },
           data: {
-            ...(stillOwed ? {} : { status: "PENDING_PAYMENT_LINK" }),
+            ...(keepsStatusOnFailure ? {} : { status: "PENDING_PAYMENT_LINK" }),
             paymentLinkError: formatPaymentLinkError(e),
           },
         });
-        if (!stillOwed && invoice.status !== "PENDING_PAYMENT_LINK") statusChanged = true;
+        if (!keepsStatusOnFailure && invoice.status !== "PENDING_PAYMENT_LINK") statusChanged = true;
       } catch {
         // Swallow write-back failure — the original Xendit error is still surfaced
         // to the admin via errors[], counts are still correct.

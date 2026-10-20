@@ -5,6 +5,7 @@ import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { ACTIVE_PAYMENT_FILTER, deriveInvoicePaymentState } from "@/lib/finance/invoice-payment-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
+import { LINK_CLEARED } from "@/lib/payments/link-cleared";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -341,6 +342,27 @@ async function handleSessionCompleted(
   return { ok: true, status: newStatus, eventId };
 }
 
+/**
+ * A poll (manual refresh or the nightly sweep) that reports a session expired while the stored
+ * expiry is still well in the future is evidence the gateway answered for a different (older)
+ * order than the current link (cycle 2026-10-20-payment-link-expiry-display, D11). The poll still
+ * clears the link exactly as before; this only leaves one warning line so the case is visible.
+ */
+export const EARLY_EXPIRY_WARN_MS = 5 * 60 * 1000;
+
+function warnIfExpiryReportedEarly(
+  event: NormalizedPaymentEvent,
+  invoiceNumber: string,
+  storedExpiry: Date | null,
+  logPrefix: string,
+): void {
+  if (!event.eventType.startsWith("manual.refresh.") || !storedExpiry) return;
+  if (storedExpiry.getTime() - Date.now() <= EARLY_EXPIRY_WARN_MS) return;
+  console.warn(
+    `${logPrefix} expired poll reported expiry early invoice=${invoiceNumber} storedExpiresAt=${storedExpiry.toISOString()} sessionId=${event.sessionId ?? ""} eventId=${event.eventId}`,
+  );
+}
+
 async function handleSessionExpired(
   event: NormalizedPaymentEvent,
   logPrefix: string,
@@ -381,14 +403,16 @@ async function handleSessionExpired(
   }
   const invoiceId = resolved.id;
 
-  // T5e — soft-revert (NOT destructive). SENT → PENDING_PAYMENT_LINK (or OVERDUE
-  // when past due), OVERDUE / PARTIALLY_PAID → link cleared only.
+  // An expiring link never changes a status by itself, except past due: SENT before its due
+  // date keeps its status and loses only the dead link; SENT past due becomes OVERDUE;
+  // OVERDUE / PARTIALLY_PAID lose the link only. PENDING_PAYMENT_LINK ("Link Gagal") means
+  // creating a link failed, so an expiry never moves an invoice into it.
   // Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true, paymentLinkExpiresAt: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -433,12 +457,12 @@ async function handleSessionExpired(
     if (fresh.status === "OVERDUE" || fresh.status === "PARTIALLY_PAID") {
       const cleared = await tx.invoice.updateMany({
         where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-        data: { xenditSessionId: null, xenditPaymentUrl: null },
+        data: LINK_CLEARED,
       });
       if (cleared.count === 0) {
         return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
       }
-      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber };
+      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber, storedExpiry: fresh.paymentLinkExpiresAt };
     }
     if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
       return {
@@ -447,26 +471,25 @@ async function handleSessionExpired(
       };
     }
     // A link expires at the end of the due date, so every invoice unpaid at its
-    // due date reaches this point. "Link Gagal" (PENDING_PAYMENT_LINK) is not an
-    // outstanding status and `finance-maintenance` only promotes SENT, so
-    // reverting a past-due invoice there made it silently stop being owed.
-    // Past due → OVERDUE; otherwise back to "Link Gagal" so a new link is made.
+    // due date reaches this point. `finance-maintenance` only promotes SENT, and
+    // "Link Gagal" (PENDING_PAYMENT_LINK) is not an outstanding status, so a
+    // past-due SENT invoice becomes OVERDUE here or it would silently stop being
+    // owed. Before the due date the invoice keeps its status and only loses the
+    // dead link (cycle 2026-10-20-payment-link-expiry-display, D10), so the nightly
+    // heal, the admin and the parent can all make a new one.
     const pastDue =
       fresh.status === "SENT" && fresh.dueDate < getTodayInTimezone(JAKARTA_TZ);
     const cleared = await tx.invoice.updateMany({
       where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-      data: {
-        status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
-        xenditSessionId: null,
-        xenditPaymentUrl: null,
-      },
+      data: pastDue ? { status: "OVERDUE", ...LINK_CLEARED } : LINK_CLEARED,
     });
     if (cleared.count === 0) {
       return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
     }
     return {
-      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("REVERTED" as const),
+      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("LINK_CLEARED" as const),
       invoiceNumber: fresh.invoiceNumber,
+      storedExpiry: fresh.paymentLinkExpiresAt,
     };
   });
 
@@ -483,9 +506,9 @@ async function handleSessionExpired(
     await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);
     return { ok: true, status: result.type, eventId, invoiceId };
   }
+  warnIfExpiryReportedEarly(event, result.invoiceNumber, result.storedExpiry, logPrefix);
   await markProcessed(eventId, invoiceId);
   const outcome = {
-    REVERTED: "→ PENDING_PAYMENT_LINK (session expired, soft-revert)",
     PROMOTED_OVERDUE: "→ OVERDUE (session expired past due date)",
     LINK_CLEARED: "dead payment link cleared (session expired, status unchanged)",
   }[result.type];

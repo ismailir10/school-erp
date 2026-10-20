@@ -76,8 +76,8 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   ARCHIVED: { label: "Diarsipkan", className: "bg-muted text-muted-foreground" },
 
   // Invoice
-  // "Link Dibuat" not "Terkirim": SENT only means a payment-link session exists
-  // server-side. Nothing is dispatched — DOKU sends no notification and the admin
+  // "Link Dibuat" not "Terkirim": SENT only means a payment-link session was made
+  // (it may since have expired and been replaced). Nothing is dispatched — DOKU sends no notification and the admin
   // still shares the link manually — so "Terkirim" overclaimed delivery.
   SENT: { label: "Link Dibuat", className: "bg-status-leave-subtle text-status-leave-text" },
   PAID: { label: "Lunas", className: "bg-status-present-subtle text-status-present-text" },

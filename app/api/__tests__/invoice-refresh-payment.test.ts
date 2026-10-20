@@ -271,16 +271,18 @@ describe("POST /api/invoices/[id]/refresh-payment — outcomes", () => {
     expect(body.statusAfter).toBe("PAID");
   });
 
-  it("soft-reverts an expired session", async () => {
-    stubInvoice({ statusBefore: "SENT", statusAfter: "PENDING_PAYMENT_LINK" });
+  it("tells the admin the link was cleared when a not-yet-due SENT invoice keeps its status (D10)", async () => {
+    stubInvoice({ statusBefore: "SENT", statusAfter: "SENT" });
     fetchPaymentStatusMock.mockResolvedValue({
       ...PENDING_STATUS,
       state: "EXPIRED",
       rawStatus: "EXPIRED",
     });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
     const body = await (await call()).json();
     expect(body.code).toBe("UPDATED");
-    expect(body.message).toContain("kedaluwarsa");
+    expect(body.statusAfter).toBe("SENT");
+    expect(body.message).toContain("Link lama dihapus");
     expect(processPaymentEventMock.mock.calls[0][0].kind).toBe("SESSION_EXPIRED");
   });
 

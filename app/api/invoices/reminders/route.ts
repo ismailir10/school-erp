@@ -4,7 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { parsePagination } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
-import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
+import { owingInvoiceWhere } from "@/lib/finance/invoice-owes";
 import { buildReminderQueue, toReminderRow } from "@/lib/finance/reminder-queue";
 
 /**
@@ -40,8 +40,7 @@ export async function GET(req: NextRequest) {
   const invoices = await prisma.invoice.findMany({
     where: {
       tenantId: session.tenantId,
-      status: { in: [...UNPAID_INVOICE_STATUSES] },
-      totalPaid: { lt: prisma.invoice.fields.totalDue },
+      ...owingInvoiceWhere(),
     },
     select: {
       id: true,

@@ -15,7 +15,7 @@ const paymentAggregate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    invoice: { groupBy: invoiceGroupBy, count: invoiceCount },
+    invoice: { groupBy: invoiceGroupBy, count: invoiceCount, fields: { totalDue: "totalDue-ref" } },
     student: { groupBy: studentGroupBy },
     payment: { aggregate: paymentAggregate },
   },

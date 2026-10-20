@@ -25,7 +25,8 @@ import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-re
 import { stampReminder } from "@/lib/finance/stamp-reminder";
 import { userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
-import { formatRupiah, formatDateShort, formatRelativeTime } from "@/lib/format";
+import { formatRupiah, formatDateShort, formatDateTime, formatRelativeTime } from "@/lib/format";
+import { paymentLinkExpiryState } from "@/lib/finance/payment-link-expiry";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,7 @@ type Payment = {
 type InvoiceDetail = {
   capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities;
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
-  totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
+  totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null; paymentLinkExpiresAt?: string | null;
   paymentLinkError: string | null;
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
@@ -195,6 +196,34 @@ function PaymentReview({
       </dl>
     </div>
   );
+}
+
+/**
+ * Second line of the payment-link block (cycle 2026-10-20-payment-link-expiry-display).
+ * The state decision lives in `paymentLinkExpiryState` so the list column agrees; this
+ * only renders it. The whole block is hidden for PAID / CANCELLED invoices, so those
+ * never reach here.
+ */
+function PaymentLinkExpiryLine({ invoice }: { invoice: Pick<InvoiceDetail, "status" | "xenditPaymentUrl" | "paymentLinkExpiresAt"> }) {
+  const state = paymentLinkExpiryState({
+    status: invoice.status,
+    xenditPaymentUrl: invoice.xenditPaymentUrl,
+    paymentLinkExpiresAt: invoice.paymentLinkExpiresAt ?? null,
+  });
+  if (!state) return null;
+  const when = invoice.paymentLinkExpiresAt ? `${formatDateTime(invoice.paymentLinkExpiresAt)} WIB` : null;
+  if (state === "unrecorded") {
+    return <p className="mt-1 text-xs text-muted-foreground">Tanggal berlaku belum tercatat</p>;
+  }
+  if (state === "expired") {
+    return (
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+        <span className="font-medium text-status-absent-text">Kedaluwarsa</span>
+        {when ? ` · ${when}` : null}
+      </p>
+    );
+  }
+  return <p className="mt-1 text-xs tabular-nums text-muted-foreground">Berlaku sampai {when}</p>;
 }
 
 export default function InvoiceDetailPage() {
@@ -837,6 +866,7 @@ export default function InvoiceDetailPage() {
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex text-xs text-primary-text hover:underline break-all [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center">{invoice.xenditPaymentUrl}</a>
+              <PaymentLinkExpiryLine invoice={invoice} />
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
               </Button>

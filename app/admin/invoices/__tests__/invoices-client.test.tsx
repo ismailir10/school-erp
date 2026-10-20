@@ -35,7 +35,7 @@ const invoice = {
 
 function stubFetch(
   opts: {
-    invoices?: Array<typeof invoice & { xenditPaymentUrl?: string | null }>;
+    invoices?: Array<typeof invoice & { xenditPaymentUrl?: string | null; paymentLinkExpiresAt?: string | null }>;
     stats?: Record<string, number>;
     refresh?: { status: number; body: Record<string, unknown> };
     refreshAll?: { status: number; body: Record<string, unknown> };
@@ -145,7 +145,7 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
   it("FIN-13: shows Piutang and Diterima Bulan Ini in Rupiah next to the counts", async () => {
     vi.stubGlobal(
       "fetch",
-      stubFetch({ stats: { sent: 2, overdue: 1, partiallyPaid: 1, outstanding: 1550000, collectedThisMonth: 1250000 } }),
+      stubFetch({ stats: { sent: 2, overdue: 1, partiallyPaid: 1, owing: 4, outstanding: 1550000, collectedThisMonth: 1250000 } }),
     );
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
 
@@ -602,5 +602,119 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Terlalu sering membuat link. Tunggu sebentar lalu coba lagi."),
     );
+  });
+});
+
+describe("InvoicesClient — Status filter, five questions (cycle 2026-10-20-payment-link-expiry-display, T7)", () => {
+  const counted = { owing: 9, overdue: 12, pendingPaymentLink: 2, unpaidWithoutLink: 3, paid: 40, cancelled: 1 };
+  const listUrls = (f: ReturnType<typeof stubFetch>) =>
+    f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/invoices?"));
+
+  async function openStatus(user: ReturnType<typeof userEvent.setup>) {
+    // wait for the counts: options carry them only once the summary has loaded
+    await screen.findByText("Piutang");
+    await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+    return screen.findAllByRole("option");
+  }
+
+  it("lists the six options in order, each with its whole-school count", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Semua Status",
+      "Belum lunas (9)",
+      "Lewat Tempo (12)",
+      "Perlu link (5)",
+      "Lunas (40)",
+      "Dibatalkan (1)",
+    ]);
+  });
+
+  it("'Perlu link' count is the 'Buat link baru' number plus the 'Coba lagi' number", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("button", { name: "Buat link baru (3)" });
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toContain("Perlu link (5)");
+  });
+
+  it("picking 'Belum lunas' and 'Perlu link' sends the derived value to the list", async () => {
+    const f = stubFetch({ stats: counted });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openStatus(user);
+    await user.click(screen.getByRole("option", { name: "Belum lunas (9)" }));
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=UNPAID"))).toBe(true));
+    await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+    await user.click(await screen.findByRole("option", { name: "Perlu link (5)" }));
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=NEEDS_LINK"))).toBe(true));
+  });
+
+  it("a raw status from the address still filters and shows as one extra option, not 'Semua Status'", async () => {
+    const f = stubFetch({ stats: counted });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="SENT" />);
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=SENT"))).toBe(true));
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Link Dibuat");
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Semua Status", "Belum lunas (9)", "Lewat Tempo (12)", "Perlu link (5)", "Lunas (40)", "Dibatalkan (1)", "Link Dibuat",
+    ]);
+  });
+
+  it("a dropdown status from the address shows its own counted label", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="OVERDUE" />);
+    await screen.findByText("Piutang");
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Lewat Tempo (12)");
+  });
+});
+
+describe("InvoicesClient — Link berlaku column (cycle 2026-10-20-payment-link-expiry-display, T6)", () => {
+  const caps = { create: true, recordPayment: true, void: true };
+
+  it("adds a sortable 'Link berlaku' column after Status and shows the date in WIB", async () => {
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: "https://pay/x", paymentLinkExpiresAt: future }] }),
+    );
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    const headers = screen.getAllByRole("columnheader");
+    const labels = headers.map((h) => h.textContent ?? "");
+    const statusIdx = labels.findIndex((l) => l.includes("Status"));
+    expect(labels[statusIdx + 1]).toContain("Link berlaku");
+    expect(within(headers[statusIdx + 1]).getByRole("button")).toBeInTheDocument();
+    // column cell + the below-md meta line both render it (meta is css-hidden at md+, not removed)
+    expect((await screen.findAllByText(/WIB/)).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows red Kedaluwarsa for an unpaid invoice whose date passed, in the column and the meta line", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({
+        invoices: [{ ...invoice, xenditPaymentUrl: "https://pay/x", paymentLinkExpiresAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    );
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const expired = await screen.findAllByText("Kedaluwarsa");
+    expect(expired).toHaveLength(2);
+    expired.forEach((el) => expect(el).toHaveClass("text-status-absent-text"));
+  });
+
+  it("shows an em dash in the column and nothing in the meta line when there is no link", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: null, paymentLinkExpiresAt: null }] }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Link (s\/d|belum)/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 });
