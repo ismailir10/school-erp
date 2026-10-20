@@ -121,7 +121,7 @@ Data needed: the seed adds one unpaid invoice with a future date, one with a pas
 
 ## Tasks
 
-- [ ] T1 Migration + store the requested expiry — accept: a created link's expiry is saved with the link, and an unparseable gateway expiry neither throws nor makes a second order (deps: none, reuse: enrollment-fee expiry pattern)
+- [x] T1 Migration + store the requested expiry — accept: a created link's expiry is saved with the link, and an unparseable gateway expiry neither throws nor makes a second order (deps: none, reuse: enrollment-fee expiry pattern)
 - [ ] T2 Clear the date wherever the link is cleared — accept: table test over the shared clear helper, both webhook-processor clears and void (deps: T1)
 - [ ] T3 Seed fixtures — accept: the fixtures in Verify flows exist after seeding, in app seed, prisma seed, reseed script and finish-xendit (deps: T1; parallel with T2)
 - [ ] T4 Detail page link block — accept: three states render (date, expired for unpaid only, no date recorded) in WIB (deps: T1; parallel with T5)
@@ -135,6 +135,7 @@ Data needed: the seed adds one unpaid invoice with a future date, one with a pas
 ## Implementation
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1+T5+T7 parallel (disjoint files), then T2+T3+T4+T6 parallel (T6 waits on T7: same list route and client), T8 → T9 sequential (both edit the webhook processor), T10 inline (docs only, a worker would need the whole cycle as context). Workers do not commit; the driver runs the task gate per wave and commits each task on its own.
+- T1: `prisma/schema.prisma`, `prisma/migrations/20261020000000_add_invoice_payment_link_expires_at/`, `lib/payments/session.ts`, `lib/payments/__tests__/session-link-expiry.test.ts` — nullable `Invoice.paymentLinkExpiresAt`; `createPaymentSessionForInvoice` (the only writer of a new link: ensure-link, xendit-retry, create-session and replace-payment-link all call it) resolves the requested expiry once before `withRetry`, sends it on every attempt, and stores it in the same write as the session id and URL. The gateway's echoed string is never read.
 - T5: `components/admin/invoices/payment-activity-card.tsx`, `components/admin/invoices/__tests__/payment-activity-card.test.tsx` — `webhookEventLabel` takes the event status; PROCESSED `payment_session.expired` / `manual.refresh.expired` read "Link sebelumnya kedaluwarsa"; IGNORED and ERROR keep the literal label (no separate duplicate status exists on the wire). Copy-only change inside the existing Badge; cross-checked against `design-system.html` (no visual change).
 
 ## Verification
