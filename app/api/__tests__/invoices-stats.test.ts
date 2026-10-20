@@ -5,6 +5,7 @@ vi.mock("@/lib/db", () => ({
     invoice: {
       groupBy: vi.fn(),
       count: vi.fn(),
+      fields: { totalDue: "totalDue-ref" },
     },
     payment: {
       aggregate: vi.fn(),
@@ -74,6 +75,7 @@ describe("GET /api/invoices/stats", () => {
       cancelled: 0,
       pendingPaymentLink: 0,
       unpaidWithoutLink: 0,
+      owing: 0,
       totalDue: 675_000,
       totalPaid: 125_000,
       // SENT 200k + PARTIALLY_PAID (100k - 50k) = 250k; DRAFT/PAID excluded
@@ -109,6 +111,7 @@ describe("GET /api/invoices/stats", () => {
       cancelled: 0,
       pendingPaymentLink: 0,
       unpaidWithoutLink: 0,
+      owing: 0,
       totalDue: 0,
       totalPaid: 0,
       outstanding: 0,
@@ -235,7 +238,12 @@ describe("GET /api/invoices/stats — unpaidWithoutLink", () => {
 
     expect(body.unpaidWithoutLink).toBe(7);
     expect(vi.mocked(prisma.invoice.count).mock.calls[0][0]).toEqual({
-      where: { tenantId: "tnt-1", status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] }, xenditPaymentUrl: null },
+      where: {
+        tenantId: "tnt-1",
+        status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+        totalPaid: { lt: "totalDue-ref" },
+        xenditPaymentUrl: null,
+      },
     });
   });
 });

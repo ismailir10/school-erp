@@ -145,7 +145,7 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
   it("FIN-13: shows Piutang and Diterima Bulan Ini in Rupiah next to the counts", async () => {
     vi.stubGlobal(
       "fetch",
-      stubFetch({ stats: { sent: 2, overdue: 1, partiallyPaid: 1, outstanding: 1550000, collectedThisMonth: 1250000 } }),
+      stubFetch({ stats: { sent: 2, overdue: 1, partiallyPaid: 1, owing: 4, outstanding: 1550000, collectedThisMonth: 1250000 } }),
     );
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
 
@@ -602,5 +602,75 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Terlalu sering membuat link. Tunggu sebentar lalu coba lagi."),
     );
+  });
+});
+
+describe("InvoicesClient — Status filter, five questions (cycle 2026-10-20-payment-link-expiry-display, T7)", () => {
+  const counted = { owing: 9, overdue: 12, pendingPaymentLink: 2, unpaidWithoutLink: 3, paid: 40, cancelled: 1 };
+  const listUrls = (f: ReturnType<typeof stubFetch>) =>
+    f.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/invoices?"));
+
+  async function openStatus(user: ReturnType<typeof userEvent.setup>) {
+    // wait for the counts: options carry them only once the summary has loaded
+    await screen.findByText("Piutang");
+    await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+    return screen.findAllByRole("option");
+  }
+
+  it("lists the six options in order, each with its whole-school count", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Semua Status",
+      "Belum lunas (9)",
+      "Lewat Tempo (12)",
+      "Perlu link (5)",
+      "Lunas (40)",
+      "Dibatalkan (1)",
+    ]);
+  });
+
+  it("'Perlu link' count is the 'Buat link baru' number plus the 'Coba lagi' number", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("button", { name: "Buat link baru (3)" });
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toContain("Perlu link (5)");
+  });
+
+  it("picking 'Belum lunas' and 'Perlu link' sends the derived value to the list", async () => {
+    const f = stubFetch({ stats: counted });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openStatus(user);
+    await user.click(screen.getByRole("option", { name: "Belum lunas (9)" }));
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=UNPAID"))).toBe(true));
+    await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+    await user.click(await screen.findByRole("option", { name: "Perlu link (5)" }));
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=NEEDS_LINK"))).toBe(true));
+  });
+
+  it("a raw status from the address still filters and shows as one extra option, not 'Semua Status'", async () => {
+    const f = stubFetch({ stats: counted });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="SENT" />);
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=SENT"))).toBe(true));
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Link Dibuat");
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Semua Status", "Belum lunas (9)", "Lewat Tempo (12)", "Perlu link (5)", "Lunas (40)", "Dibatalkan (1)", "Link Dibuat",
+    ]);
+  });
+
+  it("a dropdown status from the address shows its own counted label", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="OVERDUE" />);
+    await screen.findByText("Piutang");
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Lewat Tempo (12)");
   });
 });

@@ -1,6 +1,7 @@
 import { assertPermission } from "@/lib/auth-guards";
 import { invoiceCapabilities } from "@/lib/finance/invoice-capabilities";
 import { getGateway } from "@/lib/payments/registry";
+import { INVOICE_LIST_STATUS_VALUES } from "@/lib/constants/invoice-status";
 import { InvoicesClient } from "./invoices-client";
 
 /**
@@ -11,7 +12,7 @@ import { InvoicesClient } from "./invoices-client";
  * T6). `PendingLinkBreakdownPopover` uses it to name the correct credential
  * env var in its auth-heavy hint.
  */
-const STATUS_FILTERS = ["DRAFT", "SENT", "PAID", "PARTIALLY_PAID", "OVERDUE", "CANCELLED", "PENDING_PAYMENT_LINK"];
+const STATUS_FILTERS: readonly string[] = INVOICE_LIST_STATUS_VALUES;
 
 export default async function InvoicesPage({
   searchParams,

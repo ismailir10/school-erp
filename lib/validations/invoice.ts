@@ -2,6 +2,7 @@ import { z } from "zod";
 import { calendarDate, isRealCalendarDate, rupiahAmount, rupiahAmountCoerced } from "./bounds";
 import { labelText, longText } from "./text";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { INVOICE_LIST_STATUS_VALUES } from "@/lib/constants/invoice-status";
 
 // Due dates: real calendar date (no 2026-02-30), 2000-01-01 … 2100-12-31.
 const DUE_DATE_MESSAGES = {
@@ -67,6 +68,9 @@ export const updateInvoiceSchema = z.object({
     .enum(["DRAFT", "PENDING_PAYMENT_LINK", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
     .optional(),
 });
+
+// GET /api/invoices?status= — a stored status, a derived filter, or "all".
+export const invoiceListStatusSchema = z.enum(["all", ...INVOICE_LIST_STATUS_VALUES]);
 
 export const retryPaymentLinksSchema = z.object({
   invoiceIds: z.array(z.string().min(1)).max(25).optional(),

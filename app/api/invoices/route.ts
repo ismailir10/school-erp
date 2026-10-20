@@ -9,7 +9,8 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { nextInvoiceNumber, sumDecimals } from "@/lib/finance/invoice-numbers";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
-import { createManualInvoiceSchema } from "@/lib/validations/invoice";
+import { createManualInvoiceSchema, invoiceListStatusSchema } from "@/lib/validations/invoice";
+import { needsLinkWhere, owingInvoiceWhere } from "@/lib/finance/invoice-owes";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -26,13 +27,25 @@ export async function GET(req: NextRequest) {
   });
   if (sort instanceof Response) return sort;
   const { orderBy } = sort;
-  const status = searchParams.get("status");
+  const statusParam = searchParams.get("status");
   const studentId = searchParams.get("studentId");
   const search = escapeLike(cleanSearch(searchParams.get("search")));
 
+  // An unknown status is a 400, not a Prisma enum crash. Blank means "all".
+  const statusResult = invoiceListStatusSchema.safeParse(statusParam?.trim() || "all");
+  if (!statusResult.success) {
+    return NextResponse.json({ error: "Status tagihan tidak dikenal" }, { status: 400 });
+  }
+  const status = statusResult.data;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
-  if (status && status !== "all") where.status = status;
+  // "Belum lunas" (UNPAID) and "Perlu link" (NEEDS_LINK) are derived, not stored statuses
+  // (D12). They go under AND so they compose with the search `OR` below. Every other value
+  // is a raw status and still works, so old links such as `?status=OVERDUE` keep working.
+  if (status === "UNPAID") where.AND = [owingInvoiceWhere()];
+  else if (status === "NEEDS_LINK") where.AND = [needsLinkWhere()];
+  else if (status !== "all") where.status = status;
   if (studentId) where.studentId = studentId;
   if (search) {
     where.OR = [
