@@ -21,12 +21,21 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
   const sort = parseSort(searchParams, {
-    allow: ["createdAt", "invoiceNumber", "dueDate", "totalDue", "totalPaid", "status", "periodLabel"],
+    allow: ["createdAt", "invoiceNumber", "dueDate", "totalDue", "totalPaid", "status", "periodLabel", "paymentLinkExpiresAt"],
     default: "createdAt",
     defaultOrder: "desc",
   });
   if (sort instanceof Response) return sort;
-  const { orderBy } = sort;
+  // Every sort ends in `id` so rows that tie (a batch shares one createdAt/dueDate; most
+  // invoices share a null link date) keep one order and paging never repeats or skips a row.
+  // The link date is nullable: invoices without one go last in BOTH directions (D6).
+  const [[sortKey, sortDir]] = Object.entries(sort.orderBy);
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
+    sortKey === "paymentLinkExpiresAt"
+      ? { paymentLinkExpiresAt: { sort: sortDir, nulls: "last" } }
+      : { [sortKey]: sortDir },
+    { id: "asc" },
+  ];
   const statusParam = searchParams.get("status");
   const studentId = searchParams.get("studentId");
   const search = escapeLike(cleanSearch(searchParams.get("search")));

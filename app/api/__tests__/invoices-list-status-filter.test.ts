@@ -91,7 +91,7 @@ describe("GET /api/invoices?status= — derived values", () => {
       { periodLabel: { contains: "aisyah", mode: "insensitive" } },
       { student: { name: { contains: "aisyah", mode: "insensitive" } } },
     ]);
-    expect(findManyMock.mock.calls[0][0].orderBy).toEqual({ dueDate: "asc" });
+    expect(findManyMock.mock.calls[0][0].orderBy).toEqual([{ dueDate: "asc" }, { id: "asc" }]);
   });
 
   it("does not set a plain status when a derived value is used", async () => {

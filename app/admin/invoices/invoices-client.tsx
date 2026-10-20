@@ -17,6 +17,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
+import { PaymentLinkExpiryCell } from "@/components/admin/invoices/payment-link-expiry-cell";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
@@ -45,6 +46,7 @@ type Invoice = {
   totalPaid: number;
   status: string;
   xenditPaymentUrl?: string | null;
+  paymentLinkExpiresAt?: string | null;
   createdAt: string;
   student: { name: string; nickname: string | null };
   _count: { payments: number };
@@ -93,6 +95,7 @@ const columns: ColumnDef<Invoice>[] = [
                 <DataTableMobileMeta className="mt-1">
                   <StatusBadge status={inv.status} />
                   <span>Tempo {formatDateShort(inv.dueDate)}</span>
+                  <PaymentLinkExpiryCell invoice={inv} variant="meta" />
                 </DataTableMobileMeta>
               </>
             }
@@ -160,6 +163,14 @@ const columns: ColumnDef<Invoice>[] = [
     ),
     meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
+  },
+  {
+    accessorKey: "paymentLinkExpiresAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Link berlaku" />
+    ),
+    meta: { priority: "low" },
+    cell: ({ row }) => <PaymentLinkExpiryCell invoice={row.original} />,
   },
 ];
 

@@ -35,7 +35,7 @@ const invoice = {
 
 function stubFetch(
   opts: {
-    invoices?: Array<typeof invoice & { xenditPaymentUrl?: string | null }>;
+    invoices?: Array<typeof invoice & { xenditPaymentUrl?: string | null; paymentLinkExpiresAt?: string | null }>;
     stats?: Record<string, number>;
     refresh?: { status: number; body: Record<string, unknown> };
     refreshAll?: { status: number; body: Record<string, unknown> };
@@ -672,5 +672,49 @@ describe("InvoicesClient — Status filter, five questions (cycle 2026-10-20-pay
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="OVERDUE" />);
     await screen.findByText("Piutang");
     expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Lewat Tempo (12)");
+  });
+});
+
+describe("InvoicesClient — Link berlaku column (cycle 2026-10-20-payment-link-expiry-display, T6)", () => {
+  const caps = { create: true, recordPayment: true, void: true };
+
+  it("adds a sortable 'Link berlaku' column after Status and shows the date in WIB", async () => {
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: "https://pay/x", paymentLinkExpiresAt: future }] }),
+    );
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    const headers = screen.getAllByRole("columnheader");
+    const labels = headers.map((h) => h.textContent ?? "");
+    const statusIdx = labels.findIndex((l) => l.includes("Status"));
+    expect(labels[statusIdx + 1]).toContain("Link berlaku");
+    expect(within(headers[statusIdx + 1]).getByRole("button")).toBeInTheDocument();
+    // column cell + the below-md meta line both render it (meta is css-hidden at md+, not removed)
+    expect((await screen.findAllByText(/WIB/)).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows red Kedaluwarsa for an unpaid invoice whose date passed, in the column and the meta line", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({
+        invoices: [{ ...invoice, xenditPaymentUrl: "https://pay/x", paymentLinkExpiresAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    );
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const expired = await screen.findAllByText("Kedaluwarsa");
+    expect(expired).toHaveLength(2);
+    expired.forEach((el) => expect(el).toHaveClass("text-status-absent-text"));
+  });
+
+  it("shows an em dash in the column and nothing in the meta line when there is no link", async () => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, xenditPaymentUrl: null, paymentLinkExpiresAt: null }] }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await screen.findByRole("link", { name: /Aisyah Putri/ });
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Link (s\/d|belum)/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 });
