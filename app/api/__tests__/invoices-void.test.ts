@@ -95,6 +95,7 @@ describe("POST /api/invoices/[id]/void", () => {
           status: "CANCELLED",
           xenditSessionId: null,
           xenditPaymentUrl: null,
+          paymentLinkExpiresAt: null,
           paymentLinkError: null,
         }),
       }),

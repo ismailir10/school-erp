@@ -174,6 +174,7 @@ describe("stale payment link after a manual payment", () => {
   const LINK_CLEARED = {
     xenditSessionId: null,
     xenditPaymentUrl: null,
+    paymentLinkExpiresAt: null,
     paymentLinkError: null,
     paymentCheckedAt: expect.any(Date),
   };

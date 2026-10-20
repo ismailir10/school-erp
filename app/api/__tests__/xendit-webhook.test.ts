@@ -299,6 +299,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
         status: "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
+        paymentLinkExpiresAt: null,
       },
     });
     expect(prisma.webhookEvent.update).toHaveBeenCalledWith(

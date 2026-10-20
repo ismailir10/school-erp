@@ -89,6 +89,7 @@ describe("staleLinkCleared", () => {
     expect(staleLinkCleared(now)).toEqual({
       xenditSessionId: null,
       xenditPaymentUrl: null,
+      paymentLinkExpiresAt: null,
       paymentLinkError: null,
       paymentCheckedAt: now,
     });

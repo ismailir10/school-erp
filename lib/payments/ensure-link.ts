@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { createPaymentSessionForInvoice } from "@/lib/payments/session";
+import { LINK_CLEARED } from "@/lib/payments/link-cleared";
 
 /**
  * Give an unpaid invoice a working payment link, creating one only if it has none.
@@ -77,8 +78,7 @@ export async function ensurePaymentLink(
  * below can still claim because a claim needs the stamp null or at most the current time.
  */
 export const staleLinkCleared = (now: Date) => ({
-  xenditSessionId: null,
-  xenditPaymentUrl: null,
+  ...LINK_CLEARED,
   paymentLinkError: null,
   paymentCheckedAt: now,
 });

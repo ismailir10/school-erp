@@ -5,6 +5,7 @@ import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { ACTIVE_PAYMENT_FILTER, deriveInvoicePaymentState } from "@/lib/finance/invoice-payment-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
+import { LINK_CLEARED } from "@/lib/payments/link-cleared";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -433,7 +434,7 @@ async function handleSessionExpired(
     if (fresh.status === "OVERDUE" || fresh.status === "PARTIALLY_PAID") {
       const cleared = await tx.invoice.updateMany({
         where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-        data: { xenditSessionId: null, xenditPaymentUrl: null },
+        data: LINK_CLEARED,
       });
       if (cleared.count === 0) {
         return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
@@ -457,8 +458,7 @@ async function handleSessionExpired(
       where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
       data: {
         status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
-        xenditSessionId: null,
-        xenditPaymentUrl: null,
+        ...LINK_CLEARED,
       },
     });
     if (cleared.count === 0) {

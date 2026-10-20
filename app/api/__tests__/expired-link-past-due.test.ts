@@ -56,7 +56,7 @@ function expiredEvent(sessionId = "sess-1") {
   };
 }
 
-type Update = { status?: string; xenditSessionId?: null; xenditPaymentUrl?: null };
+type Update = { status?: string; xenditSessionId?: null; xenditPaymentUrl?: null; paymentLinkExpiresAt?: null };
 
 /** What the processor wrote to the invoice row, or null when it wrote nothing. */
 async function expire(status: string, dueDate: string): Promise<Update | null> {
@@ -68,7 +68,7 @@ async function expire(status: string, dueDate: string): Promise<Update | null> {
   return call?.data ?? null;
 }
 
-const DEAD_LINK_CLEARED = { xenditSessionId: null, xenditPaymentUrl: null };
+const DEAD_LINK_CLEARED = { xenditSessionId: null, xenditPaymentUrl: null, paymentLinkExpiresAt: null };
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -146,7 +146,7 @@ describe("session expiry — a superseded session", () => {
   });
 
   it("an expiry for the CURRENT session still clears it", async () => {
-    expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: { xenditSessionId: null, xenditPaymentUrl: null } });
+    expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: DEAD_LINK_CLEARED });
   });
 
   it("an old named expiry on an already cleared invoice is ignored", async () => {
@@ -188,7 +188,7 @@ describe("session expiry — a superseded session", () => {
   it.each(["OVERDUE", "SENT"])("a named expiry still clears a URL-only %s session", async (status) => {
     expect(await expireWith("sess-1", null, status, "https://checkout.test/url-only")).toMatchObject({
       where: { id: "inv1", xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/url-only" },
-      data: { xenditSessionId: null, xenditPaymentUrl: null },
+      data: DEAD_LINK_CLEARED,
     });
   });
 
