@@ -47,23 +47,23 @@ UAT input: the newest admin report (`docs/uat/reports/2026-04-24-admin.md`) is p
 
 ## Acceptance criteria
 
-- [ ] A newly created link records its expiry, and the admin detail page shows "Berlaku sampai <tanggal, jam> WIB" under the link.
-- [ ] A link created before this ships shows "Tanggal berlaku belum tercatat" and no date.
-- [ ] An unpaid invoice whose link date has passed shows red "Kedaluwarsa" on the detail page and in the list, even if the sweep has not run.
-- [ ] A paid or cancelled invoice never shows "Kedaluwarsa", whatever its stored date.
-- [ ] After a link is cleared (expired, replaced, voided, or dropped by a payment), no date is shown and none is left behind.
-- [ ] If the gateway returns an expiry in a format that does not parse, link creation still stores the link and the requested expiry; no second order is made.
-- [ ] The invoice list has a sortable "Link berlaku" column. Sorting puts invoices without a date last in both directions, and paging does not repeat or skip rows.
-- [ ] Below the `md` breakpoint the list row shows the link expiry in its meta line.
-- [ ] Payment activity events for earlier expired links read "Link sebelumnya kedaluwarsa".
-- [ ] A Link Dibuat invoice whose link expires before its due date stays Link Dibuat with no link, the admin's check reports that the link was cleared, and the nightly heal gives it a new link. Past its due date it becomes Lewat Tempo as before. "Link Gagal" is set only when creating a link fails.
-- [ ] On such an invoice the admin's "Buat link baru" and the parent's "Minta link baru" each produce a new link instead of refusing.
-- [ ] Lewat Tempo, Dibayar Sebagian, Lunas, Draft and Dibatalkan invoices change status exactly as before.
-- [ ] A poll that reports expiry while the stored date is more than 5 minutes away still clears the link as today and writes one warning line; nothing else changes.
-- [ ] The Status filter lists, in order: Semua Status, Belum lunas, Lewat Tempo, Perlu link, Lunas, Dibatalkan, each with its count.
-- [ ] "Belum lunas" returns every Link Dibuat, Dibayar Sebagian or Lewat Tempo invoice that still owes money. "Perlu link" returns those with no link plus Link Gagal; its count equals the "Buat link baru (N)" and "Coba lagi (N)" buttons' numbers added together.
-- [ ] The derived options combine with search and sort; `?status=OVERDUE` from the dashboard, and any other raw status in the address, still filter correctly; an unknown status gives a clear error, not a crash.
-- [ ] Seed data includes a link with a past date, so local demo and e2e show the expired state.
+- [x] A newly created link records its expiry, and the admin detail page shows "Berlaku sampai <tanggal, jam> WIB" under the link.
+- [x] A link created before this ships shows "Tanggal berlaku belum tercatat" and no date.
+- [x] An unpaid invoice whose link date has passed shows red "Kedaluwarsa" on the detail page and in the list, even if the sweep has not run.
+- [x] A paid or cancelled invoice never shows "Kedaluwarsa", whatever its stored date.
+- [x] After a link is cleared (expired, replaced, voided, or dropped by a payment), no date is shown and none is left behind.
+- [x] If the gateway returns an expiry in a format that does not parse, link creation still stores the link and the requested expiry; no second order is made.
+- [x] The invoice list has a sortable "Link berlaku" column. Sorting puts invoices without a date last in both directions, and paging does not repeat or skip rows.
+- [x] Below the `md` breakpoint the list row shows the link expiry in its meta line.
+- [x] Payment activity events for earlier expired links read "Link sebelumnya kedaluwarsa".
+- [x] A Link Dibuat invoice whose link expires before its due date stays Link Dibuat with no link, the admin's check reports that the link was cleared, and the nightly heal gives it a new link. Past its due date it becomes Lewat Tempo as before. "Link Gagal" is set only when creating a link fails.
+- [x] On such an invoice the admin's "Buat link baru" and the parent's "Minta link baru" each produce a new link instead of refusing.
+- [x] Lewat Tempo, Dibayar Sebagian, Lunas, Draft and Dibatalkan invoices change status exactly as before.
+- [x] A poll that reports expiry while the stored date is more than 5 minutes away still clears the link as today and writes one warning line; nothing else changes.
+- [x] The Status filter lists, in order: Semua Status, Belum lunas, Lewat Tempo, Perlu link, Lunas, Dibatalkan, each with its count.
+- [x] "Belum lunas" returns every Link Dibuat, Dibayar Sebagian or Lewat Tempo invoice that still owes money. "Perlu link" returns those with no link plus Link Gagal; its count equals the "Buat link baru (N)" and "Coba lagi (N)" buttons' numbers added together.
+- [x] The derived options combine with search and sort; `?status=OVERDUE` from the dashboard, and any other raw status in the address, still filter correctly; an unknown status gives a clear error, not a crash.
+- [x] Seed data includes a link with a past date, so local demo and e2e show the expired state.
 
 ## Verify flows
 
@@ -150,4 +150,32 @@ Data needed: the seed adds one unpaid invoice with a future date, one with a pas
 
 ## Verification
 
+### Verified locally — 394e7b89, 2026-10-20
+- Route: **other code** (not auth-impacting). Compared `origin/staging...394e7b89`, 58 paths: `prisma/` (one additive migration), `lib/payments/**`, `lib/finance/**`, `app/api/invoices/**`, `app/api/xendit/create-session`, `app/api/admin/seed`, `app/admin/invoices/**`, `components/admin/invoices/**`, seeds and scripts, docs. No auth, session, cookie or proxy file. Soft-skip delta: baseline 0, current 0.
+- Gate: `npm run lint` → exit 0 · `npx vitest run` → `Test Files 676 passed | 2 skipped (678)`, `Tests 7985 passed | 42 todo (8027)` · `verify-rls-coverage.sh` → `43 / 43` · `verify-api-auth.sh` → `216 / 216` · `DEMO_MODE=true npm run build` → exit 0 · `npx playwright test` → `243 passed (5.4m)`, `1 flaky` (`e2e/sibling-detect.spec.ts:147`, a `waitForResponse('/api/admissions')` timeout on the Pendaftaran page, which this branch does not touch; passed on retry) · `bash scripts/audit-docs.sh` → `13 ok, 1 warn, 0 fail` (the warn is the pre-existing ADR 60-day window).
+- App: production build (`DEMO_MODE=true npm run start` with the Xendit/DOKU test stubs) on a disposable Postgres (`localhost:54329`, `prisma db push` + `prisma db seed`), demo-cookie sign-in as `u_super_admin` and `u_rightjet`. The preview pane could not start a server under `~/Documents` (macOS EPERM on cwd), so the server ran from the shell and Playwright MCP drove the browser.
+- Walked:
+  1. Fresh link: "Buat Link Pembayaran" on INV-2026-0085 → `/api/xendit/create-session` 200, card reads "Berlaku sampai 26 Okt 2026 · 23.59 WIB" (end of its due date), status stays Link Dibuat. Edge: date and time in WIB. Invoices that e2e created through the real session code carry a stored expiry too (INV-2026-2003/2004).
+  2. Expired at a glance: INV-2026-0081 detail shows red "Kedaluwarsa · 18 Okt 2026 · 09.00 WIB"; in the list with Belum lunas, ascending Link berlaku puts 0086 (Lewat Tempo) and 0081 first, both red. Edge: the paid INV-2026-0083 (past stored date) shows no link block and no Kedaluwarsa.
+  3. No date recorded: INV-2026-0082 reads "Tanggal berlaku belum tercatat", list cell "Belum tercatat"; descending sort ends in null dates, and paging all 83 Belum lunas rows ascending returned 83 unique ids.
+  4. Earlier expiry: INV-2026-0084's activity card reads "Link sebelumnya kedaluwarsa" (1 row) while the link block shows its current date (24 Okt 2026 · 09.00 WIB).
+  5. Status filter: options in order Semua Status, Belum lunas (83), Lewat Tempo (11), Perlu link (74), Lunas (221), Dibatalkan (1). Belum lunas returned 83 rows and Perlu link 74, matching "Buat link baru (74)" + Coba lagi (0, none in the seed). Perlu link + search "0085" → 1 row. Error: `?status=BOGUS` → 400 `{"error":"Status tagihan tidak dikenal"}`.
+  6. Early-expired link recovers: INV-2026-0085 (Link Dibuat, no link, due 26 Okt) offers "Buat Link Pembayaran" and gets a dated link while staying Link Dibuat; afterwards the header reads "Buat link baru (72)".
+  7. Parent, 390×844: INV-2026-0004 (Link Dibuat, no link) shows "Buat link pembayaran" → `/api/guardian/invoices/:id/payment-link` 200 → "Bayar sekarang" and "Minta link baru".
+  - Admin list at 390×844: meta line reads "Berlaku sampai 19 Nov 2026 · 17.28 WIB", `scrollWidth` 390 (no sideways scroll).
+- Console/network: no app errors and no 5xx. Every page logs the same local-only noise: `/_vercel/insights` and `/_vercel/speed-insights` 404 and a manifest parse error (Vercel scripts do not exist on a local build). API timings: `/api/invoices` (UNPAID, sorted by link date) 23 ms, `NEEDS_LINK` 17 ms, `/api/invoices/stats` 14 ms.
+- Screenshots: `/tmp/talib-shots/invoice-list-belum-lunas-sorted-by-link-berlaku.png`, `invoice-detail-expired-link.png`, `invoice-detail-link-berlaku-sampai.png`, `invoice-detail-0084-full.png`, `parent-sheet-before.png`, `parent-sheet-after.png`, `admin-invoice-list-phone.png` (desktop + phone).
+- Highlight: `status-filter-and-link-berlaku-column.png`, `invoice-detail-expired-link.png`.
+- Design: list cell, detail line and filter cross-checked against `design-system.html` — red uses the status-absent text token, muted text for secondary dates, `tabular-nums` on times, existing FilterBar select; no new tokens or components.
+- Rounds: 1 — fixed before the walk from two reviews: S1 (a failed create on the detail page demoted Link Dibuat to Link Gagal), the reminder queue's own copy of the owes rule, a hand-written clear in the reseed script, seeded event ids not unique across tenants, "Link s/d" spelled out. The walk itself found nothing to fix.
+- Not checked: the gateway-failure error case of flow 6 in the browser (the local stubs always succeed; covered by `xendit-create-session.test.ts` "a failed link on a SENT invoice …"); flow 6's past-due edge (covered by `expired-link-past-due.test.ts`); the D11 warning line in a live poll (unit-tested; needs a real DOKU status check); reseed and finish-xendit against a real gateway (they need staging credentials; unit-tested).
+
 ## Ship Notes
+
+- **Migration:** `20261020000000_add_invoice_payment_link_expires_at` adds nullable `Invoice.paymentLinkExpiresAt TIMESTAMP(3)`: additive, no default, no backfill, safe with e2e writing to staging. Feature branches get no deployment, so the column reaches staging through the staging deploy's `migrate deploy` on merge; production on the next `/ship --to-main`. Existing links read "Tanggal berlaku belum tercatat" until they are next replaced (D4); no data fix.
+- **Env vars:** none.
+- **Behaviour changes to watch:** (1) an expiring link no longer turns Link Dibuat into Link Gagal (D10); invoices already stuck in Link Gagal from an early expiry keep the existing "Coba lagi" button. (2) "Buat link baru (N)" no longer counts unpaid-status invoices that are already fully paid. (3) Every invoice list sort now ends in `id`.
+- **Volume:** about 200 invoices, so the new column and the derived filters need no index (Assumption 2).
+- **Post-merge checks:** Vercel staging deploy `READY` for the merge SHA; `/api/health` 200; open `/admin/invoices` on staging and confirm the Status dropdown shows the six options with counts. Not auth-impacting, so no signed-in staging check is required.
+- **Watch:** Vercel logs for `expired poll reported expiry early` (D11). Any hit is the evidence for the held-back DOKU fix.
+- **Rollback:** revert the squash commit. The column can stay (nullable, unread by old code); dropping it would be a separate, deliberate migration.
