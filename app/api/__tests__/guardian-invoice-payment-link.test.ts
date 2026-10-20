@@ -142,6 +142,14 @@ describe("getting a link", () => {
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 
+  it("an early-expired Link Dibuat invoice (SENT, link cleared before its due date) gets a new link, not a refusal", async () => {
+    invoiceFindUnique.mockResolvedValue(invoiceRow({ status: "SENT", xenditPaymentUrl: null }));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ paymentUrl: "https://checkout.doku.com/new", created: true });
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+
   it("an invoice that holds a link is checked at the gateway first, so an expired one is cleared or a payment credited", async () => {
     invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: "https://checkout.doku.com/old" }));
     await call();

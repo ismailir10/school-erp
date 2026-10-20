@@ -382,8 +382,10 @@ async function handleSessionExpired(
   }
   const invoiceId = resolved.id;
 
-  // T5e — soft-revert (NOT destructive). SENT → PENDING_PAYMENT_LINK (or OVERDUE
-  // when past due), OVERDUE / PARTIALLY_PAID → link cleared only.
+  // An expiring link never changes a status by itself, except past due: SENT before its due
+  // date keeps its status and loses only the dead link; SENT past due becomes OVERDUE;
+  // OVERDUE / PARTIALLY_PAID lose the link only. PENDING_PAYMENT_LINK ("Link Gagal") means
+  // creating a link failed, so an expiry never moves an invoice into it.
   // Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
@@ -448,24 +450,23 @@ async function handleSessionExpired(
       };
     }
     // A link expires at the end of the due date, so every invoice unpaid at its
-    // due date reaches this point. "Link Gagal" (PENDING_PAYMENT_LINK) is not an
-    // outstanding status and `finance-maintenance` only promotes SENT, so
-    // reverting a past-due invoice there made it silently stop being owed.
-    // Past due → OVERDUE; otherwise back to "Link Gagal" so a new link is made.
+    // due date reaches this point. `finance-maintenance` only promotes SENT, and
+    // "Link Gagal" (PENDING_PAYMENT_LINK) is not an outstanding status, so a
+    // past-due SENT invoice becomes OVERDUE here or it would silently stop being
+    // owed. Before the due date the invoice keeps its status and only loses the
+    // dead link (cycle 2026-10-20-payment-link-expiry-display, D10), so the nightly
+    // heal, the admin and the parent can all make a new one.
     const pastDue =
       fresh.status === "SENT" && fresh.dueDate < getTodayInTimezone(JAKARTA_TZ);
     const cleared = await tx.invoice.updateMany({
       where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-      data: {
-        status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
-        ...LINK_CLEARED,
-      },
+      data: pastDue ? { status: "OVERDUE", ...LINK_CLEARED } : LINK_CLEARED,
     });
     if (cleared.count === 0) {
       return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
     }
     return {
-      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("REVERTED" as const),
+      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("LINK_CLEARED" as const),
       invoiceNumber: fresh.invoiceNumber,
     };
   });
@@ -485,7 +486,6 @@ async function handleSessionExpired(
   }
   await markProcessed(eventId, invoiceId);
   const outcome = {
-    REVERTED: "→ PENDING_PAYMENT_LINK (session expired, soft-revert)",
     PROMOTED_OVERDUE: "→ OVERDUE (session expired past due date)",
     LINK_CLEARED: "dead payment link cleared (session expired, status unchanged)",
   }[result.type];

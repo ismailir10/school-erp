@@ -8,16 +8,15 @@
 //  - xenditSessionId fallback when reference_id misses (PR #136 restored).
 //  - Missing/zero amount → ERROR:MISSING_AMOUNT, no payment row.
 //  - Overpayment > remaining + 1 IDR → credit + ERROR:OVERPAYMENT_FLAGGED.
-//  - payment_session.expired → soft-revert SENT/PENDING_PAYMENT_LINK to
-//    PENDING_PAYMENT_LINK (NOT destructive CANCELLED); PAID/CANCELLED
-//    ignore.
+//  - payment_session.expired → clear the dead link, status unchanged before
+//    the due date (NOT destructive CANCELLED); PAID/CANCELLED ignore.
 //
 // Coverage:
 //  1. 401 on missing/mismatched x-callback-token
 //  2. 400 on malformed JSON body
 //  3. duplicate eventId (P2002) → 200 { duplicate: true }
 //  4. payment_session.completed → invoice PAID + Payment row + PROCESSED
-//  5. payment_session.expired → soft-revert to PENDING_PAYMENT_LINK
+//  5. payment_session.expired → link cleared, SENT stays SENT
 //  6. unknown event → 200 IGNORED, no Invoice mutation
 //  7. invoice-not-found → 200 ERROR:invoice_not_found (T5b)
 //  8. Phase 2 throw → ERROR row retained, 200 (no DELETE, no 500)
@@ -258,7 +257,7 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
-  it("expired event soft-reverts SENT invoice → PENDING_PAYMENT_LINK + nulls xendit fields (T5e)", async () => {
+  it("expired event on a not-yet-due SENT invoice keeps SENT and nulls the link fields (D10)", async () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
       id: "inv1",
@@ -292,11 +291,10 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
       }) as never,
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ status: "REVERTED" });
+    expect(await res.json()).toMatchObject({ status: "LINK_CLEARED" });
     expect(txInvoiceUpdate).toHaveBeenCalledWith({
       where: { id: "inv1", xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" },
       data: {
-        status: "PENDING_PAYMENT_LINK",
         xenditSessionId: null,
         xenditPaymentUrl: null,
         paymentLinkExpiresAt: null,

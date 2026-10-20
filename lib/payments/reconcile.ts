@@ -392,8 +392,8 @@ export async function reconcileInvoicePayment(
     duplicate: outcome.duplicate,
   };
 
-  // An expired link on an invoice that stays owed: the status may not move
-  // (OVERDUE / PARTIALLY_PAID) but the dead link was cleared, which is a real
+  // An expired link: the status may not move (Link Dibuat before its due date,
+  // Dibayar Sebagian, Lewat Tempo) but the dead link was cleared, which is a real
   // change the admin needs to hear about.
   if (outcome.status === "LINK_CLEARED" || outcome.status === "PROMOTED_OVERDUE") {
     return {
@@ -413,9 +413,7 @@ export async function reconcileInvoicePayment(
           ? "Pembayaran ditemukan di gateway — tagihan ditandai LUNAS."
           : statusAfter === "PARTIALLY_PAID" || paidMoved
             ? "Pembayaran sebagian ditemukan di gateway — tagihan diperbarui."
-            : statusAfter === "PENDING_PAYMENT_LINK"
-              ? EXPIRED_LINK_CLEARED_MESSAGE
-              : `Status tagihan diperbarui menjadi ${INVOICE_STATUS_LABELS[statusAfter] ?? statusAfter}.`,
+            : `Status tagihan diperbarui menjadi ${INVOICE_STATUS_LABELS[statusAfter] ?? statusAfter}.`,
     };
   }
 
