@@ -148,6 +148,128 @@ function invoiceNumber(seq: number, year: number): string {
   return `INV-${year}-${String(seq).padStart(5, "0")}`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function ymdWib(d: Date): string {
+  return new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Payment-link expiry fixtures (cycle 2026-10-20-payment-link-expiry-display).
+ *
+ * The live Xendit phase gives every Feb-Apr 2026 invoice a real sandbox link that
+ * expires a week out, which is one scenario. The admin screens need the others, so
+ * this reshapes a few of those invoices (no gateway call) relative to `now`:
+ *
+ *   0 keeps its real link and future date        -> date shown
+ *   1 link expired two days ago                   -> "Kedaluwarsa"
+ *   2 link with no recorded date                  -> "belum tercatat"
+ *   3 future date + an expired event in its log   -> relabelled earlier expiry
+ *   4 link expired before due date, link cleared  -> Link Dibuat, no link, due in the future
+ *   5 Lewat Tempo, keeps its link                 -> filter mix
+ *   6 Dibayar Sebagian, keeps its link            -> filter mix
+ *   7 Dibayar Sebagian, link cleared              -> filter mix
+ *   8 Lewat Tempo, link cleared                   -> filter mix
+ *   paid: a historical PAID invoice with a stale stored link and a past date
+ *         -> must never read "Kedaluwarsa"
+ *
+ * Returns role -> invoiceNumber so the caller (and tests) can see what was picked.
+ */
+export async function applyLinkExpiryFixtures(
+  prisma: PrismaClient,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<Record<string, string>> {
+  const picked: Record<string, string> = {};
+  const live = await prisma.invoice.findMany({
+    where: { tenantId, status: "SENT", xenditPaymentUrl: { not: null } },
+    orderBy: { invoiceNumber: "desc" },
+    take: 9,
+    select: { id: true, invoiceNumber: true, totalDue: true, createdBy: true },
+  });
+  const at = (days: number) => new Date(now.getTime() + days * DAY_MS);
+
+  const roles = [
+    "future", "past", "noDate", "expiredEvent", "earlyExpiredNoLink",
+    "overdueLink", "partialLink", "partialNoLink", "overdueNoLink",
+  ] as const;
+  for (const [i, inv] of live.entries()) {
+    const role = roles[i];
+    picked[role] = inv.invoiceNumber;
+    const clearLink = { xenditPaymentUrl: null, xenditSessionId: null, paymentLinkExpiresAt: null };
+    switch (role) {
+      case "future":
+        break; // keeps the expiry stored by the live phase
+      case "past":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { paymentLinkExpiresAt: at(-2) } });
+        break;
+      case "noDate":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { paymentLinkExpiresAt: null } });
+        break;
+      case "expiredEvent":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { paymentLinkExpiresAt: at(4) } });
+        await prisma.webhookEvent.upsert({
+          where: { eventId: `reseed-evt-expired-${inv.invoiceNumber}` },
+          update: {},
+          create: {
+            provider: "xendit",
+            eventId: `reseed-evt-expired-${inv.invoiceNumber}`,
+            eventType: "payment_session.expired",
+            status: "PROCESSED",
+            invoiceId: inv.id,
+            payload: {
+              event: "payment_session.expired",
+              created: at(-4).toISOString(),
+              data: { payment_session_id: `reseed-old-${inv.invoiceNumber}`, reference_id: inv.id, status: "EXPIRED" },
+            },
+            createdAt: at(-4),
+            processedAt: at(-4),
+          },
+        });
+        break;
+      case "earlyExpiredNoLink":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { ...clearLink, dueDate: ymdWib(at(6)) } });
+        break;
+      case "overdueLink":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { status: "OVERDUE" } });
+        break;
+      case "partialLink":
+      case "partialNoLink": {
+        const paid = Math.round(Number(inv.totalDue) / 2);
+        await prisma.invoice.update({
+          where: { id: inv.id },
+          data: { status: "PARTIALLY_PAID", totalPaid: paid, ...(role === "partialNoLink" ? clearLink : {}) },
+        });
+        await prisma.payment.create({
+          data: { invoiceId: inv.id, amount: paid, method: "BANK_TRANSFER", status: "APPROVED", paidAt: at(-6), createdBy: inv.createdBy },
+        });
+        break;
+      }
+      case "overdueNoLink":
+        await prisma.invoice.update({ where: { id: inv.id }, data: { ...clearLink, status: "OVERDUE" } });
+        break;
+    }
+  }
+
+  const paid = await prisma.invoice.findFirst({
+    where: { tenantId, status: "PAID", xenditPaymentUrl: null },
+    orderBy: { invoiceNumber: "asc" },
+    select: { id: true, invoiceNumber: true },
+  });
+  if (paid) {
+    await prisma.invoice.update({
+      where: { id: paid.id },
+      data: {
+        xenditPaymentUrl: `https://checkout.xendit.co/v2/demo-session-reseed-${paid.invoiceNumber}`,
+        xenditSessionId: `reseed-demo-${paid.invoiceNumber}`,
+        paymentLinkExpiresAt: at(-30),
+      },
+    });
+    picked.paidStaleLink = paid.invoiceNumber;
+  }
+  return picked;
+}
+
 export async function seedInvoices(
   prisma: PrismaClient,
   org: SeedOrgResult,
@@ -406,6 +528,8 @@ export async function seedInvoices(
             data: {
               xenditSessionId: session.id ?? null,
               xenditPaymentUrl: session.payment_link_url,
+              // The expiry WE asked for, never the string the gateway echoes back.
+              paymentLinkExpiresAt: job.params.expiresAt ?? null,
               status: "SENT",
               sentAt: new Date(),
             },
@@ -417,6 +541,9 @@ export async function seedInvoices(
     );
   }
   await Promise.all(workers);
+
+  // Reshape a few of the freshly linked invoices into the expiry fixtures.
+  await applyLinkExpiryFixtures(prisma, org.tenantId);
 
   // ── Reseed-time smoke assert (catches reference_id/lookup mismatch before
   // ── handing off to UAT). See assertXenditReferencingSmokeRow doc.

@@ -62,6 +62,7 @@ async function main() {
         const inv = queue.shift();
         if (!inv) return;
         try {
+          const expiresAt = defaultExpiresAt();
           const session = await createXenditSession({
             // Bare invoice.id — webhook handler lookup keys on this. See
             // scripts/reseed/invoices.ts comment for the same constraint.
@@ -76,7 +77,7 @@ async function main() {
             // One-off backfill script; its invoice query does not select
             // `dueDate`, so it keeps the historical 7-day default rather than
             // deriving expiry the way the live invoice path does.
-            expiresAt: defaultExpiresAt(),
+            expiresAt,
             items: inv.lines.map((l) => ({
               name: l.labelSnapshot,
               quantity: 1,
@@ -90,6 +91,8 @@ async function main() {
               // use payment URL as primary marker.
               xenditSessionId: session.id ?? null,
               xenditPaymentUrl: session.payment_link_url,
+              // The expiry we asked for, saved with the link (not the gateway's echo).
+              paymentLinkExpiresAt: expiresAt,
               status: "SENT",
               sentAt: new Date(),
             },

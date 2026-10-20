@@ -282,7 +282,10 @@ export async function POST(req: NextRequest) {
       ) {
         await prisma.invoice.update({
           where: { id: existingInvoice.id },
-          data: { xenditPaymentUrl: `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` },
+          data: {
+            xenditPaymentUrl: `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}`,
+            paymentLinkExpiresAt: new Date(Date.now() + 5 * 86_400_000),
+          },
         });
       }
       invoiceCount++;
@@ -306,6 +309,8 @@ export async function POST(req: NextRequest) {
         totalPaid,
         status,
         xenditPaymentUrl: needsPaymentLink ? `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` : null,
+        // A seeded link is good for five days from seeding, so the demo shows a real date.
+        paymentLinkExpiresAt: needsPaymentLink ? new Date(Date.now() + 5 * 86_400_000) : null,
         createdBy: adminUserId,
         lines: { create: lines },
       },
@@ -325,6 +330,90 @@ export async function POST(req: NextRequest) {
     }
     invoiceCount++;
   }
+
+  // ── 9b. Payment-link expiry fixtures ──────────────────────
+  // Cycle 2026-10-20-payment-link-expiry-display. Dates hang off "now" so they stay
+  // meaningful whenever this runs. Numbered INV-2026-0980..0989, clear of the
+  // loop's sequential INV-2026-0001.. numbers. Idempotent by invoice number.
+  //   0980 SENT, link, future date          0985 SENT, link expired early, link cleared
+  //   0981 SENT, link, past date            0986 OVERDUE, link, past date
+  //   0982 SENT, link, no recorded date     0987 OVERDUE, no link
+  //   0983 PAID, link, past date            0988 PARTIALLY_PAID, link, future date
+  //   0984 SENT, future date + expired      0989 PARTIALLY_PAID, no link
+  //        event in the activity log
+  const DAY = 86_400_000;
+  const ymdOffset = (days: number) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
+  const linkExpiryFixtures: Array<{
+    n: string; status: string; dueInDays: number; paid: number; link: boolean; expiresInDays: number | null;
+  }> = [
+    { n: "0980", status: "SENT", dueInDays: 10, paid: 0, link: true, expiresInDays: 5 },
+    { n: "0981", status: "SENT", dueInDays: 6, paid: 0, link: true, expiresInDays: -2 },
+    { n: "0982", status: "SENT", dueInDays: 8, paid: 0, link: true, expiresInDays: null },
+    { n: "0983", status: "PAID", dueInDays: -35, paid: 0, link: true, expiresInDays: -30 },
+    { n: "0984", status: "SENT", dueInDays: 12, paid: 0, link: true, expiresInDays: 4 },
+    { n: "0985", status: "SENT", dueInDays: 6, paid: 0, link: false, expiresInDays: null },
+    { n: "0986", status: "OVERDUE", dueInDays: -12, paid: 0, link: true, expiresInDays: -5 },
+    { n: "0987", status: "OVERDUE", dueInDays: -20, paid: 0, link: false, expiresInDays: null },
+    { n: "0988", status: "PARTIALLY_PAID", dueInDays: 3, paid: 400_000, link: true, expiresInDays: 3 },
+    { n: "0989", status: "PARTIALLY_PAID", dueInDays: -3, paid: 300_000, link: false, expiresInDays: null },
+  ];
+  let linkFixtureCount = 0;
+  const fixtureEnrollments = enrolledStudents.filter((e) => feeAmounts[e.classSection.program.code]);
+  for (const [i, fx] of linkExpiryFixtures.entries()) {
+    if (fixtureEnrollments.length === 0) break;
+    const invoiceNumber = `INV-2026-${fx.n}`;
+    if (await prisma.invoice.findFirst({ where: { tenantId, invoiceNumber }, select: { id: true } })) continue;
+    const enrollment = fixtureEnrollments[(i * 3) % fixtureEnrollments.length];
+    const sppAmount = feeAmounts[enrollment.classSection.program.code].spp;
+    const totalPaid = fx.status === "PAID" ? sppAmount : fx.paid;
+    const invoice = await prisma.invoice.create({
+      data: {
+        tenantId,
+        studentId: enrollment.student.id,
+        invoiceNumber,
+        periodLabel: "Oktober 2026",
+        dueDate: ymdOffset(fx.dueInDays),
+        totalDue: sppAmount,
+        totalPaid,
+        status: fx.status,
+        sentAt: new Date(Date.now() - 14 * DAY),
+        paidAt: fx.status === "PAID" ? new Date(Date.now() - 32 * DAY) : null,
+        xenditPaymentUrl: fx.link ? `https://checkout-staging.xendit.co/web/demo-${invoiceNumber}` : null,
+        xenditSessionId: fx.link ? `xendit-demo-${invoiceNumber}` : null,
+        paymentLinkExpiresAt: fx.link && fx.expiresInDays !== null ? new Date(Date.now() + fx.expiresInDays * DAY) : null,
+        createdBy: adminUserId,
+        lines: { create: [{ feeComponentId: feeComponentIdMap["spp"], labelSnapshot: "SPP Bulanan", amount: sppAmount, adjustmentAmount: 0, finalAmount: sppAmount }] },
+      },
+    });
+    if (totalPaid > 0) {
+      await prisma.payment.create({
+        data: { invoiceId: invoice.id, amount: totalPaid, method: "CASH", reference: null, status: "RECORDED" },
+      });
+    }
+    if (fx.n === "0984") {
+      // The first link expired and was replaced; the current link carries the later date.
+      await prisma.webhookEvent.upsert({
+        where: { eventId: `seed-evt-expired-${invoiceNumber}` },
+        update: {},
+        create: {
+          provider: "xendit",
+          eventId: `seed-evt-expired-${invoiceNumber}`,
+          eventType: "payment_session.expired",
+          status: "PROCESSED",
+          invoiceId: invoice.id,
+          payload: {
+            event: "payment_session.expired",
+            created: new Date(Date.now() - 4 * DAY).toISOString(),
+            data: { payment_session_id: `xendit-demo-old-${invoiceNumber}`, reference_id: invoice.id, status: "EXPIRED" },
+          },
+          createdAt: new Date(Date.now() - 4 * DAY),
+          processedAt: new Date(Date.now() - 4 * DAY),
+        },
+      });
+    }
+    linkFixtureCount++;
+  }
+  invoiceCount += linkFixtureCount;
 
   // ── 10. Admissions ────────────────────────────────────────
   const admissionDefs = [
