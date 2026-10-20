@@ -53,7 +53,7 @@ export function PaymentLinkExpiryCell({ invoice, variant = "column", now }: Prop
   }
   return (
     <span className="text-xs tabular-nums text-muted-foreground">
-      {variant === "meta" ? "Link s/d " : ""}
+      {variant === "meta" ? "Berlaku sampai " : ""}
       {when}
     </span>
   );

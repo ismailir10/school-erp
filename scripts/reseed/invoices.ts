@@ -5,6 +5,7 @@ import {
   type CreateSessionResponse,
 } from "../../lib/xendit/client";
 import { resolveSessionExpiry } from "../../lib/payments/expiry";
+import { LINK_CLEARED } from "../../lib/payments/link-cleared";
 import { createRng } from "./rng";
 import {
   FEE_COMPONENTS,
@@ -196,7 +197,6 @@ export async function applyLinkExpiryFixtures(
   for (const [i, inv] of live.entries()) {
     const role = roles[i];
     picked[role] = inv.invoiceNumber;
-    const clearLink = { xenditPaymentUrl: null, xenditSessionId: null, paymentLinkExpiresAt: null };
     switch (role) {
       case "future":
         break; // keeps the expiry stored by the live phase
@@ -209,11 +209,11 @@ export async function applyLinkExpiryFixtures(
       case "expiredEvent":
         await prisma.invoice.update({ where: { id: inv.id }, data: { paymentLinkExpiresAt: at(4) } });
         await prisma.webhookEvent.upsert({
-          where: { eventId: `reseed-evt-expired-${inv.invoiceNumber}` },
+          where: { eventId: `reseed-evt-expired-${inv.id}` },
           update: {},
           create: {
             provider: "xendit",
-            eventId: `reseed-evt-expired-${inv.invoiceNumber}`,
+            eventId: `reseed-evt-expired-${inv.id}`,
             eventType: "payment_session.expired",
             status: "PROCESSED",
             invoiceId: inv.id,
@@ -228,7 +228,7 @@ export async function applyLinkExpiryFixtures(
         });
         break;
       case "earlyExpiredNoLink":
-        await prisma.invoice.update({ where: { id: inv.id }, data: { ...clearLink, dueDate: ymdWib(at(6)) } });
+        await prisma.invoice.update({ where: { id: inv.id }, data: { ...LINK_CLEARED, dueDate: ymdWib(at(6)) } });
         break;
       case "overdueLink":
         await prisma.invoice.update({ where: { id: inv.id }, data: { status: "OVERDUE" } });
@@ -238,7 +238,7 @@ export async function applyLinkExpiryFixtures(
         const paid = Math.round(Number(inv.totalDue) / 2);
         await prisma.invoice.update({
           where: { id: inv.id },
-          data: { status: "PARTIALLY_PAID", totalPaid: paid, ...(role === "partialNoLink" ? clearLink : {}) },
+          data: { status: "PARTIALLY_PAID", totalPaid: paid, ...(role === "partialNoLink" ? LINK_CLEARED : {}) },
         });
         await prisma.payment.create({
           data: { invoiceId: inv.id, amount: paid, method: "BANK_TRANSFER", status: "APPROVED", paidAt: at(-6), createdBy: inv.createdBy },
@@ -246,7 +246,7 @@ export async function applyLinkExpiryFixtures(
         break;
       }
       case "overdueNoLink":
-        await prisma.invoice.update({ where: { id: inv.id }, data: { ...clearLink, status: "OVERDUE" } });
+        await prisma.invoice.update({ where: { id: inv.id }, data: { ...LINK_CLEARED, status: "OVERDUE" } });
         break;
     }
   }

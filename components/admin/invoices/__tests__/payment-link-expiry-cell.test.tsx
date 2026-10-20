@@ -47,7 +47,7 @@ describe("PaymentLinkExpiryCell", () => {
   describe("meta variant (below md)", () => {
     it("active: prefixed with Link", () => {
       const { container } = cell({ status: "SENT", xenditPaymentUrl: URL_, paymentLinkExpiresAt: FUTURE }, "meta");
-      expect(container).toHaveTextContent("Link s/d 22 Okt 2026 · 14.30 WIB");
+      expect(container).toHaveTextContent("Berlaku sampai 22 Okt 2026 · 14.30 WIB");
     });
     it("expired: red label", () => {
       cell({ status: "OVERDUE", xenditPaymentUrl: URL_, paymentLinkExpiresAt: PAST }, "meta");

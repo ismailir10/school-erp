@@ -393,11 +393,11 @@ export async function POST(req: NextRequest) {
     if (fx.n === "0984") {
       // The first link expired and was replaced; the current link carries the later date.
       await prisma.webhookEvent.upsert({
-        where: { eventId: `seed-evt-expired-${invoiceNumber}` },
+        where: { eventId: `seed-evt-expired-${invoice.id}` },
         update: {},
         create: {
           provider: "xendit",
-          eventId: `seed-evt-expired-${invoiceNumber}`,
+          eventId: `seed-evt-expired-${invoice.id}`,
           eventType: "payment_session.expired",
           status: "PROCESSED",
           invoiceId: invoice.id,
