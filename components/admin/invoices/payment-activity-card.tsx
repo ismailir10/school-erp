@@ -92,7 +92,16 @@ const WEBHOOK_EVENT_LABELS: Record<string, string> = {
   unknown: "Tidak dikenal",
 };
 
-function webhookEventLabel(eventType: string): string {
+// Cycle payment-link-expiry-display D8: a processed expiry event means the
+// invoice's *previous* link ran out (a fresh one replaced it, or the status
+// settled). Ignored/duplicate/errored expiry events do not always describe an
+// earlier link, so they keep the literal label.
+const EXPIRED_EVENT_TYPES = new Set(["payment_session.expired", "manual.refresh.expired"]);
+
+function webhookEventLabel(eventType: string, status: string): string {
+  if (status === "PROCESSED" && EXPIRED_EVENT_TYPES.has(eventType)) {
+    return "Link sebelumnya kedaluwarsa";
+  }
   if (WEBHOOK_EVENT_LABELS[eventType]) return WEBHOOK_EVENT_LABELS[eventType];
   if (eventType.startsWith("manual.refresh.")) return "Perbarui manual";
   if (eventType.startsWith("doku.")) return "DOKU";
@@ -197,7 +206,7 @@ export function PaymentActivityCard({
                 {/* Line 2: event-type · status · method-or-error */}
                 <div className="flex items-center flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
                   <Badge variant="outline" className="text-xs" title={evt.eventType}>
-                    {webhookEventLabel(evt.eventType)}
+                    {webhookEventLabel(evt.eventType, evt.status)}
                   </Badge>
                   <StatusPill status={evt.status} />
                   {showError && evt.errorLabel ? (

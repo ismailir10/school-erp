@@ -125,7 +125,7 @@ Data needed: the seed adds one unpaid invoice with a future date, one with a pas
 - [ ] T2 Clear the date wherever the link is cleared — accept: table test over the shared clear helper, both webhook-processor clears and void (deps: T1)
 - [ ] T3 Seed fixtures — accept: the fixtures in Verify flows exist after seeding, in app seed, prisma seed, reseed script and finish-xendit (deps: T1; parallel with T2)
 - [ ] T4 Detail page link block — accept: three states render (date, expired for unpaid only, no date recorded) in WIB (deps: T1; parallel with T5)
-- [ ] T5 Activity card relabel — accept: processed expired events read "Link sebelumnya kedaluwarsa", others unchanged (deps: none; parallel with T4)
+- [x] T5 Activity card relabel — accept: processed expired events read "Link sebelumnya kedaluwarsa", others unchanged (deps: none; parallel with T4)
 - [ ] T6 List: sortable column and mobile line — accept: route sort test (nulls last, stable paging) and jsdom cell test pass (deps: T1)
 - [ ] T7 Status filter, five questions — accept: the six options in order with counts, "Belum lunas" and "Perlu link" derived filters, raw statuses still accepted, unknown → 400, one shared owes-money rule across list, summary and the missing-links pick, composes with search and sort (deps: none; parallel with T6)
 - [ ] T8 Expiry keeps Link Dibuat — accept: processor tests in Test seams; admin replace-link and parent payment-link route tests pass; the admin check reports "link cleared"; glossary line reworded; no leftover code or comment treats Link Gagal as the expired-link signal (deps: T2)
@@ -133,6 +133,9 @@ Data needed: the seed adds one unpaid invoice with a future date, one with a pas
 - [ ] T10 README/docs touch — accept: README covers the stored expiry and the filter; `bash scripts/audit-docs.sh` exits 0 (deps: T1–T9)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1+T5+T7 parallel (disjoint files), then T2+T3+T4+T6 parallel (T6 waits on T7: same list route and client), T8 → T9 sequential (both edit the webhook processor), T10 inline (docs only, a worker would need the whole cycle as context). Workers do not commit; the driver runs the task gate per wave and commits each task on its own.
+- T5: `components/admin/invoices/payment-activity-card.tsx`, `components/admin/invoices/__tests__/payment-activity-card.test.tsx` — `webhookEventLabel` takes the event status; PROCESSED `payment_session.expired` / `manual.refresh.expired` read "Link sebelumnya kedaluwarsa"; IGNORED and ERROR keep the literal label (no separate duplicate status exists on the wire). Copy-only change inside the existing Badge; cross-checked against `design-system.html` (no visual change).
 
 ## Verification
 
