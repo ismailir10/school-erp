@@ -164,7 +164,10 @@ describe("POST /api/xendit/create-session — idempotency + paymentLinkError wri
     },
   );
 
-  it.each(["OVERDUE", "PARTIALLY_PAID"])(
+  // SENT: a Link Dibuat invoice whose link expired before its due date has no link and
+  // stays Link Dibuat (cycle 2026-10-20-payment-link-expiry-display, D10); a failed
+  // create on the detail page must not demote it to Link Gagal either.
+  it.each(["OVERDUE", "PARTIALLY_PAID", "SENT"])(
     "a failed link on a %s invoice records the error but does not move it to PENDING_PAYMENT_LINK",
     async (status) => {
       const { prisma } = await import("@/lib/db");
