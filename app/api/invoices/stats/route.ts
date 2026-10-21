@@ -6,6 +6,7 @@ import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { jakartaMonthRangeUtc } from "@/lib/finance/jakarta-month";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { owingInvoiceWhere, owingWithoutLinkWhere } from "@/lib/finance/invoice-owes";
+import { needsReviewInvoiceIds } from "@/lib/payments/needs-review-invoices";
 
 /**
  * GET /api/invoices/stats
@@ -26,8 +27,9 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const tenantId = session.tenantId; // narrowed here; the closure below would lose it
   const month = jakartaMonthRangeUtc();
-  const [groups, collected, unpaidWithoutLink, owing] = await Promise.all([
+  const [groups, collected, unpaidWithoutLink, owing, needsReview] = await Promise.all([
     prisma.invoice.groupBy({
       by: ["status"],
       where: { tenantId: session.tenantId },
@@ -52,6 +54,13 @@ export async function GET(_req: NextRequest) {
     prisma.invoice.count({
       where: { tenantId: session.tenantId, ...owingInvoiceWhere() },
     }),
+    // Invoices with a flagged gateway payment: the list's "Perlu dicek (N)". Same rule as the
+    // list filter (`status=NEEDS_REVIEW`): event-log ids, narrowed to this school's invoices.
+    needsReviewInvoiceIds().then((ids) =>
+      ids.length === 0
+        ? 0
+        : prisma.invoice.count({ where: { tenantId, id: { in: ids } } }),
+    ),
   ]);
 
   const byStatus: Record<string, number> = {};
@@ -82,6 +91,7 @@ export async function GET(_req: NextRequest) {
     pendingPaymentLink: byStatus.PENDING_PAYMENT_LINK ?? 0,
     unpaidWithoutLink,
     owing,
+    needsReview,
     totalDue,
     totalPaid,
     outstanding,

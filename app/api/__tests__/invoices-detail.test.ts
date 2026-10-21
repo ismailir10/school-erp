@@ -10,11 +10,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findUnique = vi.fn();
 const userFindMany = vi.fn();
+const webhookFindMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { findUnique },
     user: { findMany: userFindMany },
+    webhookEvent: { findMany: webhookFindMany },
   },
 }));
 
@@ -43,6 +45,7 @@ function makeReq() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  webhookFindMany.mockResolvedValue([]);
 });
 
 describe("GET /api/invoices/[id]", () => {
@@ -185,6 +188,71 @@ describe("GET /api/invoices/[id]", () => {
       isPrimary: true,
       status: "ACTIVE",
     });
+  });
+
+  it("returns paymentProblems built from the invoice's flagged events, newest first", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "PAID", lines: [], payments: [], student: { guardians: [] },
+    });
+    const createdAt = new Date("2026-10-21T03:00:00.000Z");
+    webhookFindMany.mockResolvedValueOnce([
+      {
+        errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID",
+        payload: { data: { amount: 500000 } },
+        provider: "xendit",
+        createdAt,
+      },
+    ]);
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    const json = await res.json();
+
+    expect(webhookFindMany).toHaveBeenCalledWith({
+      where: {
+        invoiceId: "inv-1",
+        status: "ERROR",
+        errorMessage: { in: ["DUPLICATE_PAYMENT_AFTER_PAID", "PAID_ON_CANCELLED_INVOICE", "OVERPAYMENT_FLAGGED"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { errorMessage: true, payload: true, provider: true, createdAt: true },
+    });
+    expect(json.paymentProblems).toHaveLength(1);
+    expect(json.paymentProblems[0]).toMatchObject({
+      code: "DUPLICATE_PAYMENT_AFTER_PAID",
+      createdAt: createdAt.toISOString(),
+    });
+    expect(json.paymentProblems[0].message).toContain("Rp 500.000");
+    expect(json.paymentProblems[0].message).toContain("Xendit");
+  });
+
+  it("returns an empty paymentProblems list when nothing is flagged", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "SENT", lines: [], payments: [], student: { guardians: [] },
+    });
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    expect((await res.json()).paymentProblems).toEqual([]);
+  });
+
+  it("another tenant's invoice 404s and never queries webhook events", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-other", status: "PAID", lines: [], payments: [], student: { guardians: [] },
+    });
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    expect(res.status).toBe(404);
+    expect(webhookFindMany).not.toHaveBeenCalled();
   });
 
   it("404 when the row exists but for another tenant", async () => {

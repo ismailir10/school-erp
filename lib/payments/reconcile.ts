@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { getGateway } from "./registry";
 import { paymentLinkProvider } from "./link-provider";
 import { GatewayApiError, type GatewayPaymentStatus } from "./types";
+import { DUPLICATE_PAYMENT_AFTER_PAID, PAID_ON_CANCELLED_INVOICE } from "./needs-review";
 import {
   processPaymentEvent,
   type NormalizedPaymentEvent,
@@ -50,8 +51,8 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
  *      `WebhookEvent.eventId` unique index → P2002 → `{duplicate:true}` noop.
  *   2. `Payment.xenditPaymentId` is unique and checked inside the advisory
  *      lock, so no duplicate Payment row can be inserted for one settlement.
- *   3. The processor returns early on `PAID` / `CANCELLED` invoices, so an
- *      already-settled invoice is never re-credited.
+ *   3. The processor never credits a `PAID` / `CANCELLED` invoice: a redelivery is a
+ *      no-op, and a different payment on one is flagged (NEEDS_REVIEW), not recorded.
  */
 
 /** Machine-readable result code. The route returns this; the UI branches on it. */
@@ -63,9 +64,10 @@ export type ReconcileCode =
   | "GATEWAY_ERROR"
   | "NOT_FOUND"
   /**
-   * Pendaftaran fee only: the gateway holds a payment the processor refused to
-   * credit (wrong amount, a second payment, money on a waived fee). The fee is
-   * unchanged and the money needs a human — never reported as a quiet NO_CHANGE.
+   * The gateway holds a payment the processor refused to credit: for a pendaftaran
+   * fee a wrong amount, a second payment or money on a waived fee; for an invoice a
+   * second payment on a Lunas invoice or any payment on a Dibatalkan one. Nothing
+   * is recorded and the money needs a human — never reported as a quiet NO_CHANGE.
    */
   | "NEEDS_REVIEW";
 
@@ -165,6 +167,36 @@ function unavailableMessage(reason: string | undefined): string {
     return "Gateway belum punya catatan transaksi untuk tagihan ini. Belum ada pembayaran yang dimulai.";
   }
   return "Status pembayaran tidak bisa diperiksa saat ini.";
+}
+
+const GATEWAY_LABELS: Record<string, string> = { xendit: "Xendit", doku: "DOKU" };
+
+/** Admin-facing sentence for a payment the processor refused to record on an invoice. */
+function invoiceReviewMessage(processorStatus: string | undefined, provider: string): string | null {
+  const gateway = GATEWAY_LABELS[provider] ?? "gateway";
+  switch (processorStatus) {
+    case "ERROR:duplicate_payment_after_paid":
+      return `Ada pembayaran kedua di ${gateway} untuk tagihan yang sudah lunas. Pembayaran ini tidak dicatat — periksa di dashboard ${gateway} dan kembalikan dana bila perlu.`;
+    case "ERROR:paid_on_cancelled_invoice":
+      return `Ada pembayaran di ${gateway} untuk tagihan yang sudah dibatalkan. Pembayaran ini tidak dicatat — periksa di dashboard ${gateway} dan kembalikan dana.`;
+    default:
+      return null;
+  }
+}
+
+/** The processor status an earlier poll stored for `eventId`, when it was a flagged invoice payment. */
+async function storedReviewStatus(eventId: string): Promise<string | undefined> {
+  try {
+    const stored = await prisma.webhookEvent.findUnique({
+      where: { eventId },
+      select: { errorMessage: true },
+    });
+    if (stored?.errorMessage === DUPLICATE_PAYMENT_AFTER_PAID) return "ERROR:duplicate_payment_after_paid";
+    if (stored?.errorMessage === PAID_ON_CANCELLED_INVOICE) return "ERROR:paid_on_cancelled_invoice";
+  } catch {
+    // Best effort: without the stored event the caller falls back to the ordinary message.
+  }
+  return undefined;
 }
 
 /**
@@ -403,6 +435,17 @@ export async function reconcileInvoicePayment(
         EXPIRED_LINK_CLEARED_MESSAGE,
     };
   }
+
+  // A payment the processor refused to record (a second one on a Lunas invoice, or one on a
+  // Dibatalkan invoice) leaves the invoice as it was, so it is never "changed" and must not fall
+  // through to the reassuring "sudah lunas" below: money sits at the gateway and needs a person.
+  // Clicking again hits the event-id dedup, which answers `duplicate` with no status: read the
+  // stored event so the second click says the same thing as the first.
+  const review = invoiceReviewMessage(
+    outcome.duplicate ? await storedReviewStatus(eventId) ?? outcome.status : outcome.status,
+    provider,
+  );
+  if (review) return { ...base, code: "NEEDS_REVIEW", message: review };
 
   if (changed) {
     return {

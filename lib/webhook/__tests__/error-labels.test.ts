@@ -32,6 +32,23 @@ describe("mapErrorLabel — catalog", () => {
     );
   });
 
+  it("DUPLICATE_PAYMENT_AFTER_PAID → humanized", () => {
+    expect(mapErrorLabel("DUPLICATE_PAYMENT_AFTER_PAID")).toBe(
+      "Pembayaran kedua untuk tagihan yang sudah lunas — tidak dicatat. Periksa di dashboard gateway dan kembalikan dana bila perlu.",
+    );
+  });
+
+  it("PAID_ON_CANCELLED_INVOICE → humanized", () => {
+    expect(mapErrorLabel("PAID_ON_CANCELLED_INVOICE")).toBe(
+      "Pembayaran untuk tagihan yang sudah dibatalkan — tidak dicatat. Periksa di dashboard gateway dan kembalikan dana.",
+    );
+  });
+
+  it("legacy IGNORED reasons 'invoice cancelled' / '(in-tx)' → humanized", () => {
+    expect(mapErrorLabel("invoice cancelled")).toBe("Tagihan dibatalkan — event diabaikan.");
+    expect(mapErrorLabel("invoice cancelled (in-tx)")).toBe("Tagihan dibatalkan — event diabaikan.");
+  });
+
   it("already_paid suffix → humanized", () => {
     expect(mapErrorLabel("IGNORED:already_paid")).toBe(
       "Tagihan sudah lunas — event diabaikan.",

@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   webhookEvent: { create: vi.fn(), update: vi.fn() },
   invoice: { findUnique: vi.fn(), findFirst: vi.fn() },
+  payment: { findUnique: vi.fn() },
   enrollmentFee: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),
   $executeRaw: vi.fn(),
@@ -57,6 +58,7 @@ beforeEach(() => {
   db.webhookEvent.update.mockResolvedValue({});
   db.invoice.findUnique.mockResolvedValue(null);
   db.invoice.findFirst.mockResolvedValue(null);
+  db.payment.findUnique.mockResolvedValue(null);
   db.enrollmentFee.findFirst.mockResolvedValue(null);
   db.enrollmentFee.update.mockResolvedValue({});
   db.$executeRaw.mockResolvedValue(1);
@@ -82,7 +84,9 @@ describe("processPaymentEvent → enrollment fee", () => {
   });
 
   it("an Invoice with that reference wins; the fee path is never touched", async () => {
+    // The invoice is already Lunas and this very payment is the one recorded: a redelivery.
     db.invoice.findUnique.mockResolvedValue({ id: FEE_ID, status: "PAID", invoiceNumber: "INV-1" });
+    db.payment.findUnique.mockResolvedValue({ id: "pay-row" });
     const res = await processPaymentEvent(event());
     expect(res.body).toMatchObject({ status: "PAID:already" });
     expect(db.enrollmentFee.findUnique).not.toHaveBeenCalled();

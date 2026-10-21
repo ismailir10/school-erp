@@ -695,6 +695,137 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
     );
   });
 
+  describe("payment on a closed invoice (cycle 2026-10-21-unrecorded-gateway-payments)", () => {
+    /** First read = `outer`; the in-lock read = `inTx`; `recorded` = a Payment already stored for the id. */
+    async function postCompleted(opts: {
+      outer: string;
+      inTx?: string;
+      recorded?: boolean;
+      eventId: string;
+      paymentId: string;
+    }) {
+      const { prisma } = await import("@/lib/db");
+      const row = (status: string) => ({
+        id: "inv1",
+        status,
+        totalDue: 1000,
+        totalPaid: status === "PAID" ? 1000 : 0,
+        invoiceNumber: "INV-1",
+      });
+      vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row(opts.outer) as never);
+      const txPaymentCreate = vi.fn().mockResolvedValue({});
+      const txInvoiceUpdate = vi.fn().mockResolvedValue({});
+      vi.mocked(prisma.$transaction).mockImplementationOnce(
+        async (cb: unknown) =>
+          await (cb as (tx: unknown) => unknown)({
+            $executeRaw: vi.fn().mockResolvedValue(0),
+            invoice: {
+              findUnique: vi.fn().mockResolvedValue(row(opts.inTx ?? opts.outer)),
+              update: txInvoiceUpdate,
+            },
+            payment: {
+              findUnique: vi.fn().mockResolvedValue(opts.recorded ? { id: "p-old" } : null),
+              findMany: vi.fn().mockResolvedValue([{ amount: 1000 }]),
+              create: txPaymentCreate,
+            },
+          }),
+      );
+      const res = await POST(
+        makeReq({
+          id: opts.eventId,
+          event: "payment_session.completed",
+          data: { reference_id: "inv1", status: "COMPLETED", payment_id: opts.paymentId, amount: 1000 },
+        }) as never,
+      );
+      return { res, txPaymentCreate, txInvoiceUpdate, prisma };
+    }
+
+    it("a NEW payment id on a PAID invoice is flagged DUPLICATE_PAYMENT_AFTER_PAID and records nothing", async () => {
+      const { res, txPaymentCreate, txInvoiceUpdate, prisma } = await postCompleted({
+        outer: "PAID", eventId: "evt-dup", paymentId: "pay-second",
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ status: "ERROR:duplicate_payment_after_paid" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(txInvoiceUpdate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-dup" },
+          data: expect.objectContaining({
+            status: "ERROR",
+            errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID",
+            invoiceId: "inv1",
+          }),
+        }),
+      );
+    });
+
+    it("a payment id ALREADY recorded on a PAID invoice is a quiet redelivery (PAID:already, no flag)", async () => {
+      const { res, txPaymentCreate, prisma } = await postCompleted({
+        outer: "PAID", recorded: true, eventId: "evt-redeliver", paymentId: "pay-settled",
+      });
+      expect(await res.json()).toMatchObject({ status: "PAID:already" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-redeliver" },
+          data: expect.objectContaining({ status: "PROCESSED", invoiceId: "inv1" }),
+        }),
+      );
+      expect(prisma.webhookEvent.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: "ERROR" }) }),
+      );
+    });
+
+    it("a payment on a CANCELLED invoice is flagged PAID_ON_CANCELLED_INVOICE and records nothing", async () => {
+      const { res, txPaymentCreate, txInvoiceUpdate, prisma } = await postCompleted({
+        outer: "CANCELLED", eventId: "evt-void", paymentId: "pay-void",
+      });
+      expect(await res.json()).toMatchObject({ status: "ERROR:paid_on_cancelled_invoice" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(txInvoiceUpdate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-void" },
+          data: expect.objectContaining({
+            status: "ERROR",
+            errorMessage: "PAID_ON_CANCELLED_INVOICE",
+            invoiceId: "inv1",
+          }),
+        }),
+      );
+    });
+
+    it("race: SENT at the first read but PAID inside the lock, new payment id -> DUPLICATE_PAYMENT_AFTER_PAID", async () => {
+      const { res, txPaymentCreate, prisma } = await postCompleted({
+        outer: "SENT", inTx: "PAID", eventId: "evt-race", paymentId: "pay-late",
+      });
+      expect(await res.json()).toMatchObject({ status: "ERROR:duplicate_payment_after_paid" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-race" },
+          data: expect.objectContaining({ status: "ERROR", errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" }),
+        }),
+      );
+    });
+
+    it("race: SENT at the first read but CANCELLED inside the lock, new payment id -> PAID_ON_CANCELLED_INVOICE", async () => {
+      const { res, txPaymentCreate, txInvoiceUpdate, prisma } = await postCompleted({
+        outer: "SENT", inTx: "CANCELLED", eventId: "evt-race-void", paymentId: "pay-late-void",
+      });
+      expect(await res.json()).toMatchObject({ status: "ERROR:paid_on_cancelled_invoice" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(txInvoiceUpdate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-race-void" },
+          data: expect.objectContaining({ status: "ERROR", errorMessage: "PAID_ON_CANCELLED_INVOICE" }),
+        }),
+      );
+    });
+  });
+
   it("T5c — xenditSessionId fallback resolves invoice when reference_id misses (real PR #136 case)", async () => {
     // Real production payload: reference_id has legacy "staging-tagihan-"
     // prefix that findUnique misses; payment_session_id resolves via fallback.

@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { PaymentProblemsAlert, type PaymentProblemView } from "@/components/admin/invoices/payment-problems-alert";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
@@ -56,6 +57,8 @@ type InvoiceDetail = {
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
+  /** Gateway payments the app did not credit (or credited past the balance): money to reconcile by hand. */
+  paymentProblems?: PaymentProblemView[];
 };
 
 // ------------------------------------------------------------------
@@ -487,7 +490,7 @@ export default function InvoiceDetailPage() {
         return;
       }
       if (d.code === "UPDATED") toast.success(d.message);
-      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE" || d.code === "NEEDS_REVIEW") toast.warning(d.message);
       else toast.info(d.message);
       await fetchInvoice();
       setActivityKey((k) => k + 1);
@@ -790,6 +793,9 @@ export default function InvoiceDetailPage() {
         </Card>
       )}
 
+      {/* Gateway money that needs a person: above the details so it is the first thing seen */}
+      <PaymentProblemsAlert problems={invoice.paymentProblems ?? []} className="mb-4" />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Invoice Lines */}
         <Card className="p-card lg:col-span-2">
@@ -917,6 +923,7 @@ export default function InvoiceDetailPage() {
               </div>
             )}
           </Card>
+
 
           {/* Aktivitas Pembayaran — hides itself when 0 events */}
           <PaymentActivityCard invoiceId={invoice.id} refreshKey={activityKey} />
