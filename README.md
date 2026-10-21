@@ -60,7 +60,8 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
 
-Role homes apply "Don't Make Me Think": teachers see their class and unfinished work (class attendance is exception-first: pick S/I/A for the few, then one tap marks the rest Hadir), guardians see family actions for clearly identified children, and admins get a one-screen Dasbor (queue counts, top-5 urgent items, today's staff attendance) with the full queue at `/admin/work-queue`. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
+Role homes apply "Don't Make Me Think": teachers see their class and unfinished work (class attendance is exception-first: pick S/I/A for the few, then one tap marks the rest Hadir), guardians see family actions for clearly identified children, and admins get a Dasbor whose first screen is the work (queue counts, top urgent items, today's staff attendance) with the full queue at `/admin/work-queue`.
+Below it, Analitik charts student attendance, buku penghubung completion, billing vs collection and piutang aging. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
 
 ---
 
