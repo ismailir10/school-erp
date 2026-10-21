@@ -31,8 +31,8 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 - **D4. Applies to every way a payment event reaches the processor.** That means both gateway webhooks (Xendit, DOKU) and the manual and parent "check payment" polls. An admin's "Perbarui pembayaran" on such an invoice reports *Perlu dicek* with the reason, never "Tagihan sudah lunas — tidak ada perubahan".
 - **D5. "Perlu dicek" covers three error codes.** These are the two new ones plus the existing `OVERPAYMENT_FLAGGED`. All three are money at the gateway that a person must reconcile.
 - **D6. Shown in two places.**
-  - **Invoice detail:** a red "Perlu dicek" alert above the activity card. It has one line per flagged payment, naming the amount and the gateway (each one may need its own refund), and tells the admin to check the gateway dashboard and refund if needed.
-  - **Admin invoice list:** a "Perlu dicek" option in the Status filter, with its count, and only when the count is above zero.
+  - **Invoice detail:** a red "Perlu dicek" alert at the top of the page, above the invoice details. It has one line per flagged payment, naming the amount and the gateway (each one may need its own refund), and tells the admin to check the gateway dashboard and refund if needed.
+  - **Admin invoice list:** a "Perlu dicek" option in the Status filter, with its count. It shows only when the count is above zero, or while it is the selected filter, so it never disappears from under the admin.
 
   The activity card's rows for these codes get readable labels.
 - **D7. No "mark as handled" action in this cycle.** The enrollment-fee alert has none either. The alert is a permanent fact about the invoice: a second payment arrived. Hiding it would need a new state and an audited action, which is a separate decision. The list option only appears when there is something to show, so it is not noise at zero.
@@ -74,7 +74,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - "Ada pembayaran di {gateway} untuk tagihan yang sudah dibatalkan (Rp …). Periksa di dashboard {gateway} dan kembalikan dana."
   - "Pembayaran melebihi tagihan (Rp …) — sudah dikreditkan. Periksa dan kembalikan kelebihannya bila perlu."
 - **Design system.** Cross-checked against `design-system.html` (Overlays: Alert and Toast). The "Perlu dicek" result of a payment check uses the warning toast, as gateway errors already do. The alert reuses the shadcn destructive `Alert`, so no new styling is needed.
-- **Placement.** Above the activity card, so the admin sees the problem before the log.
+- **Placement.** At the top of the page, above the invoice details. In the T2/T3 review it sat above the activity card, at the foot of the right column, where it was easy to miss.
 - **Filter.** The Status filter's label is "Perlu dicek (N)". Its position is after "Perlu link".
 
 ## Test seams
@@ -100,7 +100,8 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 1. **Volume.** About 200 invoices and few flagged events, so the list filter can read the flagged invoice ids from the event log first (the log has no foreign key to `Invoice`), with no new index.
 2. **Gateway ids.** A payment id is unique per gateway payment, which the existing redelivery check already relies on.
 3. **Fee events stay out.** Enrollment-fee events store the fee id in the same column. The invoice filter joins only to invoices in the admin's school, so fee events never match.
-4. **Existing events are not backfilled.** Earlier silent *processed* rows on paid invoices stay as they are. The webhook payload is kept, so they can be found by hand if needed.
+4. **Existing `OVERPAYMENT_FLAGGED` events do count.** Overpayments flagged before this cycle will show the alert on their invoice and in "Perlu dicek (N)" from day one, and nothing dismisses them (D7). That is intended: each one is money nobody has confirmed was reconciled.
+5. **Existing events are not backfilled.** Earlier silent *processed* rows on paid invoices stay as they are. The webhook payload is kept, so they can be found by hand if needed.
 
 ## Gate re-openers
 
@@ -154,6 +155,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - `README.md`: finance line, committed with T2.
   - `docs/uat/jobs/admin.md`: new JTBD-ADMIN-INV-08, and Last audited bumped.
   - The counts block is regenerated.
+- T2/T3 review follow-up: moved the alert to the top of the invoice page. It had been placed above the activity card, at the foot of the right column, where it was easy to miss. The review also found that `needsReviewInvoiceIds` scans `WebhookEvent` on every stats call. This is not fixed here, because an index is a schema migration the spec did not name. It is recorded in Ship Notes as a follow-up.
 - T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification
