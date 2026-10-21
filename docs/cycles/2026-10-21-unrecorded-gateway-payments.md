@@ -156,6 +156,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - `docs/uat/jobs/admin.md`: new JTBD-ADMIN-INV-08, and Last audited bumped.
   - The counts block is regenerated.
 - T2/T3 review follow-up: moved the alert to the top of the invoice page. It had been placed above the activity card, at the foot of the right column, where it was easy to miss. The review also found that `needsReviewInvoiceIds` scans `WebhookEvent` on every stats call. This is not fixed here, because an index is a schema migration the spec did not name. It is recorded in Ship Notes as a follow-up.
+- verify-local round 1: the alert sat flush against the cards below it, so it now takes `mb-4`, the same spacing as the link-error card above it.
 - T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification

@@ -794,7 +794,7 @@ export default function InvoiceDetailPage() {
       )}
 
       {/* Gateway money that needs a person: above the details so it is the first thing seen */}
-      <PaymentProblemsAlert problems={invoice.paymentProblems ?? []} />
+      <PaymentProblemsAlert problems={invoice.paymentProblems ?? []} className="mb-4" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Invoice Lines */}
