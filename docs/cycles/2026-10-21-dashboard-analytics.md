@@ -81,7 +81,7 @@ None: no schema migration, no new dependency, no auth or permission change (anal
 ## Tasks
 
 - [x] T1 Analytics loaders — accept: `lib/dashboard/analytics/*` exports pure helpers + three tenant-scoped loaders (attendance, journal, finance), vitest green (deps: none; reuse: `UNPAID_INVOICE_STATUSES`, `getTodayInTimezone`, monitoring's completion definition). Parallel with T2.
-- [ ] T2 FadeContent port — accept: `components/reactbits/fade-content.tsx` + test; static on hydrate / reduced motion; hides only when below the viewport after hydration; reveals and remounts children on intersect (deps: none; reuse: `use-prefers-reduced-motion`). Parallel with T1.
+- [x] T2 FadeContent port — accept: `components/reactbits/fade-content.tsx` + test; static on hydrate / reduced motion; hides only when below the viewport after hydration; reveals and remounts children on intersect (deps: none; reuse: `use-prefers-reduced-motion`). Parallel with T1.
 - [ ] T3 Analytics UI — accept: headline band + four cards + section with Suspense skeleton and per-card unavailable state, wired into `/admin`; component tests green (deps: T1, T2; reuse: `ChartContainer`, `AttendanceTrendChart` shape, `CountUp`, `Spotlight`, `Aurora`, `Stagger`, `EmptyState`, `DashboardRetry`).
 - [ ] T4 Seed history — accept: seed writes ~4 more weeks of sessionless student attendance and journal entries/notes before the recent days; seed runs clean; existing e2e unchanged (deps: none). Parallel with T1/T2.
 - [ ] T5 E2E + docs — accept: `admin-dashboard.spec.ts` updated and new Analitik test; `patterns.md` Dasbor rule, README module line, `docs/uat/jobs/admin.md` updated (deps: T3).
@@ -91,6 +91,10 @@ None: no schema migration, no new dependency, no auth or permission change (anal
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1+T2+T4 parallel (disjoint files: lib/dashboard/analytics, components/reactbits, prisma/seed.ts), T3 parallel against the fixed T1/T2 contracts (components/admin/dashboard/analytics, app/admin/page.tsx), T5 inline by the driver (docs + one e2e file, needs the whole cycle as context). Workers do not commit; the driver re-runs each task's tests and commits it.
 - T1: `lib/dashboard/analytics/{types,helpers,attendance,journal,finance,index}.ts`. Journal completion mirrors the Monitoring classes route (active academic year, ACTIVE classes, current enrolments, ACTIVE SCHOOL indicators × 5, capped at 100%; entries are not filtered by indicator status, as in the route). Note authors: `TEACHER` and `GUARDIAN` (`authorRole` = session role). Collected per month is one `$queryRaw` joining Payment → Invoice for the tenant, REVERSED excluded, bucketed in Asia/Jakarta. Aging groups unpaid invoices by due date. 43 Vitest cases.
 
+- T2: `components/reactbits/fade-content.tsx`, a dependency-free port of React Bits FadeContent (IntersectionObserver + inline CSS transitions, no GSAP, no framer-motion). Static on the server, during hydration, under reduced motion, without IntersectionObserver, or when already in view; otherwise armed off-screen and revealed once, with the children remounted through a keyed Fragment so CountUp, Stagger and chart draw-in play on reveal. The threshold is capped for elements taller than the viewport so content cannot be stranded hidden; inline styles are dropped after the transition. 14 Vitest cases, including a real `hydrateRoot` pass.
+
 ## Verification
+
+- [x] Cross-checked design-system.html (motion: only 120–140 ms state transitions and the skeleton shimmer are defined; no section-reveal rule) for FadeContent: it adds no colour, type or spacing and changes only opacity / transform / filter, so the reference is not contradicted. The UI tasks get their own cross-check below.
 
 ## Ship Notes
