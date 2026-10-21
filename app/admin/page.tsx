@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { formatDate } from "@/lib/format";
-import { ActivityFeed, QueueSummaryTiles, UrgentList, AttendanceTodayStrip, FinanceTiles, DashboardAnalytics, AnalyticsSkeleton } from "@/components/admin/dashboard";
+import { ActivityFeed, QueueSummaryTiles, UrgentList, AttendanceTodayStrip, FinanceTiles } from "@/components/admin/dashboard";
+// Not via the dashboard barrel: client pages import that barrel, and this section runs prisma queries.
+import { DashboardAnalytics, AnalyticsSkeleton } from "@/components/admin/dashboard/analytics";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
 import { loadReceivables } from "@/lib/dashboard/receivables";
 import { getRecentActivity } from "@/lib/dashboard/activity-feed";

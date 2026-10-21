@@ -100,6 +100,8 @@ None: no schema migration, no new dependency, no auth or permission change (anal
 
 ## Verification
 
+- [x] Cross-checked design-system.html for the Analitik UI: brand teal fill (`--primary`) for collected / journal bars and status tokens (`--status-present|leave|no-checkout|late|absent`) for attendance and aging, never hex; the KPI face (`font-currency`, tabular numerals) and caption-uppercase labels match the Dasbor's existing StatTiles; cards reuse the Card + header-border + ghost "Lihat …" action of the staff attendance chart; celebration tokens only for the zero-piutang state (colors.md).
+
 - [x] Cross-checked design-system.html (motion: only 120–140 ms state transitions and the skeleton shimmer are defined; no section-reveal rule) for FadeContent: it adds no colour, type or spacing and changes only opacity / transform / filter, so the reference is not contradicted. The UI tasks get their own cross-check below.
 
 ## Ship Notes

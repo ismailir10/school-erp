@@ -23,6 +23,11 @@ const RISE_PX = 16;
 const BLUR_PX = 8;
 /** Largest share of the viewport an element must show before it counts as revealed (tall sections). */
 const MAX_VIEWPORT_SHARE = 0.9;
+/**
+ * An element whose top sits in the bottom 15% of the viewport still counts as below the fold: a
+ * sliver peeking over the edge (the Dasbor's Analitik at 1440×900) should reveal on scroll too.
+ */
+const IN_VIEW_SHARE = 0.85;
 /** Slack after the transition ends before the inline styles are dropped. */
 const SETTLE_SLACK_MS = 100;
 
@@ -40,7 +45,7 @@ type ForwardedProps = Omit<HTMLAttributes<HTMLElement>, "className" | "children"
  * Server output, hydration and first client render are the plain element with its children, fully
  * visible (no inline style), so no-JS shows everything. After hydration the decision is made ONCE:
  *   - reduced motion, no IntersectionObserver / matchMedia, zero height, or the element's top is already
- *     inside the viewport: stay static forever (nothing hidden, nothing remounted);
+ *     in the upper 85% of the viewport: stay static forever (nothing hidden, nothing remounted);
  *   - otherwise the element is below the fold, so it is "armed": opacity 0, translateY(16px) and
  *     blur(8px) are applied (off-screen, so the flip is invisible) and an IntersectionObserver waits.
  *     On the first intersection it transitions to opacity 1 / y 0 / blur 0 over `duration`, disconnects,
@@ -87,7 +92,7 @@ export function FadeContent({
       return;
     }
     const rect = el.getBoundingClientRect();
-    if (rect.height <= 0 || rect.top < window.innerHeight) return;
+    if (rect.height <= 0 || rect.top < window.innerHeight * IN_VIEW_SHARE) return;
 
     // A section taller than ~1.1 viewports can never show `threshold` of itself; cap it.
     const effective = Math.min(threshold, (window.innerHeight * MAX_VIEWPORT_SHARE) / rect.height);

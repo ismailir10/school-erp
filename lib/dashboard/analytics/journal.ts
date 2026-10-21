@@ -59,10 +59,14 @@ export async function loadJournalAnalytics(
 
   const classIds = sections.map((s) => s.id);
   const studentCount = new Map(enrollments.map((e) => [e.classSectionId, e._count._all]));
-  const possibleByClass = new Map(
-    sections.map((s) => [s.id, (studentCount.get(s.id) ?? 0) * indicatorCount * 5]),
+  // Monitoring's denominator is a full Mon–Fri week. The current week only
+  // counts the school days elapsed so far, so "this week" can reach 100% on a
+  // Wednesday instead of topping out at 60%.
+  const elapsedDays = weekDates(currentWeek).filter((d) => d <= today).length;
+  const perDayByClass = new Map(
+    sections.map((s) => [s.id, (studentCount.get(s.id) ?? 0) * indicatorCount]),
   );
-  const possible = [...possibleByClass.values()].reduce((a, b) => a + b, 0);
+  const perDay = [...perDayByClass.values()].reduce((a, b) => a + b, 0);
 
   const [entriesByDate, entriesByClass, notes] = await Promise.all([
     classIds.length
@@ -106,7 +110,7 @@ export async function loadJournalAnalytics(
     weekStart,
     completionPct: null as number | null,
     checked: 0,
-    possible,
+    possible: perDay * (weekStart === currentWeek ? elapsedDays : 5),
     teacherNotes: 0,
     guardianNotes: 0,
   }));
@@ -129,12 +133,12 @@ export async function loadJournalAnalytics(
       .map((e) => [e.classSectionId, e._count._all]),
   );
   const leastCompleteClasses = sections
-    .filter((s) => (possibleByClass.get(s.id) ?? 0) > 0)
+    .filter((s) => (perDayByClass.get(s.id) ?? 0) * elapsedDays > 0)
     .map((s) => ({
       classSectionId: s.id,
       name: s.name,
       completionPct:
-        completionPct(checkedByClass.get(s.id) ?? 0, possibleByClass.get(s.id) ?? 0) ?? 0,
+        completionPct(checkedByClass.get(s.id) ?? 0, (perDayByClass.get(s.id) ?? 0) * elapsedDays) ?? 0,
     }))
     .sort((a, b) => a.completionPct - b.completionPct || a.name.localeCompare(b.name))
     .slice(0, 3);

@@ -127,6 +127,19 @@ describe("FadeContent static paths", () => {
     expect(mounts).toBe(1);
   });
 
+  it("arms when only a sliver peeks over the bottom edge of the viewport", () => {
+    vi.stubGlobal("IntersectionObserver", FakeObserver);
+    stubMatchMedia(false);
+    stubRect(window.innerHeight - 20);
+    const { container } = render(
+      <FadeContent>
+        <MountCounter />
+      </FadeContent>,
+    );
+    expect(FakeObserver.instances).toHaveLength(1);
+    expect((container.firstElementChild as HTMLElement).style.opacity).toBe("0");
+  });
+
   it("stays static when the element has no height", () => {
     vi.stubGlobal("IntersectionObserver", FakeObserver);
     stubMatchMedia(false);

@@ -67,17 +67,26 @@ describe("loadJournalAnalytics", () => {
     expect(out.weeks).toHaveLength(8);
     expect(out.weeks[0].weekStart).toBe("2026-08-31");
     expect(out.weeks[7].weekStart).toBe("2026-10-19");
-    expect(out.weeks[7]).toMatchObject({ checked: 60, possible: 100, completionPct: 60, teacherNotes: 4, guardianNotes: 2 });
-    expect(out.thisWeekPct).toBe(60);
+    // Wednesday: the current week counts Mon–Wed only (3 days x 10 students x 2 indicators).
+    expect(out.weeks[7]).toMatchObject({ checked: 60, possible: 60, completionPct: 100, teacherNotes: 4, guardianNotes: 2 });
+    expect(out.thisWeekPct).toBe(100);
+    expect(out.weeks[6].possible).toBe(100);
     expect(out.weeks[6]).toMatchObject({ checked: 500, completionPct: 100, guardianNotes: 1 });
     expect(out.weeks[0]).toMatchObject({ checked: 10, completionPct: 10, teacherNotes: 3 });
     expect(out.weeks[3].completionPct).toBe(0);
     expect(out.teacherNotes).toBe(7);
     expect(out.guardianNotes).toBe(3);
     expect(out.leastCompleteClasses).toEqual([
-      { classSectionId: "c2", name: "TK B", completionPct: 20 },
+      { classSectionId: "c2", name: "TK B", completionPct: 33 },
       { classSectionId: "c1", name: "TK A", completionPct: 100 },
     ]);
+  });
+
+  it("counts the whole Mon–Fri week once it is over", async () => {
+    setup();
+    const out = await loadJournalAnalytics("t-1", "2026-10-24"); // Saturday
+    expect(out.weeks[7]).toMatchObject({ checked: 60, possible: 100, completionPct: 60 });
+    expect(out.leastCompleteClasses[0]).toEqual({ classSectionId: "c2", name: "TK B", completionPct: 20 });
   });
 
   it("scopes every query to the tenant and the SCHOOL / ACTIVE definitions", async () => {
