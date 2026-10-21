@@ -1,7 +1,7 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-10-20-payment-link-expiry-display — the seed now adds
-// payment-link expiry fixtures (INV-YYYY-0080..0089 + one expired webhook event);
-// both sides still construct PrismaPg from DATABASE_URL, adapter unchanged.
+// Last verified: 2026-10-21-dashboard-analytics — the seed now adds ~5 weeks of sessionless
+// student attendance and buku penghubung history; both sides still construct PrismaPg from
+// DATABASE_URL, adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
