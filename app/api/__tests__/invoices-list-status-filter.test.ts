@@ -4,15 +4,17 @@ import { NextRequest } from "next/server";
 /**
  * Invoice list Status filter, five questions (cycle 2026-10-20-payment-link-expiry-display,
  * T7 / D12). `GET /api/invoices?status=` takes a raw status or one of two derived values:
- * `UNPAID` ("Belum lunas") and `NEEDS_LINK` ("Perlu link"). Pinned here: the where clause
+ * `UNPAID` ("Belum lunas") and `NEEDS_LINK` ("Perlu link"), plus `NEEDS_REVIEW` ("Perlu dicek",
+ * cycle 2026-10-21-unrecorded-gateway-payments, T3). Pinned here: the where clause
  * each value builds, composition with search and sort, raw statuses still working, unknown
  * values answering 400, and that one "still owes money" rule serves the list, the summary
  * and the "Buat link baru" pick. The last part runs all three against one in-memory fixture
  * through a tiny where-evaluator, so "the numbers agree" is proved by rows, not by shape.
  */
 
-const { getSessionMock, findManyMock, countMock, groupByMock, aggregateMock, ensureMock, TOTAL_DUE_REF } = vi.hoisted(() => ({
+const { getSessionMock, findManyMock, countMock, groupByMock, aggregateMock, ensureMock, eventFindManyMock, TOTAL_DUE_REF } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
+  eventFindManyMock: vi.fn(),
   findManyMock: vi.fn(),
   countMock: vi.fn(),
   groupByMock: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { findMany: findManyMock, count: countMock, groupBy: groupByMock, fields: { totalDue: TOTAL_DUE_REF } },
     payment: { aggregate: aggregateMock },
+    webhookEvent: { findMany: eventFindManyMock },
   },
 }));
 vi.mock("@/lib/payments/ensure-link", () => ({ ensurePaymentLink: ensureMock }));
@@ -58,6 +61,7 @@ beforeEach(() => {
   findManyMock.mockResolvedValue([]);
   countMock.mockResolvedValue(0);
   groupByMock.mockResolvedValue([]);
+  eventFindManyMock.mockResolvedValue([]);
   aggregateMock.mockResolvedValue({ _sum: { amount: null } });
   ensureMock.mockResolvedValue({ kind: "READY", paymentUrl: "https://x", created: true });
 });
@@ -100,6 +104,52 @@ describe("GET /api/invoices?status= — derived values", () => {
   });
 });
 
+describe("GET /api/invoices?status=NEEDS_REVIEW (Perlu dicek)", () => {
+  it("reads the flagged invoice ids from the event log (ERROR + the three review codes)", async () => {
+    eventFindManyMock.mockResolvedValue([{ invoiceId: "inv-a" }]);
+    await list("?status=NEEDS_REVIEW");
+    expect(eventFindManyMock).toHaveBeenCalledTimes(1);
+    expect(eventFindManyMock.mock.calls[0][0].where).toEqual({
+      status: "ERROR",
+      errorMessage: { in: ["DUPLICATE_PAYMENT_AFTER_PAID", "PAID_ON_CANCELLED_INVOICE", "OVERPAYMENT_FLAGGED"] },
+      invoiceId: { not: null },
+    });
+  });
+
+  it("applies `id in ids` AND keeps the tenant scope, on both the page and the total", async () => {
+    eventFindManyMock.mockResolvedValue([{ invoiceId: "inv-a" }, { invoiceId: "inv-b" }]);
+    const res = await list("?status=NEEDS_REVIEW");
+    expect(res.status).toBe(200);
+    expect(lastWhere()).toEqual({ tenantId: "t1", AND: [{ id: { in: ["inv-a", "inv-b"] } }] });
+    expect(lastWhere()).not.toHaveProperty("status");
+    expect(countMock.mock.calls[0][0].where).toEqual(lastWhere());
+  });
+
+  it("composes with search (search keeps its own OR) and sort", async () => {
+    eventFindManyMock.mockResolvedValue([{ invoiceId: "inv-a" }]);
+    await list("?status=NEEDS_REVIEW&search=aisyah&sortBy=dueDate&sortOrder=asc");
+    const where = lastWhere();
+    expect(where.tenantId).toBe("t1");
+    expect(where.AND).toEqual([{ id: { in: ["inv-a"] } }]);
+    expect(where.OR).toHaveLength(3);
+    expect(findManyMock.mock.calls[0][0].orderBy).toEqual([{ dueDate: "asc" }, { id: "asc" }]);
+  });
+
+  it("an empty event set builds `in: []`, which matches no invoice", async () => {
+    eventFindManyMock.mockResolvedValue([]);
+    const res = await list("?status=NEEDS_REVIEW");
+    expect(res.status).toBe(200);
+    expect(lastWhere()).toEqual({ tenantId: "t1", AND: [{ id: { in: [] } }] });
+  });
+
+  it("other statuses never read the event log", async () => {
+    await list("?status=UNPAID");
+    await list("?status=PAID");
+    await list("");
+    expect(eventFindManyMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET /api/invoices?status= — raw statuses and all", () => {
   it.each(["DRAFT", "PENDING_PAYMENT_LINK", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])(
     "raw %s still filters on the stored status alone",
@@ -117,7 +167,7 @@ describe("GET /api/invoices?status= — raw statuses and all", () => {
 });
 
 describe("GET /api/invoices?status= — unknown values", () => {
-  it.each(["BOGUS", "unpaid", "needs_link", "constructor", "PAID,SENT", "Lunas"])("%s answers 400 and reads nothing", async (status) => {
+  it.each(["BOGUS", "unpaid", "needs_link", "needs_review", "constructor", "PAID,SENT", "Lunas"])("%s answers 400 and reads nothing", async (status) => {
     const res = await list(`?status=${encodeURIComponent(status)}`);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Status tagihan tidak dikenal");
@@ -127,6 +177,15 @@ describe("GET /api/invoices?status= — unknown values", () => {
 });
 
 describe("GET /api/invoices/stats — the Status filter's counts", () => {
+  it("counts flagged invoices (`needsReview`) in the tenant, with the list's rule", async () => {
+    eventFindManyMock.mockResolvedValue([{ invoiceId: "inv-a" }, { invoiceId: "inv-b" }]);
+    countMock.mockResolvedValue(0);
+    countMock.mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(2);
+    const body = await (await statsGET(new NextRequest("http://localhost/api/invoices/stats"))).json();
+    expect(body.needsReview).toBe(2);
+    expect(countMock.mock.calls[2][0].where).toEqual({ tenantId: "t1", id: { in: ["inv-a", "inv-b"] } });
+  });
+
   it("counts owing invoices (`owing`) and owing-without-link with the shared rule", async () => {
     countMock.mockResolvedValueOnce(4).mockResolvedValueOnce(9);
     const body = await (await statsGET(new NextRequest("http://localhost/api/invoices/stats"))).json();
@@ -222,6 +281,23 @@ describe("one 'still owes money' rule across list, summary and the link pick", (
     expect(stats.unpaidWithoutLink).toBe(3); // "Buat link baru (3)"
     expect(stats.pendingPaymentLink).toBe(2); // "Coba lagi (2)"
     expect(stats.unpaidWithoutLink + stats.pendingPaymentLink).toBe(res.pagination.total);
+  });
+
+  it("'Perlu dicek' lists only this school's flagged invoices, and the summary's `needsReview` equals its total", async () => {
+    // "other-tenant" and a fee id ("fee-1") are in the event log but must not surface
+    eventFindManyMock.mockResolvedValue([
+      { invoiceId: "paid" }, { invoiceId: "cancelled" }, { invoiceId: "other-tenant" }, { invoiceId: "fee-1" },
+    ]);
+    const res = await (await list("?status=NEEDS_REVIEW")).json();
+    expect(res.data.map((r: Row) => r.id).sort()).toEqual(["cancelled", "paid"]);
+    const stats = await (await statsGET(new NextRequest("http://localhost/api/invoices/stats"))).json();
+    expect(stats.needsReview).toBe(2);
+    expect(stats.needsReview).toBe(res.pagination.total);
+
+    const none = await (await list("?status=NEEDS_REVIEW&search=sent-link")).json();
+    expect(none.data).toEqual([]);
+    const one = await (await list("?status=NEEDS_REVIEW&search=cancelled")).json();
+    expect(one.data.map((r: Row) => r.id)).toEqual(["cancelled"]);
   });
 
   it("'Perlu link' with a search is the intersection", async () => {

@@ -10,6 +10,9 @@ vi.mock("@/lib/db", () => ({
     payment: {
       aggregate: vi.fn(),
     },
+    webhookEvent: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -44,6 +47,7 @@ describe("GET /api/invoices/stats", () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
     vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.webhookEvent.findMany).mockResolvedValue([] as never);
   });
 
   it("admin: returns expected shape with correct counts and totals across mixed statuses", async () => {
@@ -76,6 +80,7 @@ describe("GET /api/invoices/stats", () => {
       pendingPaymentLink: 0,
       unpaidWithoutLink: 0,
       owing: 0,
+      needsReview: 0,
       totalDue: 675_000,
       totalPaid: 125_000,
       // SENT 200k + PARTIALLY_PAID (100k - 50k) = 250k; DRAFT/PAID excluded
@@ -112,6 +117,7 @@ describe("GET /api/invoices/stats", () => {
       pendingPaymentLink: 0,
       unpaidWithoutLink: 0,
       owing: 0,
+      needsReview: 0,
       totalDue: 0,
       totalPaid: 0,
       outstanding: 0,
@@ -245,5 +251,42 @@ describe("GET /api/invoices/stats — unpaidWithoutLink", () => {
         xenditPaymentUrl: null,
       },
     });
+  });
+});
+
+describe("GET /api/invoices/stats — needsReview", () => {
+  it("counts the tenant's invoices that hold a flagged gateway payment, using the event-log ids", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+    vi.mocked(prisma.webhookEvent.findMany).mockResolvedValue([{ invoiceId: "inv-a" }, { invoiceId: "inv-b" }] as never);
+    vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.invoice.count)
+      .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(2 as never);
+
+    const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
+
+    expect(body.needsReview).toBe(2);
+    expect(vi.mocked(prisma.invoice.count).mock.calls[2][0]).toEqual({
+      where: { tenantId: "tnt-1", id: { in: ["inv-a", "inv-b"] } },
+    });
+  });
+
+  it("is 0 without a count query when nothing is flagged", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+    vi.mocked(prisma.webhookEvent.findMany).mockResolvedValue([] as never);
+
+    const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
+
+    expect(body.needsReview).toBe(0);
+    expect(vi.mocked(prisma.invoice.count)).toHaveBeenCalledTimes(2);
   });
 });

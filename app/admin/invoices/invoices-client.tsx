@@ -304,6 +304,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     pendingPaymentLink: 0,
     unpaidWithoutLink: 0,
     owing: 0,
+    needsReview: 0,
     outstanding: 0,
     collectedThisMonth: 0,
   });
@@ -325,6 +326,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
           unpaidWithoutLink: s.unpaidWithoutLink ?? 0,
           owing: s.owing ?? 0,
+          needsReview: s.needsReview ?? 0,
           outstanding: Number(s.outstanding ?? 0),
           collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
@@ -717,9 +719,11 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     fetchDraftRun();
   }, [fetchInvoices, fetchStats, fetchDraftRun]);
 
-  // The Status filter asks five questions (D12). "Belum lunas" and "Perlu link" are derived
-  // (`UNPAID` / `NEEDS_LINK`); counts come from the summary request, cover the whole school
-  // and ignore the search box. "Perlu link" is the sum of the two header buttons' numbers.
+  // The Status filter asks five questions (D12), plus a sixth only when it has an answer.
+  // "Belum lunas", "Perlu link" and "Perlu dicek" are derived (`UNPAID` / `NEEDS_LINK` /
+  // `NEEDS_REVIEW`); counts come from the summary request, cover the whole school and ignore
+  // the search box. "Perlu link" is the sum of the two header buttons' numbers. "Perlu dicek"
+  // (flagged gateway payments) shows only when N > 0, or while selected so it never vanishes.
   const statusOptions = useMemo(() => {
     const withCount = (label: string, n: number) => (statsState === "ready" ? `${label} (${n})` : label);
     const options = [
@@ -727,6 +731,9 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       { value: "UNPAID", label: withCount("Belum lunas", stats.owing) },
       { value: "OVERDUE", label: withCount("Lewat Tempo", stats.overdue) },
       { value: "NEEDS_LINK", label: withCount("Perlu link", stats.pendingPaymentLink + stats.unpaidWithoutLink) },
+      ...(stats.needsReview > 0 || statusFilter === "NEEDS_REVIEW"
+        ? [{ value: "NEEDS_REVIEW", label: withCount("Perlu dicek", stats.needsReview) }]
+        : []),
       { value: "PAID", label: withCount("Lunas", stats.paid) },
       { value: "CANCELLED", label: withCount("Dibatalkan", stats.cancelled) },
     ];

@@ -11,6 +11,7 @@ import { createPaymentSessionForInvoice } from "@/lib/payments/session";
 import { formatPaymentLinkError } from "@/lib/xendit/error-prefix";
 import { createManualInvoiceSchema, invoiceListStatusSchema } from "@/lib/validations/invoice";
 import { needsLinkWhere, owingInvoiceWhere } from "@/lib/finance/invoice-owes";
+import { needsReviewInvoiceIds } from "@/lib/payments/needs-review-invoices";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -49,11 +50,14 @@ export async function GET(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { tenantId: session.tenantId };
-  // "Belum lunas" (UNPAID) and "Perlu link" (NEEDS_LINK) are derived, not stored statuses
-  // (D12). They go under AND so they compose with the search `OR` below. Every other value
+  // "Belum lunas" (UNPAID), "Perlu link" (NEEDS_LINK) and "Perlu dicek" (NEEDS_REVIEW) are
+  // derived, not stored statuses (D12). They go under AND so they compose with the search `OR` below. Every other value
   // is a raw status and still works, so old links such as `?status=OVERDUE` keep working.
   if (status === "UNPAID") where.AND = [owingInvoiceWhere()];
   else if (status === "NEEDS_LINK") where.AND = [needsLinkWhere()];
+  // The event log has no tenant column, so the id set is only a candidate list: `tenantId`
+  // above still scopes it, and an empty set (`in: []`) matches nothing.
+  else if (status === "NEEDS_REVIEW") where.AND = [{ id: { in: await needsReviewInvoiceIds() } }];
   else if (status !== "all") where.status = status;
   if (studentId) where.studentId = studentId;
   if (search) {
