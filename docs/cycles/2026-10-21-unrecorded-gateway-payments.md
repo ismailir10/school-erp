@@ -157,6 +157,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - The counts block is regenerated.
 - T2/T3 review follow-up: moved the alert to the top of the invoice page. It had been placed above the activity card, at the foot of the right column, where it was easy to miss. The review also found that `needsReviewInvoiceIds` scans `WebhookEvent` on every stats call. This is not fixed here, because an index is a schema migration the spec did not name. It is recorded in Ship Notes as a follow-up.
 - verify-local round 1: the alert sat flush against the cards below it, so it now takes `mb-4`, the same spacing as the link-error card above it.
+- verify-local round 2: two flagged payments of the same amount rendered as identical lines. Each line now starts with the payment's time in WIB (`formatDateTime`), so the admin can tell them apart and match each one in the gateway dashboard.
 - T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification
