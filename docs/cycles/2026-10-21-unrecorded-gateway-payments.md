@@ -115,7 +115,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - Map the new outcomes to *Perlu dicek* in reconcile, and add the activity-card labels.
   - Update the tests for both gateways and the fee-path test.
   - Accept: the processor tests for AC 1–5 pass, and the existing webhook, reconcile and fee suites pass. (deps: none; reuse: `markError`, `feeReviewMessage` pattern, `mapErrorLabel`)
-- [ ] **T2 Invoice detail alert.**
+- [x] **T2 Invoice detail alert.**
   - The invoice GET returns the flagged problems (code, amount, gateway) from the event log, scoped by tenant.
   - The page shows the "Perlu dicek" alert.
   - Accept: API and component tests pass. (deps: T1 codes; reuse: `feeAttentionFrom` shape, `enrollment-fee-card` alert)
@@ -136,6 +136,12 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - `lib/webhook/error-labels.ts`: labels for both codes and for the legacy "invoice cancelled" rows.
   - `app/admin/invoices/invoices-client.tsx` and `app/admin/invoices/[id]/page.tsx`: `NEEDS_REVIEW` shows a warning toast.
   - Tests: Xendit and DOKU webhook, refresh-payment, the fee-path guard and the label mapper.
+- T2:
+  - `lib/finance/payment-problems.ts` (new) turns flagged events into Indonesian lines with the amount (`extractDisplayFields`, `formatRupiah`) and the gateway.
+  - `app/api/invoices/[id]/route.ts`: GET returns `paymentProblems`, read after the tenant check, with no provider filter and at most 20.
+  - `components/admin/invoices/payment-problems-alert.tsx` (new): destructive "Perlu dicek" `Alert`, the same pattern as the enrollment fee card.
+  - `app/admin/invoices/[id]/page.tsx`: the alert sits above the activity card.
+  - Tests: helper, API (including the cross-tenant 404 that never reads events), component and page.
 - T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification

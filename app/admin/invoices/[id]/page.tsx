@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { PaymentProblemsAlert, type PaymentProblemView } from "@/components/admin/invoices/payment-problems-alert";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
@@ -56,6 +57,8 @@ type InvoiceDetail = {
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
+  /** Gateway payments the app did not credit (or credited past the balance): money to reconcile by hand. */
+  paymentProblems?: PaymentProblemView[];
 };
 
 // ------------------------------------------------------------------
@@ -917,6 +920,9 @@ export default function InvoiceDetailPage() {
               </div>
             )}
           </Card>
+
+          {/* Gateway money that needs a person — above the log so it is seen first */}
+          <PaymentProblemsAlert problems={invoice.paymentProblems ?? []} />
 
           {/* Aktivitas Pembayaran — hides itself when 0 events */}
           <PaymentActivityCard invoiceId={invoice.id} refreshKey={activityKey} />
