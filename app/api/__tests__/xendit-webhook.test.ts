@@ -809,6 +809,21 @@ describe("POST /api/xendit/webhook (T5 contract)", () => {
         }),
       );
     });
+
+    it("race: SENT at the first read but CANCELLED inside the lock, new payment id -> PAID_ON_CANCELLED_INVOICE", async () => {
+      const { res, txPaymentCreate, txInvoiceUpdate, prisma } = await postCompleted({
+        outer: "SENT", inTx: "CANCELLED", eventId: "evt-race-void", paymentId: "pay-late-void",
+      });
+      expect(await res.json()).toMatchObject({ status: "ERROR:paid_on_cancelled_invoice" });
+      expect(txPaymentCreate).not.toHaveBeenCalled();
+      expect(txInvoiceUpdate).not.toHaveBeenCalled();
+      expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId: "evt-race-void" },
+          data: expect.objectContaining({ status: "ERROR", errorMessage: "PAID_ON_CANCELLED_INVOICE" }),
+        }),
+      );
+    });
   });
 
   it("T5c — xenditSessionId fallback resolves invoice when reference_id misses (real PR #136 case)", async () => {

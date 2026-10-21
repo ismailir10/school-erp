@@ -685,6 +685,55 @@ describe("POST /api/doku/webhook (T4 contract)", () => {
     );
   });
 
+  it("redelivery: payment id already recorded on a PAID invoice -> PROCESSED, nothing written, not flagged", async () => {
+    const { prisma } = await import("@/lib/db");
+
+    const paid = {
+      id: "inv1",
+      status: "PAID",
+      totalDue: 1_000_000,
+      totalPaid: 1_000_000,
+      invoiceNumber: "INV-1",
+    };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(paid as never);
+    const txPaymentCreate = vi.fn();
+    const txInvoiceUpdate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: { findUnique: vi.fn().mockResolvedValue(paid), update: txInvoiceUpdate },
+          payment: {
+            // This payment id is already stored: a redelivery, not a second payment.
+            findUnique: vi.fn().mockResolvedValue({ id: "p-old" }),
+            findMany: vi.fn(),
+            create: txPaymentCreate,
+          },
+        }),
+    );
+
+    const notification = makeNotification({
+      transaction: { status: "SUCCESS", original_request_id: "req-redeliver" },
+      order: { invoice_number: "inv1", amount: 1_000_000 },
+    });
+    const rawBody = JSON.stringify(notification);
+    const headers = signedHeaders(rawBody, { target: "/api/doku/webhook" });
+    const res = await POST(makeReq(rawBody, headers) as never);
+
+    expect(res.status).toBe(200);
+    expect(txPaymentCreate).not.toHaveBeenCalled();
+    expect(txInvoiceUpdate).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "req-redeliver" },
+        data: expect.objectContaining({ status: "PROCESSED", invoiceId: "inv1" }),
+      }),
+    );
+    expect(prisma.webhookEvent.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "ERROR" }) }),
+    );
+  });
+
   it("digest is computed over the exact received bytes — unusual key order/whitespace still verifies", async () => {
     // Hand-assemble a body string with non-canonical whitespace and key
     // order (NOT what JSON.stringify would produce) to prove the digest is

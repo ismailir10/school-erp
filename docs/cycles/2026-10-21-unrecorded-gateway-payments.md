@@ -31,7 +31,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 - **D4. Applies to every way a payment event reaches the processor.** That means both gateway webhooks (Xendit, DOKU) and the manual and parent "check payment" polls. An admin's "Perbarui pembayaran" on such an invoice reports *Perlu dicek* with the reason, never "Tagihan sudah lunas — tidak ada perubahan".
 - **D5. "Perlu dicek" covers three error codes.** These are the two new ones plus the existing `OVERPAYMENT_FLAGGED`. All three are money at the gateway that a person must reconcile.
 - **D6. Shown in two places.**
-  - **Invoice detail:** a red "Perlu dicek" alert above the activity card. It has one line per kind of problem, naming the amount and the gateway, and tells the admin to check the gateway dashboard and refund if needed.
+  - **Invoice detail:** a red "Perlu dicek" alert above the activity card. It has one line per flagged payment, naming the amount and the gateway (each one may need its own refund), and tells the admin to check the gateway dashboard and refund if needed.
   - **Admin invoice list:** a "Perlu dicek" option in the Status filter, with its count, and only when the count is above zero.
 
   The activity card's rows for these codes get readable labels.
@@ -69,7 +69,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 ## UX notes
 
 - **Alert.** Destructive `Alert` with the title "Perlu dicek", the same component and look as the enrollment-fee card.
-- **Alert copy.** One line per distinct problem, in voice.md's admin register. Proposed:
+- **Alert copy.** One line per flagged payment, newest first, in voice.md's admin register. Proposed:
   - "Ada pembayaran kedua di {gateway} untuk tagihan yang sudah lunas (Rp …). Periksa di dashboard {gateway} dan kembalikan dana bila perlu."
   - "Ada pembayaran di {gateway} untuk tagihan yang sudah dibatalkan (Rp …). Periksa di dashboard {gateway} dan kembalikan dana."
   - "Pembayaran melebihi tagihan (Rp …) — sudah dikreditkan. Periksa dan kembalikan kelebihannya bila perlu."
@@ -136,6 +136,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - `lib/webhook/error-labels.ts`: labels for both codes and for the legacy "invoice cancelled" rows.
   - `app/admin/invoices/invoices-client.tsx` and `app/admin/invoices/[id]/page.tsx`: `NEEDS_REVIEW` shows a warning toast.
   - Tests: Xendit and DOKU webhook, refresh-payment, the fee-path guard and the label mapper.
+- T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification
 
