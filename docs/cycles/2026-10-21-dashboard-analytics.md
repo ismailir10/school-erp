@@ -84,7 +84,7 @@ None: no schema migration, no new dependency, no auth or permission change (anal
 - [x] T2 FadeContent port — accept: `components/reactbits/fade-content.tsx` + test; static on hydrate / reduced motion; hides only when below the viewport after hydration; reveals and remounts children on intersect (deps: none; reuse: `use-prefers-reduced-motion`). Parallel with T1.
 - [x] T3 Analytics UI — accept: headline band + four cards + section with Suspense skeleton and per-card unavailable state, wired into `/admin`; component tests green (deps: T1, T2; reuse: `ChartContainer`, `AttendanceTrendChart` shape, `CountUp`, `Spotlight`, `Aurora`, `Stagger`, `EmptyState`, `DashboardRetry`).
 - [x] T4 Seed history — accept: seed writes ~4 more weeks of sessionless student attendance and journal entries/notes before the recent days; seed runs clean; existing e2e unchanged (deps: none). Parallel with T1/T2.
-- [ ] T5 E2E + docs — accept: `admin-dashboard.spec.ts` updated and new Analitik test; `patterns.md` Dasbor rule, README module line, `docs/uat/jobs/admin.md` updated (deps: T3).
+- [x] T5 E2E + docs — accept: `admin-dashboard.spec.ts` updated and new Analitik test; `patterns.md` Dasbor rule, README module line, `docs/uat/jobs/admin.md` updated (deps: T3).
 
 ## Implementation
 
@@ -104,4 +104,21 @@ None: no schema migration, no new dependency, no auth or permission change (anal
 
 - [x] Cross-checked design-system.html (motion: only 120–140 ms state transitions and the skeleton shimmer are defined; no section-reveal rule) for FadeContent: it adds no colour, type or spacing and changes only opacity / transform / filter, so the reference is not contradicted. The UI tasks get their own cross-check below.
 
+### Verified locally — working tree on top of 0d8710f, 2026-10-21
+
+Disposable Postgres 15 (docker, port 54329), fresh `prisma db seed`, `DEMO_MODE=true npm run build` + `npm run start`, Chromium 1194.
+
+- Full gate: `npm run lint` exit 0; `npx tsc --noEmit` clean; `verify-rls-coverage.sh` "43 / 43 tenant-scoped models"; `verify-api-auth.sh` "216 / 216 routes"; `npx vitest run` "684 passed | 2 skipped (686) files, 8077 passed | 42 todo"; `DEMO_MODE=true npm run build` exit 0; `npx playwright test` (full suite, fresh seed) "247 passed (6.7m)", then `admin-dashboard` again after the last polish "13 passed (20.9s)".
+- Flow 1 (super admin, 1440×900): action region bottom at 787 px of 900; Analitik heading peeks under it. On load the band is armed (min ancestor opacity 0); after scrolling 700 px it is mid-reveal (opacity 0.34, CountUp at 30 → 90%) and settles at opacity 1 showing "Kehadiran siswa 90% +1 poin · Penagihan bulan ini 47% · Rp 37,2 jt dari Rp 78,5 jt · Buku penghubung 52%". Hovering 8 Oktober on the attendance chart shows "Kamis, 8 Oktober — Kehadiran 92%, Hadir 92, Izin 0, Sakit 6, Alpa 2". Lowest classes D'Care 83%, KB 88%, TKIT B 88%; least complete journal classes D'Care 46%, TKIT B 47%, POPUP Weekend 50%; billed vs collected Agu–Okt with Mei–Jul empty (no invoices seeded there); aging Belum jatuh tempo 59 / 1–30 4 / 31–60 22 / 61–90 10 / > 90 0 tagihan, total Rp 59.725.000 matching the Piutang tile above.
+- Flow 2 (school admin): action region bottom 591 px; Analitik shows attendance, buku penghubung and finance (the role holds `invoices.view`); e2e asserts finance cards follow `/api/invoices` access.
+- Flow 3 (reduced motion): headline opacity 1 before any scroll, no reveal, numbers static; e2e "visible without motion" passes.
+- Flow 4 (a source fails): covered by unit tests: `dashboard-analytics.test.tsx` makes one loader throw and asserts that card's retry state while siblings render.
+- 390 px: no horizontal overflow (scrollWidth − innerWidth = 0); tiles and cards stack; natural scroll settles the headline at the real numbers.
+- Page load (networkidle, cold) 1.4–2.8 s; console errors only the local `_vercel/insights` 404s that every local page has.
+
 ## Ship Notes
+
+- Not auth-impacting: no route, guard or permission changed; Analitik reuses the admin-only gate and `invoices.view`. No `needs-staging-verify`.
+- Staging: a reseed (`scripts/reseed-staging*`, per its runbook) brings the five weeks of history; without it the charts simply show however many days staging already has.
+- Rollback: revert the PR. No schema, no data migration, no new dependency.
+- PR carries `e2e` (touches the Dasbor user flow).

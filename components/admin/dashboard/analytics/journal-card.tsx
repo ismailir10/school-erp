@@ -28,8 +28,9 @@ function weekEnd(weekStart: string): string {
 }
 
 /**
- * Buku penghubung completion for the last 8 weeks (Mon–Fri, SCHOOL scope, the
- * same definition Monitoring uses), the notes teachers and wali wrote over the
+ * Buku penghubung completion for the last 8 weeks (Mon–Fri, SCHOOL scope,
+ * Monitoring's definition; the current week counts only the school days so
+ * far), the notes teachers and wali wrote over the
  * same weeks, and the classes least complete this week.
  */
 export function JournalCard({ source }: { source: AnalyticsSource<JournalAnalytics> }) {
@@ -129,13 +130,13 @@ function JournalBarChart({ weeks }: { weeks: JournalWeek[] }) {
             if (!active || !week) return null;
             return (
               <TooltipCard
-                title={`${formatWeekRangeLabel(week.weekStart, weekEnd(week.weekStart))}${week.current ? " (minggu ini)" : ""}`}
+                title={`${formatWeekRangeLabel(week.weekStart, weekEnd(week.weekStart))}${week.current ? " (minggu ini, s.d. hari ini)" : ""}`}
                 rows={
                   week.completionPct === null
                     ? [{ label: "Kelengkapan", value: "Belum ada data" }]
                     : [
                         { label: "Kelengkapan", value: `${week.completionPct}%`, color: "var(--primary)" },
-                        { label: "Butir terisi", value: `${week.checked} dari ${week.possible}` },
+                        { label: "Butir terisi", value: `${week.checked.toLocaleString("id-ID")} dari ${week.possible.toLocaleString("id-ID")}` },
                         { label: "Catatan guru", value: week.teacherNotes },
                         { label: "Catatan wali", value: week.guardianNotes },
                       ]
