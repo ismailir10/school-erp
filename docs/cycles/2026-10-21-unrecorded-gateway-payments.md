@@ -162,4 +162,52 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 
 ## Verification
 
+### Verified locally — 5ae6147, 2026-10-21
+- **Route:** other code. The diff touches `app/api/invoices/**` but no session, cookie or auth guard, so no signed-in staging check is needed. Compared `origin/staging...5ae6147` (base `d008967`, 0 behind). Changed: `lib/payments/{webhook-processor,reconcile,needs-review,needs-review-invoices}.ts`, `lib/webhook/error-labels.ts`, `lib/finance/payment-problems.ts`, `lib/constants/invoice-status.ts`, `app/api/invoices/{route,stats/route,[id]/route}.ts`, `app/admin/invoices/{invoices-client,[id]/page}.tsx`, `components/admin/invoices/payment-problems-alert.tsx`, tests, README, CLAUDE.md counts, runbook, UAT jobs, this doc.
+- **Gate** (all on the disposable Postgres, `localhost:54329`):
+  - `npm run lint`: clean.
+  - `npx vitest run`: `Test Files 679 passed | 2 skipped (681)`, `Tests 8031 passed | 42 todo (8073)`.
+  - `verify-rls-coverage.sh`: `RLS coverage OK: 43 / 43`.
+  - `verify-api-auth.sh`: `API auth coverage OK: 216 / 216`.
+  - `DEMO_MODE=true` build: `Compiled successfully`.
+  - `npx playwright test`: `244 passed (6.6m)`. It ran through an untracked local config wrapper, because the container has Chromium 1194 and Playwright 1.64 expects 1248. The wrapper sets `launchOptions.executablePath` to `/opt/pw-browsers/chromium` and changes nothing else.
+- **Soft-skip delta:** baseline 26, current 26.
+- **App:** production build, demo auth and the disposable local Postgres on `http://localhost:3000`, with the Xendit and DOKU stubs from `playwright.config.ts`. Signed in with the `u_super_admin` cookie.
+- **Walked:** a script posted signed Xendit notifications to `/api/xendit/webhook` (the real path, no DB writes), then checked the API, the DB (read-only) and the pages at 1440×900 and 390×844. 46/46 checks pass.
+  - **Flow 1:** a new payment id on Lunas INV-2026-0105 gave `ERROR:duplicate_payment_after_paid`. The invoice stayed PAID, 300.000/300.000, one payment row, and the event is `ERROR DUPLICATE_PAYMENT_AFTER_PAID`. The red "Perlu dicek" alert shows at the top with time, Rp amount and Xendit, and no raw code. The activity row reads Gagal with the readable label.
+  - **Flow 2 (edge):** a redelivery of the seeded settling payment gave `PAID:already`, PROCESSED. An invoice settled through the webhook and then redelivered gave `PAID:already`, kept one payment row and shows no alert.
+  - **Flow 3:** a payment on a just-voided invoice gave `ERROR:paid_on_cancelled_invoice`. The invoice kept 0 payment rows and the alert says "sudah dibatalkan".
+  - **Flow 4:**
+    - With nothing flagged, the Status filter shows no "Perlu dicek" option.
+    - After flagging it shows "Perlu dicek (N)" right after "Perlu link". N equals `stats.needsReview` and the list total, and selecting it lists exactly the flagged invoices.
+    - Error case: `?status=BOGUS` returns 400, and a wrong webhook token returns 401.
+  - **AC 5:** the poll answering "Perlu dicek" cannot be walked locally. In demo mode the gateway poll answers pending, and "Cek status pembayaran" is hidden on Lunas and Dibatalkan invoices. It is covered by `invoice-refresh-payment.test.ts`.
+- **Timings:** slowest page 1.6 s content-ready, slowest API 399 ms. None is over a `/uat` threshold.
+- **Console/network:** the only errors are 404s for `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js`, which Vercel serves only on its own hosts. Nothing else is at 4xx or 5xx.
+- **design-system:** cross-checked against `design-system.html` (Overlays: Alert and Toast). It uses the shadcn destructive `Alert` and the existing warning toast, with no new tokens or colours.
+- **Screenshots:** in the session scratchpad `walk/shots/`: `detail-{paid,cancelled,settled-no-alert}-{desktop,mobile}`, `perlu-dicek-{alert,alert-cancelled,filter,list-selected}-{desktop,mobile}`, `activity-card-{desktop,mobile}`.
+- **Highlight:** `perlu-dicek-alert.png` (three flagged payments on one Lunas invoice) and `perlu-dicek-filter.png` (the Status filter with "Perlu dicek (2)").
+- **Rounds:** 3.
+  - Round 1: the alert sat flush against the cards below it, so it got `mb-4`.
+  - Round 2: two flagged payments of the same amount showed as identical lines, so each line now leads with the time.
+  - Round 3: clean.
+
 ## Ship Notes
+
+- **Migrations:** none.
+- **Env vars:** none.
+- **Behaviour changes to watch:**
+  1. A gateway payment on a Lunas invoice that isn't a redelivery is now an `ERROR` event and a red alert, where it used to be marked processed silently. A payment on a Dibatalkan invoice is now an `ERROR`, where it used to be ignored silently.
+  2. Overpayments flagged before this ship (`OVERPAYMENT_FLAGGED`) light up "Perlu dicek" on their invoices from day one (Assumption 4). Expect a non-zero count on staging and production at once, if any exist.
+  3. "Cek status pembayaran" on such an invoice shows a warning toast.
+- **Follow-ups (not in this cycle):**
+  1. `needsReviewInvoiceIds` scans `WebhookEvent` on every `/api/invoices/stats` call. An index on `(status, errorMessage)` is a schema migration for its own cycle, if the event table grows.
+  2. A "mark as handled" action (D7).
+  3. Expiring or cancelling the old gateway order on void, replace or settle.
+  4. The other 2026-10-21 review items: fee-route permissions, the expiry sort, `paymentLinkError`, `sentAt`.
+- **Post-merge checks:**
+  - The Vercel staging deploy is `READY` for the merge SHA.
+  - `/api/health` returns 200.
+  - On staging, `/admin/invoices` loads its Status filter.
+  - Not auth-impacting, so no signed-in staging check.
+- **Rollback:** revert the squash commit. No data needs undoing: flagged events are ordinary `WebhookEvent` rows, and old code shows them in the activity card.
