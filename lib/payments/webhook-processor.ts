@@ -6,6 +6,11 @@ import { ACTIVE_PAYMENT_FILTER, deriveInvoicePaymentState } from "@/lib/finance/
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
 import { LINK_CLEARED } from "@/lib/payments/link-cleared";
+import {
+  DUPLICATE_PAYMENT_AFTER_PAID,
+  OVERPAYMENT_FLAGGED,
+  PAID_ON_CANCELLED_INVOICE,
+} from "@/lib/payments/needs-review";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -237,23 +242,9 @@ async function handleSessionCompleted(
   }
   const invoiceId = invoice.id;
 
-  if (invoice.status === "PAID") {
-    await markProcessed(eventId, invoiceId);
-    return { ok: true, status: "PAID:already", eventId };
-  }
-
-  // Guard CANCELLED. TOCTOU: a retry helper read PENDING_PAYMENT_LINK then
-  // made the gateway network call; meanwhile the void route flipped to
-  // CANCELLED. The helper's later DB update may have left xenditSessionId/Url
-  // populated on a CANCELLED row, so a parent could still pay the orphan
-  // link. Refuse to credit a CANCELLED invoice.
-  if (invoice.status === "CANCELLED") {
-    console.warn(
-      `${logPrefix} Payment for CANCELLED invoice ${invoice.invoiceNumber} ignored eventId=${eventId}`,
-    );
-    await markIgnored(eventId, "invoice cancelled", invoiceId);
-    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
-  }
+  // A PAID or CANCELLED invoice is NOT decided here. Whether the event is a redelivery (nothing
+  // to do) or a different payment arriving after the invoice closed (money to refund) can only be
+  // told apart inside the lock, with the redelivery check first, so the lock path owns both.
 
   const paymentAmount = event.amount; // guaranteed non-null by guard above
   const paymentId = event.paymentId; // guaranteed non-null by guard above
@@ -266,13 +257,22 @@ async function handleSessionCompleted(
 
     const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!fresh) return { status: "PAID", overpaid: false } as const;
-    if (fresh.status === "PAID") return { status: "PAID", overpaid: false } as const;
-    if (fresh.status === "CANCELLED") return { status: "CANCELLED", overpaid: false } as const;
 
+    // Redelivery first: the same gateway payment seen again (webhook retry, manual poll after the
+    // webhook) is a no-op whatever the invoice status is now. Only a DIFFERENT payment landing on
+    // a closed invoice is flagged below.
     const existing = await tx.payment.findUnique({
       where: { xenditPaymentId: paymentId },
     });
-    if (existing) return { status: fresh.status as string, overpaid: false } as const;
+    if (existing) {
+      if (fresh.status === "PAID") return { status: "PAID", already: true } as const;
+      return { status: fresh.status as string, overpaid: false } as const;
+    }
+
+    // Money at the gateway that the books must not take: a second payment on a Lunas invoice, or
+    // any payment on a voided one. Nothing is written; the ERROR event tells a person to refund.
+    if (fresh.status === "PAID") return { status: "PAID", flagged: DUPLICATE_PAYMENT_AFTER_PAID } as const;
+    if (fresh.status === "CANCELLED") return { status: "CANCELLED", flagged: PAID_ON_CANCELLED_INVOICE } as const;
 
     // T5d — overpayment guard computed INSIDE the lock from authoritative
     // fresh.totalPaid, not from the pre-tx snapshot. Prevents a false
@@ -312,19 +312,26 @@ async function handleSessionCompleted(
     return { status, overpaid } as const;
   });
 
+  if (txOutcome.already) {
+    await markProcessed(eventId, invoiceId);
+    return { ok: true, status: "PAID:already", eventId };
+  }
+
+  if (txOutcome.flagged) {
+    await markError(eventId, txOutcome.flagged, invoiceId);
+    console.warn(
+      `${logPrefix} Payment not recorded (${txOutcome.flagged}) on ${invoice.invoiceNumber}: paid=${paymentAmount} eventId=${eventId}`,
+    );
+    return txOutcome.flagged === DUPLICATE_PAYMENT_AFTER_PAID
+      ? { ok: true, status: "ERROR:duplicate_payment_after_paid", eventId }
+      : { ok: true, status: "ERROR:paid_on_cancelled_invoice", eventId };
+  }
+
   const newStatus = txOutcome.status;
   const overpaid = txOutcome.overpaid;
 
-  if (newStatus === "CANCELLED") {
-    await markIgnored(eventId, "invoice cancelled (in-tx)", invoiceId);
-    console.warn(
-      `${logPrefix} In-tx CANCELLED race on ${invoice.invoiceNumber} eventId=${eventId}`,
-    );
-    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
-  }
-
   if (overpaid) {
-    await markError(eventId, "OVERPAYMENT_FLAGGED", invoiceId);
+    await markError(eventId, OVERPAYMENT_FLAGGED, invoiceId);
     console.warn(
       `${logPrefix} Overpayment on ${invoice.invoiceNumber}: paid=${paymentAmount} eventId=${eventId}`,
     );

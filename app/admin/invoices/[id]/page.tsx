@@ -487,7 +487,7 @@ export default function InvoiceDetailPage() {
         return;
       }
       if (d.code === "UPDATED") toast.success(d.message);
-      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE" || d.code === "NEEDS_REVIEW") toast.warning(d.message);
       else toast.info(d.message);
       await fetchInvoice();
       setActivityKey((k) => k + 1);

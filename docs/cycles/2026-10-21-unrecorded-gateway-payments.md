@@ -73,6 +73,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - "Ada pembayaran kedua di {gateway} untuk tagihan yang sudah lunas (Rp …). Periksa di dashboard {gateway} dan kembalikan dana bila perlu."
   - "Ada pembayaran di {gateway} untuk tagihan yang sudah dibatalkan (Rp …). Periksa di dashboard {gateway} dan kembalikan dana."
   - "Pembayaran melebihi tagihan (Rp …) — sudah dikreditkan. Periksa dan kembalikan kelebihannya bila perlu."
+- **Design system.** Cross-checked against `design-system.html` (Overlays: Alert and Toast). The "Perlu dicek" result of a payment check uses the warning toast, as gateway errors already do. The alert reuses the shadcn destructive `Alert`, so no new styling is needed.
 - **Placement.** Above the activity card, so the admin sees the problem before the log.
 - **Filter.** The Status filter's label is "Perlu dicek (N)". Its position is after "Perlu link".
 
@@ -109,7 +110,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
 
 ## Tasks
 
-- [ ] **T1 Processor and reconcile.**
+- [x] **T1 Processor and reconcile.**
   - In the lock, run the redelivery check first, then flag a payment on a Lunas or Dibatalkan invoice. The pre-checks defer to the lock.
   - Map the new outcomes to *Perlu dicek* in reconcile, and add the activity-card labels.
   - Update the tests for both gateways and the fee-path test.
@@ -126,6 +127,15 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - Accept: `audit-docs.sh` passes. (deps: T1–T3)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1 sequential first, since T2 and T3 need its codes. T2 and T3 then run in parallel; their files do not overlap. T4 is done inline because it is short doc edits that need the whole cycle as context.
+- T1:
+  - `lib/payments/needs-review.ts` (new) holds the codes.
+  - `lib/payments/webhook-processor.ts`: the PAID and CANCELLED pre-checks are removed. In the lock, the redelivery check runs first, then a payment on a PAID invoice is flagged `DUPLICATE_PAYMENT_AFTER_PAID` and one on a CANCELLED invoice `PAID_ON_CANCELLED_INVOICE`. Neither writes a payment or changes the invoice.
+  - `lib/payments/reconcile.ts`: both outcomes map to `NEEDS_REVIEW` with a message naming the gateway. A repeated click reads the stored event, so the second click also says "Perlu dicek".
+  - `lib/webhook/error-labels.ts`: labels for both codes and for the legacy "invoice cancelled" rows.
+  - `app/admin/invoices/invoices-client.tsx` and `app/admin/invoices/[id]/page.tsx`: `NEEDS_REVIEW` shows a warning toast.
+  - Tests: Xendit and DOKU webhook, refresh-payment, the fee-path guard and the label mapper.
 
 ## Verification
 
