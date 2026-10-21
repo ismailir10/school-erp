@@ -161,6 +161,19 @@ describe("asking the gateway first", () => {
   });
 });
 
+describe("an early-expired Link Dibuat invoice (SENT, link cleared before its due date)", () => {
+  // Cycle 2026-10-20-payment-link-expiry-display, D10: an expiry no longer turns the invoice
+  // into Link Gagal, so it reaches this route as SENT with no link and must get a new one.
+  it("makes a new link instead of answering 'tidak perlu link baru'", async () => {
+    invFindFirst.mockResolvedValue(invoice({ status: "SENT", totalPaid: "0", xenditSessionId: null, xenditPaymentUrl: null }));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ outcome: "REPLACED", url: "https://checkout.doku.com/new", created: true });
+    expect(ensureMock).toHaveBeenCalledTimes(1);
+    expect(reconcileMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("replacing the link", () => {
   it("a live link: CAS-clears exactly the link that was read, then makes the new one", async () => {
     const res = await call();

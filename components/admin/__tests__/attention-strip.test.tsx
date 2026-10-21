@@ -55,6 +55,22 @@ describe("AttentionStrip", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it("gives an action an accessible name that extends its visible label", () => {
+    render(
+      <AttentionStrip
+        items={[
+          {
+            id: "a",
+            message: "Belum terdaftar di kelas",
+            action: { label: "Daftarkan ke Kelas", ariaLabel: "Daftarkan ke Kelas untuk Aisyah", onClick: () => {} },
+          },
+        ]}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Daftarkan ke Kelas untuk Aisyah" });
+    expect(button).toHaveTextContent("Daftarkan ke Kelas");
+  });
+
   it("renders an item without an action as message only", () => {
     render(<AttentionStrip items={[{ id: "a", message: "KTP belum ada" }]} />);
     expect(screen.getByText("KTP belum ada")).toBeInTheDocument();

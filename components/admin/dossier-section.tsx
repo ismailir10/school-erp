@@ -20,6 +20,52 @@ import { cn } from "@/lib/utils";
 
 export type DossierSectionDef = { id: string; label: string };
 
+
+type DisclosureTriggerProps = {
+  contentId: string;
+  open: boolean;
+  heading: "h2" | "h3";
+  label: string;
+  badge?: ReactNode;
+  summary?: ReactNode;
+};
+
+/**
+ * The collapsible header every dossier disclosure shares: chevron, label,
+ * badge and (only while closed) the one-line summary, all inside one 44px
+ * trigger so the summary is part of the trigger's accessible name.
+ */
+function DisclosureTrigger({ contentId, open, heading: Heading, label, badge, summary }: DisclosureTriggerProps) {
+  return (
+    <CollapsibleTrigger
+      aria-controls={contentId}
+      className="group flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <ChevronDown
+        size={15}
+        aria-hidden="true"
+        className={cn(
+          "shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+          !open && "-rotate-90",
+        )}
+      />
+      {/* Wraps instead of truncating: with a count badge and an action beside it,
+          a 390px header cut "Daftar Siswa" to "Daftar Si…". The summary joins the
+          same wrapping row, so on a phone it drops under the label when it does
+          not fit beside it. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <Heading className="min-w-0 text-sm font-semibold text-foreground">{label}</Heading>
+        {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
+        {!open && summary != null && summary !== false && (
+          <span data-slot="dossier-summary" className="min-w-0 text-small font-normal text-muted-foreground">
+            {summary}
+          </span>
+        )}
+      </div>
+    </CollapsibleTrigger>
+  );
+}
+
 export function DossierSection({
   id,
   label,
@@ -67,35 +113,14 @@ export function DossierSection({
     <Card id={id} className="mb-3 scroll-mt-28 p-0">
       <Collapsible open={open} onOpenChange={onOpenChange}>
         <div className="flex items-center justify-between gap-2 px-card">
-          <CollapsibleTrigger
-            aria-controls={contentId}
-            className="group flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <ChevronDown
-              size={15}
-              aria-hidden="true"
-              className={cn(
-                "shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-                !open && "-rotate-90",
-              )}
-            />
-            {/* Wraps instead of truncating: with a count badge and an action beside it,
-                a 390px header cut "Daftar Siswa" to "Daftar Si…". The summary joins the
-                same wrapping row, so on a phone it drops under the label when it does
-                not fit beside it. */}
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
-              <h2 className="min-w-0 text-sm font-semibold text-foreground">{label}</h2>
-              {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
-              {!open && summary != null && summary !== false && (
-                <span
-                  data-slot="dossier-summary"
-                  className="min-w-0 text-small font-normal text-muted-foreground"
-                >
-                  {summary}
-                </span>
-              )}
-            </div>
-          </CollapsibleTrigger>
+          <DisclosureTrigger
+            contentId={contentId}
+            open={open}
+            heading="h2"
+            label={label}
+            badge={badge}
+            summary={summary}
+          />
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
         <CollapsibleContent id={contentId} keepMounted={keepMounted}>
@@ -103,6 +128,120 @@ export function DossierSection({
         </CollapsibleContent>
       </Collapsible>
     </Card>
+  );
+}
+
+/**
+ * A group of sub-sections: the five-card dossier the student page uses so an
+ * admin scans five headings, not thirteen. Looks like a `DossierSection` (same
+ * collapsible header, h2 label) and, like it, shows `summary` **only while
+ * closed**. Its body is a stack of `DossierSubsection`s separated by a divider.
+ *
+ * Open state is controlled by the page for the same reason as `DossierSection`:
+ * a jump to a sub-section inside a closed group has to open the group first.
+ */
+export function DossierGroup({
+  id,
+  label,
+  summary,
+  open,
+  onOpenChange,
+  keepMounted,
+  children,
+}: {
+  id: string;
+  label: string;
+  /** One line shown after the label only while the group is closed. */
+  summary?: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /**
+   * Keep the sub-sections mounted while the group is closed — for a group that
+   * holds a lazy section whose fetched data should survive a collapse.
+   */
+  keepMounted?: boolean;
+  children: ReactNode;
+}) {
+  const contentId = `${id}-content`;
+  return (
+    <Card id={id} className="mb-3 scroll-mt-28 p-0">
+      <Collapsible open={open} onOpenChange={onOpenChange}>
+        <div className="flex items-center justify-between gap-2 px-card">
+          <DisclosureTrigger contentId={contentId} open={open} heading="h2" label={label} summary={summary} />
+        </div>
+        <CollapsibleContent id={contentId} keepMounted={keepMounted}>
+          <div className="divide-y border-t">{children}</div>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
+/**
+ * One concern inside a `DossierGroup`, keeping its own anchor id.
+ *
+ * Without `onOpenChange` it is a plain headed block (`<section>` + h3, badge,
+ * actions on the right) that is never collapsible: use it for content that is
+ * already loaded. With `onOpenChange` it becomes a collapsible row with a 44px
+ * trigger, for content that costs a request to show; `keepMounted` keeps what
+ * was fetched when it is collapsed again.
+ *
+ * `actions` sit outside the trigger and must not be nested interactive
+ * elements of it.
+ */
+export function DossierSubsection({
+  id,
+  label,
+  badge,
+  actions,
+  open,
+  onOpenChange,
+  keepMounted,
+  children,
+}: {
+  id: string;
+  label: string;
+  badge?: ReactNode;
+  actions?: ReactNode;
+  /** Only read when `onOpenChange` is given. */
+  open?: boolean;
+  /** Present = collapsible. Omitted = flat block. */
+  onOpenChange?: (open: boolean) => void;
+  keepMounted?: boolean;
+  children: ReactNode;
+}) {
+  if (!onOpenChange) {
+    const headingId = `${id}-heading`;
+    return (
+      <section id={id} aria-labelledby={headingId} className="scroll-mt-28 px-card py-4">
+        <div className="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 id={headingId} className="min-w-0 text-sm font-semibold text-foreground">
+              {label}
+            </h3>
+            {badge && <span className="shrink-0 whitespace-nowrap">{badge}</span>}
+          </div>
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-1">{actions}</div>}
+        </div>
+        {children}
+      </section>
+    );
+  }
+
+  const isOpen = open ?? false;
+  const contentId = `${id}-content`;
+  return (
+    <section id={id} className="scroll-mt-28">
+      <Collapsible open={isOpen} onOpenChange={onOpenChange}>
+        <div className="flex items-center justify-between gap-2 px-card">
+          <DisclosureTrigger contentId={contentId} open={isOpen} heading="h3" label={label} badge={badge} />
+          {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+        </div>
+        <CollapsibleContent id={contentId} keepMounted={keepMounted}>
+          <div className="px-card pb-4">{children}</div>
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }
 

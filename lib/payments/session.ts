@@ -172,6 +172,13 @@ export async function createPaymentSessionForInvoice(
 
   const gateway = getGateway();
 
+  // The expiry we ask the gateway for, decided ONCE, before the retry loop. Every attempt
+  // sends this same instant, and this same instant is what gets stored with the link
+  // (`paymentLinkExpiresAt`), never the string the gateway echoes back: that string can be
+  // a format that does not parse, and failing the store after the gateway already made an
+  // order would let the caller's retry make a second one (cycle 2026-10-20 D2).
+  const requestedExpiresAt = resolveSessionExpiry(invoice.dueDate, now);
+
   // Wrap the gateway call in withRetry so transient 5xx/408/429/network
   // errors retry up to 3 attempts before surfacing. The typed `GatewayApiError`
   // bubbles up on terminal failure so route-handler callers can prefix-tag
@@ -203,7 +210,7 @@ export async function createPaymentSessionForInvoice(
           // Tempo" said, and an invoice raised early in the month died before its
           // own collection window closed. `invoice.dueDate` was already loaded
           // forty lines above; it was simply never told to the gateway.
-          expiresAt: resolveSessionExpiry(invoice.dueDate),
+          expiresAt: requestedExpiresAt,
           items: sessionLineItems(invoice, remaining),
         }),
       { invoiceId, tenantId },
@@ -230,6 +237,7 @@ export async function createPaymentSessionForInvoice(
       data: {
         xenditSessionId: session.id,
         xenditPaymentUrl: session.paymentUrl,
+        paymentLinkExpiresAt: requestedExpiresAt,
         paymentCheckedAt: new Date(),
       },
     });

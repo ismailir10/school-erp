@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { limit } from "@/lib/finance/concurrency-limit";
-import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
+import { owingWithoutLinkWhere } from "@/lib/finance/invoice-owes";
 import { ensurePaymentLink } from "@/lib/payments/ensure-link";
 
 /**
@@ -74,10 +74,9 @@ export async function createMissingPaymentLinks(opts: MissingLinksOptions): Prom
   // "Not being created right now": a claim is a stamp in the future (see `ensurePaymentLink`).
   const where = (now: Date) => ({
     ...(tenantId ? { tenantId } : {}),
-    status: { in: [...UNPAID_INVOICE_STATUSES] },
-    // Still owes money: Prisma field reference, a column-to-column comparison in the DB.
-    totalPaid: { lt: prisma.invoice.fields.totalDue },
-    xenditPaymentUrl: null,
+    // Unpaid status, still owes money, no link: the one rule the admin's filter and
+    // summary share (`lib/finance/invoice-owes`).
+    ...owingWithoutLinkWhere(),
     OR: [{ paymentCheckedAt: null }, { paymentCheckedAt: { lt: now } }],
   });
   const startedAt = new Date();

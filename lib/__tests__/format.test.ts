@@ -5,10 +5,28 @@ import {
   formatDateTime,
   formatRelativeTime,
   formatRupiah,
+  formatRupiahCompact,
   formatTime,
   formatWeekRangeLabel,
   maskBankAccount,
 } from "@/lib/format";
+
+describe("formatRupiahCompact", () => {
+  it("abbreviates thousands, millions and billions the Indonesian way", () => {
+    expect(formatRupiahCompact(850_000)).toBe("Rp 850 rb");
+    expect(formatRupiahCompact(12_400_000)).toBe("Rp 12,4 jt");
+    expect(formatRupiahCompact(1_200_000_000)).toBe("Rp 1,2 M");
+  });
+
+  it("leaves amounts under a thousand and zero as plain numbers", () => {
+    expect(formatRupiahCompact(850)).toBe("Rp 850");
+    expect(formatRupiahCompact(0)).toBe("Rp 0");
+  });
+
+  it("coerces numeric strings (Prisma Decimal serialization)", () => {
+    expect(formatRupiahCompact("2500000")).toBe("Rp 2,5 jt");
+  });
+});
 
 describe("formatRupiah", () => {
   it("formats integer amount with Indonesian thousand separators", () => {

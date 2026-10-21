@@ -12,12 +12,15 @@ const invoiceCount = vi.fn().mockResolvedValue(0);
 const studentGroupBy = vi.fn();
 // FIN-13: invoice stats also aggregates this month's collected Rupiah.
 const paymentAggregate = vi.fn();
+// "Perlu dicek" count reads flagged invoice ids from the webhook event log first.
+const webhookEventFindMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    invoice: { groupBy: invoiceGroupBy, count: invoiceCount },
+    invoice: { groupBy: invoiceGroupBy, count: invoiceCount, fields: { totalDue: "totalDue-ref" } },
     student: { groupBy: studentGroupBy },
     payment: { aggregate: paymentAggregate },
+    webhookEvent: { findMany: webhookEventFindMany },
   },
 }));
 
@@ -52,6 +55,7 @@ describe("stats endpoints — single GROUP BY contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     paymentAggregate.mockResolvedValue({ _sum: { amount: null } });
+    webhookEventFindMany.mockResolvedValue([]);
   });
 
   describe("GET /api/invoices/stats", () => {

@@ -28,6 +28,7 @@ const { db, session } = vi.hoisted(() => {
     studentEnrollment: { findMany: vi.fn() },
     invoice: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     payment: { create: vi.fn() },
+    webhookEvent: { upsert: vi.fn() },
     admission: { findFirst: vi.fn(), create: vi.fn() },
     studentFeeAdjustment: { findFirst: vi.fn(), create: vi.fn() },
     employee: { findFirst: vi.fn() },
@@ -122,7 +123,7 @@ describe("POST /api/admin/seed — invoice xenditPaymentUrl", () => {
 
     expect(db.invoice.update).toHaveBeenCalledWith({
       where: { id: "existing-inv-1" },
-      data: { xenditPaymentUrl: DEMO_URL("INV-2026-0001") },
+      data: { xenditPaymentUrl: DEMO_URL("INV-2026-0001"), paymentLinkExpiresAt: expect.any(Date) },
     });
   });
 
@@ -160,5 +161,34 @@ describe("POST /api/admin/seed — invoice xenditPaymentUrl", () => {
 
     expect(paid?.xenditPaymentUrl).toBeNull();
     expect(draft?.xenditPaymentUrl).toBeNull();
+  });
+
+  it("seeds the link-expiry fixtures: future, past, no date, paid-with-past, early-expired with no link", async () => {
+    await POST(makeReq());
+
+    const byNumber = new Map(
+      db.invoice.create.mock.calls.map((c) => [c[0].data.invoiceNumber as string, c[0].data]),
+    );
+    const now = Date.now();
+    expect(byNumber.get("INV-2026-0980").paymentLinkExpiresAt.getTime()).toBeGreaterThan(now);
+    expect(byNumber.get("INV-2026-0981").paymentLinkExpiresAt.getTime()).toBeLessThan(now);
+    expect(byNumber.get("INV-2026-0981").status).toBe("SENT");
+    expect(byNumber.get("INV-2026-0982").xenditPaymentUrl).not.toBeNull();
+    expect(byNumber.get("INV-2026-0982").paymentLinkExpiresAt).toBeNull();
+    expect(byNumber.get("INV-2026-0983").status).toBe("PAID");
+    expect(byNumber.get("INV-2026-0983").paymentLinkExpiresAt.getTime()).toBeLessThan(now);
+    const early = byNumber.get("INV-2026-0985");
+    expect(early.status).toBe("SENT");
+    expect(early).toMatchObject({ xenditPaymentUrl: null, xenditSessionId: null, paymentLinkExpiresAt: null });
+    expect(early.dueDate > new Date().toISOString().slice(0, 10)).toBe(true);
+    expect(["OVERDUE", "PARTIALLY_PAID"].every((st) => [...byNumber.values()].some((d) => d.status === st))).toBe(true);
+    // The expired event hangs off 0984 only, and 0984's own link is current.
+    expect(db.webhookEvent.upsert).toHaveBeenCalledTimes(1);
+    expect(db.webhookEvent.upsert.mock.calls[0][0].create).toMatchObject({
+      eventType: "payment_session.expired",
+      status: "PROCESSED",
+      invoiceId: "new-INV-2026-0984",
+    });
+    expect(byNumber.get("INV-2026-0984").paymentLinkExpiresAt.getTime()).toBeGreaterThan(now);
   });
 });

@@ -8,6 +8,7 @@ import { isGatewayPayment } from "@/lib/constants/payment-methods";
 import { invoiceStatusLabel, VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
 import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { formatRupiah } from "@/lib/format";
+import { LINK_CLEARED } from "@/lib/payments/link-cleared";
 
 export async function POST(
   _req: NextRequest,
@@ -68,8 +69,7 @@ export async function POST(
         where: { id },
         data: {
           status: "CANCELLED",
-          xenditSessionId: null,
-          xenditPaymentUrl: null,
+          ...LINK_CLEARED,
           paymentLinkError: null,
         },
       });

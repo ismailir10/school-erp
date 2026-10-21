@@ -48,14 +48,60 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
-  test("fits one 1440x900 screen with no vertical scroll", async ({ page }) => {
+  test("action region fits the first 1440x900 screen; Analitik follows below", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     // Let queue tiles / urgent list / attendance strip finish rendering
     // before measuring — the page is server-rendered so this is mostly a
     // safety margin for fonts/webfont reflow.
     await expect(page.getByTestId("dashboard-queue-tiles")).toBeVisible();
-    const overflow = await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1);
-    expect(overflow).toBe(true);
+    const region = await page.getByTestId("dashboard-action-region").boundingBox();
+    expect(region).not.toBeNull();
+    expect(region!.y + region!.height).toBeLessThanOrEqual(900 + 1);
+    // The streamed Analitik section starts below the action region.
+    const analytics = page.getByTestId("dashboard-analytics");
+    await expect(analytics).toBeAttached({ timeout: 15_000 });
+    const analyticsBox = await analytics.boundingBox();
+    expect(analyticsBox!.y).toBeGreaterThanOrEqual(region!.y + region!.height);
+  });
+
+  test("Analitik shows the headline numbers and every card as a chart or an empty state", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const analytics = page.getByTestId("dashboard-analytics");
+    await analytics.scrollIntoViewIfNeeded();
+    await expect(analytics.getByRole("heading", { name: "Analitik" })).toBeVisible();
+
+    const headline = analytics.getByTestId("analytics-headline");
+    await expect(headline).toBeVisible();
+    await expect(headline.getByRole("link")).toHaveCount(3);
+    await expect(headline.locator('a[href="/admin/student-attendance"]')).toBeVisible();
+    await expect(headline.locator('a[href="/admin/invoices"]')).toBeVisible();
+    await expect(headline.locator('a[href="/admin/student-journal/monitoring"]')).toBeVisible();
+
+    for (const id of ["analytics-attendance", "analytics-journal", "analytics-finance-trend"]) {
+      const card = analytics.getByTestId(id);
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.locator('[data-slot="chart"]').or(card.getByText(/^Belum ada/)).first()).toBeVisible();
+    }
+    const aging = analytics.getByTestId("analytics-aging");
+    await aging.scrollIntoViewIfNeeded();
+    await expect(aging.getByText("> 90 hari").or(aging.getByText("Tidak ada piutang")).first()).toBeVisible();
+  });
+
+  test("Analitik is visible without motion under prefers-reduced-motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload();
+    const headline = page.getByTestId("analytics-headline");
+    await headline.scrollIntoViewIfNeeded();
+    await expect(headline).toBeVisible();
+    // Nothing is held at opacity 0 waiting for a reveal.
+    const opacity = await headline.evaluate((el) => {
+      let node: Element | null = el;
+      let min = 1;
+      while (node) { min = Math.min(min, Number(getComputedStyle(node).opacity)); node = node.parentElement; }
+      return min;
+    });
+    expect(opacity).toBe(1);
   });
 
   test("renders queue summary tiles linking into the work queue by kind", async ({ page }) => {
@@ -146,6 +192,16 @@ test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
     await loginAs(page, schoolAdminUserId);
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
+  });
+
+  test("Analitik follows the role's finance permission", async ({ page }) => {
+    const analytics = page.getByTestId("dashboard-analytics");
+    await analytics.scrollIntoViewIfNeeded();
+    await expect(analytics.getByTestId("analytics-attendance")).toBeVisible();
+    await expect(analytics.getByTestId("analytics-journal")).toBeVisible();
+    const canSeeInvoices = (await page.request.get("/api/invoices?pageSize=1")).status() === 200;
+    await expect(analytics.getByTestId("analytics-finance-trend")).toHaveCount(canSeeInvoices ? 1 : 0);
+    await expect(analytics.getByTestId("analytics-aging")).toHaveCount(canSeeInvoices ? 1 : 0);
   });
 
   test("keeps payroll records out of the authorized work queue", async ({ page }) => {

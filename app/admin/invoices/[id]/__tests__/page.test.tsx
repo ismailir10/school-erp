@@ -42,6 +42,7 @@ const baseInvoice = {
   totalPaid: 400000,
   status: "PARTIALLY_PAID",
   xenditPaymentUrl: null as string | null,
+  paymentLinkExpiresAt: null as string | null,
   paymentLinkError: null,
   lastRemindedAt: null as string | null,
   lastRemindedByName: null as string | null,
@@ -53,6 +54,7 @@ const baseInvoice = {
   },
   lines: [],
   payments: [] as Array<Record<string, unknown>>,
+  paymentProblems: [] as Array<{ code: string; message: string; createdAt: string }>,
 };
 
 const cashPayment = {
@@ -783,5 +785,93 @@ describe("InvoiceDetailPage — Buat link baru (replace the payment link)", () =
     await waitFor(() =>
       expect(fetchMock.mock.calls.filter(([url]) => url === "/api/invoices/inv-1").length).toBe(loadsBefore + 1),
     );
+  });
+});
+
+describe("InvoiceDetailPage — payment link expiry line (cycle payment-link-expiry-display)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const link = "https://pay.example/abc";
+  const FUTURE = "2099-03-05T09:30:00.000Z"; // 16.30 WIB
+  const PAST = "2020-01-01T03:00:00.000Z";
+
+  it("shows 'Berlaku sampai <tanggal · jam> WIB' in Asia/Jakarta for a live link", async () => {
+    fixture({ invoice: { status: "SENT", totalPaid: 0, xenditPaymentUrl: link, paymentLinkExpiresAt: FUTURE } });
+    render(<InvoiceDetailPage />);
+    expect(await screen.findByText("Berlaku sampai 5 Mar 2099 · 16.30 WIB")).toBeInTheDocument();
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salin Link" })).toBeInTheDocument();
+  });
+
+  it.each(["SENT", "PARTIALLY_PAID", "OVERDUE"])("shows red 'Kedaluwarsa' for an unpaid %s invoice past its date", async (status) => {
+    fixture({ invoice: { status, xenditPaymentUrl: link, paymentLinkExpiresAt: PAST } });
+    render(<InvoiceDetailPage />);
+    const badge = await screen.findByText("Kedaluwarsa");
+    expect(badge).toHaveClass("text-status-absent-text");
+    expect(screen.queryByText(/Berlaku sampai/)).not.toBeInTheDocument();
+  });
+
+  it("shows no expiry line and no 'Kedaluwarsa' for a PAID invoice with a past stored date", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000, xenditPaymentUrl: link, paymentLinkExpiresAt: PAST } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Berlaku sampai/)).not.toBeInTheDocument();
+  });
+
+  it("shows a muted 'Tanggal berlaku belum tercatat' for a link with no stored date", async () => {
+    fixture({ invoice: { status: "SENT", xenditPaymentUrl: link, paymentLinkExpiresAt: null } });
+    render(<InvoiceDetailPage />);
+    const note = await screen.findByText("Tanggal berlaku belum tercatat");
+    expect(note).toHaveClass("text-muted-foreground");
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+  });
+
+  it("shows no date line at all when there is no link, even with a stale stored date", async () => {
+    fixture({ invoice: { status: "SENT", xenditPaymentUrl: null, paymentLinkExpiresAt: FUTURE } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByText(/Berlaku sampai/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Tanggal berlaku belum tercatat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — Perlu dicek alert for unrecorded gateway payments", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows the red alert above the activity when the invoice has flagged payments", async () => {
+    fixture({
+      invoice: {
+        status: "PAID",
+        totalPaid: 1000000,
+        paymentProblems: [
+          {
+            code: "DUPLICATE_PAYMENT_AFTER_PAID",
+            message: "Ada pembayaran kedua di Xendit sebesar Rp 500.000 untuk tagihan yang sudah lunas.",
+            createdAt: "2026-10-21T03:00:00.000Z",
+          },
+        ],
+      },
+    });
+    render(<InvoiceDetailPage />);
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("Perlu dicek")).toBeInTheDocument();
+    expect(within(alert).getByText(/Ada pembayaran kedua di Xendit/)).toBeInTheDocument();
+    expect(alert.textContent).not.toContain("DUPLICATE_PAYMENT_AFTER_PAID");
+  });
+
+  it("shows no alert when nothing is flagged", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("INV-2026-001");
+    expect(screen.queryByText("Perlu dicek")).not.toBeInTheDocument();
   });
 });

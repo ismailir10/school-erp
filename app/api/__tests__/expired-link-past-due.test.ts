@@ -6,6 +6,10 @@
 // `finance-maintenance` never promotes and UNPAID_INVOICE_STATUSES excludes, so
 // the family silently stopped owing it. Overdue and part-paid invoices kept a
 // dead link. Tested at the processor seam, where the sweep's EXPIRED poll lands.
+//
+// Cycle 2026-10-20-payment-link-expiry-display (D10) changed one row: a SENT invoice
+// whose link dies BEFORE its due date now stays SENT with the link cleared instead of
+// reverting to PENDING_PAYMENT_LINK ("Link Gagal" means creating a link failed).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { invoiceUpdate, invoiceFresh } = vi.hoisted(() => ({
@@ -56,7 +60,7 @@ function expiredEvent(sessionId = "sess-1") {
   };
 }
 
-type Update = { status?: string; xenditSessionId?: null; xenditPaymentUrl?: null };
+type Update = { status?: string; xenditSessionId?: null; xenditPaymentUrl?: null; paymentLinkExpiresAt?: null };
 
 /** What the processor wrote to the invoice row, or null when it wrote nothing. */
 async function expire(status: string, dueDate: string): Promise<Update | null> {
@@ -68,7 +72,7 @@ async function expire(status: string, dueDate: string): Promise<Update | null> {
   return call?.data ?? null;
 }
 
-const DEAD_LINK_CLEARED = { xenditSessionId: null, xenditPaymentUrl: null };
+const DEAD_LINK_CLEARED = { xenditSessionId: null, xenditPaymentUrl: null, paymentLinkExpiresAt: null };
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -84,12 +88,39 @@ afterEach(() => {
 });
 
 describe("session expiry — SENT", () => {
-  it("not yet due: back to PENDING_PAYMENT_LINK so a new link can be made", async () => {
-    expect(await expire("SENT", NOT_YET_DUE)).toEqual({ status: "PENDING_PAYMENT_LINK", ...DEAD_LINK_CLEARED });
+  it("not yet due: stays SENT and loses only the dead link, so a new link can be made", async () => {
+    expect(await expire("SENT", NOT_YET_DUE)).toEqual(DEAD_LINK_CLEARED);
   });
 
-  it("due today: still not past due, so back to PENDING_PAYMENT_LINK", async () => {
-    expect(await expire("SENT", DUE_TODAY)).toEqual({ status: "PENDING_PAYMENT_LINK", ...DEAD_LINK_CLEARED });
+  it("due today: still not past due, so it stays SENT with the link cleared", async () => {
+    expect(await expire("SENT", DUE_TODAY)).toEqual(DEAD_LINK_CLEARED);
+  });
+
+  it("never writes PENDING_PAYMENT_LINK on an expiry, whatever the due date", async () => {
+    for (const dueDate of [PAST_DUE, DUE_TODAY, NOT_YET_DUE]) {
+      invoiceUpdate.mockClear();
+      expect((await expire("SENT", dueDate))?.status).not.toBe("PENDING_PAYMENT_LINK");
+    }
+  });
+
+  it("reports link cleared (not a revert) when the invoice keeps its status", async () => {
+    const row = { id: "inv1", status: "SENT", invoiceNumber: "INV-2026-0001", dueDate: NOT_YET_DUE, xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+    const { body } = await processPaymentEvent(expiredEvent());
+    expect(body).toMatchObject({ status: "LINK_CLEARED", invoiceId: "inv1" });
+    expect(invoiceUpdate).toHaveBeenCalledWith({
+      where: { id: "inv1", xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" },
+      data: DEAD_LINK_CLEARED,
+    });
+  });
+
+  it("reports PROMOTED_OVERDUE when past due", async () => {
+    const row = { id: "inv1", status: "SENT", invoiceNumber: "INV-2026-0001", dueDate: PAST_DUE, xenditSessionId: "sess-1", xenditPaymentUrl: "https://checkout.test/sess-1" };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(row as never);
+    invoiceFresh.mockResolvedValue(row);
+    const { body } = await processPaymentEvent(expiredEvent());
+    expect(body).toMatchObject({ status: "PROMOTED_OVERDUE" });
   });
 
   // 18:00 UTC on the 17th is already 01:00 on the 18th in Jakarta, so an invoice
@@ -119,11 +150,8 @@ describe("session expiry — untouched", () => {
     expect(await expire(status, PAST_DUE)).toBeNull();
   });
 
-  it("PENDING_PAYMENT_LINK stays PENDING_PAYMENT_LINK even when past due (no link was ever live to chase)", async () => {
-    expect(await expire("PENDING_PAYMENT_LINK", PAST_DUE)).toEqual({
-      status: "PENDING_PAYMENT_LINK",
-      ...DEAD_LINK_CLEARED,
-    });
+  it("PENDING_PAYMENT_LINK keeps its status even when past due (no link was ever live to chase)", async () => {
+    expect(await expire("PENDING_PAYMENT_LINK", PAST_DUE)).toEqual(DEAD_LINK_CLEARED);
   });
 });
 
@@ -146,7 +174,7 @@ describe("session expiry — a superseded session", () => {
   });
 
   it("an expiry for the CURRENT session still clears it", async () => {
-    expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: { xenditSessionId: null, xenditPaymentUrl: null } });
+    expect(await expireWith("sess-2", "sess-2")).toMatchObject({ data: DEAD_LINK_CLEARED });
   });
 
   it("an old named expiry on an already cleared invoice is ignored", async () => {
@@ -188,7 +216,7 @@ describe("session expiry — a superseded session", () => {
   it.each(["OVERDUE", "SENT"])("a named expiry still clears a URL-only %s session", async (status) => {
     expect(await expireWith("sess-1", null, status, "https://checkout.test/url-only")).toMatchObject({
       where: { id: "inv1", xenditSessionId: null, xenditPaymentUrl: "https://checkout.test/url-only" },
-      data: { xenditSessionId: null, xenditPaymentUrl: null },
+      data: DEAD_LINK_CLEARED,
     });
   });
 

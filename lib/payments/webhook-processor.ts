@@ -5,6 +5,12 @@ import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { ACTIVE_PAYMENT_FILTER, deriveInvoicePaymentState } from "@/lib/finance/invoice-payment-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
+import { LINK_CLEARED } from "@/lib/payments/link-cleared";
+import {
+  DUPLICATE_PAYMENT_AFTER_PAID,
+  OVERPAYMENT_FLAGGED,
+  PAID_ON_CANCELLED_INVOICE,
+} from "@/lib/payments/needs-review";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -236,23 +242,9 @@ async function handleSessionCompleted(
   }
   const invoiceId = invoice.id;
 
-  if (invoice.status === "PAID") {
-    await markProcessed(eventId, invoiceId);
-    return { ok: true, status: "PAID:already", eventId };
-  }
-
-  // Guard CANCELLED. TOCTOU: a retry helper read PENDING_PAYMENT_LINK then
-  // made the gateway network call; meanwhile the void route flipped to
-  // CANCELLED. The helper's later DB update may have left xenditSessionId/Url
-  // populated on a CANCELLED row, so a parent could still pay the orphan
-  // link. Refuse to credit a CANCELLED invoice.
-  if (invoice.status === "CANCELLED") {
-    console.warn(
-      `${logPrefix} Payment for CANCELLED invoice ${invoice.invoiceNumber} ignored eventId=${eventId}`,
-    );
-    await markIgnored(eventId, "invoice cancelled", invoiceId);
-    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
-  }
+  // A PAID or CANCELLED invoice is NOT decided here. Whether the event is a redelivery (nothing
+  // to do) or a different payment arriving after the invoice closed (money to refund) can only be
+  // told apart inside the lock, with the redelivery check first, so the lock path owns both.
 
   const paymentAmount = event.amount; // guaranteed non-null by guard above
   const paymentId = event.paymentId; // guaranteed non-null by guard above
@@ -265,13 +257,22 @@ async function handleSessionCompleted(
 
     const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
     if (!fresh) return { status: "PAID", overpaid: false } as const;
-    if (fresh.status === "PAID") return { status: "PAID", overpaid: false } as const;
-    if (fresh.status === "CANCELLED") return { status: "CANCELLED", overpaid: false } as const;
 
+    // Redelivery first: the same gateway payment seen again (webhook retry, manual poll after the
+    // webhook) is a no-op whatever the invoice status is now. Only a DIFFERENT payment landing on
+    // a closed invoice is flagged below.
     const existing = await tx.payment.findUnique({
       where: { xenditPaymentId: paymentId },
     });
-    if (existing) return { status: fresh.status as string, overpaid: false } as const;
+    if (existing) {
+      if (fresh.status === "PAID") return { status: "PAID", already: true } as const;
+      return { status: fresh.status as string, overpaid: false } as const;
+    }
+
+    // Money at the gateway that the books must not take: a second payment on a Lunas invoice, or
+    // any payment on a voided one. Nothing is written; the ERROR event tells a person to refund.
+    if (fresh.status === "PAID") return { status: "PAID", flagged: DUPLICATE_PAYMENT_AFTER_PAID } as const;
+    if (fresh.status === "CANCELLED") return { status: "CANCELLED", flagged: PAID_ON_CANCELLED_INVOICE } as const;
 
     // T5d — overpayment guard computed INSIDE the lock from authoritative
     // fresh.totalPaid, not from the pre-tx snapshot. Prevents a false
@@ -311,19 +312,26 @@ async function handleSessionCompleted(
     return { status, overpaid } as const;
   });
 
+  if (txOutcome.already) {
+    await markProcessed(eventId, invoiceId);
+    return { ok: true, status: "PAID:already", eventId };
+  }
+
+  if (txOutcome.flagged) {
+    await markError(eventId, txOutcome.flagged, invoiceId);
+    console.warn(
+      `${logPrefix} Payment not recorded (${txOutcome.flagged}) on ${invoice.invoiceNumber}: paid=${paymentAmount} eventId=${eventId}`,
+    );
+    return txOutcome.flagged === DUPLICATE_PAYMENT_AFTER_PAID
+      ? { ok: true, status: "ERROR:duplicate_payment_after_paid", eventId }
+      : { ok: true, status: "ERROR:paid_on_cancelled_invoice", eventId };
+  }
+
   const newStatus = txOutcome.status;
   const overpaid = txOutcome.overpaid;
 
-  if (newStatus === "CANCELLED") {
-    await markIgnored(eventId, "invoice cancelled (in-tx)", invoiceId);
-    console.warn(
-      `${logPrefix} In-tx CANCELLED race on ${invoice.invoiceNumber} eventId=${eventId}`,
-    );
-    return { ok: true, status: "IGNORED:invoice_cancelled", eventId };
-  }
-
   if (overpaid) {
-    await markError(eventId, "OVERPAYMENT_FLAGGED", invoiceId);
+    await markError(eventId, OVERPAYMENT_FLAGGED, invoiceId);
     console.warn(
       `${logPrefix} Overpayment on ${invoice.invoiceNumber}: paid=${paymentAmount} eventId=${eventId}`,
     );
@@ -339,6 +347,27 @@ async function handleSessionCompleted(
     eventId,
   });
   return { ok: true, status: newStatus, eventId };
+}
+
+/**
+ * A poll (manual refresh or the nightly sweep) that reports a session expired while the stored
+ * expiry is still well in the future is evidence the gateway answered for a different (older)
+ * order than the current link (cycle 2026-10-20-payment-link-expiry-display, D11). The poll still
+ * clears the link exactly as before; this only leaves one warning line so the case is visible.
+ */
+export const EARLY_EXPIRY_WARN_MS = 5 * 60 * 1000;
+
+function warnIfExpiryReportedEarly(
+  event: NormalizedPaymentEvent,
+  invoiceNumber: string,
+  storedExpiry: Date | null,
+  logPrefix: string,
+): void {
+  if (!event.eventType.startsWith("manual.refresh.") || !storedExpiry) return;
+  if (storedExpiry.getTime() - Date.now() <= EARLY_EXPIRY_WARN_MS) return;
+  console.warn(
+    `${logPrefix} expired poll reported expiry early invoice=${invoiceNumber} storedExpiresAt=${storedExpiry.toISOString()} sessionId=${event.sessionId ?? ""} eventId=${event.eventId}`,
+  );
 }
 
 async function handleSessionExpired(
@@ -381,14 +410,16 @@ async function handleSessionExpired(
   }
   const invoiceId = resolved.id;
 
-  // T5e — soft-revert (NOT destructive). SENT → PENDING_PAYMENT_LINK (or OVERDUE
-  // when past due), OVERDUE / PARTIALLY_PAID → link cleared only.
+  // An expiring link never changes a status by itself, except past due: SENT before its due
+  // date keeps its status and loses only the dead link; SENT past due becomes OVERDUE;
+  // OVERDUE / PARTIALLY_PAID lose the link only. PENDING_PAYMENT_LINK ("Link Gagal") means
+  // creating a link failed, so an expiry never moves an invoice into it.
   // Already-paid + already-cancelled ignore.
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
     const fresh = await tx.invoice.findUnique({
       where: { id: invoiceId },
-      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true },
+      select: { id: true, status: true, invoiceNumber: true, dueDate: true, xenditSessionId: true, xenditPaymentUrl: true, paymentLinkExpiresAt: true },
     });
     if (!fresh) {
       return { type: "IGNORED:invoice_not_found" as const, invoiceNumber: "" };
@@ -433,12 +464,12 @@ async function handleSessionExpired(
     if (fresh.status === "OVERDUE" || fresh.status === "PARTIALLY_PAID") {
       const cleared = await tx.invoice.updateMany({
         where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-        data: { xenditSessionId: null, xenditPaymentUrl: null },
+        data: LINK_CLEARED,
       });
       if (cleared.count === 0) {
         return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
       }
-      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber };
+      return { type: "LINK_CLEARED" as const, invoiceNumber: fresh.invoiceNumber, storedExpiry: fresh.paymentLinkExpiresAt };
     }
     if (fresh.status !== "SENT" && fresh.status !== "PENDING_PAYMENT_LINK") {
       return {
@@ -447,26 +478,25 @@ async function handleSessionExpired(
       };
     }
     // A link expires at the end of the due date, so every invoice unpaid at its
-    // due date reaches this point. "Link Gagal" (PENDING_PAYMENT_LINK) is not an
-    // outstanding status and `finance-maintenance` only promotes SENT, so
-    // reverting a past-due invoice there made it silently stop being owed.
-    // Past due → OVERDUE; otherwise back to "Link Gagal" so a new link is made.
+    // due date reaches this point. `finance-maintenance` only promotes SENT, and
+    // "Link Gagal" (PENDING_PAYMENT_LINK) is not an outstanding status, so a
+    // past-due SENT invoice becomes OVERDUE here or it would silently stop being
+    // owed. Before the due date the invoice keeps its status and only loses the
+    // dead link (cycle 2026-10-20-payment-link-expiry-display, D10), so the nightly
+    // heal, the admin and the parent can all make a new one.
     const pastDue =
       fresh.status === "SENT" && fresh.dueDate < getTodayInTimezone(JAKARTA_TZ);
     const cleared = await tx.invoice.updateMany({
       where: { id: invoiceId, xenditSessionId: fresh.xenditSessionId, xenditPaymentUrl: fresh.xenditPaymentUrl },
-      data: {
-        status: pastDue ? "OVERDUE" : "PENDING_PAYMENT_LINK",
-        xenditSessionId: null,
-        xenditPaymentUrl: null,
-      },
+      data: pastDue ? { status: "OVERDUE", ...LINK_CLEARED } : LINK_CLEARED,
     });
     if (cleared.count === 0) {
       return { type: "IGNORED:stale_session" as const, invoiceNumber: fresh.invoiceNumber };
     }
     return {
-      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("REVERTED" as const),
+      type: pastDue ? ("PROMOTED_OVERDUE" as const) : ("LINK_CLEARED" as const),
       invoiceNumber: fresh.invoiceNumber,
+      storedExpiry: fresh.paymentLinkExpiresAt,
     };
   });
 
@@ -483,9 +513,9 @@ async function handleSessionExpired(
     await markIgnored(eventId, result.type.replace("IGNORED:", ""), invoiceId);
     return { ok: true, status: result.type, eventId, invoiceId };
   }
+  warnIfExpiryReportedEarly(event, result.invoiceNumber, result.storedExpiry, logPrefix);
   await markProcessed(eventId, invoiceId);
   const outcome = {
-    REVERTED: "→ PENDING_PAYMENT_LINK (session expired, soft-revert)",
     PROMOTED_OVERDUE: "→ OVERDUE (session expired past due date)",
     LINK_CLEARED: "dead payment link cleared (session expired, status unchanged)",
   }[result.type];

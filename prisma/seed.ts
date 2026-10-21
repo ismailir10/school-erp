@@ -62,6 +62,42 @@ const LATEST_SCHOOL_DAY = (() => {
 const RECENT_DAYS = schoolDaysEndingAt(LATEST_SCHOOL_DAY, 5, HOLIDAY_DATES, CAL.start);
 const rand = createRng(Number(TODAY.replace(/-/g, "")));
 const utcMidnight = (ymd: string) => new Date(`${ymd}T00:00:00Z`);
+/**
+ * History (the ~4 weeks of school days BEFORE the five recent ones) draws from
+ * its own stream so adding or tuning it never shifts a single value the rest of
+ * the seed pulls from `rand()` (invoices, payments, payroll, …).
+ */
+const historyRand = createRng((Number(TODAY.replace(/-/g, "")) ^ 0x5eed1234) >>> 0);
+/** Monday (YYYY-MM-DD) of the week a date falls in — buckets history into calendar weeks. */
+const mondayOf = (ymd: string) => addDays(ymd, -((utcMidnight(ymd).getUTCDay() + 6) % 7));
+/**
+ * About twenty school days ending the day before RECENT_DAYS starts, never
+ * before the academic-year start. The oldest week is topped up to its Monday so
+ * a weekly chart never opens on a two-day stub that reads as a collapse.
+ */
+const HISTORY_DAYS: string[] = (() => {
+  if (!RECENT_DAYS.length) return [];
+  const days = schoolDaysEndingAt(addDays(RECENT_DAYS[0], -1), 20, HOLIDAY_DATES, CAL.start);
+  if (!days.length) return days;
+  const monday = mondayOf(days[0]);
+  const lead = schoolDaysEndingAt(addDays(days[0], -1), 4, HOLIDAY_DATES, CAL.start).filter((d) => d >= monday);
+  return [...lead, ...days];
+})();
+/**
+ * Per-class shape of the history, keyed by classSectionKeys. `present` is the
+ * start-of-history presence rate, `drift` is how far it moves by the end
+ * (positive = improving), `journal` is the chance a Buku Penghubung cell is
+ * ticked. DCARE and KB_ASTER are deliberately the weak ones so "kelas dengan
+ * kehadiran terendah" has an answer.
+ */
+const HISTORY_PROFILE: Record<string, { present: number; drift: number; journal: number }> = {
+  TKIT_A: { present: 0.945, drift: 0.01, journal: 0.96 },
+  TKIT_B: { present: 0.93, drift: 0.0, journal: 0.9 },
+  KB_ASTER: { present: 0.915, drift: -0.035, journal: 0.8 },
+  KB_METLAND: { present: 0.94, drift: 0.005, journal: 0.85 },
+  DCARE: { present: 0.83, drift: -0.02, journal: 0.74 },
+  POPUP: { present: 0.875, drift: 0.025, journal: 0.78 },
+};
 
 async function main() {
   console.log(`🌱 Seeding database... (today = ${TODAY}, academic year ${CAL.name}, latest school day ${LATEST_SCHOOL_DAY})`);
@@ -787,7 +823,7 @@ async function main() {
   const attendanceRows: {
     studentId: string;
     classSectionId: string;
-    sessionId: string;
+    sessionId: string | null; // null = sessionless legacy row (history)
     date: string;
     status: string;
     checkInTime: Date | null;
@@ -827,6 +863,48 @@ async function main() {
   }
   await prisma.studentAttendance.createMany({ data: attendanceRows });
   console.log(`✅ Student attendance: ${attendanceRows.length} records over ${RECENT_DAYS.length} school days (latest ${LATEST_SCHOOL_DAY} partial)`);
+
+  // ── 7d-2. STUDENT ATTENDANCE HISTORY (~20 school days before the recent five) ──
+  // Gives the Dasbor's 30-day trend and "kelas dengan kehadiran terendah" a real
+  // shape. Rows are SESSIONLESS (sessionId NULL — the legacy shape the schema
+  // allows, one row per student per day under the partial unique index) and no
+  // ClassSession exists for these days, so no session-linked flow changes. The
+  // day's presence rate per class = profile.present + drift across the window
+  // + a Monday/Friday dip + a little noise; the remainder splits
+  // 50% SICK / 25% PERMISSION / 25% ABSENT. Own rng stream (see historyRand).
+  const classKeyById = new Map(Object.entries(classSectionMap).map(([k, id]) => [id, k]));
+  const historyAttendanceRows: typeof attendanceRows = [];
+  HISTORY_DAYS.forEach((day, dayIndex) => {
+    const progress = HISTORY_DAYS.length > 1 ? dayIndex / (HISTORY_DAYS.length - 1) : 0;
+    const weekday = utcMidnight(day).getUTCDay(); // 1 = Monday … 5 = Friday
+    const dip = weekday === 1 ? 0.015 : weekday === 5 ? 0.025 : 0;
+    for (const [classSectionId, roster] of studentsByClass) {
+      const profile = HISTORY_PROFILE[classKeyById.get(classSectionId) ?? ""] ?? { present: 0.92, drift: 0, journal: 0.85 };
+      const dayRate = Math.min(0.99, Math.max(0.5, profile.present + profile.drift * progress - dip + (historyRand() - 0.5) * 0.03));
+      for (const student of roster) {
+        const present = historyRand() < dayRate;
+        const r = historyRand();
+        const status = present ? "PRESENT" : r < 0.5 ? "SICK" : r < 0.75 ? "PERMISSION" : "ABSENT";
+        const inMinute = 5 + Math.floor(historyRand() * 55);
+        historyAttendanceRows.push({
+          studentId: student.id,
+          classSectionId,
+          sessionId: null,
+          date: day,
+          status,
+          checkInTime: present ? jakartaInstant(day, `07:${String(inMinute).padStart(2, "0")}`) : null,
+          checkOutTime: present ? jakartaInstant(day, `11:${String(30 + Math.floor(historyRand() * 25))}`) : null,
+          checkedInBy: homeroomByClassId.get(classSectionId) ?? null,
+          pickedUpByRelation: present ? "PARENT" : null,
+          pickedUpByName: null,
+        });
+      }
+    }
+  });
+  for (let i = 0; i < historyAttendanceRows.length; i += 5000) {
+    await prisma.studentAttendance.createMany({ data: historyAttendanceRows.slice(i, i + 5000) });
+  }
+  console.log(`✅ Student attendance history: ${historyAttendanceRows.length} sessionless records over ${HISTORY_DAYS.length} school days (${HISTORY_DAYS[0] ?? "-"} → ${HISTORY_DAYS[HISTORY_DAYS.length - 1] ?? "-"})`);
 
   // ── 8. SEED ATTENDANCE RECORDS (last 30 days) ──────────────
   const activeEmployeeIds = employees
@@ -1298,6 +1376,8 @@ async function main() {
       paidAt: Date | null;
       totalPaid: number;
       xenditUrl?: string | null;
+      /** When the stored link stops working. Omitted = a legacy link with no recorded date. */
+      linkExpiresAt?: Date | null;
       payments: Array<{ amount: number; method: string; reference?: string; paidAt: Date }>;
     }> = [
       {
@@ -1349,6 +1429,8 @@ async function main() {
         paidAt: null,
         totalPaid: 0,
         xenditUrl: "https://checkout.xendit.co/v2/demo-session-annisaa-inv-0005",
+        // A healthy link: good for another five days, so the demo shows a real date.
+        linkExpiresAt: at(5),
         payments: [],
       },
     ];
@@ -1371,6 +1453,7 @@ async function main() {
           parentId: rightjetParent.id,
           xenditPaymentUrl: sc.xenditUrl ?? null,
           xenditSessionId: sc.xenditUrl ? `xendit-demo-${sc.number}` : null,
+          paymentLinkExpiresAt: sc.xenditUrl ? (sc.linkExpiresAt ?? null) : null,
           lines: { create: sppLine },
         },
       });
@@ -1580,8 +1663,109 @@ async function main() {
     await prisma.payment.createMany({ data: bulkPayments });
     invoiceCount += bulkInvoices.length;
     paymentCount += bulkPayments.length;
+
+    // (4) Payment-link expiry fixtures (cycle 2026-10-20-payment-link-expiry-display).
+    // Numbered 0080-0089 so they sit below the bulk counter (0100+) and above the
+    // rightjet fixtures (0001-0005). Dates hang off TODAY like everything else, and each
+    // sits on a different bulk student so no family's balance is dominated by a fixture.
+    //   0080 SENT, link, expires in the future        -> date shown, not expired
+    //   0081 SENT, link, expired two days ago         -> red "Kedaluwarsa"
+    //   0082 SENT, link, NO recorded date (legacy)    -> "belum tercatat", no red
+    //   0083 PAID, link, expired long ago             -> must NOT read "Kedaluwarsa"
+    //   0084 SENT, current link + an earlier expiry in its activity log
+    //   0085 SENT, link expired before the due date, link cleared, still owing
+    //   0086-0089 the Lewat Tempo / Dibayar Sebagian mix, with and without links
+    const fixtureStudents = billable.filter((st) => !rightjetKids.has(st.id));
+    const linkUrl = (n: string) => `https://checkout.xendit.co/v2/demo-session-annisaa-inv-${n}`;
+    const linkFixtures: Array<{
+      n: string; status: string; dueInDays: number; paid: number;
+      link: boolean; linkExpiresAt: Date | null; periodBack: number;
+    }> = [
+      { n: "0080", status: "SENT", dueInDays: 10, paid: 0, link: true, linkExpiresAt: at(5), periodBack: 0 },
+      { n: "0081", status: "SENT", dueInDays: 6, paid: 0, link: true, linkExpiresAt: at(-2), periodBack: 0 },
+      { n: "0082", status: "SENT", dueInDays: 8, paid: 0, link: true, linkExpiresAt: null, periodBack: 0 },
+      { n: "0083", status: "PAID", dueInDays: -35, paid: sppAmount, link: true, linkExpiresAt: at(-30), periodBack: 1 },
+      { n: "0084", status: "SENT", dueInDays: 12, paid: 0, link: true, linkExpiresAt: at(4), periodBack: 0 },
+      { n: "0085", status: "SENT", dueInDays: 6, paid: 0, link: false, linkExpiresAt: null, periodBack: 0 },
+      { n: "0086", status: "OVERDUE", dueInDays: -12, paid: 0, link: true, linkExpiresAt: at(-5), periodBack: 1 },
+      { n: "0087", status: "OVERDUE", dueInDays: -20, paid: 0, link: false, linkExpiresAt: null, periodBack: 2 },
+      { n: "0088", status: "PARTIALLY_PAID", dueInDays: 3, paid: 400_000, link: true, linkExpiresAt: at(3), periodBack: 0 },
+      { n: "0089", status: "PARTIALLY_PAID", dueInDays: -3, paid: 300_000, link: false, linkExpiresAt: null, periodBack: 1 },
+    ];
+    const linkFixtureIds = new Map<string, string>();
+    if (fixtureStudents.length > 0) {
+      for (const [i, fx] of linkFixtures.entries()) {
+        const student = fixtureStudents[(i * 3) % fixtureStudents.length];
+        const number = `INV-${invoiceYear}-${fx.n}`;
+        const created = await prisma.invoice.create({
+          data: {
+            tenantId: tenant.id,
+            studentId: student.id,
+            invoiceNumber: number,
+            periodLabel: monthLabelId(monthStart(fx.periodBack)),
+            dueDate: addDays(TODAY, fx.dueInDays),
+            totalDue: sppAmount,
+            totalPaid: fx.paid,
+            status: fx.status,
+            createdBy: adminUser.id,
+            createdAt: at(-14),
+            sentAt: at(-14),
+            paidAt: fx.status === "PAID" ? at(-32) : null,
+            parentId: student.guardians[0]?.parentId ?? null,
+            xenditPaymentUrl: fx.link ? linkUrl(fx.n) : null,
+            xenditSessionId: fx.link ? `xendit-demo-INV-${invoiceYear}-${fx.n}` : null,
+            paymentLinkExpiresAt: fx.link ? fx.linkExpiresAt : null,
+            lines: { create: sppLine },
+          },
+        });
+        linkFixtureIds.set(fx.n, created.id);
+        invoiceCount++;
+        if (fx.paid > 0) {
+          await prisma.payment.create({
+            data: {
+              invoiceId: created.id,
+              amount: fx.paid,
+              method: "CASH",
+              reference: `TT-${number}`,
+              status: "APPROVED",
+              createdBy: adminUser.id,
+              paidAt: fx.status === "PAID" ? at(-32) : at(-6),
+            },
+          });
+          paymentCount++;
+        }
+      }
+
+      // 0084's activity log: the first link expired and was replaced; the current link
+      // (above) carries the new, later date. This is what the activity card relabels
+      // as "Link sebelumnya kedaluwarsa". provider matches getGateway().id for an
+      // unset PAYMENT_GATEWAY, which is what the webhook-events route filters on.
+      const expiredEventInvoiceId = linkFixtureIds.get("0084");
+      if (expiredEventInvoiceId) {
+        await prisma.webhookEvent.create({
+          data: {
+            provider: "xendit",
+            eventId: `seed-evt-expired-INV-${invoiceYear}-0084`,
+            eventType: "payment_session.expired",
+            status: "PROCESSED",
+            invoiceId: expiredEventInvoiceId,
+            payload: {
+              event: "payment_session.expired",
+              created: at(-4).toISOString(),
+              data: {
+                payment_session_id: `xendit-demo-old-INV-${invoiceYear}-0084`,
+                reference_id: expiredEventInvoiceId,
+                status: "EXPIRED",
+              },
+            },
+            createdAt: at(-4),
+            processedAt: at(-4),
+          },
+        });
+      }
+    }
   }
-  console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/draft) + ${paymentCount} payments`);
+  console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/draft, incl. 10 link-expiry fixtures) + ${paymentCount} payments`);
 
   // 11e. ADMISSIONS — INQUIRY + ADMITTED linked to converted student (studentId
   // is the "converted" signal; status stays ADMITTED post-conversion per cycle
@@ -1739,6 +1923,62 @@ async function main() {
     await prisma.studentJournalEntry.createMany({ data: journalRows });
     journalEntryCount = journalRows.length;
 
+    // History — SCHOOL scope for every student marked PRESENT on a history day
+    // (see 7d-2), ticking ALL active SCHOOL indicators like a teacher who keeps
+    // the buku penghubung. The tick chance is the class's profile, scaled by a
+    // per-week factor (the habit builds: ~0.85 in the oldest week → 1.0 in the
+    // newest) with a per-student-day wobble, so weekly completion lands roughly
+    // 55–95% and differs by class. Own rng stream (see historyRand).
+    const historyWeeks = [...new Set(HISTORY_DAYS.map(mondayOf))].sort();
+    const historyJournalRows: typeof journalRows = [];
+    for (const row of historyAttendanceRows) {
+      if (row.status !== "PRESENT") continue;
+      const weekIdx = historyWeeks.indexOf(mondayOf(row.date));
+      const weekFactor = historyWeeks.length > 1 ? 0.85 + 0.15 * (weekIdx / (historyWeeks.length - 1)) : 1;
+      const base = HISTORY_PROFILE[classKeyById.get(row.classSectionId) ?? ""]?.journal ?? 0.85;
+      const tick = Math.min(0.98, Math.max(0.3, base * weekFactor + (historyRand() - 0.5) * 0.12));
+      const recorder = teacherUserByClassId.get(row.classSectionId) ?? teacherUser.id;
+      for (const ind of schoolInd) {
+        historyJournalRows.push({
+          tenantId: tenant.id,
+          studentId: row.studentId,
+          classSectionId: row.classSectionId,
+          indicatorId: ind.id,
+          date: row.date,
+          scope: "SCHOOL",
+          checked: historyRand() < tick,
+          recordedByUserId: recorder,
+        });
+      }
+    }
+    // Recent days before the latest: the block above only seeds the first 4
+    // SCHOOL indicators, which would read as a completion cliff on the Dasbor's
+    // weekly chart. Finish the remaining indicators the way history does
+    // (newest-week habit). The latest day stays partial — teachers are still
+    // filling it in.
+    for (const row of attendanceRows) {
+      if (row.status !== "PRESENT" || row.date >= LATEST_SCHOOL_DAY) continue;
+      const base = HISTORY_PROFILE[classKeyById.get(row.classSectionId) ?? ""]?.journal ?? 0.85;
+      const tick = Math.min(0.98, Math.max(0.3, base + (historyRand() - 0.5) * 0.12));
+      const recorder = teacherUserByClassId.get(row.classSectionId) ?? teacherUser.id;
+      for (const ind of schoolInd.slice(4)) {
+        historyJournalRows.push({
+          tenantId: tenant.id,
+          studentId: row.studentId,
+          classSectionId: row.classSectionId,
+          indicatorId: ind.id,
+          date: row.date,
+          scope: "SCHOOL",
+          checked: historyRand() < tick,
+          recordedByUserId: recorder,
+        });
+      }
+    }
+    for (let i = 0; i < historyJournalRows.length; i += 5000) {
+      await prisma.studentJournalEntry.createMany({ data: historyJournalRows.slice(i, i + 5000) });
+    }
+    journalEntryCount += historyJournalRows.length;
+
     // Notes — one teacher note (previous school day) + one parent note (latest
     // school day) on the rightjet primary child.
     const previousSchoolDay = RECENT_DAYS[RECENT_DAYS.length - 2] ?? LATEST_SCHOOL_DAY;
@@ -1805,7 +2045,63 @@ async function main() {
         }
       }
     }
-    console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes + 1 KB-Aster parent note (D4)`);
+
+    // History notes — a handful per week so the Catatan trend has a shape.
+    // TEACHER notes go on students outside the demo households (so no demo
+    // parent's inbox changes); GUARDIAN notes come from users that really are
+    // the child's guardian (rightjet household, the KB-Aster D4 parent).
+    // createdAt follows the note's date, as a real thread's would.
+    const homeHouseholdIds = new Set<string>([...rightjetKidIds, ...(kbAsterStudent ? [kbAsterStudent.id] : [])]);
+    const noteTargets = allStudents.filter((st) => !homeHouseholdIds.has(st.id) && st.enrollments[0]?.classSectionId);
+    const guardianTargets: { studentId: string; userId: string }[] = [
+      ...rightjetKidIds.map((id) => ({ studentId: id, userId: "u_rightjet" })),
+      ...(kbAsterStudent && (await prisma.user.findUnique({ where: { id: "u_kbaster_parent_d4" }, select: { id: true } }))
+        ? [{ studentId: kbAsterStudent.id, userId: "u_kbaster_parent_d4" }]
+        : []),
+    ];
+    const teacherNoteBodies = [
+      "Hari ini semangat mengikuti pelajaran dan mau berbagi dengan teman.",
+      "Sudah mulai lancar mengulang hafalan surat pendek, mohon dilatih di rumah ya.",
+      "Tadi sempat kurang enak badan di siang hari, sudah istirahat dan membaik.",
+      "Aktif bertanya saat kegiatan sentra, terima kasih atas dukungan Bunda.",
+      "Perlu pengingat untuk membawa perlengkapan sholat besok.",
+      "Sangat rapi menyelesaikan tugas menggambar hari ini.",
+    ];
+    const guardianNoteBodies = [
+      "Alhamdulillah di rumah sudah mau merapikan mainan sendiri, terima kasih Ustadzah.",
+      "Mohon info jadwal kegiatan minggu depan ya Ustadzah, jazakillah khayran.",
+      "Semalam tidur agak larut, mohon dimaklumi kalau pagi ini kurang bersemangat.",
+    ];
+    const historyNotes: {
+      tenantId: string; studentId: string; date: string; authorUserId: string; authorRole: string;
+      body: string; createdAt: Date; updatedAt: Date;
+    }[] = [];
+    historyWeeks.forEach((week, weekIdx) => {
+      const daysOfWeek = HISTORY_DAYS.filter((d) => mondayOf(d) === week);
+      if (!daysOfWeek.length) return;
+      const pickDay = () => daysOfWeek[Math.floor(historyRand() * daysOfWeek.length)];
+      const push = (date: string, authorUserId: string, authorRole: string, studentId: string, body: string) => {
+        const at = jakartaInstant(date, "10:00");
+        historyNotes.push({ tenantId: tenant.id, studentId, date, authorUserId, authorRole, body, createdAt: at, updatedAt: at });
+      };
+      // 2–4 teacher notes per week (the busiest weeks are the middle ones).
+      const teacherCount = 2 + (weekIdx % 3);
+      for (let n = 0; n < teacherCount && noteTargets.length; n++) {
+        const st = noteTargets[Math.floor(historyRand() * noteTargets.length)];
+        const classSectionId = st.enrollments[0].classSectionId;
+        push(pickDay(), teacherUserByClassId.get(classSectionId) ?? teacherUser.id, "TEACHER", st.id,
+          teacherNoteBodies[(weekIdx * 4 + n) % teacherNoteBodies.length]);
+      }
+      // One guardian note per week, rotating through the real guardians.
+      if (guardianTargets.length) {
+        const g = guardianTargets[weekIdx % guardianTargets.length];
+        push(pickDay(), g.userId, "GUARDIAN", g.studentId,
+          guardianNoteBodies[weekIdx % guardianNoteBodies.length]);
+      }
+    });
+    if (historyNotes.length) await prisma.studentJournalNote.createMany({ data: historyNotes });
+
+    console.log(`✅ Journal: ${journalEntryCount} entries (${historyJournalRows.length} history) + 2 notes + 1 KB-Aster parent note (D4) + ${historyNotes.length} history notes`);
   }
 
   // 11i. ASSESSMENT ENTRIES — weekly (walas) entries for the current curriculum

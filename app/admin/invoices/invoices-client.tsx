@@ -17,6 +17,7 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
+import { PaymentLinkExpiryCell } from "@/components/admin/invoices/payment-link-expiry-cell";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
@@ -27,7 +28,7 @@ import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort } from "@/lib/format";
-import { VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
+import { INVOICE_STATUS_LABELS, VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
 import {
   runBulkRetry,
   type BulkRetrySnapshot,
@@ -45,6 +46,7 @@ type Invoice = {
   totalPaid: number;
   status: string;
   xenditPaymentUrl?: string | null;
+  paymentLinkExpiresAt?: string | null;
   createdAt: string;
   student: { name: string; nickname: string | null };
   _count: { payments: number };
@@ -93,6 +95,7 @@ const columns: ColumnDef<Invoice>[] = [
                 <DataTableMobileMeta className="mt-1">
                   <StatusBadge status={inv.status} />
                   <span>Tempo {formatDateShort(inv.dueDate)}</span>
+                  <PaymentLinkExpiryCell invoice={inv} variant="meta" />
                 </DataTableMobileMeta>
               </>
             }
@@ -160,6 +163,14 @@ const columns: ColumnDef<Invoice>[] = [
     ),
     meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
+  },
+  {
+    accessorKey: "paymentLinkExpiresAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Link berlaku" />
+    ),
+    meta: { priority: "low" },
+    cell: ({ row }) => <PaymentLinkExpiryCell invoice={row.original} />,
   },
 ];
 
@@ -292,6 +303,8 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     cancelled: 0,
     pendingPaymentLink: 0,
     unpaidWithoutLink: 0,
+    owing: 0,
+    needsReview: 0,
     outstanding: 0,
     collectedThisMonth: 0,
   });
@@ -312,6 +325,8 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           cancelled: s.cancelled ?? 0,
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
           unpaidWithoutLink: s.unpaidWithoutLink ?? 0,
+          owing: s.owing ?? 0,
+          needsReview: s.needsReview ?? 0,
           outstanding: Number(s.outstanding ?? 0),
           collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
@@ -529,7 +544,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         return;
       }
       if (d.code === "UPDATED") toast.success(d.message);
-      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE" || d.code === "NEEDS_REVIEW") toast.warning(d.message);
       else toast.info(d.message);
     } catch {
       toast.error("Gagal memeriksa status pembayaran");
@@ -704,6 +719,33 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     fetchDraftRun();
   }, [fetchInvoices, fetchStats, fetchDraftRun]);
 
+  // The Status filter asks five questions (D12), plus a sixth only when it has an answer.
+  // "Belum lunas", "Perlu link" and "Perlu dicek" are derived (`UNPAID` / `NEEDS_LINK` /
+  // `NEEDS_REVIEW`); counts come from the summary request, cover the whole school and ignore
+  // the search box. "Perlu link" is the sum of the two header buttons' numbers. "Perlu dicek"
+  // (flagged gateway payments) shows only when N > 0, or while selected so it never vanishes.
+  const statusOptions = useMemo(() => {
+    const withCount = (label: string, n: number) => (statsState === "ready" ? `${label} (${n})` : label);
+    const options = [
+      { value: "all", label: "Semua Status" },
+      { value: "UNPAID", label: withCount("Belum lunas", stats.owing) },
+      { value: "OVERDUE", label: withCount("Lewat Tempo", stats.overdue) },
+      { value: "NEEDS_LINK", label: withCount("Perlu link", stats.pendingPaymentLink + stats.unpaidWithoutLink) },
+      ...(stats.needsReview > 0 || statusFilter === "NEEDS_REVIEW"
+        ? [{ value: "NEEDS_REVIEW", label: withCount("Perlu dicek", stats.needsReview) }]
+        : []),
+      { value: "PAID", label: withCount("Lunas", stats.paid) },
+      { value: "CANCELLED", label: withCount("Dibatalkan", stats.cancelled) },
+    ];
+    // A raw status from the address (e.g. `?status=SENT`) filters correctly but is not
+    // advertised: show it as one extra option so the select never reads "Semua Status"
+    // over a filtered list. It has no count; it disappears once another option is picked.
+    if (!options.some((o) => o.value === statusFilter)) {
+      options.push({ value: statusFilter, label: INVOICE_STATUS_LABELS[statusFilter] ?? statusFilter });
+    }
+    return options;
+  }, [statsState, stats, statusFilter]);
+
   return (
     <>
       <PageHeader
@@ -838,7 +880,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         <StatCard
           label="Piutang"
           value={formatRupiah(stats.outstanding)}
-          sublabel={`${stats.sent + stats.partiallyPaid + stats.overdue} tagihan belum lunas`}
+          sublabel={`${stats.owing} tagihan belum lunas`}
           icon={Wallet}
           color="warning"
           index={6}
@@ -865,15 +907,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
               setStatusFilter(v);
               setPagination((p) => ({ ...p, page: 1 }));
             },
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "DRAFT", label: "Draft" },
-              { value: "SENT", label: "Link Dibuat" },
-              { value: "PAID", label: "Lunas" },
-              { value: "PARTIALLY_PAID", label: "Dibayar Sebagian" },
-              { value: "OVERDUE", label: "Lewat Tempo" },{ value: "CANCELLED", label: "Dibatalkan" },
-              { value: "PENDING_PAYMENT_LINK", label: "Link Gagal" },
-            ],
+            options: statusOptions,
           },
         ]}
       />

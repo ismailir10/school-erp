@@ -6,6 +6,19 @@ export function formatRupiah(amount: number | string): string {
   return "Rp " + Math.round(Number(amount)).toLocaleString("id-ID");
 }
 
+const COMPACT_RUPIAH = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
+
+/**
+ * Short Rupiah for chart axes and hints where the full figure would not fit:
+ * "Rp 850 rb", "Rp 12,4 jt", "Rp 1,2 M". Same "Rp " prefix as `formatRupiah`;
+ * use `formatRupiah` for anything a reader needs to reconcile to the rupiah.
+ * ICU separates the unit with a no-break space; it is normalised to a plain
+ * space so the string matches what a person (and a test) types.
+ */
+export function formatRupiahCompact(amount: number | string): string {
+  return "Rp " + COMPACT_RUPIAH.format(Number(amount)).replace(/\u00a0/g, " ");
+}
+
 /**
  * Same value as `formatRupiah`, split so a caller can style the "Rp" apart
  * from the digits. `<Amount>` renders the symbol smaller and muted, which

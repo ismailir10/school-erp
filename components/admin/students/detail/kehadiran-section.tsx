@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -68,11 +68,12 @@ export const KehadiranSection = memo(function KehadiranSection({
   }
 
   return (
-    <DossierSection
+    <DossierSubsection
       id="kehadiran"
       label="Kehadiran"
       open={open}
       onOpenChange={onOpenChange}
+      keepMounted
       actions={
         <Input
           type="month"
@@ -123,6 +124,6 @@ export const KehadiranSection = memo(function KehadiranSection({
           ))}
         </div>
       )}
-    </DossierSection>
+    </DossierSubsection>
   );
 });

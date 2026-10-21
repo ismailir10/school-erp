@@ -1,7 +1,7 @@
 "use client";
 
 import { GraduationCap } from "lucide-react";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDateShort } from "@/lib/format";
@@ -13,16 +13,12 @@ import type { Enrollment } from "./types";
 export function RiwayatKelasSection({
   enrollments,
   canEdit,
-  open,
-  onOpenChange,
 }: {
   enrollments: Enrollment[];
   canEdit: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <DossierSection
+    <DossierSubsection
       id="riwayat-kelas"
       label="Riwayat Kelas"
       badge={
@@ -30,8 +26,6 @@ export function RiwayatKelasSection({
           {enrollments.length}
         </span>
       }
-      open={open}
-      onOpenChange={onOpenChange}
     >
       {enrollments.length === 0 ? (
         <EmptyState title="Belum terdaftar di kelas" description={canEdit ? "Daftarkan siswa ke kelas melalui tombol di atas." : undefined} />
@@ -48,6 +42,6 @@ export function RiwayatKelasSection({
           ))}
         </div>
       )}
-    </DossierSection>
+    </DossierSubsection>
   );
 }

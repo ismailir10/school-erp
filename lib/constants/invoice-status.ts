@@ -30,3 +30,25 @@ export const VOIDABLE_INVOICE_STATUSES = [
   "PENDING_PAYMENT_LINK",
   "OVERDUE",
 ] as const;
+
+/** Every stored `Invoice.status`. */
+export const INVOICE_STATUS_VALUES = [
+  "DRAFT",
+  "PENDING_PAYMENT_LINK",
+  "SENT",
+  "PARTIALLY_PAID",
+  "PAID",
+  "OVERDUE",
+  "CANCELLED",
+] as const;
+
+/**
+ * Derived `?status=` values for the invoice list, not stored statuses
+ * (cycle 2026-10-20-payment-link-expiry-display, D12).
+ * `UNPAID` = "Belum lunas"; `NEEDS_LINK` = "Perlu link"; `NEEDS_REVIEW` = "Perlu dicek"
+ * (a gateway payment a person must reconcile, cycle 2026-10-21-unrecorded-gateway-payments, D6).
+ */
+export const INVOICE_DERIVED_FILTERS = ["UNPAID", "NEEDS_LINK", "NEEDS_REVIEW"] as const;
+
+/** Everything `GET /api/invoices?status=` accepts besides `all`. */
+export const INVOICE_LIST_STATUS_VALUES = [...INVOICE_STATUS_VALUES, ...INVOICE_DERIVED_FILTERS] as const;

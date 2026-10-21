@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { StudentHealthBlock } from "@/components/admin/student-health-block";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,6 @@ export function KesehatanSection({
   known,
   system,
   hasAllergy,
-  open,
-  onOpenChange,
   persistMetadata,
   getExtraRows,
   onSaved,
@@ -37,8 +35,6 @@ export function KesehatanSection({
   known: Record<string, string>;
   system: StudentSystemMetadata;
   hasAllergy: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   persistMetadata: (next: { known: Record<string, string>; extra: MetadataExtraRow[] }) => Promise<boolean>;
   getExtraRows: () => MetadataExtraRow[];
   onSaved: () => void;
@@ -51,7 +47,6 @@ export function KesehatanSection({
   function startEditing() {
     setDraft(known);
     setEditing(true);
-    onOpenChange(true);
   }
 
   function cancelEditing() {
@@ -71,12 +66,10 @@ export function KesehatanSection({
   }
 
   return (
-    <DossierSection
+    <DossierSubsection
       id="kesehatan"
       label="Kesehatan & Kelahiran"
       badge={hasAllergy ? <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">Ada alergi</Badge> : undefined}
-      open={open}
-      onOpenChange={onOpenChange}
       actions={canEdit && (
         editing ? (
           <>
@@ -101,6 +94,6 @@ export function KesehatanSection({
         editing={editing}
         onChange={(key, value) => setDraft((d) => ({ ...d, [key]: value }))}
       />
-    </DossierSection>
+    </DossierSubsection>
   );
 }

@@ -14,6 +14,12 @@
  *   - voice.md admin error rules
  */
 
+import {
+  DUPLICATE_PAYMENT_AFTER_PAID,
+  OVERPAYMENT_FLAGGED,
+  PAID_ON_CANCELLED_INVOICE,
+} from "@/lib/payments/needs-review";
+
 export function mapErrorLabel(errorMessage: string | null | undefined): string | null {
   if (!errorMessage) return null;
 
@@ -27,8 +33,14 @@ export function mapErrorLabel(errorMessage: string | null | undefined): string |
   if (errorMessage === "MISSING_PAYMENT_ID") {
     return "ID pembayaran dari gerbang pembayaran tidak tercatat. Verifikasi manual.";
   }
-  if (errorMessage === "OVERPAYMENT_FLAGGED") {
+  if (errorMessage === OVERPAYMENT_FLAGGED) {
     return "Pembayaran melebihi tagihan — sudah dikreditkan, verifikasi manual.";
+  }
+  if (errorMessage === DUPLICATE_PAYMENT_AFTER_PAID) {
+    return "Pembayaran kedua untuk tagihan yang sudah lunas — tidak dicatat. Periksa di dashboard gateway dan kembalikan dana bila perlu.";
+  }
+  if (errorMessage === PAID_ON_CANCELLED_INVOICE) {
+    return "Pembayaran untuk tagihan yang sudah dibatalkan — tidak dicatat. Periksa di dashboard gateway dan kembalikan dana.";
   }
   if (errorMessage.startsWith("CURRENCY_MISMATCH")) {
     return "Mata uang pembayaran bukan IDR — tidak dikreditkan, verifikasi manual.";
@@ -37,6 +49,10 @@ export function mapErrorLabel(errorMessage: string | null | undefined): string |
   // IGNORED:* suffix family.
   if (errorMessage.endsWith("already_paid")) {
     return "Tagihan sudah lunas — event diabaikan.";
+  }
+  // Legacy IGNORED reasons written before a payment on a cancelled invoice became an error.
+  if (errorMessage === "invoice cancelled" || errorMessage === "invoice cancelled (in-tx)") {
+    return "Tagihan dibatalkan — event diabaikan.";
   }
   if (errorMessage.endsWith("already_cancelled")) {
     return "Tagihan dibatalkan — event diabaikan.";

@@ -13,7 +13,7 @@
  * spelled out in `page.test.tsx`.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -234,6 +234,19 @@ async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
   });
 }
 
+/**
+ * The groups that hold the lazy rows (Kelas & Akademik, Pendaftaran & Catatan)
+ * start closed, so an admin opens the group before the row inside it.
+ */
+async function openGroup(groupId: string): Promise<void> {
+  const trigger = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[aria-controls="${groupId}-content"]`);
+    if (!el) throw new Error(`no disclosure trigger for group "${groupId}"`);
+    return el;
+  });
+  if (trigger.getAttribute("aria-expanded") !== "true") await userEvent.click(trigger);
+}
+
 describe("student dossier — increment 3", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -275,7 +288,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
 
     await waitFor(() => expect(screen.getAllByText("0/1").length).toBeGreaterThan(0));
-    expect(screen.getAllByText("Belum ada raport").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Belum ada rapor").length).toBeGreaterThan(0);
     expect(screen.queryByText("terbit")).not.toBeInTheDocument();
   });
 
@@ -321,6 +334,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-kelas");
     const trigger = await sectionTrigger("akademik");
     await user.click(trigger);
 
@@ -340,6 +354,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-kelas");
     await user.click(await sectionTrigger("akademik"));
     await waitFor(() => expect(screen.getByText("TW1 · Sem 1 · 2025/2026")).toBeInTheDocument());
 
@@ -356,6 +371,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     await waitFor(() => expect(urlsMatching(calls, "/enrollment-application")).toHaveLength(1));
@@ -374,6 +390,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     await waitFor(() => expect(screen.getByText("kk-aisyah.pdf")).toBeInTheDocument());
@@ -405,6 +422,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     // The rest of the form still renders; only the card is withheld.
@@ -433,13 +451,14 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
 
     const tick = await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" });
     expect(tick).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("adds a Berkas pendaftaran row to the rail checklist for a converted student", async () => {
+  it("names the unfinished paper-form checklist in Perlu perhatian for a converted student", async () => {
     const { fn } = stubFetch({
       overview: {
         ...OVERVIEW,
@@ -449,12 +468,11 @@ describe("student dossier — increment 3", () => {
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
 
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
-    );
+    const strip = await screen.findByRole("region", { name: "Perlu perhatian" });
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(6 \/ 9\)/)).toBeInTheDocument());
   });
 
-  it("refreshes the rail count after a Diterima fisik tick is saved", async () => {
+  it("refreshes the Perlu perhatian count after a Diterima fisik tick is saved", async () => {
     const user = userEvent.setup();
     let done = 6;
     const { fn, calls } = stubFetch();
@@ -478,20 +496,18 @@ describe("student dossier — increment 3", () => {
     });
     vi.stubGlobal("fetch", wrapped);
     render(<StudentDetailPage />);
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (6 / 9)").length).toBeGreaterThan(0),
-    );
+    const strip = await screen.findByRole("region", { name: "Perlu perhatian" });
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(6 \/ 9\)/)).toBeInTheDocument());
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("pendaftaran"));
     await user.click(await screen.findByRole("checkbox", { name: "Diterima fisik: KTP Ayah" }));
 
-    await waitFor(() =>
-      expect(screen.getAllByText("Berkas pendaftaran (7 / 9)").length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(within(strip).getByText(/Berkas pendaftaran \(7 \/ 9\)/)).toBeInTheDocument());
     expect(urlsMatching(calls, "/overview").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("omits the Berkas pendaftaran rail row when there is no application", async () => {
+  it("omits the Berkas pendaftaran item when there is no application", async () => {
     const { fn } = stubFetch({
       overview: {
         ...OVERVIEW,

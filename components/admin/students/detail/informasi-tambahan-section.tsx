@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormRootError } from "@/components/ui/form";
@@ -28,8 +28,6 @@ import type { MetadataExtraRow } from "@/lib/student/metadata";
 export function InformasiTambahanSection({
   extra,
   known,
-  open,
-  onOpenChange,
   persistMetadata,
   onSaved,
   canEdit,
@@ -37,8 +35,6 @@ export function InformasiTambahanSection({
 }: {
   extra: MetadataExtraRow[];
   known: Record<string, string>;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   persistMetadata: (next: { known: Record<string, string>; extra: MetadataExtraRow[] }) => Promise<boolean>;
   onSaved: () => void;
   canEdit: boolean;
@@ -89,11 +85,9 @@ export function InformasiTambahanSection({
   });
 
   return (
-    <DossierSection
+    <DossierSubsection
       id="informasi-tambahan"
       label="Informasi Tambahan"
-      open={open}
-      onOpenChange={onOpenChange}
       actions={canEdit &&
         <>
           <Button size="sm" variant="ghost" onClick={addRow}>
@@ -150,6 +144,6 @@ export function InformasiTambahanSection({
           </div>
         )}
       </form>
-    </DossierSection>
+    </DossierSubsection>
   );
 }

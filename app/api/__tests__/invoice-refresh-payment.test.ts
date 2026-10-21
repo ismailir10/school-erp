@@ -20,6 +20,7 @@ const {
   invoiceUpdateMock,
   invoiceUpdateManyMock,
   rateLimitMock,
+  webhookEventFindUniqueMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   fetchPaymentStatusMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   invoiceUpdateMock: vi.fn(),
   invoiceUpdateManyMock: vi.fn(),
   rateLimitMock: vi.fn(),
+  webhookEventFindUniqueMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -43,6 +45,7 @@ vi.mock("@/lib/db", () => ({
       update: invoiceUpdateMock,
       updateMany: invoiceUpdateManyMock,
     },
+    webhookEvent: { findUnique: webhookEventFindUniqueMock },
   },
 }));
 
@@ -271,16 +274,47 @@ describe("POST /api/invoices/[id]/refresh-payment — outcomes", () => {
     expect(body.statusAfter).toBe("PAID");
   });
 
-  it("soft-reverts an expired session", async () => {
-    stubInvoice({ statusBefore: "SENT", statusAfter: "PENDING_PAYMENT_LINK" });
+  it.each([
+    ["ERROR:duplicate_payment_after_paid", "PAID", "pembayaran kedua di Xendit untuk tagihan yang sudah lunas"],
+    ["ERROR:paid_on_cancelled_invoice", "CANCELLED", "pembayaran di Xendit untuk tagihan yang sudah dibatalkan"],
+  ])("reports NEEDS_REVIEW, not 'sudah lunas', when the processor says %s", async (processorStatus, invoiceStatus, phrase) => {
+    stubInvoice({ statusBefore: invoiceStatus, statusAfter: invoiceStatus });
+    fetchPaymentStatusMock.mockResolvedValue(COMPLETED_STATUS);
+    processPaymentEventMock.mockResolvedValue({
+      httpStatus: 200,
+      body: { ok: true, status: processorStatus },
+    });
+    const body = await (await call()).json();
+    expect(body.code).toBe("NEEDS_REVIEW");
+    expect(body.message).toContain(phrase);
+    expect(body.message).toContain("tidak dicatat");
+    expect(body.statusAfter).toBe(invoiceStatus);
+  });
+
+  it("keeps saying NEEDS_REVIEW when the same poll is clicked again (event-id dedup)", async () => {
+    stubInvoice({ statusBefore: "PAID", statusAfter: "PAID" });
+    fetchPaymentStatusMock.mockResolvedValue(COMPLETED_STATUS);
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, duplicate: true } });
+    webhookEventFindUniqueMock.mockResolvedValueOnce({ errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" });
+    const body = await (await call()).json();
+    expect(body.code).toBe("NEEDS_REVIEW");
+    expect(webhookEventFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { eventId: `manual:xendit:${INVOICE_ID}:COMPLETED:py-1` } }),
+    );
+  });
+
+  it("tells the admin the link was cleared when a not-yet-due SENT invoice keeps its status (D10)", async () => {
+    stubInvoice({ statusBefore: "SENT", statusAfter: "SENT" });
     fetchPaymentStatusMock.mockResolvedValue({
       ...PENDING_STATUS,
       state: "EXPIRED",
       rawStatus: "EXPIRED",
     });
+    processPaymentEventMock.mockResolvedValue({ httpStatus: 200, body: { ok: true, status: "LINK_CLEARED" } });
     const body = await (await call()).json();
     expect(body.code).toBe("UPDATED");
-    expect(body.message).toContain("kedaluwarsa");
+    expect(body.statusAfter).toBe("SENT");
+    expect(body.message).toContain("Link lama dihapus");
     expect(processPaymentEventMock.mock.calls[0][0].kind).toBe("SESSION_EXPIRED");
   });
 

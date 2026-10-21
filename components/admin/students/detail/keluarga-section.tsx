@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Control } from "react-hook-form";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -48,14 +48,10 @@ import type { Guardian, Student } from "./types";
 export function KeluargaSection({
   student,
   studentId,
-  open,
-  onOpenChange,
   onSaved,
 }: {
   student: Student;
   studentId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
   const activeGuardians = student.guardians.filter((g) => g.status !== "INACTIVE");
@@ -483,7 +479,7 @@ export function KeluargaSection({
 
   return (
     <>
-      <DossierSection
+      <DossierSubsection
         id="keluarga"
         label="Keluarga & Wali"
         badge={
@@ -491,8 +487,6 @@ export function KeluargaSection({
             {activeGuardians.length} wali{siblings.length > 0 ? ` · ${siblings.length} saudara` : ""}
           </span>
         }
-        open={open}
-        onOpenChange={onOpenChange}
         actions={student.canEdit === true &&
           <Button size="sm" variant="ghost" onClick={openAddGuardian}>
             <Plus size={12} className="mr-1" aria-hidden="true" /> Tambah
@@ -527,7 +521,7 @@ export function KeluargaSection({
                 <Link
                   key={s.id}
                   href={`/admin/students/${s.id}`}
-                  className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors hover:bg-accent/50"
+                  className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors hover:bg-accent/50 [@media(pointer:coarse)]:min-h-11"
                 >
                   <span>{s.name}</span>
                   <StatusBadge status={s.status} />
@@ -536,7 +530,7 @@ export function KeluargaSection({
             </div>
           </>
         )}
-      </DossierSection>
+      </DossierSubsection>
 
       {/* ---------- Guardian form (shared via GuardianFormBody) ----------
           Edit keeps the plain form. Add runs three mutually-exclusive steps

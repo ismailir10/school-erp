@@ -203,6 +203,16 @@ async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
   });
 }
 
+/** Buku Penghubung sits in Pendaftaran & Catatan, which starts closed. */
+async function openGroup(groupId: string): Promise<void> {
+  const trigger = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[aria-controls="${groupId}-content"]`);
+    if (!el) throw new Error(`no disclosure trigger for group "${groupId}"`);
+    return el;
+  });
+  if (trigger.getAttribute("aria-expanded") !== "true") await userEvent.click(trigger);
+}
+
 describe("student dossier — increment 2 sections", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -291,6 +301,7 @@ describe("student dossier — increment 2 sections", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("buku-penghubung"));
 
     await waitFor(() =>
@@ -309,6 +320,7 @@ describe("student dossier — increment 2 sections", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
 
+    await openGroup("group-catatan");
     await user.click(await sectionTrigger("buku-penghubung"));
 
     await waitFor(() =>

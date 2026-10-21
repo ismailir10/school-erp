@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DossierSection } from "@/components/admin/dossier-section";
+import { DossierSubsection } from "@/components/admin/dossier-section";
 import type { Guardian } from "./types";
 
 /**
@@ -14,17 +14,13 @@ export function DokumenSection({
   kkGuardian,
   canEdit,
   hasKk,
-  open,
-  onOpenChange,
 }: {
   kkGuardian: Guardian | null;
   canEdit: boolean;
   hasKk: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <DossierSection id="dokumen" label="Dokumen Keluarga" open={open} onOpenChange={onOpenChange}>
+    <DossierSubsection id="dokumen" label="Dokumen Keluarga">
       {!kkGuardian ? (
         <p className="text-sm text-muted-foreground">
           {canEdit ? "Belum ada wali aktif — tambahkan wali untuk mengunggah KK." : "Belum ada wali aktif."}
@@ -46,7 +42,7 @@ export function DokumenSection({
             href={`/api/parents/${kkGuardian.parent.id}/kk`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block text-sm text-primary-text hover:underline"
+            className="inline-flex items-center text-sm text-primary-text hover:underline [@media(pointer:coarse)]:min-h-11"
           >
             Buka di tab baru →
           </a>
@@ -64,6 +60,6 @@ export function DokumenSection({
           </Link>
         </div>
       )}
-    </DossierSection>
+    </DossierSubsection>
   );
 }

@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
+import { PaymentProblemsAlert, type PaymentProblemView } from "@/components/admin/invoices/payment-problems-alert";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
@@ -25,7 +26,8 @@ import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-re
 import { stampReminder } from "@/lib/finance/stamp-reminder";
 import { userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
-import { formatRupiah, formatDateShort, formatRelativeTime } from "@/lib/format";
+import { formatRupiah, formatDateShort, formatDateTime, formatRelativeTime } from "@/lib/format";
+import { paymentLinkExpiryState } from "@/lib/finance/payment-link-expiry";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
@@ -50,11 +52,13 @@ type Payment = {
 type InvoiceDetail = {
   capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities;
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
-  totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
+  totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null; paymentLinkExpiresAt?: string | null;
   paymentLinkError: string | null;
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
+  /** Gateway payments the app did not credit (or credited past the balance): money to reconcile by hand. */
+  paymentProblems?: PaymentProblemView[];
 };
 
 // ------------------------------------------------------------------
@@ -195,6 +199,34 @@ function PaymentReview({
       </dl>
     </div>
   );
+}
+
+/**
+ * Second line of the payment-link block (cycle 2026-10-20-payment-link-expiry-display).
+ * The state decision lives in `paymentLinkExpiryState` so the list column agrees; this
+ * only renders it. The whole block is hidden for PAID / CANCELLED invoices, so those
+ * never reach here.
+ */
+function PaymentLinkExpiryLine({ invoice }: { invoice: Pick<InvoiceDetail, "status" | "xenditPaymentUrl" | "paymentLinkExpiresAt"> }) {
+  const state = paymentLinkExpiryState({
+    status: invoice.status,
+    xenditPaymentUrl: invoice.xenditPaymentUrl,
+    paymentLinkExpiresAt: invoice.paymentLinkExpiresAt ?? null,
+  });
+  if (!state) return null;
+  const when = invoice.paymentLinkExpiresAt ? `${formatDateTime(invoice.paymentLinkExpiresAt)} WIB` : null;
+  if (state === "unrecorded") {
+    return <p className="mt-1 text-xs text-muted-foreground">Tanggal berlaku belum tercatat</p>;
+  }
+  if (state === "expired") {
+    return (
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+        <span className="font-medium text-status-absent-text">Kedaluwarsa</span>
+        {when ? ` · ${when}` : null}
+      </p>
+    );
+  }
+  return <p className="mt-1 text-xs tabular-nums text-muted-foreground">Berlaku sampai {when}</p>;
 }
 
 export default function InvoiceDetailPage() {
@@ -458,7 +490,7 @@ export default function InvoiceDetailPage() {
         return;
       }
       if (d.code === "UPDATED") toast.success(d.message);
-      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE") toast.warning(d.message);
+      else if (d.code === "GATEWAY_ERROR" || d.code === "UNAVAILABLE" || d.code === "NEEDS_REVIEW") toast.warning(d.message);
       else toast.info(d.message);
       await fetchInvoice();
       setActivityKey((k) => k + 1);
@@ -761,6 +793,9 @@ export default function InvoiceDetailPage() {
         </Card>
       )}
 
+      {/* Gateway money that needs a person: above the details so it is the first thing seen */}
+      <PaymentProblemsAlert problems={invoice.paymentProblems ?? []} className="mb-4" />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Invoice Lines */}
         <Card className="p-card lg:col-span-2">
@@ -837,6 +872,7 @@ export default function InvoiceDetailPage() {
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex text-xs text-primary-text hover:underline break-all [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center">{invoice.xenditPaymentUrl}</a>
+              <PaymentLinkExpiryLine invoice={invoice} />
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
               </Button>
@@ -887,6 +923,7 @@ export default function InvoiceDetailPage() {
               </div>
             )}
           </Card>
+
 
           {/* Aktivitas Pembayaran — hides itself when 0 events */}
           <PaymentActivityCard invoiceId={invoice.id} refreshKey={activityKey} />

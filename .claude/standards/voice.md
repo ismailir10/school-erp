@@ -90,9 +90,10 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Rapor | Raport, Report card (Raport is a Dutch-derived misspelling; KBBI and this glossary both say Rapor. This rule governs UI strings only — routes, API paths, params, and other code identifiers are English (`report-cards`, not `raport`/`rapor`); see CLAUDE.md's English-identifiers rule. Existing internal module names such as `lib/raport/*` are legacy and stay until touched) |
 | Bank Narasi (the reusable raport narrative library) | Kisi-kisi (means an *exam blueprint* in Indonesian school practice — an actively misleading name for a sentence library), Templat Narasi |
 | Lewat Tempo (invoice status: past its due date) | Jatuh Tempo, Terlambat, Menunggak ("Jatuh tempo" is the due *date* itself — reusing it as a status makes the badge and the date caption on the same row indistinguishable) |
-| Link Dibuat (invoice status: a payment link exists) | Terkirim (nothing is sent — DOKU dispatches no notification and the admin shares the link manually; "Terkirim" overclaims delivery) |
+| Link Dibuat (invoice status: a payment link was made; it may since have expired and been replaced, so the invoice can show it with no link until a new one is made. "Link Gagal" is only for a link that could not be created) | Terkirim (nothing is sent — DOKU dispatches no notification and the admin shares the link manually; "Terkirim" overclaims delivery) |
 | Perkembangan (parent-facing developmental progress) | Capaian (keep Capaian only for the per-element achievement level inside the page, never as the nav or page label) |
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
+| Tunggakan (what one child or family still owes: the student and wali pages, their Perlu perhatian row and rail tile; in a sentence "belum dibayar") | Piutang on a family page, Menunggak (**Piutang** stays the school-wide receivable KPI on the invoice list; one number, one word per screen) |
 | Kelas | Class, Classroom |
 | Ketuk (tap an on-screen control) | Tap ("Tap Masuk" shipped on the session roster for a year — the rest of the app has always said Ketuk) |
 | Bu Guru / Pak Guru | Ustadz / Ustadzah (not used at this school, even though it is an Islamic school; the teachers are *Bu Guru*, and *Pak Guru* is the male form should one join) |

@@ -951,6 +951,7 @@ model Invoice {
   parentId         String? // Billing contact (Parent)
   xenditSessionId  String? // Xendit checkout session ID
   xenditPaymentUrl String? // Xendit hosted checkout URL
+  paymentLinkExpiresAt DateTime? // when the CURRENT link stops working; the expiry we requested, saved with the link
   paymentLinkError String? // Diagnostic msg when Xendit session creation failed (status=PENDING_PAYMENT_LINK)
   paymentCheckedAt DateTime? // stamped by every reconcile; throttles the parent check and rotates the nightly sweep
   lastRemindedAt   DateTime? // WhatsApp reminder opened from the reminder queue / detail page (cycle 2026-10-17-payment-link-reminders)
