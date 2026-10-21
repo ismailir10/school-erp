@@ -123,7 +123,7 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - Add `NEEDS_REVIEW` to the list status values, the list query and the stats count.
   - Add the "Perlu dicek (N)" option, shown only when N > 0.
   - Accept: API, stats and client tests pass. (deps: T1 codes; reuse: `invoice-owes` derived-filter pattern; parallel with T2)
-- [ ] **T4 Docs.** Update the payments runbook (what a flagged event means and what to do), the README finance line and the admin UAT jobs.
+- [x] **T4 Docs.** Update the payments runbook (what a flagged event means and what to do), the README finance line and the admin UAT jobs.
   - Accept: `audit-docs.sh` passes. (deps: T1–T3)
 
 ## Implementation
@@ -149,6 +149,11 @@ No UAT report covers this path. The newest finance report (2026-10-20, payment-l
   - `app/api/invoices/stats/route.ts`: `needsReview` is counted with the same rule, and is 0 with no query when nothing is flagged.
   - `app/admin/invoices/invoices-client.tsx`: "Perlu dicek (N)" sits after "Perlu link" and shows when N > 0 or while it is selected.
   - Tests: list filter (tenant and fee ids never match, stats equal the list total), stats, client and helper.
+- T4:
+  - `docs/runbooks/payments-gateway.md`: new paragraph, "Money on a closed invoice is flagged, not credited", covering what each code means, where it shows and what to do. The old-order sentence is corrected.
+  - `README.md`: finance line, committed with T2.
+  - `docs/uat/jobs/admin.md`: new JTBD-ADMIN-INV-08, and Last audited bumped.
+  - The counts block is regenerated.
 - T1 review follow-up: added a DOKU redelivery test and an in-lock race test where the invoice is voided between the first read and the lock (AC 3 and AC 4).
 
 ## Verification
