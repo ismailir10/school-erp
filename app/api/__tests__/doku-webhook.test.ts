@@ -632,31 +632,38 @@ describe("POST /api/doku/webhook (T4 contract)", () => {
   });
 
   /**
-   * The likelier real-world double-pay shape under Virtual Account: because
-   * DOKU permits `invoice_number` reuse (A3), a parent can hold two VA numbers
-   * for one invoice and pay BOTH in full. This pins the current behaviour —
-   * the second notification short-circuits on the pre-transaction
-   * `status === "PAID"` guard, so no second Payment row is created and the
-   * invoice is untouched.
-   *
-   * That is safe (no double credit, no corrupted totals) but it is NOT
-   * complete: the second payment really was collected by DOKU, and Talib ends
-   * up with no record of it. The event is marked PROCESSED, so nothing in the
-   * admin activity panel signals the discrepancy. See the cycle doc's Ship
-   * Notes → "Reconciliation gap". Changing this would alter the guard order
-   * shared with the Xendit path, so it is deliberately deferred rather than
-   * bundled into a gateway migration.
+   * The likelier real-world double-pay shape under Virtual Account: DOKU permits
+   * `invoice_number` reuse (A3), so a parent can hold two VA numbers for one
+   * invoice and pay BOTH in full. The second, different payment is not credited
+   * (it would push totalPaid past totalDue), but it is no longer silent: the
+   * decision is made inside the invoice lock and the event is stored as an ERROR
+   * so staff see money to refund (cycle 2026-10-21-unrecorded-gateway-payments).
    */
-  it("two FULL payments on one invoice: second is a no-op (PAID:already), never a double credit", async () => {
+  it("two FULL payments on one invoice: second is not credited and is flagged DUPLICATE_PAYMENT_AFTER_PAID", async () => {
     const { prisma } = await import("@/lib/db");
 
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce({
+    const paid = {
       id: "inv1",
       status: "PAID",
       totalDue: 1_000_000,
       totalPaid: 1_000_000,
       invoiceNumber: "INV-1",
-    } as never);
+    };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(paid as never);
+    const txPaymentCreate = vi.fn();
+    const txInvoiceUpdate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: { findUnique: vi.fn().mockResolvedValue(paid), update: txInvoiceUpdate },
+          payment: {
+            findUnique: vi.fn().mockResolvedValue(null),
+            findMany: vi.fn(),
+            create: txPaymentCreate,
+          },
+        }),
+    );
 
     const notification = makeNotification({
       transaction: { status: "SUCCESS", original_request_id: "req-va-2-full" },
@@ -667,13 +674,63 @@ describe("POST /api/doku/webhook (T4 contract)", () => {
     const res = await POST(makeReq(rawBody, headers) as never);
 
     expect(res.status).toBe(200);
-    // No transaction is opened at all — the pre-tx PAID guard short-circuits.
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ status: "ERROR:duplicate_payment_after_paid" });
+    expect(txPaymentCreate).not.toHaveBeenCalled();
+    expect(txInvoiceUpdate).not.toHaveBeenCalled();
     expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { eventId: "req-va-2-full" },
-        data: expect.objectContaining({ status: "PROCESSED" }),
+        data: expect.objectContaining({ status: "ERROR", errorMessage: "DUPLICATE_PAYMENT_AFTER_PAID" }),
       }),
+    );
+  });
+
+  it("redelivery: payment id already recorded on a PAID invoice -> PROCESSED, nothing written, not flagged", async () => {
+    const { prisma } = await import("@/lib/db");
+
+    const paid = {
+      id: "inv1",
+      status: "PAID",
+      totalDue: 1_000_000,
+      totalPaid: 1_000_000,
+      invoiceNumber: "INV-1",
+    };
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(paid as never);
+    const txPaymentCreate = vi.fn();
+    const txInvoiceUpdate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementationOnce(
+      async (cb: unknown) =>
+        await (cb as (tx: unknown) => unknown)({
+          $executeRaw: vi.fn().mockResolvedValue(0),
+          invoice: { findUnique: vi.fn().mockResolvedValue(paid), update: txInvoiceUpdate },
+          payment: {
+            // This payment id is already stored: a redelivery, not a second payment.
+            findUnique: vi.fn().mockResolvedValue({ id: "p-old" }),
+            findMany: vi.fn(),
+            create: txPaymentCreate,
+          },
+        }),
+    );
+
+    const notification = makeNotification({
+      transaction: { status: "SUCCESS", original_request_id: "req-redeliver" },
+      order: { invoice_number: "inv1", amount: 1_000_000 },
+    });
+    const rawBody = JSON.stringify(notification);
+    const headers = signedHeaders(rawBody, { target: "/api/doku/webhook" });
+    const res = await POST(makeReq(rawBody, headers) as never);
+
+    expect(res.status).toBe(200);
+    expect(txPaymentCreate).not.toHaveBeenCalled();
+    expect(txInvoiceUpdate).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "req-redeliver" },
+        data: expect.objectContaining({ status: "PROCESSED", invoiceId: "inv1" }),
+      }),
+    );
+    expect(prisma.webhookEvent.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "ERROR" }) }),
     );
   });
 

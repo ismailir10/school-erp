@@ -632,6 +632,49 @@ describe("InvoicesClient — Status filter, five questions (cycle 2026-10-20-pay
     ]);
   });
 
+  it("offers 'Perlu dicek (N)' after 'Perlu link' only when N > 0", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: { ...counted, needsReview: 2 } }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const options = await openStatus(user);
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Semua Status", "Belum lunas (9)", "Lewat Tempo (12)", "Perlu link (5)", "Perlu dicek (2)", "Lunas (40)", "Dibatalkan (1)",
+    ]);
+  });
+
+  it("has no 'Perlu dicek' option when nothing is flagged, or when the summary omits the field", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: { ...counted, needsReview: 0 } }));
+    const user = userEvent.setup();
+    const { unmount } = render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    expect((await openStatus(user)).some((o) => (o.textContent ?? "").includes("Perlu dicek"))).toBe(false);
+    unmount();
+
+    vi.stubGlobal("fetch", stubFetch({ stats: counted }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const options = await openStatus(userEvent.setup());
+    expect(options.some((o) => (o.textContent ?? "").includes("Perlu dicek"))).toBe(false);
+  });
+
+  it("picking 'Perlu dicek' sends NEEDS_REVIEW to the list", async () => {
+    const f = stubFetch({ stats: { ...counted, needsReview: 2 } });
+    vi.stubGlobal("fetch", f);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await openStatus(user);
+    await user.click(screen.getByRole("option", { name: "Perlu dicek (2)" }));
+    await waitFor(() => expect(listUrls(f).some((u) => u.includes("status=NEEDS_REVIEW"))).toBe(true));
+  });
+
+  it("a selected 'Perlu dicek' stays in the dropdown even when the count is 0", async () => {
+    vi.stubGlobal("fetch", stubFetch({ stats: { ...counted, needsReview: 0 } }));
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} initialStatus="NEEDS_REVIEW" />);
+    await screen.findByText("Piutang");
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Perlu dicek (0)");
+    await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toContain("Perlu dicek (0)");
+  });
+
   it("'Perlu link' count is the 'Buat link baru' number plus the 'Coba lagi' number", async () => {
     vi.stubGlobal("fetch", stubFetch({ stats: counted }));
     const user = userEvent.setup();

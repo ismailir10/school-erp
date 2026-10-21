@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
 import { hasPermission } from "@/lib/permissions";
+import { paymentProblemsFrom } from "@/lib/finance/payment-problems";
+import { NEEDS_REVIEW_ERROR_CODES } from "@/lib/payments/needs-review";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -40,9 +42,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     createdByName: p.createdBy ? (actorName.get(p.createdBy) ?? null) : null,
   }));
 
+  // Gateway money that needs a person ("Perlu dicek"). WebhookEvent has no tenantId: the scope is
+  // the tenant-checked invoice id above. Not filtered by provider: a flag from a previous gateway
+  // still matters.
+  const flaggedEvents = await prisma.webhookEvent.findMany({
+    where: { invoiceId: invoice.id, status: "ERROR", errorMessage: { in: [...NEEDS_REVIEW_ERROR_CODES] } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { errorMessage: true, payload: true, provider: true, createdAt: true },
+  });
+
   return NextResponse.json({
     ...invoice,
     payments,
+    paymentProblems: paymentProblemsFrom(flaggedEvents),
     lastRemindedByName: invoice.lastRemindedBy ? (actorName.get(invoice.lastRemindedBy) ?? null) : null,
     capabilities: invoiceCapabilities(session),
   });

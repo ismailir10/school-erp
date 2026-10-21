@@ -54,6 +54,7 @@ const baseInvoice = {
   },
   lines: [],
   payments: [] as Array<Record<string, unknown>>,
+  paymentProblems: [] as Array<{ code: string; message: string; createdAt: string }>,
 };
 
 const cashPayment = {
@@ -836,5 +837,41 @@ describe("InvoiceDetailPage — payment link expiry line (cycle payment-link-exp
     expect(screen.queryByText(/Berlaku sampai/)).not.toBeInTheDocument();
     expect(screen.queryByText("Tanggal berlaku belum tercatat")).not.toBeInTheDocument();
     expect(screen.queryByText("Kedaluwarsa")).not.toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — Perlu dicek alert for unrecorded gateway payments", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows the red alert above the activity when the invoice has flagged payments", async () => {
+    fixture({
+      invoice: {
+        status: "PAID",
+        totalPaid: 1000000,
+        paymentProblems: [
+          {
+            code: "DUPLICATE_PAYMENT_AFTER_PAID",
+            message: "Ada pembayaran kedua di Xendit sebesar Rp 500.000 untuk tagihan yang sudah lunas.",
+            createdAt: "2026-10-21T03:00:00.000Z",
+          },
+        ],
+      },
+    });
+    render(<InvoiceDetailPage />);
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("Perlu dicek")).toBeInTheDocument();
+    expect(within(alert).getByText(/Ada pembayaran kedua di Xendit/)).toBeInTheDocument();
+    expect(alert.textContent).not.toContain("DUPLICATE_PAYMENT_AFTER_PAID");
+  });
+
+  it("shows no alert when nothing is flagged", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("INV-2026-001");
+    expect(screen.queryByText("Perlu dicek")).not.toBeInTheDocument();
   });
 });
