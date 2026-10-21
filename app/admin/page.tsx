@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { redirect } from "next/navigation";
@@ -5,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
 import { formatDate } from "@/lib/format";
 import { ActivityFeed, QueueSummaryTiles, UrgentList, AttendanceTodayStrip, FinanceTiles } from "@/components/admin/dashboard";
+// Not via the dashboard barrel: client pages import that barrel, and this section runs prisma queries.
+import { DashboardAnalytics, AnalyticsSkeleton } from "@/components/admin/dashboard/analytics";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
 import { loadReceivables } from "@/lib/dashboard/receivables";
 import { getRecentActivity } from "@/lib/dashboard/activity-feed";
@@ -66,7 +69,7 @@ export default async function AdminDashboard() {
 
   return <>
     <PageHeader title="Perlu ditangani" description="Pekerjaan yang menunggu keputusan atau pemeriksaan Anda." actions={<p className="text-body text-muted-foreground">{formatDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>} />
-    <div className="grid min-w-0 items-start gap-section xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div data-testid="dashboard-action-region" className="grid min-w-0 items-start gap-section xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="min-w-0 space-y-section xl:space-y-3">
         <QueueSummaryTiles items={summary.items} />
         {finance.status !== "hidden" && <FinanceTiles data={finance} />}
@@ -78,5 +81,8 @@ export default async function AdminDashboard() {
         {activity.status === "unavailable" && <div className="space-y-field rounded-lg border p-card"><p className="text-body text-muted-foreground">Aktivitas belum dapat dimuat.</p><DashboardRetry /></div>}
       </div>
     </div>
+    <Suspense fallback={<AnalyticsSkeleton showFinance={can("invoices.view")} />}>
+      <DashboardAnalytics tenantId={tenantId} today={today} canSeeFinance={can("invoices.view")} />
+    </Suspense>
   </>;
 }

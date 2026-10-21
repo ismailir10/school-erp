@@ -18,7 +18,7 @@ Source is public; school data and secrets are not. Deployed single-tenant — a 
 | Database | Supabase Postgres (Singapore `ap-southeast-1`); Prisma datasource is Postgres-only, so local dev points at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth — Google OAuth only, invitation-only. `/auth/callback` gates on an ACTIVE `User`/`Employee`/`Parent` row |
-| UI | Shadcn Base UI + Tailwind + TanStack Table; admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, blur-in sign-in headline; step-enter, stagger and draw-check primitives for the public enrollment form; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn Base UI + Tailwind + TanStack Table + Recharts (shadcn `chart`); admin forms on react-hook-form + zod (shared API schemas); shared task rows, context and save feedback; restrained React Bits-derived motion (`components/reactbits/`: count-up + spotlight on admin KPI tiles and stat cards, a fade-content scroll reveal that replays them on the Dasbor Analitik, blur-in sign-in headline; step-enter, stagger and draw-check primitives for the public enrollment form; reduced-motion safe); Plus Jakarta Sans + JetBrains Mono |
 | Payments | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout or Xendit, selected by `PAYMENT_GATEWAY`; the same webhook processor and daily sweep also credit the pendaftaran fee (own `EnrollmentFee` row, paid by the parent with no login, right after the form is submitted) |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
@@ -60,7 +60,8 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
 
-Role homes apply "Don't Make Me Think": teachers see their class and unfinished work (class attendance is exception-first: pick S/I/A for the few, then one tap marks the rest Hadir), guardians see family actions for clearly identified children, and admins get a one-screen Dasbor (queue counts, top-5 urgent items, today's staff attendance) with the full queue at `/admin/work-queue`. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
+Role homes apply "Don't Make Me Think": teachers see their class and unfinished work (class attendance is exception-first: pick S/I/A for the few, then one tap marks the rest Hadir), guardians see family actions for clearly identified children, and admins get a Dasbor whose first screen is the work (queue counts, top urgent items, today's staff attendance) with the full queue at `/admin/work-queue`.
+Below it, Analitik charts student attendance, buku penghubung completion, billing vs collection and piutang aging. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
 
 ---
 

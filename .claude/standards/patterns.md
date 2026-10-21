@@ -14,9 +14,11 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 ## Admin Dasbor
 
-**One screen, always.** `/admin` fits a single 1440×900 viewport with no scroll for the full-permission admin: `PageHeader` + queue count tiles + a top-5 urgent list + a one-line staff attendance strip, plus an activity rail shown at `xl` only. Every Dasbor source query is bounded (`count` + `take: 5`) — never an unbounded `findMany`.
+**The action region is one screen, always.** "Perlu ditangani" — `PageHeader` + queue count tiles + finance tiles + a top-4 urgent list + a one-line staff attendance strip, plus an activity rail shown at `xl` only — fits a single 1440×900 viewport with no scroll for the full-permission admin (e2e asserts the region's bottom edge, `data-testid="dashboard-action-region"`). Every Dasbor source query is bounded (`count` + `take: 5`, or an aggregate over a fixed window) — never an unbounded `findMany`.
 
-**Counts link out; nothing launches from the Dasbor.** A count tile links to `/admin/work-queue?kind=<kind>` for the full list. The Dasbor itself never hosts the full DataTable, a chart, or a QuickActions-style launcher grid — those belong on their own page (the attendance trend chart lives at the top of `/admin/employee-attendance`, fed by `GET /api/attendance/trend`).
+**Counts link out; nothing launches from the Dasbor.** A count tile links to `/admin/work-queue?kind=<kind>` for the full list. The action region never hosts the full DataTable, a chart, or a QuickActions-style launcher grid — those belong on their own page (the staff attendance trend chart lives at the top of `/admin/employee-attendance`, fed by `GET /api/attendance/trend`).
+
+**Analitik lives below the fold.** Trend charts belong only in the "Analitik" section under the action region (`lib/dashboard/analytics/`, `components/admin/dashboard/analytics/`): streamed behind a `Suspense` skeleton so the action region never waits on it, each source gated by the permission of the module it summarises (attendance and buku penghubung: any admin; keuangan: `invoices.view`), each card with its own empty and retry state. Every card states its window and links to its module. Motion is the React Bits layer only (`FadeContent` reveal, `CountUp`, `Spotlight`, `Aurora`), static under reduced motion.
 
 ## Recipe 1 — Admin List
 
