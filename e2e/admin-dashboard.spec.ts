@@ -96,7 +96,7 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     await expect(headline).toBeVisible();
     // Nothing is held at opacity 0 waiting for a reveal.
     const opacity = await headline.evaluate((el) => {
-      let node: HTMLElement | null = el;
+      let node: Element | null = el;
       let min = 1;
       while (node) { min = Math.min(min, Number(getComputedStyle(node).opacity)); node = node.parentElement; }
       return min;
