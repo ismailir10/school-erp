@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ? { id: session.parentId, tenantId: session.tenantId }
       : { email: session.email, tenantId: session.tenantId },
     select: {
-      guardians: { select: { studentId: true } },
+      guardians: { where: { status: "ACTIVE" }, select: { studentId: true } },
     },
   });
 

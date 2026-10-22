@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "./supabase/server";
 import { prisma } from "./db";
 import { getSystemRolePermissions } from "./permissions";
+import { isDemoAuthEnabled } from "./security/demo-mode";
 
 /**
  * Backfill Parent.email from a known User.email at session-resolve time.
@@ -239,9 +240,9 @@ export function homePathForRole(role: string): string {
 export const getSession = cache(_getSession);
 
 async function _getSession(): Promise<SessionUser | null> {
-  // Demo mode requires explicit opt-in via DEMO_MODE=true env var.
-  // This prevents accidental demo activation in production if Supabase is down.
-  if (process.env.DEMO_MODE === "true") {
+  // Demo mode requires explicit opt-in via DEMO_MODE=true and is refused on
+  // Vercel — see lib/security/demo-mode.ts.
+  if (isDemoAuthEnabled()) {
     return getDemoSession();
   }
 
@@ -250,6 +251,20 @@ async function _getSession(): Promise<SessionUser | null> {
     const { data: { user: authUser } } = await supabase.auth.getUser();
 
     if (!authUser?.email) return null;
+
+    // Google is the only sign-in the app offers (app/page.tsx), and the User
+    // lookup and auto-provision below trust the auth email. An account created
+    // through any other Supabase provider — e.g. an email/password signUp made
+    // straight against the public anon key — could claim an employee's or
+    // parent's email before they ever sign in. `provider` is the account's
+    // first provider, so a pre-registered email stays locked out even if the
+    // real owner later links Google to it.
+    if (authUser.app_metadata?.provider !== "google") {
+      console.error("[AUTH] Refused non-Google Supabase account", {
+        provider: authUser.app_metadata?.provider ?? null,
+      });
+      return null;
+    }
 
     // Multi-tenant safety rail: single-tenant MVP resolves User by email
     // alone. The moment a second tenant is seeded, `findFirst({ email })`

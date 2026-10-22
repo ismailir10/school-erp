@@ -48,7 +48,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     where: session.parentId
       ? { id: session.parentId, tenantId }
       : { email: session.email as string, tenantId },
-    select: { guardians: { select: { studentId: true } } },
+    select: { guardians: { where: { status: "ACTIVE" }, select: { studentId: true } } },
   });
   const owns = parent?.guardians.some((g) => g.studentId === studentId) ?? false;
   if (!owns) {

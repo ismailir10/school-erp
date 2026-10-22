@@ -4,6 +4,7 @@
 // near 5 req/min/IP × small N. Promote to Upstash if abuse seen post-launch.
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isDemoAuthEnabled } from "@/lib/security/demo-mode";
 
 const AUTH_LIMIT = 5;
 const AUTH_WINDOW_MS = 60_000;
@@ -14,10 +15,9 @@ export function enforceAuthRateLimit(request: NextRequest): NextResponse | null 
 
   // Skip in demo mode — dev / staging / e2e environments hit /api/auth/users
   // and friends repeatedly during test setup; rate-limiting them produces
-  // 429s that break test fixtures. DEMO_MODE is never set in production
-  // (invariant established in docs/cycles/archive/2026-05-03-xendit-demo-mode.md
-  // Ship Notes; app/api/auth/login adds defense-in-depth via NODE_ENV check).
-  if (process.env.DEMO_MODE === "true") return null;
+  // 429s that break test fixtures. isDemoAuthEnabled() is false on Vercel, so
+  // a stray DEMO_MODE there cannot switch the limiter off.
+  if (isDemoAuthEnabled()) return null;
 
   const ip = getClientIp(request);
   // Skip rate limiting when IP is unidentifiable. On Vercel this never

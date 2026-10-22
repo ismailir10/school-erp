@@ -27,6 +27,7 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn(), revalidatePath: vi.fn() }));
 
 import { getSession } from "@/lib/auth";
+import { getSystemRolePermissions } from "@/lib/permissions";
 import { POST } from "../employees/route";
 import { PUT } from "../employees/[id]/route";
 
@@ -126,6 +127,48 @@ describe("POST /api/employees — email guards (HR-5)", () => {
       data: { employeeId: "emp-new" },
     });
     expect(db.user.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/employees — SCHOOL_ADMIN escalation guard (HR-1)", () => {
+  // A custom-role user holding only employees.create.
+  const LIMITED: SessionUser = {
+    ...ADMIN,
+    role: "SCHOOL_ADMIN",
+    permissions: ["employees.create"],
+    customRoleCode: "hr-intake",
+  };
+
+  it("403 when the actor lacks SCHOOL_ADMIN's default permissions", async () => {
+    vi.mocked(getSession).mockResolvedValue(LIMITED);
+    const res = await POST(req("POST", { ...NEW_EMP, role: "SCHOOL_ADMIN" }));
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toContain("Anda tidak bisa memberikan izin");
+    expect(json.missing.length).toBeGreaterThan(0);
+    expect(db.employee.create).not.toHaveBeenCalled();
+    expect(db.user.create).not.toHaveBeenCalled();
+  });
+
+  it("still lets the same actor create a TEACHER login", async () => {
+    vi.mocked(getSession).mockResolvedValue(LIMITED);
+    const res = await POST(req("POST", { ...NEW_EMP, role: "TEACHER" }));
+    expect(res.status).toBe(201);
+  });
+
+  it("lets an actor holding every SCHOOL_ADMIN default permission mint one", async () => {
+    vi.mocked(getSession).mockResolvedValue({
+      ...LIMITED,
+      permissions: [...getSystemRolePermissions("SCHOOL_ADMIN"), "employees.create"],
+    });
+    const res = await POST(req("POST", { ...NEW_EMP, role: "SCHOOL_ADMIN" }));
+    expect(res.status).toBe(201);
+  });
+
+  it("lets SUPER_ADMIN mint a SCHOOL_ADMIN login", async () => {
+    const res = await POST(req("POST", { ...NEW_EMP, role: "SCHOOL_ADMIN" }));
+    expect(res.status).toBe(201);
+    expect(db.user.create.mock.calls[0][0].data.role).toBe("SCHOOL_ADMIN");
   });
 });
 

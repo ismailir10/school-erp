@@ -59,7 +59,7 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     expect(region!.y + region!.height).toBeLessThanOrEqual(900 + 1);
     // The streamed Analitik section starts below the action region.
     const analytics = page.getByTestId("dashboard-analytics");
-    await expect(analytics).toBeAttached({ timeout: 15_000 });
+    await expect(analytics).toBeVisible({ timeout: 15_000 });
     const analyticsBox = await analytics.boundingBox();
     expect(analyticsBox!.y).toBeGreaterThanOrEqual(region!.y + region!.height);
   });

@@ -164,6 +164,13 @@ describe("POST /api/guardian/invoices/[id]/check-payment — scoping", () => {
     );
   });
 
+  it("only counts ACTIVE guardian links when resolving the guardian's children", async () => {
+    await asSession(session());
+    reconcileMock.mockResolvedValue({ code: "NO_CHANGE", statusBefore: "SENT", statusAfter: "SENT" });
+    await call();
+    expect(parentFindFirst.mock.calls[0][0].select.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("falls back to a tenant-scoped email lookup when there is no parentId", async () => {
     await asSession(session({ parentId: null }));
     reconcileMock.mockResolvedValue({ code: "NO_CHANGE", statusBefore: "SENT", statusAfter: "SENT" });

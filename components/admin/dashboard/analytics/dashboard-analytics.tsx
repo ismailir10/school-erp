@@ -1,4 +1,3 @@
-import { FadeContent } from "@/components/reactbits/fade-content";
 import {
   loadAttendanceAnalytics,
   loadFinanceAnalytics,
@@ -55,19 +54,19 @@ export async function DashboardAnalytics({
       className="mt-section space-y-section"
     >
       <AnalyticsHeading />
-      <FadeContent className="space-y-section">
+      <div className="space-y-section">
         <HeadlineBand attendance={attendance} finance={finance} journal={journal} />
-        <div className="grid gap-section lg:grid-cols-2">
+        <div className="grid items-start gap-section lg:grid-cols-2">
           <StudentAttendanceCard source={attendance} />
           <JournalCard source={journal} />
         </div>
         {finance.status !== "hidden" && (
-          <div className="grid gap-section lg:grid-cols-5">
-            <FinanceTrendCard source={finance} className="lg:col-span-3" />
-            <AgingCard source={finance} className="lg:col-span-2" />
+          <div className="grid items-start gap-section xl:grid-cols-2">
+            <FinanceTrendCard source={finance} />
+            <AgingCard source={finance} />
           </div>
         )}
-      </FadeContent>
+      </div>
     </section>
   );
 }

@@ -52,7 +52,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.tenant.count.mockResolvedValue(1);
   prismaMock.parent.findFirst.mockResolvedValue(null);
-  getUserMock.mockResolvedValue({ data: { user: { email: AUTH_EMAIL } } });
+  getUserMock.mockResolvedValue({
+    data: { user: { email: AUTH_EMAIL, app_metadata: { provider: "google" } } },
+  });
 });
 
 afterEach(() => {
@@ -165,6 +167,25 @@ describe("_getSession teacher auto-provision", () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
 
     expect(await getSession()).toBeNull();
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("_getSession Google-only provider guard", () => {
+  it.each([
+    ["email/password signUp", { provider: "email" }],
+    ["magic link / OTP", { provider: "email", providers: ["email", "google"] }],
+    ["no provider metadata", {}],
+  ])("%s account claiming an Employee email → no session, no provision", async (_label, appMetadata) => {
+    getUserMock.mockResolvedValue({ data: { user: { email: AUTH_EMAIL, app_metadata: appMetadata } } });
+    const { getSession } = await loadAuth();
+
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.employee.findFirst.mockResolvedValue(EMPLOYEE);
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    expect(await getSession()).toBeNull();
+    expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 });
