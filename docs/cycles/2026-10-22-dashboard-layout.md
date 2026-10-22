@@ -34,6 +34,17 @@ The supplied admin dashboard screenshot shows an oversized finance chart card wi
 - Shipping preflight: compared origin/staging c0d22613527cdfb2c4f92568978f49af727a45e6 to runtime head 837fe5875ed6d2dd84f40094a8139a8b4487c099. Changed paths: CLAUDE.md; components/admin/dashboard/analytics/{analytics-card,aging-card,finance-trend-card,dashboard-analytics,analytics-skeleton}.tsx; existing analytics cards.test.tsx; this cycle doc. Subsequent change is e2e/admin-dashboard.spec.ts test readiness only. Route: other code, no auth/permission/API/schema change.
 - Full lint and RLS/API-auth guards passed (43/43 models; 216/216 routes). Soft-skip delta vs staging: 0 (26 baseline, 26 current).
 
+### Verified locally — a5345751, 2026-10-22
+- Gate: full lint passed; `npx vitest run` → 690 suites passed / 2 skipped, 8,150 tests passed / 42 todo. RLS + API-auth guards passed. `NODE_OPTIONS=--max-old-space-size=4096 npm run build -- --webpack` → compiled successfully, TypeScript finished, static generation finished. Runtime files unchanged since 837fe587; a5345751 adds only the reviewed E2E readiness fix and evidence.
+- App: production build on http://localhost:3000, demo super admin and school admin, disposable seeded local Postgres; both database URLs explicitly local.
+- Walked: finance chart, six-month totals, aging labels/amounts, finance navigation, mobile wrapping, keyboard links and school-admin finance gating → passed. Existing unit coverage confirms unavailable/empty/hidden contracts.
+- Playwright: full suite → 246 passed, 1 pre-fix readiness flake (247 total, 4.8m); fixed first-screen case → 5 passed (6.9s), repeat-each=5, retries=0. No hard failures or new skips.
+- Console/network: finance walk pageErrors=[]; pre-existing report-only CSP diagnostics during full E2E, no finance rendering failure.
+- Screenshots: /tmp/dashboard-layout/dashboard-finance-local-desktop.png (1440px), /tmp/dashboard-layout/dashboard-finance-local-phone.png (390px), dummy seeded data.
+- Highlight: the two screenshots above, visually inspected.
+- Rounds: 2 — responsive analytics fix; streamed-section test readiness fix. Independent code review approved both.
+- Not checked: authenticated deployment smoke waits for the staging deployment; no per-PR Vercel deployment exists. No unverified auth staging labels outstanding; earlier security PR #683 has signed-in staging evidence.
+
 ## Ship Notes
 - No migrations, new environment variables, or dependency changes.
 - Preview smoke: /admin analytics at phone and desktop widths; check chart tooltip, finance module links, unavailable/empty states and finance permission gating.
