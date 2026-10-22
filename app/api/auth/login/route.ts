@@ -4,13 +4,14 @@ import { prisma } from "@/lib/db";
 import { isAdminRole } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { isDemoAuthEnabled } from "@/lib/security/demo-mode";
 
 // Demo-only login — requires DEMO_MODE=true AND non-production NODE_ENV.
 // The NODE_ENV belt-and-suspenders prevents a misconfigured prod deploy
 // (DEMO_MODE accidentally set true) from exposing the cookie-injection
 // endpoint.
 export async function POST(req: NextRequest) {
-  if (process.env.DEMO_MODE !== "true" || process.env.NODE_ENV === "production") {
+  if (!isDemoAuthEnabled() || process.env.NODE_ENV === "production") {
     return NextResponse.json(
       { error: "Demo login disabled." },
       { status: 403 }

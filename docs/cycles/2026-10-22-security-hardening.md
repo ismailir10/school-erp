@@ -58,9 +58,9 @@ Vercel's guidance is to upgrade even when a flaw is unreachable, and two of the 
 
 ## Tasks
 
-- [ ] T1 Upgrade next/react to the patched releases
-- [ ] T2 Demo-auth deploy guard (`lib/security/demo-mode.ts`, auth, proxy, auth routes, rate limit, vercel-build)
-- [ ] T3 Google-only provider guard in `getSession` and the OAuth callback
+- [x] T1 Upgrade next/react to the patched releases
+- [x] T2 Demo-auth deploy guard (`lib/security/demo-mode.ts`, auth, proxy, auth routes, rate limit, vercel-build)
+- [x] T3 Google-only provider guard in `getSession` and the OAuth callback
 - [ ] T4 Authz fixes: attendance GET scope, ACTIVE guardian links, SCHOOL_ADMIN escalation guard, constant-time bearer compare
 
 ## Implementation

@@ -73,4 +73,16 @@ describe("enforceAuthRateLimit", () => {
     }
     vi.unstubAllEnvs();
   });
+
+  it("still rate-limits when DEMO_MODE=true on Vercel", () => {
+    // A stray DEMO_MODE on a deployed env must not switch the limiter off.
+    vi.stubEnv("DEMO_MODE", "true");
+    vi.stubEnv("VERCEL", "1");
+    const ip = "203.0.113.99";
+    for (let i = 0; i < 5; i++) {
+      expect(enforceAuthRateLimit(makeReq("/api/auth/login", ip))).toBeNull();
+    }
+    expect(enforceAuthRateLimit(makeReq("/api/auth/login", ip))?.status).toBe(429);
+    vi.unstubAllEnvs();
+  });
 });
