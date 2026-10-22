@@ -77,6 +77,13 @@ describe("GET /api/guardian/report-cards/[studentId]/[termId]/pdf", () => {
     expect(where).toEqual({ email: "siti@x.com", tenantId: "t1" });
   });
 
+  it("only counts ACTIVE guardian links (an unlinked guardian loses access)", async () => {
+    getSession.mockResolvedValue(GUARDIAN);
+    db.parent.findFirst.mockResolvedValue({ guardians: [] });
+    expect((await GET({} as never, ctx)).status).toBe(404);
+    expect(db.parent.findFirst.mock.calls[0]![0].select.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("404 when the student is not linked to this guardian", async () => {
     getSession.mockResolvedValue(GUARDIAN);
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "other" }] });

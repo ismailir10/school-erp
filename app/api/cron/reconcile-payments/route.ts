@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { limit } from "@/lib/finance/concurrency-limit";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 import { reconcileEnrollmentFee, reconcileInvoicePayment } from "@/lib/payments/reconcile";
+import { bearerMatches } from "@/lib/security/bearer";
 
 /**
  * Daily payment reconciliation sweep — the safety net for a gateway
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${expected}`) {
+  if (!bearerMatches(authHeader, expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userAgent = req.headers.get("user-agent") ?? "";

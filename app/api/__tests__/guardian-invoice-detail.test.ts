@@ -101,6 +101,15 @@ describe("GET /api/guardian/invoices/[id]", () => {
     );
   });
 
+  it("only counts ACTIVE guardian links when resolving the guardian's children", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    parentFindFirst.mockResolvedValueOnce({ guardians: [] });
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    expect(parentFindFirst.mock.calls[0][0].select.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("PAR-7: exposes the optional school contact phone from SCHOOL_CONTACT_PHONE", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(guardianSession());

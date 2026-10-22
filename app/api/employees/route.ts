@@ -3,6 +3,11 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
+import {
+  enumRolePermissions,
+  escalationForbidden,
+  permissionsActorLacks,
+} from "@/lib/security/role-escalation";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
@@ -88,6 +93,14 @@ export async function POST(req: NextRequest) {
   if (result.error) return result.error;
   const body = result.data;
   const tenantId = session.tenantId;
+
+  // HR-1: minting a SCHOOL_ADMIN login hands out that role's default
+  // permissions, so the actor must already hold every one of them (SUPER_ADMIN
+  // is exempt). `employees.create` alone must not be a route to admin.
+  if (body.role === "SCHOOL_ADMIN") {
+    const missing = permissionsActorLacks(session, enumRolePermissions("SCHOOL_ADMIN"));
+    if (missing.length > 0) return escalationForbidden(missing);
+  }
 
   // Block writes targeting INACTIVE/cross-tenant campus — without this,
   // a soft-deleted campus could still grow new employee dependents and

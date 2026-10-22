@@ -78,6 +78,13 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
     expect(db.parent.findFirst).not.toHaveBeenCalled();
   });
 
+  it("only counts ACTIVE guardian links when resolving the guardian's children", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [] });
+    await GET({} as never, ctx);
+    expect(db.parent.findFirst.mock.calls[0]![0].select.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("404 when invoice belongs to another parent's child (cross-family guard)", async () => {
     getSession.mockResolvedValue(guardianSession());
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });

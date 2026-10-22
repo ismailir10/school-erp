@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createDokuSession, getDokuOrderStatus } from "@/lib/payments/doku/client";
 import { GatewayApiError } from "@/lib/payments/types";
+import { bearerMatches } from "@/lib/security/bearer";
 
 /**
  * DOKU Checkout endpoint-version probe.
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     console.error("[DOKU PROBE] CRON_SECRET not set — refusing to run.");
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
-  if (req.headers.get("authorization") !== `Bearer ${expected}`) {
+  if (!bearerMatches(req.headers.get("authorization"), expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

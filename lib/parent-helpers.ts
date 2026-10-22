@@ -75,6 +75,7 @@ async function _getParentWithChildren(parentId: string | null, email: string | n
       where: whereClause,
       include: {
         guardians: {
+          where: { status: "ACTIVE" },
           include: {
             student: {
               include: {
