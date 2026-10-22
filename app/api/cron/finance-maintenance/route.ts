@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { createMissingPaymentLinks, LINK_START_DEADLINE_MS } from "@/lib/payments/missing-links";
 import { resolveAppOrigin } from "@/lib/payments/session";
+import { bearerMatches } from "@/lib/security/bearer";
 
 /**
  * Daily finance maintenance — Vercel Cron 01:00 UTC = 08:00 WIB.
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     );
   }
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${expected}`) {
+  if (!bearerMatches(authHeader, expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userAgent = req.headers.get("user-agent") ?? "";

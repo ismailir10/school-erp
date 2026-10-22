@@ -16,6 +16,14 @@ set -eu
 
 echo "vercel-build: VERCEL_GIT_COMMIT_REF=${VERCEL_GIT_COMMIT_REF:-unset} VERCEL_ENV=${VERCEL_ENV:-unset}"
 
+# Demo auth trusts an unsigned user-id cookie. The runtime refuses it on Vercel
+# (lib/security/demo-mode.ts); failing the build makes the misconfiguration
+# loud instead of silently half-applied (payment clients also read DEMO_MODE).
+if [ "${DEMO_MODE:-}" = "true" ]; then
+  echo "vercel-build: DEMO_MODE=true on a Vercel deploy — refusing to build. Remove it from the project env." >&2
+  exit 1
+fi
+
 case "${VERCEL_GIT_COMMIT_REF:-}" in
   staging|main)
     echo "vercel-build: branch is ${VERCEL_GIT_COMMIT_REF} — running prisma migrate deploy"

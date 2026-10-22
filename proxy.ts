@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { applySecurityHeaders } from "@/lib/security/headers";
 import { enforceAuthRateLimit } from "@/lib/security/auth-rate-limit";
+import { isDemoAuthEnabled } from "@/lib/security/demo-mode";
 
 const DEMO_COOKIE = "school-erp-session";
 const LAST_ACTIVE_COOKIE = "school-erp-last-active";
@@ -135,7 +136,7 @@ async function proxyImpl(request: NextRequest): Promise<NextResponse> {
   // Demo mode takes priority when enabled — skip Supabase auth entirely.
   // Still enforce idle timeout on portal paths so demo sessions expire
   // consistently with Supabase-authenticated sessions.
-  if (process.env.DEMO_MODE === "true") {
+  if (isDemoAuthEnabled()) {
     const demoCookie = request.cookies.get(DEMO_COOKIE)?.value;
     if (demoCookie) {
       return enforceIdleTimeout(request, NextResponse.next());

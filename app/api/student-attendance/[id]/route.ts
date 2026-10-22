@@ -4,6 +4,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { updateStudentAttendanceSchema } from "@/lib/validations/student-attendance";
+import { requireTeacherForClass } from "@/lib/student-journal/guards";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,6 +24,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const record = await getOwnedRecord(id, session.tenantId);
   if (!record) return NextResponse.json({ error: "Record tidak ditemukan" }, { status: 404 });
+
+  // Admins read any record in the tenant; a teacher only their own class's.
+  // Guardians and every other role are refused — this is a staff endpoint.
+  if (!isAdminRole(session.role)) {
+    if (session.role !== "TEACHER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const access = await requireTeacherForClass(record.classSectionId);
+    if (access.error) return access.error;
+  }
 
   return NextResponse.json(record);
 }

@@ -75,6 +75,12 @@ export async function GET(request: NextRequest) {
       console.error("[auth/callback] no_email after exchange");
       return respond("/?error=no_email");
     }
+    // Same Google-only rule as lib/auth.ts#_getSession — otherwise a non-Google
+    // account would be routed to a portal that then bounces it back to login.
+    if (user.app_metadata?.provider !== "google") {
+      console.error("[auth/callback] non_google_provider:", user.app_metadata?.provider ?? null);
+      return respond("/?error=access_denied");
+    }
 
     try {
       const { prisma } = await import("@/lib/db");

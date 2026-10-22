@@ -1,10 +1,11 @@
 // @public — demo-only user selector, gated at request time by DEMO_MODE.
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isDemoAuthEnabled } from "@/lib/security/demo-mode";
 
 // Demo-only: list users for login selector — only when DEMO_MODE=true
 export async function GET() {
-  if (process.env.DEMO_MODE !== "true") {
+  if (!isDemoAuthEnabled()) {
     return NextResponse.json(
       { error: "Demo user list disabled." },
       { status: 404 }

@@ -358,6 +358,15 @@ describe("getParentWithChildren — lookup invariants (U10 hardening)", () => {
     );
   });
 
+  it("only includes ACTIVE guardian links", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
+    await getParentWithChildren(session({ parentId: "parent-a", tenantId: "tenant-a" }));
+    const arg = vi.mocked(prisma.parent.findFirst).mock.calls[0]![0] as {
+      include: { guardians: { where: unknown } };
+    };
+    expect(arg.include.guardians.where).toEqual({ status: "ACTIVE" });
+  });
+
   it("uses {email, tenantId} where shape when parentId is null but email is non-empty", async () => {
     vi.mocked(prisma.parent.findFirst).mockResolvedValue(null);
     await getParentWithChildren(
