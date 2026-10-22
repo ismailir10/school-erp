@@ -17,14 +17,14 @@ export function AnalyticsSkeleton({ showFinance = true }: { showFinance?: boolea
     >
       <AnalyticsHeading />
       <Skeleton className="h-36 rounded-xl md:h-36" />
-      <div className="grid gap-section lg:grid-cols-2">
+      <div className="grid items-start gap-section lg:grid-cols-2">
         <Skeleton className="h-[34rem] rounded-xl" />
         <Skeleton className="h-[34rem] rounded-xl" />
       </div>
       {showFinance && (
-        <div className="grid gap-section lg:grid-cols-5">
-          <Skeleton className="h-[24rem] rounded-xl lg:col-span-3" />
-          <Skeleton className="h-[24rem] rounded-xl lg:col-span-2" />
+        <div className="grid items-start gap-section xl:grid-cols-2">
+          <Skeleton className="h-[26rem] rounded-xl" />
+          <Skeleton className="h-[24rem] rounded-xl" />
         </div>
       )}
     </section>

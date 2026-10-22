@@ -10,6 +10,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StatTile } from "@/components/ui/stat-tile";
 import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import type { AnalyticsSource, FinanceAnalytics } from "@/lib/dashboard/analytics";
 import { formatDate, formatRupiah, formatRupiahCompact } from "@/lib/format";
@@ -73,7 +74,13 @@ export function FinanceTrendCard({
           description="Grafik muncul setelah tagihan diterbitkan."
         />
       ) : (
-        <FinanceBarChart months={months} />
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatTile label="Ditagihkan" value={formatRupiah(billed)} size="sm" mono />
+            <StatTile label="Terkumpul" value={formatRupiah(collected)} size="sm" mono />
+          </div>
+          <FinanceBarChart months={months} />
+        </>
       )}
     </AnalyticsCard>
   );

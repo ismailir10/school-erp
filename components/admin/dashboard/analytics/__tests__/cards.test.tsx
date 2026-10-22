@@ -81,11 +81,13 @@ describe("JournalCard", () => {
 });
 
 describe("FinanceTrendCard", () => {
-  it("renders the billed vs collected chart", () => {
+  it("renders the billed vs collected chart and six-month totals", () => {
     render(<FinanceTrendCard source={ready(financeFixture())} />);
     const card = screen.getByTestId("analytics-finance-trend");
     expect(within(card).getByText("Tagihan vs terkumpul")).toBeVisible();
     expect(within(card).getByText("6 bulan terakhir")).toBeVisible();
+    expect(within(card).getByText("Ditagihkan", { selector: "p" }).parentElement).toHaveTextContent("Rp 75.000.000");
+    expect(within(card).getByText("Terkumpul", { selector: "p" }).parentElement).toHaveTextContent("Rp 63.000.000");
     expect(card.querySelector('[data-slot="chart"]')).not.toBeNull();
     expect(within(card).getByRole("link", { name: "Lihat tagihan" })).toHaveAttribute("href", "/admin/invoices");
   });
