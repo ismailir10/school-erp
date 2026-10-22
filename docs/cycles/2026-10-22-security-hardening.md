@@ -69,4 +69,40 @@ Vercel's guidance is to upgrade even when a flaw is unreachable, and two of the 
 
 ## Verification
 
+### Verified locally — 87136f99, 2026-10-22
+
+- **Full gate:**
+  - `npm run lint` clean.
+  - `npx tsc --noEmit` clean.
+  - `npx vitest run`: 690 files, 8150 passed, 0 failed.
+  - `verify-api-auth.sh` and `verify-rls-coverage.sh` pass.
+  - `audit-docs.sh`: 0 fail. One existing warn for the ADR 60-day window.
+  - `DEMO_MODE=true npm run build` ok.
+- **Playwright:** `npx playwright test` against a disposable local Postgres (port 54329, schema push and seed), `DEMO_MODE=true next start`: **247 passed**, 0 failed. Demo-auth sign-in for admin, teacher and parent works off Vercel exactly as before.
+  - The container's Playwright 1.64 expects `chromium_headless_shell-1248`, which isn't installed. The first attempt failed at browser launch, before any test body ran. The re-run used a temporary untracked config that points `launchOptions.executablePath` at `/opt/pw-browsers/chromium`. That config is deleted.
+- **Demo guard, end to end:** the same build, started with `DEMO_MODE=true VERCEL=1 next start` and a `school-erp-session=u_super_admin` cookie.
+  - `/api/auth/users` returns 404.
+  - `/api/students` returns 401.
+  - `/admin` returns 307 to `/`.
+  - The server log prints `DEMO_MODE=true ignored on Vercel`.
+  - Without `VERCEL` the same requests return 200.
+- **Build guard:** `DEMO_MODE=true bash scripts/vercel-build.sh` exits 1 before `prisma migrate deploy`.
+- **No UI change.** design-system not affected: the diff touches only API routes, auth and the build script.
+
 ## Ship Notes
+
+**Operator actions (cannot be done from code):**
+
+1. **Supabase Auth → Providers → Email: disable sign-ups on prod (`vxwywmvpxetdgnxejjgk`) and staging.** The app is Google-only, and the code guard is only the second layer. Staging already holds 3 `email` identities. The prod `auth.identities` was not inspected from this session, so run `select provider, count(*), max(created_at) from auth.identities group by 1;` there. Any non-Google identity that is not a known test account should be investigated and deleted.
+2. **Enable leaked-password protection** on both projects (advisor `auth_leaked_password_protection`). After step 1 this mostly matters for the dashboard's own accounts.
+3. **Confirm `DEMO_MODE` is absent** from every Vercel environment (this session got a 403 listing env vars). If it is set, the next deploy fails, which is intended.
+4. **Rotate anything that ever ran on a laptop where `npm install` happened between 2026-09-22 and today**, if that laptop also installed any package outside this lockfile. This repo's lockfile is clean, but the Shai-Hulud / ChainDrop wave steals tokens from the machine, not from the repo.
+
+**Follow-up cycles (from the review, not fixed here):**
+- Custom-role permission checks on the about 20 `isAdminRole`-only admin routes.
+- Enrollment and age-group checks on teacher CENTER assessment writes.
+- A zod schema for `promotions` POST.
+- A shared-store rate limiter plus a captcha on `/daftar`.
+- CI hardening: `permissions: contents: read`, SHA-pinned actions with the `github-actions` Dependabot ecosystem, and a branch restriction on the `production` environment (may need a paid plan for a private repo).
+- Move `shadcn` to devDependencies.
+- Enforce the CSP.
