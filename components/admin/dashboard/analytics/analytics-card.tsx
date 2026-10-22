@@ -12,8 +12,8 @@ type CardLink = { label: string; href: string };
 
 function ActionLink({ action }: { action: CardLink }) {
   return (
-    <CardAction>
-      <Button variant="ghost" size="sm" render={<Link href={action.href} />}>
+    <CardAction className="max-w-full shrink-0">
+      <Button variant="ghost" size="sm" nativeButton={false} role="link" render={<Link href={action.href} />}>
         {action.label}
         <ArrowRight />
       </Button>
@@ -46,12 +46,14 @@ export function AnalyticsCard({
 }) {
   return (
     <Card data-testid={testId} className={cn("min-w-0", className)}>
-      <CardHeader className="border-b">
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+      <CardHeader className="flex flex-wrap gap-x-3 gap-y-2 border-b">
+        <div className="min-w-0 flex-1 basis-48 space-y-1">
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
         <ActionLink action={action} />
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
+      <CardContent className="space-y-4">
         {summary && <p className="sr-only">{summary}</p>}
         {children}
       </CardContent>

@@ -1,6 +1,5 @@
 import { CircleCheckBig } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Stagger, StaggerItem } from "@/components/reactbits/stagger";
 import type { AgingKey, AnalyticsSource, FinanceAnalytics } from "@/lib/dashboard/analytics";
 import { formatRupiah } from "@/lib/format";
 import { AnalyticsCard, AnalyticsUnavailable } from "./analytics-card";
@@ -82,18 +81,20 @@ export function AgingCard({
                 />
               ))}
           </div>
-          <Stagger as="ul" count={aging.length} className="divide-y">
+          <ul className="divide-y">
             {aging.map((bucket) => (
-              <StaggerItem as="li" key={bucket.key} data-bucket-row={bucket.key} className="flex min-h-11 items-center gap-3 py-2">
-                <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKETS[bucket.key].bar}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body font-medium">{BUCKETS[bucket.key].label}</span>
-                  <span className="block text-small text-muted-foreground">{bucket.count.toLocaleString("id-ID")} tagihan</span>
+              <li key={bucket.key} data-bucket-row={bucket.key} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span className="flex min-w-0 flex-1 basis-36 items-center gap-3">
+                  <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKETS[bucket.key].bar}`} />
+                  <span className="min-w-0">
+                    <span className="block text-body font-medium">{BUCKETS[bucket.key].label}</span>
+                    <span className="block text-small text-muted-foreground">{bucket.count.toLocaleString("id-ID")} tagihan</span>
+                  </span>
                 </span>
-                <span className="shrink-0 text-body font-semibold tabular-nums font-currency">{formatRupiah(bucket.amount)}</span>
-              </StaggerItem>
+                <span className="ms-auto shrink-0 whitespace-nowrap text-small font-medium tabular-nums font-currency">{formatRupiah(bucket.amount)}</span>
+              </li>
             ))}
-          </Stagger>
+          </ul>
         </>
       )}
     </AnalyticsCard>
