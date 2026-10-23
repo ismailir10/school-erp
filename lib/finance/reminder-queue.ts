@@ -61,7 +61,7 @@ export function buildReminderQueue(invoices: ReminderInvoice[]): { queue: Remind
 }
 
 /** One queue row. `waUrl` only when the invoice has a link: a row without one offers "Buat link dulu". */
-export function toReminderRow(c: ReminderCandidate, lastRemindedByName: string | null) {
+export function toReminderRow(c: ReminderCandidate, lastRemindedByName: string | null, template?: string | null) {
   const { invoice, remaining, guardian } = c;
   const hasLink = !!invoice.xenditPaymentUrl;
   return {
@@ -85,6 +85,7 @@ export function toReminderRow(c: ReminderCandidate, lastRemindedByName: string |
             periodLabel: invoice.periodLabel,
             remaining,
             payUrl: invoice.xenditPaymentUrl,
+            template,
           })
         : null,
     lastRemindedAt: invoice.lastRemindedAt ? invoice.lastRemindedAt.toISOString() : null,

@@ -9,12 +9,13 @@ import type { SessionUser } from "@/lib/auth";
  * stamp + count + audit in one transaction, and the 409 / 422 / 429 refusals.
  */
 
-const { getSessionMock, invFindMany, invFindFirst, invUpdate, userFindMany, rateLimitMock, auditMock, txMock } = vi.hoisted(() => ({
+const { getSessionMock, invFindMany, invFindFirst, invUpdate, userFindMany, tenantFindUnique, rateLimitMock, auditMock, txMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   invFindMany: vi.fn(),
   invFindFirst: vi.fn(),
   invUpdate: vi.fn(),
   userFindMany: vi.fn(),
+  tenantFindUnique: vi.fn(),
   rateLimitMock: vi.fn(),
   auditMock: vi.fn(),
   txMock: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { findMany: invFindMany, findFirst: invFindFirst, fields: { totalDue: "totalDue-ref" } },
     user: { findMany: userFindMany },
+    tenant: { findUnique: tenantFindUnique },
     $transaction: txMock,
   },
 }));
@@ -72,6 +74,7 @@ beforeEach(() => {
   rateLimitMock.mockReturnValue({ success: true, remaining: 59 });
   invFindMany.mockResolvedValue([]);
   userFindMany.mockResolvedValue([]);
+  tenantFindUnique.mockResolvedValue({ invoiceReminderTemplate: null });
   invFindFirst.mockResolvedValue(invoice());
   invUpdate.mockImplementation(async ({ data }) => ({ lastRemindedAt: data.lastRemindedAt, remindCount: 1 }));
   txMock.mockImplementation(async (fn) => fn({ invoice: { update: invUpdate } }));
@@ -165,6 +168,16 @@ describe("GET /api/invoices/reminders", () => {
     expect(decodeURIComponent(linked.waUrl)).toContain("https://checkout.doku.com/x");
     expect(unlinked).toMatchObject({ hasLink: false, waUrl: null });
     expect(linked).toMatchObject({ remaining: 400000, totalDue: 500000, totalPaid: 100000, studentName: "Aisyah", guardianName: "Budi", remindCount: 0, lastRemindedByName: null });
+  });
+
+  it("writes each message in the school's own template, read for this tenant only", async () => {
+    tenantFindUnique.mockResolvedValue({ invoiceReminderTemplate: "Halo {wali}, {siswa} sisa {sisa}. {tautan}" });
+    invFindMany.mockResolvedValue([invoice()]);
+    const body = await (await GET(getReq())).json();
+    expect(decodeURIComponent(body.data[0].waUrl.split("?text=")[1])).toMatch(
+      /^Halo Bapak\/Ibu Budi, Aisyah sisa Rp.400\.000\. https:\/\/checkout\.doku\.com\/x$/,
+    );
+    expect(tenantFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t1" } }));
   });
 
   it("drops settled invoices and paginates the queue in memory", async () => {
@@ -265,6 +278,12 @@ describe("POST /api/invoices/[id]/reminder", () => {
     const body = await (await POST(postReq(), ctx())).json();
     expect(body.waUrl).toMatch(/^https:\/\/wa\.me\/62812/);
     expect(decodeURIComponent(body.waUrl)).toContain("https://checkout.doku.com/x");
+  });
+
+  it("builds the message from the school's own template", async () => {
+    tenantFindUnique.mockResolvedValue({ invoiceReminderTemplate: "Pengingat {nomor}: {tautan}" });
+    const body = await (await POST(postReq(), ctx())).json();
+    expect(decodeURIComponent(body.waUrl.split("?text=")[1])).toBe("Pengingat INV-2026-0001: https://checkout.doku.com/x");
   });
 
   it("falls back to the parent portal address without a link", async () => {

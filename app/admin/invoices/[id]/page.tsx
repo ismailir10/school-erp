@@ -55,6 +55,8 @@ type InvoiceDetail = {
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null; paymentLinkExpiresAt?: string | null;
   paymentLinkError: string | null;
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
+  /** The school's own reminder wording (null = the built-in message). */
+  reminderTemplate?: string | null;
   student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
   /** Gateway payments the app did not credit (or credited past the balance): money to reconcile by hand. */
@@ -566,6 +568,7 @@ export default function InvoiceDetailPage() {
         periodLabel: invoice.periodLabel,
         remaining,
         payUrl: invoice.xenditPaymentUrl ?? `${window.location.origin}/parent/invoices`,
+        template: invoice.reminderTemplate,
       })
     : null;
   // Money already on the invoice blocks a cancel (the API enforces it too): the

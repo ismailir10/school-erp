@@ -109,6 +109,17 @@ describe("ReminderQueueDialog", () => {
     expect(items[1]).toHaveTextContent("Aisyah");
   });
 
+  it("tells the admin the message is editable and links to the template settings, whatever the list is doing", async () => {
+    stubFetch(() => new Promise<Response>(() => {}) as unknown as Response);
+    renderQueue();
+    const dialog = await screen.findByRole("dialog", { name: "Pengingat WhatsApp" });
+    expect(within(dialog).getByText(/Isi pesan bisa disesuaikan/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "Ubah templat pesan" })).toHaveAttribute(
+      "href",
+      "/admin/settings/pengingat-whatsapp",
+    );
+  });
+
   it("shows a skeleton while loading", async () => {
     stubFetch(() => new Promise<Response>(() => {}) as unknown as Response);
     renderQueue();
