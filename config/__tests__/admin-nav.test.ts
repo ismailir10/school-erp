@@ -149,12 +149,13 @@ describe("settingsHub — sections + moved items", () => {
     expect(section.items[1]).toMatchObject({ href: "/admin/student-journal", permission: "students.view" });
   });
 
-  it("finance section covers Biaya + Komponen Gaji", () => {
+  it("finance section covers Biaya + Komponen Gaji + Templat Pengingat WhatsApp", () => {
     const section = adminNav.settingsHub.find((s) => s.id === "finance")!;
     expect(section.label).toBe("Keuangan & Gaji");
-    expect(section.items.map((i) => i.label)).toEqual(["Biaya", "Komponen Gaji"]);
+    expect(section.items.map((i) => i.label)).toEqual(["Biaya", "Komponen Gaji", "Templat Pengingat WhatsApp"]);
     expect(section.items[0]).toMatchObject({ href: "/admin/fees", permission: "fees.view" });
     expect(section.items[1]).toMatchObject({ href: "/admin/salary-components", permission: "payroll.view" });
+    expect(section.items[2]).toMatchObject({ href: "/admin/settings/pengingat-whatsapp", permission: "payments.record" });
   });
 
   it("access section covers Pengguna + Peran & Izin", () => {

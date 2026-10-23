@@ -6,6 +6,7 @@ import { parsePagination } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { owingInvoiceWhere } from "@/lib/finance/invoice-owes";
 import { buildReminderQueue, toReminderRow } from "@/lib/finance/reminder-queue";
+import { getInvoiceReminderTemplate } from "@/lib/finance/reminder-template-store";
 
 /**
  * GET /api/invoices/reminders — the WhatsApp reminder queue behind "Pengingat WhatsApp"
@@ -37,38 +38,41 @@ export async function GET(req: NextRequest) {
 
   const { skip, take, page, pageSize } = parsePagination(new URL(req.url).searchParams);
 
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      tenantId: session.tenantId,
-      ...owingInvoiceWhere(),
-    },
-    select: {
-      id: true,
-      invoiceNumber: true,
-      periodLabel: true,
-      dueDate: true,
-      status: true,
-      totalDue: true,
-      totalPaid: true,
-      xenditPaymentUrl: true,
-      lastRemindedAt: true,
-      lastRemindedBy: true,
-      remindCount: true,
-      student: {
-        select: {
-          name: true,
-          guardians: {
-            where: { isPrimary: true, status: "ACTIVE" },
-            take: 1,
-            select: { parent: { select: { name: true, whatsapp: true, phone: true } } },
+  const [invoices, template] = await Promise.all([
+    prisma.invoice.findMany({
+      where: {
+        tenantId: session.tenantId,
+        ...owingInvoiceWhere(),
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        periodLabel: true,
+        dueDate: true,
+        status: true,
+        totalDue: true,
+        totalPaid: true,
+        xenditPaymentUrl: true,
+        lastRemindedAt: true,
+        lastRemindedBy: true,
+        remindCount: true,
+        student: {
+          select: {
+            name: true,
+            guardians: {
+              where: { isPrimary: true, status: "ACTIVE" },
+              take: 1,
+              select: { parent: { select: { name: true, whatsapp: true, phone: true } } },
+            },
           },
         },
       },
-    },
-    // Safety cap, far above a real school's unpaid count: the queue is built in memory, so
-    // a runaway tenant must not load unbounded. Hitting it is reported in `meta.truncated`.
-    take: MAX_UNPAID_FETCH,
-  });
+      // Safety cap, far above a real school's unpaid count: the queue is built in memory, so
+      // a runaway tenant must not load unbounded. Hitting it is reported in `meta.truncated`.
+      take: MAX_UNPAID_FETCH,
+    }),
+    getInvoiceReminderTemplate(session.tenantId),
+  ]);
   const truncated = invoices.length >= MAX_UNPAID_FETCH;
 
   const { queue, excludedNoNumber } = buildReminderQueue(invoices);
@@ -85,7 +89,7 @@ export async function GET(req: NextRequest) {
   const actorName = new Map(actors.map((u) => [u.id, u.name || u.email]));
 
   const rows = pageRows.map((c) =>
-    toReminderRow(c, c.invoice.lastRemindedBy ? (actorName.get(c.invoice.lastRemindedBy) ?? null) : null),
+    toReminderRow(c, c.invoice.lastRemindedBy ? (actorName.get(c.invoice.lastRemindedBy) ?? null) : null, template),
   );
 
   const res = NextResponse.json({

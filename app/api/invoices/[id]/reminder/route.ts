@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { resolveAppOrigin } from "@/lib/payments/session";
 import { canRemindInvoice, guardianChatNumber, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { invoiceRemaining } from "@/lib/finance/reminder-queue";
+import { getInvoiceReminderTemplate } from "@/lib/finance/reminder-template-store";
 
 /**
  * POST /api/invoices/[id]/reminder — records that an admin opened a WhatsApp reminder
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     periodLabel: invoice.periodLabel,
     remaining,
     payUrl: invoice.xenditPaymentUrl ?? `${resolveAppOrigin(new URL(req.url).origin)}/parent/invoices`,
+    template: await getInvoiceReminderTemplate(tenantId),
   });
 
   return NextResponse.json({

@@ -7,6 +7,7 @@ import { updateInvoiceSchema } from "@/lib/validations/invoice";
 import { hasPermission } from "@/lib/permissions";
 import { paymentProblemsFrom } from "@/lib/finance/payment-problems";
 import { NEEDS_REVIEW_ERROR_CODES } from "@/lib/payments/needs-review";
+import { getInvoiceReminderTemplate } from "@/lib/finance/reminder-template-store";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -57,6 +58,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     payments,
     paymentProblems: paymentProblemsFrom(flaggedEvents),
     lastRemindedByName: invoice.lastRemindedBy ? (actorName.get(invoice.lastRemindedBy) ?? null) : null,
+    // The page writes the WhatsApp link itself, so it needs the school's wording (null = default).
+    reminderTemplate: await getInvoiceReminderTemplate(session.tenantId),
     capabilities: invoiceCapabilities(session),
   });
 }

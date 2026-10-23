@@ -11,12 +11,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const findUnique = vi.fn();
 const userFindMany = vi.fn();
 const webhookFindMany = vi.fn();
+const tenantFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { findUnique },
     user: { findMany: userFindMany },
     webhookEvent: { findMany: webhookFindMany },
+    tenant: { findUnique: tenantFindUnique },
   },
 }));
 
@@ -46,6 +48,7 @@ function makeReq() {
 beforeEach(() => {
   vi.clearAllMocks();
   webhookFindMany.mockResolvedValue([]);
+  tenantFindUnique.mockResolvedValue({ invoiceReminderTemplate: null });
 });
 
 describe("GET /api/invoices/[id]", () => {
@@ -141,7 +144,23 @@ describe("GET /api/invoices/[id]", () => {
       lastRemindedAt: "2026-10-16T03:00:00.000Z",
       remindCount: 2,
       lastRemindedByName: "kasir@x.id",
+      reminderTemplate: null,
     });
+  });
+
+  it("serves the school's reminder wording (read for the session's tenant) so the page can write the link", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    tenantFindUnique.mockResolvedValue({ invoiceReminderTemplate: "Halo {tautan}" });
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "SENT", lines: [], payments: [], lastRemindedBy: null, student: { guardians: [] },
+    });
+
+    const { GET } = await import("../invoices/[id]/route");
+    const json = await (await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) })).json();
+
+    expect(json.reminderTemplate).toBe("Halo {tautan}");
+    expect(tenantFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "tnt-1" } }));
   });
 
   it("never-reminded invoice reports a null actor name without a user lookup", async () => {
