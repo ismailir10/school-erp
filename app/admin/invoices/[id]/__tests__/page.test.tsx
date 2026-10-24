@@ -46,6 +46,7 @@ const baseInvoice = {
   paymentLinkError: null,
   lastRemindedAt: null as string | null,
   lastRemindedByName: null as string | null,
+  reminderTemplate: null as string | null,
   remindCount: 0,
   student: {
     name: "Ahmad",
@@ -525,6 +526,15 @@ describe("InvoiceDetailPage — WhatsApp reminder to the wali", () => {
     student: { name: "Ahmad", nickname: null, guardians: [{ parent }] },
   });
   const ibu = { name: "Siti", phone: null, email: null, whatsapp: "0812-3456-7890" };
+
+  it("writes the reminder in the school's own template when it has one", async () => {
+    fixture({ invoice: { status: "OVERDUE", reminderTemplate: "Pengingat {nomor} untuk {siswa}: {tautan}", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+
+    const wa = await screen.findByTestId("invoice-whatsapp-reminder");
+    const text = decodeURIComponent(wa.getAttribute("href")!.split("?text=")[1]);
+    expect(text).toMatch(/^Pengingat INV-2026-001 untuk Ahmad: /);
+  });
 
   it("an outstanding invoice offers Chat WhatsApp on the wali's number with the reminder written", async () => {
     fixture({ invoice: { status: "OVERDUE", ...withGuardian(ibu) } });

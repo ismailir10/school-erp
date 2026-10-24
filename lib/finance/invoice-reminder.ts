@@ -8,6 +8,7 @@
 import { formatRupiah } from "@/lib/format";
 import { whatsappHref, whatsappHrefWithText } from "@/lib/contact";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
+import { effectiveReminderTemplate, renderReminderTemplate } from "@/lib/finance/reminder-template";
 
 type Guardian = { name?: string | null; whatsapp?: string | null; phone?: string | null } | null | undefined;
 
@@ -24,7 +25,10 @@ export function canRemindInvoice(invoice: { status: string; remaining: number })
   return (UNPAID_INVOICE_STATUSES as readonly string[]).includes(invoice.status) && invoice.remaining > 0;
 }
 
-/** Parent voice: courteous, names the invoice and what is left, easy to ignore if already paid. */
+/**
+ * The reminder text: the school's own template (`Tenant.invoiceReminderTemplate`) with this invoice's
+ * details filled in, or the courteous default when it has none. Parent voice either way.
+ */
 export function invoiceReminderText(input: {
   guardianName: string | null | undefined;
   studentName: string;
@@ -33,14 +37,18 @@ export function invoiceReminderText(input: {
   remaining: number;
   /** The DOKU link when one exists; otherwise the portal address. */
   payUrl: string;
+  /** The school's stored template; null/blank → the default wording. */
+  template?: string | null;
 }): string {
   const who = input.guardianName?.trim() ? `Bapak/Ibu ${input.guardianName.trim()}` : "Bapak/Ibu";
-  return [
-    `Assalamu'alaikum ${who}.`,
-    `Tagihan ${input.periodLabel} untuk ananda ${input.studentName} (${input.invoiceNumber}) masih tersisa ${formatRupiah(input.remaining)}.`,
-    `Bapak/Ibu bisa membayarnya lewat tautan berikut: ${input.payUrl}`,
-    "Jika sudah membayar, mohon abaikan pesan ini. Jazakumullah khairan.",
-  ].join("\n\n");
+  return renderReminderTemplate(effectiveReminderTemplate(input.template), {
+    wali: who,
+    siswa: input.studentName,
+    periode: input.periodLabel,
+    nomor: input.invoiceNumber,
+    sisa: formatRupiah(input.remaining),
+    tautan: input.payUrl,
+  });
 }
 
 /** `wa.me` URL with the reminder prefilled, or null when there is no number WhatsApp can open. */
@@ -51,6 +59,7 @@ export function invoiceReminderWaUrl(input: {
   periodLabel: string;
   remaining: number;
   payUrl: string;
+  template?: string | null;
 }): string | null {
   const phone = guardianChatNumber(input.guardian);
   if (!phone) return null;
@@ -63,6 +72,7 @@ export function invoiceReminderWaUrl(input: {
       periodLabel: input.periodLabel,
       remaining: input.remaining,
       payUrl: input.payUrl,
+      template: input.template,
     }),
   );
 }

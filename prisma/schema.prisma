@@ -17,6 +17,9 @@ model Tenant {
   // Kelengkapan Berkas keys (lib/enrollment/documents.ts) the parent must upload
   // before the pendaftaran form can be submitted. Empty = every upload optional.
   enrollmentRequiredDocuments String[] @default([])
+  // The school's own wording for the unpaid-invoice WhatsApp reminder, with {placeholders}
+  // (lib/finance/reminder-template.ts). Null = the built-in default message.
+  invoiceReminderTemplate String?
 
   users                  User[]
   roles                  Role[]

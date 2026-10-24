@@ -30,6 +30,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { MessageCircle, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -254,6 +255,17 @@ export function ReminderQueueDialog({ open, onOpenChange, capabilities }: Props)
     >
       <p className="sr-only" role="status">
         {status === "loading" ? "Memuat daftar pengingat" : announcement}
+      </p>
+
+      {/* The wording is the school's to change: say so where the admin sees the message go out. */}
+      <p className="text-small text-muted-foreground" data-testid="reminder-template-hint">
+        Isi pesan bisa disesuaikan dengan gaya sekolah.{" "}
+        <Link
+          href="/admin/settings/pengingat-whatsapp"
+          className="font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Ubah templat pesan
+        </Link>
       </p>
 
       {status === "loading" && (
