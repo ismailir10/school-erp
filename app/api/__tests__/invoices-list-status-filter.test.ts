@@ -180,10 +180,10 @@ describe("GET /api/invoices/stats — the Status filter's counts", () => {
   it("counts flagged invoices (`needsReview`) in the tenant, with the list's rule", async () => {
     eventFindManyMock.mockResolvedValue([{ invoiceId: "inv-a" }, { invoiceId: "inv-b" }]);
     countMock.mockResolvedValue(0);
-    countMock.mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(2);
+    countMock.mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(2);
     const body = await (await statsGET(new NextRequest("http://localhost/api/invoices/stats"))).json();
     expect(body.needsReview).toBe(2);
-    expect(countMock.mock.calls[2][0].where).toEqual({ tenantId: "t1", id: { in: ["inv-a", "inv-b"] } });
+    expect(countMock.mock.calls[3][0].where).toEqual({ tenantId: "t1", id: { in: ["inv-a", "inv-b"] } });
   });
 
   it("counts owing invoices (`owing`) and owing-without-link with the shared rule", async () => {

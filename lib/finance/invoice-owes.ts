@@ -23,6 +23,16 @@ export function owingInvoiceWhere(): Prisma.InvoiceWhereInput {
   return { status: { in: [...UNPAID_INVOICE_STATUSES] }, ...stillOwesWhere() };
 }
 
+/**
+ * "Dibayar Sebagian": owing, with money already received. Money decides, not the stored status:
+ * a partial payment past the due date is stored as OVERDUE (cycle 2026-10-17-payment-link-reminders,
+ * D3), and it is still a partly paid invoice. The summary card counts this, never `status =
+ * PARTIALLY_PAID` alone.
+ */
+export function partiallyPaidWhere(): Prisma.InvoiceWhereInput {
+  return { AND: [owingInvoiceWhere(), { totalPaid: { gt: 0 } }] };
+}
+
 /** Owing with no payment link: the "Buat link baru (N)" button's invoices. */
 export function owingWithoutLinkWhere(): Prisma.InvoiceWhereInput {
   return { ...owingInvoiceWhere(), xenditPaymentUrl: null };

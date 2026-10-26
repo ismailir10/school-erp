@@ -296,7 +296,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 71 |
 | `e2e/*.spec.ts` | 42 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 119 / 233 |
+| `docs/cycles` active / archived | 120 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.
