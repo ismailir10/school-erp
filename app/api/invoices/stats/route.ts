@@ -5,7 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { jakartaMonthRangeUtc } from "@/lib/finance/jakarta-month";
 import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
-import { owingInvoiceWhere, owingWithoutLinkWhere } from "@/lib/finance/invoice-owes";
+import { owingInvoiceWhere, owingWithoutLinkWhere, partiallyPaidWhere } from "@/lib/finance/invoice-owes";
 import { needsReviewInvoiceIds } from "@/lib/payments/needs-review-invoices";
 
 /**
@@ -16,6 +16,9 @@ import { needsReviewInvoiceIds } from "@/lib/payments/needs-review-invoices";
  * list queries in parallel from the client to read only `pagination.total`.
  * The four-card sum also missed `PARTIALLY_PAID` + `PENDING_PAYMENT_LINK`
  * before, so the totals never reconciled.
+ *
+ * `partiallyPaid` is money-based (owing with a payment), not the PARTIALLY_PAID status: a
+ * partial payment past its due date is stored as OVERDUE and still counts here.
  *
  * FIN-13: also returns Rupiah totals — `outstanding` (sum of remaining on
  * SENT / PARTIALLY_PAID / OVERDUE) and `collectedThisMonth` (non-reversed
@@ -29,7 +32,7 @@ export async function GET(_req: NextRequest) {
 
   const tenantId = session.tenantId; // narrowed here; the closure below would lose it
   const month = jakartaMonthRangeUtc();
-  const [groups, collected, unpaidWithoutLink, owing, needsReview] = await Promise.all([
+  const [groups, collected, unpaidWithoutLink, owing, partiallyPaid, needsReview] = await Promise.all([
     prisma.invoice.groupBy({
       by: ["status"],
       where: { tenantId: session.tenantId },
@@ -53,6 +56,12 @@ export async function GET(_req: NextRequest) {
     // Invoices still owing: the list's "Belum lunas (N)".
     prisma.invoice.count({
       where: { tenantId: session.tenantId, ...owingInvoiceWhere() },
+    }),
+    // Invoices still owing that already received money: the "Dibayar Sebagian" card. Counted by
+    // money, not by the stored status, because a partial payment past its due date is stored as
+    // OVERDUE and would otherwise vanish from the card.
+    prisma.invoice.count({
+      where: { tenantId: session.tenantId, ...partiallyPaidWhere() },
     }),
     // Invoices with a flagged gateway payment: the list's "Perlu dicek (N)". Same rule as the
     // list filter (`status=NEEDS_REVIEW`): event-log ids, narrowed to this school's invoices.
@@ -84,7 +93,7 @@ export async function GET(_req: NextRequest) {
     total,
     draft: byStatus.DRAFT ?? 0,
     sent: byStatus.SENT ?? 0,
-    partiallyPaid: byStatus.PARTIALLY_PAID ?? 0,
+    partiallyPaid,
     paid: byStatus.PAID ?? 0,
     overdue: byStatus.OVERDUE ?? 0,
     cancelled: byStatus.CANCELLED ?? 0,
