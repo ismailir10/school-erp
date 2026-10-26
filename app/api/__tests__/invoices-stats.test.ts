@@ -54,6 +54,9 @@ describe("GET /api/invoices/stats", () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(adminSession());
+    // "Dibayar Sebagian" is a money-based count (see the dedicated describe below), not the status group.
+    vi.mocked(prisma.invoice.count).mockImplementation(((args: { where: { AND?: unknown } }) =>
+      Promise.resolve(args.where.AND && JSON.stringify(args.where.AND).includes('"gt":0') ? 1 : 0)) as never);
 
     // Shape mirrors Prisma's groupBy return: array of rows keyed by `by` cols.
     // 3 DRAFT (300k due, 0 paid) + 2 SENT (200k, 0) + 1 PARTIALLY_PAID (100k, 50k)
@@ -266,12 +269,13 @@ describe("GET /api/invoices/stats — needsReview", () => {
     vi.mocked(prisma.invoice.count)
       .mockResolvedValueOnce(0 as never)
       .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(0 as never)
       .mockResolvedValueOnce(2 as never);
 
     const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
 
     expect(body.needsReview).toBe(2);
-    expect(vi.mocked(prisma.invoice.count).mock.calls[2][0]).toEqual({
+    expect(vi.mocked(prisma.invoice.count).mock.calls[3][0]).toEqual({
       where: { tenantId: "tnt-1", id: { in: ["inv-a", "inv-b"] } },
     });
   });
@@ -287,6 +291,42 @@ describe("GET /api/invoices/stats — needsReview", () => {
     const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
 
     expect(body.needsReview).toBe(0);
-    expect(vi.mocked(prisma.invoice.count)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(prisma.invoice.count)).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("GET /api/invoices/stats — partiallyPaid", () => {
+  it("counts owing invoices that received money by amount, so a partial payment stored as OVERDUE still counts", async () => {
+    const { prisma } = await import("@/lib/db");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    // No row is stored as PARTIALLY_PAID: every partial payment here is past due, so OVERDUE.
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([
+      { status: "OVERDUE", _count: { _all: 11 }, _sum: { totalDue: 1_100_000, totalPaid: 300_000 } },
+    ] as never);
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+    vi.mocked(prisma.webhookEvent.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.invoice.count).mockReset();
+    vi.mocked(prisma.invoice.count)
+      .mockResolvedValueOnce(0 as never) // unpaidWithoutLink
+      .mockResolvedValueOnce(11 as never) // owing
+      .mockResolvedValueOnce(4 as never); // partiallyPaid
+
+    const body = await (await GET(new Request("http://localhost/api/invoices/stats") as never)).json();
+
+    expect(body.partiallyPaid).toBe(4);
+    expect(body.overdue).toBe(11);
+    expect(vi.mocked(prisma.invoice.count).mock.calls[2][0]).toEqual({
+      where: {
+        tenantId: "tnt-1",
+        AND: [
+          {
+            status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+            totalPaid: { lt: "totalDue-ref" },
+          },
+          { totalPaid: { gt: 0 } },
+        ],
+      },
+    });
   });
 });
