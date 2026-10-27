@@ -36,11 +36,34 @@ describe("ClassSetupWarnings", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("Periksa sebelum lanjut");
-    expect(
-      screen.getByText(
-        "Nama TK A 4 tidak cocok dengan program TK B. Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Nama TK A 4 tidak cocok dengan program TK B.")).toBeInTheDocument();
+    expect(screen.getByText("Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.")).toBeInTheDocument();
+  });
+
+  it("says where to fix a mislinked class once, however many look mislinked", () => {
+    render(
+      <ClassSetupWarnings
+        warnings={["TK A 1", "TK A 3", "TK A 4"].map((className, i) => ({
+          kind: "PROGRAM_NAME_MISMATCH" as const,
+          classSectionId: `c${i}`,
+          className,
+          programName: "TK B",
+        }))}
+      />,
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getAllByText(/Jika salah, ubah program/)).toHaveLength(1);
+  });
+
+  it("adds no fix-it sentence when only fee structures are missing", () => {
+    render(
+      <ClassSetupWarnings
+        warnings={[{ kind: "NO_FEE_STRUCTURE", classSectionId: "c1", className: "KB 1", programName: "KB" }]}
+      />,
+    );
+
+    expect(screen.queryByText(/Jika salah, ubah program/)).not.toBeInTheDocument();
   });
 
   it("says a class without a fee structure will not be billed", () => {

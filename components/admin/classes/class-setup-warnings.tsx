@@ -5,7 +5,7 @@ import type { SetupWarning } from "@/lib/classes/setup-check";
 function message(w: SetupWarning): string {
   return w.kind === "NO_FEE_STRUCTURE"
     ? `${w.className} memakai program ${w.programName}, yang belum ada tarif rutin tahun ajaran ini. Siswanya tidak akan ditagih.`
-    : `Nama ${w.className} tidak cocok dengan program ${w.programName}. Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.`;
+    : `Nama ${w.className} tidak cocok dengan program ${w.programName}.`;
 }
 
 /**
@@ -33,6 +33,10 @@ export function ClassSetupWarnings({
                 <li key={`${w.kind}-${w.classSectionId}`}>{message(w)}</li>
               ))}
             </ul>
+            {/* Said once, however many classes look mislinked. */}
+            {warnings.some((w) => w.kind === "PROGRAM_NAME_MISMATCH") && (
+              <p className="mt-2">Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.</p>
+            )}
           </AlertDescription>
         </Alert>
       )}
