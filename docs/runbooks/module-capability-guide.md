@@ -146,6 +146,7 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 - Monthly recap: per student/class/month totals, filterable, exportable to CSV.
 - Buku Penghubung monitoring: week-by-week completion view per class (percentage filled, last-filled date).
 - Class drill-down: per-student completion roll-up. Student drill-down: full weekly grid, notes thread, full audit history.
+- Hari tanpa buku penghubung: on the class week page the admin marks or corrects a school day the class did not use the book (keterangan up to 60 characters, e.g. Renang). The guru can do the same from the entry page; the wali sees the keterangan in that day's column.
 
 **3. Edit / update**
 - Admin can Override an attendance record's status + note (explicit action, not quiet inline edit).

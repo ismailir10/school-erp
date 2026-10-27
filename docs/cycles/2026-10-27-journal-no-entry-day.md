@@ -126,7 +126,7 @@ Facts found in the code (not decisions):
 - [x] T5 Teacher home reads marks for "perlu diselesaikan" — accept: home test (deps: T2, T3)
 - [x] T6 Parent week + admin dossier: `WeekGrid` shows keterangan on marked dates; week routes return marks — accept: `week-grid.test.ts` + route tests (deps: T3)
 - [x] T7 Admin set/clear mark + roll-up uses the same definition — accept: admin API test, roll-up test (deps: T3)
-- [ ] T8 README / `docs/uat/jobs/{teacher,parent}.md` / counts block; Playwright flow — accept: `audit-docs.sh` clean, e2e green (deps: T4-T7)
+- [x] T8 README / `docs/uat/jobs/{teacher,parent}.md` / counts block; Playwright flow — accept: `audit-docs.sh` clean, e2e green (deps: T4-T7)
 
 ## Implementation
 
@@ -139,6 +139,7 @@ Facts found in the code (not decisions):
 - T5: `app/teacher/page.tsx`, `app/teacher/home-client.tsx`, `app/teacher/__tests__/home-checkin.test.tsx` — the home loads today's mark per class (a failed lookup leaves the day unmarked), passes `dayMarkReason` to `getJournalProgress`, and the marked class moves from "Yang perlu diselesaikan" to "Pekerjaan yang sudah tersimpan" with "Hari tanpa buku penghubung · <keterangan>". No new visual element (existing `TaskRow`, per `design-system`).
 - T6: `components/portal/week-grid.tsx`, parent `student-journal/page.tsx`, teacher `student-journal/students/[id]/page.tsx`, admin `student-journal/students/[id]/page.tsx` and `components/admin/student-journal-block.tsx`, tests (`week-grid.test.ts`, `api-parent-week-day-marks.test.ts`). `WeekGrid` takes `dayMarks`: a 44px column cannot hold the reason, so marked days get a line above the grid ("Sel 28/10 · Tanpa buku penghubung: Renang"), a `CalendarOff` glyph under the column date, a muted tint and an explanatory accessible name on unfilled cells; ticks that exist stay; the "belum diisi" empty-week note is suppressed when the week holds a mark. Only the SCHOOL grids receive marks, the parent's "Di rumah" grid is untouched. Per `design-system` (tokens `bg-muted`, `text-muted-foreground`, `text-xs` floor).
 - T7: `app/api/student-journal/admin/class-roll-up/route.ts` (returns `dayMarks` for the class's week), `app/admin/student-journal/classes/[id]/page.tsx` (new "Hari tanpa buku penghubung" card: the five school days with their keterangan and Tandai / Ubah per day up to today, the same `DayMarkDialog`), tests (`api-admin-class-roll-up-day-marks.test.ts`, `classes/[id]/__tests__/page.test.tsx`). The write goes through the shared `PUT/DELETE /day-marks` route, whose guard already admits school admins of the tenant. The roll-up's tick sums are unchanged: it never used "lengkap" (assumption 5 resolved as no change). Card follows `design-system` admin detail pattern (`bg-card` panel, `p-card`, `text-h2` heading, outline `sm` buttons).
+- T8: `e2e/journal-day-mark.spec.ts` (guru marks via the entry page, persists across reload, home stops listing it, Hapus tanda restores; admin marks, wali sees the keterangan and gets 403 on write), `scripts/verify-api-auth.sh` (registers `requireDayMarkWriter(` as a session guard, as `requireNoteAccessForStudent(` was), `docs/uat/jobs/{teacher,parent,admin}.md` (new JTBD-TEACHER-JOURNAL-04, parent JOURNAL-01 step 5, JOURNAL-01 Done when, Last audited), `docs/runbooks/module-capability-guide.md`, `CLAUDE.md` counts block via `audit-docs.sh --write`.
 
 ## Verification
 
