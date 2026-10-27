@@ -2,6 +2,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { buildBillingRunRows, type BuildEnrollment, type BuiltRow, type BuildSummary } from "@/lib/finance/build-billing-run";
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
 import { normalizePeriodLabel } from "@/lib/finance/period-label";
+import { BILLABLE_FEE_COMPONENT_WHERE } from "@/lib/finance/billable-fees";
 
 /**
  * Shared draft-materialization path for the Billing Run wizard (Cycle B2 —
@@ -123,7 +124,7 @@ export async function materializeBillingRun(
       where: {
         programId: { in: programIds },
         academicYearId,
-        feeComponent: { isEnabled: true, isRecurring: true },
+        feeComponent: BILLABLE_FEE_COMPONENT_WHERE,
       },
       include: { feeComponent: true },
     }),

@@ -157,7 +157,7 @@ describe("step 2 rows — Rp 0 rows (FINX-4)", () => {
 
 describe("step 1 — due date follows the typed period", () => {
   const years = [{ id: "ay-1", name: "2026/2027", status: "ACTIVE" }];
-  const classes = [{ id: "c-1", name: "Kelas A", academicYearId: "ay-1" }];
+  const classes = [{ id: "c-1", name: "Kelas A", academicYearId: "ay-1", program: { name: "TK A" } }];
 
   beforeEach(() => vi.clearAllMocks());
 

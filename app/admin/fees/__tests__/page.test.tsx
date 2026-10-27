@@ -114,6 +114,25 @@ describe("FeesPage", () => {
     });
   });
 
+  it("Tarif per Program: shows which classes use the selected program and year (Dipakai oleh)", async () => {
+    const fetchMock = fixture();
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+
+    expect(await screen.findByRole("heading", { name: "Dipakai oleh" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url]) =>
+            String(url).startsWith("/api/admin/classes?") &&
+            String(url).includes("programId=prog-active") &&
+            String(url).includes("yearId=year-active"),
+        ),
+      ).toBe(true),
+    );
+  });
+
   it("Tarif per Program: a deactivated component with a stored tarif shows as a muted, read-only Nonaktif row", async () => {
     fixture();
     render(<FeesPage />);

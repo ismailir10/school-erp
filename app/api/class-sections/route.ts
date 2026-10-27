@@ -5,6 +5,8 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createClassSectionSchema } from "@/lib/validations/class-section";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
+import { BILLABLE_FEE_COMPONENT_WHERE } from "@/lib/finance/billable-fees";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -51,7 +53,51 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { name: "asc" },
   });
-  return NextResponse.json(sections);
+
+  // Opt-in: what a billing run would bill per period for each section's own
+  // program in its own year (`null` = no billable fee line at all). The
+  // billing wizard shows it next to each class so a class linked to the wrong
+  // program is visible before invoices are made. Other callers omit it and
+  // get the response unchanged.
+  // A role without a finance permission gets the plain list: the key is left
+  // out rather than nulled, because `null` already means "no fee line".
+  if (
+    searchParams.get("include") !== "fees" ||
+    !(hasPermission(session, "fees.view") || hasPermission(session, "invoices.view"))
+  ) {
+    return NextResponse.json(sections);
+  }
+
+  const structures = await prisma.programFeeStructure.findMany({
+    where: {
+      tenantId: session.tenantId,
+      programId: { in: [...new Set(sections.map((s) => s.programId))] },
+      academicYearId: { in: [...new Set(sections.map((s) => s.academicYearId))] },
+      feeComponent: BILLABLE_FEE_COMPONENT_WHERE,
+    },
+    select: { programId: true, academicYearId: true, amount: true, feeComponent: { select: { label: true } } },
+  });
+  const fees = new Map<string, { total: number; labels: string[] }>();
+  for (const f of structures) {
+    const key = `${f.programId}|${f.academicYearId}`;
+    const entry = fees.get(key) ?? { total: 0, labels: [] };
+    entry.total += Number(f.amount);
+    entry.labels.push(f.feeComponent.label);
+    fees.set(key, entry);
+  }
+  return NextResponse.json(
+    sections.map((s) => {
+      const entry = fees.get(`${s.programId}|${s.academicYearId}`);
+      return {
+        ...s,
+        recurringFeeTotal: entry?.total ?? null,
+        // What the total is made of, so a screen never calls a sum of several
+        // components "SPP": the component's own name when there is just one.
+        recurringFeeLines: entry?.labels.length ?? 0,
+        recurringFeeLabel: entry?.labels.length === 1 ? entry.labels[0] : null,
+      };
+    }),
+  );
 }
 
 export async function POST(req: NextRequest) {

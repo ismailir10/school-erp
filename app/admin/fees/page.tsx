@@ -30,6 +30,7 @@ import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
 import { feeComponentFormSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
 import { MAX_FEE_AMOUNT } from "@/lib/validations/fee-structure";
+import { ProgramClassesUsage } from "@/components/admin/fees/program-classes-usage";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
 type Program = { id: string; code: string; name: string; status: string };
@@ -536,6 +537,11 @@ export default function FeesPage() {
                 <p className="text-sm font-semibold">Total Komponen Aktif</p>
                 <p className="font-currency text-sm font-semibold tabular-nums text-primary-text">{formatRupiah(structureTotal)}</p>
               </div>
+              <ProgramClassesUsage
+                programId={selectedProgram}
+                programName={programs.find((p) => p.id === selectedProgram)?.name ?? ""}
+                yearId={selectedYear}
+              />
             </>
           )}
         </AdminTabsContent>

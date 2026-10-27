@@ -69,6 +69,8 @@ export type BillingRunRowData = {
   studentId: string;
   studentNameSnapshot: string;
   classLabelSnapshot: string | null;
+  /** Program(s) the row is billed from, derived on read; absent on a freshly created draft. */
+  programLabel?: string | null;
   parentId: string | null;
   totalDue: number;
   status: BillingRunRowStatus;

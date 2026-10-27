@@ -36,6 +36,10 @@ export const classCreateSchema = z.object({
 
 export const classUpdateSchema = z.object({
   name: namePiece.optional(),
+  // Moves the class to another program (and so to that program's fee
+  // structure). Guarded server-side: ACTIVE program of the same tenant, and
+  // refused once the class's students hold invoices this year.
+  programId: z.string().min(1, "Program wajib dipilih").optional(),
   capacity: capacityPiece.optional(),
   slotTemplate: z.enum(SLOT_TEMPLATES).optional(),
   ageGroup: ageGroupSchema.optional(),

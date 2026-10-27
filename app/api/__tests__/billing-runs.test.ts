@@ -451,8 +451,9 @@ describe("GET /api/billing-runs/[id]", () => {
       committedAt: null,
     } as never);
     vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue([
-      { id: "row-1", lines: [{ id: "line-1" }] },
+      { id: "row-1", studentId: "s-1", lines: [{ id: "line-1" }] },
     ] as never);
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.billingRunRow.count).mockResolvedValue(42);
 
     const res = await getRun(
@@ -469,6 +470,111 @@ describe("GET /api/billing-runs/[id]", () => {
     expect(findManyCall.skip).toBe(5);
     expect(findManyCall.take).toBe(5);
     expect(findManyCall.include).toMatchObject({ lines: true });
+  });
+
+  describe("programLabel — which program each row is billed from", () => {
+    async function primeRun(scope: unknown, rows: unknown[], enrollments: unknown[]) {
+      await primeAdminSession();
+      const { prisma } = await import("@/lib/db");
+      vi.mocked(prisma.billingRun.findFirst).mockResolvedValue({
+        id: "run-1",
+        tenantId: "tnt-1",
+        periodLabel: "April 2026",
+        dueDate: "2026-04-30",
+        academicYearId: "ay-1",
+        status: "DRAFT",
+        scope,
+        createdAt: new Date(),
+        committedAt: null,
+      } as never);
+      vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue(rows as never);
+      vi.mocked(prisma.billingRunRow.count).mockResolvedValue(rows.length);
+      vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue(enrollments as never);
+      const res = await getRun(makeReq("http://localhost/api/billing-runs/run-1") as never, makeParams("run-1"));
+      return { prisma, body: await res.json() };
+    }
+    const enrol = (studentId: string, classSectionId: string, program: string) => ({
+      studentId,
+      classSectionId,
+      classSection: { program: { name: program } },
+    });
+    const label = (body: { rows: { data: { id: string; programLabel: string | null }[] } }, id: string) =>
+      body.rows.data.find((r) => r.id === id)?.programLabel;
+
+    it("names the program of the class in scope, so a mislinked class is visible", async () => {
+      const { body } = await primeRun(
+        { classSectionIds: ["cs-tka"], includeStudentIds: [], excludeStudentIds: [] },
+        [{ id: "row-1", studentId: "s-1", lines: [] }],
+        [enrol("s-1", "cs-tka", "TK B")],
+      );
+
+      expect(label(body, "row-1")).toBe("TK B");
+    });
+
+    it("lists every in-scope program once, sorted, and ignores enrolments outside the scope", async () => {
+      const { body } = await primeRun(
+        { classSectionIds: ["cs-1", "cs-2"], includeStudentIds: [], excludeStudentIds: [] },
+        [{ id: "row-1", studentId: "s-1", lines: [] }],
+        [
+          enrol("s-1", "cs-2", "Day Care"),
+          enrol("s-1", "cs-1", "TK A"),
+          enrol("s-1", "cs-x", "KB"), // a class this run does not cover
+        ],
+      );
+
+      expect(label(body, "row-1")).toBe("Day Care, TK A");
+    });
+
+    it("counts an explicitly included student's class even when it is not a scope class", async () => {
+      const { body } = await primeRun(
+        { classSectionIds: ["cs-1"], includeStudentIds: ["s-9"], excludeStudentIds: [] },
+        [{ id: "row-9", studentId: "s-9", lines: [] }],
+        [enrol("s-9", "cs-other", "KB")],
+      );
+
+      expect(label(body, "row-9")).toBe("KB");
+    });
+
+    it("is null for a row whose student has no active enrolment in scope", async () => {
+      const { body } = await primeRun(
+        { classSectionIds: ["cs-1"], includeStudentIds: [], excludeStudentIds: [] },
+        [{ id: "row-1", studentId: "s-1", lines: [] }],
+        [],
+      );
+
+      expect(label(body, "row-1")).toBeNull();
+    });
+
+    it("looks enrolments up inside the caller's tenant and the run's academic year", async () => {
+      const { prisma } = await primeRun(
+        { classSectionIds: ["cs-1"], includeStudentIds: [], excludeStudentIds: [] },
+        [{ id: "row-1", studentId: "s-1", lines: [] }],
+        [],
+      );
+
+      expect(vi.mocked(prisma.studentEnrollment.findMany).mock.calls[0][0]!.where).toEqual({
+        studentId: { in: ["s-1"] },
+        status: "ACTIVE",
+        student: { status: "ACTIVE" },
+        classSection: { tenantId: "tnt-1", academicYearId: "ay-1" },
+      });
+    });
+
+    it("skips the enrolment lookup for an empty page and tolerates a malformed scope", async () => {
+      const { prisma } = await primeRun({ classSectionIds: 7, includeStudentIds: "s-1" }, [], []);
+
+      expect(prisma.studentEnrollment.findMany).not.toHaveBeenCalled();
+    });
+
+    it("reads a malformed scope as covering nothing instead of failing", async () => {
+      const { body } = await primeRun(
+        { classSectionIds: 7, includeStudentIds: "s-1" },
+        [{ id: "row-1", studentId: "s-1", lines: [] }],
+        [enrol("s-1", "cs-1", "TK A")],
+      );
+
+      expect(label(body, "row-1")).toBeNull();
+    });
   });
 });
 

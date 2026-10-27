@@ -297,3 +297,120 @@ describe("ClassesClient — yearId from the URL (R2-ADMIN-2)", () => {
     expect(window.location.search).toContain("yearId=y1");
   });
 });
+
+// Cycle 2026-10-27-class-program-visibility (T3) — Program is editable in
+// Ubah Kelas, previews the billing impact, and is only sent when changed.
+describe("ClassesClient — Ubah Kelas program change", () => {
+  const programB = { id: "p2", code: "TK-B", name: "TK B", status: "ACTIVE" };
+  const impactBody = (over: Record<string, unknown> = {}) => ({
+    academicYear: { id: "y1", name: "2026/2027" },
+    activeStudents: 13,
+    invoicedStudents: 0,
+    blockedReason: null,
+    current: { programId: "p1", programName: "Taman Kanak-kanak", fees: { total: 504000, lines: [{ label: "SPP Bulanan", amount: 504000 }] } },
+    next: { programId: "p2", programName: "TK B", fees: { total: 499000, lines: [{ label: "SPP Bulanan", amount: 499000 }] } },
+    ...over,
+  });
+
+  function stub(impact: unknown = impactBody()) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/program-impact")) {
+        return Promise.resolve({ ok: true, json: async () => impact } as Response);
+      }
+      if (url.includes("/api/admin/classes/c1") && init?.method === "PATCH") {
+        return Promise.resolve({ ok: true, json: async () => ({ id: "c1" }) } as Response);
+      }
+      if (url.includes("/api/config/campuses")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [campus] }) } as Response);
+      }
+      if (url.includes("/api/programs")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [program, programB] }) } as Response);
+      }
+      if (url.includes("/api/academic-years")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [year] }) } as Response);
+      }
+      if (url.includes("/api/admin/classes")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [classRow] }) } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const patchBody = (f: ReturnType<typeof stub>) => {
+    const call = f.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
+    return call ? JSON.parse((call[1] as RequestInit).body as string) : undefined;
+  };
+
+  async function openEdit(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: /Aksi untuk TKIT A/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Ubah|Edit/ }));
+    return screen.findByRole("dialog", { name: /Ubah Kelas/ });
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("lets the admin pick another program while Kampus stays locked", async () => {
+    stub();
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+
+    const dialog = await openEdit(user);
+
+    expect(within(dialog).getByRole("combobox", { name: /Program/ })).toBeEnabled();
+    expect(within(dialog).getByRole("combobox", { name: /Kampus/ })).toBeDisabled();
+  });
+
+  it("previews the billing impact of the chosen program and sends it with the save", async () => {
+    const f = stub();
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+    const dialog = await openEdit(user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Program/ }));
+    await user.click(await screen.findByRole("option", { name: /TK B/ }));
+
+    expect(await within(dialog).findByText(/Tagihan rutin per periode berubah/)).toHaveTextContent(
+      "Rp 504.000 ke Rp 499.000 untuk 13 siswa aktif",
+    );
+    expect(f.mock.calls.some(([u]) => String(u).includes("/api/admin/classes/c1/program-impact?programId=p2"))).toBe(true);
+
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+    await waitFor(() => expect(patchBody(f)).toBeTruthy());
+    expect(patchBody(f)).toMatchObject({ programId: "p2", name: "TKIT A" });
+  });
+
+  it("does not send programId when the program was left alone", async () => {
+    const f = stub();
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+    const dialog = await openEdit(user);
+
+    const capacity = within(dialog).getByLabelText(/Kapasitas/);
+    await user.clear(capacity);
+    await user.type(capacity, "25");
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => expect(patchBody(f)).toBeTruthy());
+    expect(patchBody(f)).not.toHaveProperty("programId");
+    expect(f.mock.calls.some(([u]) => String(u).includes("/program-impact"))).toBe(false);
+  });
+
+  it("disables Simpan and shows why when the students are already invoiced", async () => {
+    const reason = "Program tidak bisa diubah karena 3 siswa di kelas ini sudah punya tagihan tahun ajaran ini.";
+    stub(impactBody({ invoicedStudents: 3, blockedReason: reason }));
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+    const dialog = await openEdit(user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Program/ }));
+    await user.click(await screen.findByRole("option", { name: /TK B/ }));
+
+    expect(await within(dialog).findByText(reason)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Simpan Perubahan" })).toBeDisabled();
+  });
+});
