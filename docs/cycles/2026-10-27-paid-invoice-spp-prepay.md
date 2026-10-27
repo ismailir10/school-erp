@@ -122,7 +122,7 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 - [x] T4 Tagihan Manual dialog "Sudah dibayar" — accept: component tests; the reveal, labels and errors per UX notes (deps: T3)
 - [x] T5 SPP prepay preview and confirm routes — accept: link cleared on settle, drift returns 409, replay writes nothing, one transaction with an explicit timeout, lock order documented in code (deps: T1, T2)
 - [x] T6 Catat SPP di muka dialog and button — accept: component tests; preview table, warnings, empty and error states (deps: T5, parallel with T4)
-- [ ] T7 E2E spec, README module line, `docs/uat/jobs/admin.md` job text, counts block via `bash scripts/audit-docs.sh --write` — accept: audit-docs passes (deps: T4, T6)
+- [x] T7 E2E spec, README module line, `docs/uat/jobs/admin.md` job text, counts block via `bash scripts/audit-docs.sh --write` — accept: audit-docs passes (deps: T4, T6)
 
 ## Implementation
 
@@ -136,9 +136,21 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 - T6: `components/admin/invoices/spp-prepay-dialog.tsx` (+ test), `app/admin/invoices/invoices-client.tsx` (header button + mount, gated by the page's existing `capabilities.create && capabilities.recordPayment`) — student pick runs the preview, month range inside the academic year (default Juli to Juni), the three action labels, old-link warning with the WIB expiry and "Minta wali tidak membayar VA dari email", blocking issues disable the button "Catat Rp X lunas", one idempotency key per open, any 409 refetches the preview (the shared fetch helper drops the server `code`, so STALE vs NOTHING_TO_RECORD are not told apart client-side; both just show the server message). README admin-portal row names the action. Frontend work follows design-system.html and the standards loaded for it.
 - Fix found while preparing verify-local: the seeded 2026/2027 year runs 13 Juli to 11 Juli and so touches 13 calendar months, which made the default range (year start to year end) trip the 12-month cap. The default end is now at most 11 months after the start (Juli to Juni); the whole year stays the boundary for an explicit range. `lib/finance/spp-prepay-load.ts` + test.
 - T4: `components/admin/invoices/manual-invoice-dialog.tsx` (+ test), `app/admin/invoices/invoices-client.tsx` (passes `canRecordPayment={capabilities.recordPayment}`) — "Sudah dibayar" checkbox reveals Metode / Tanggal bayar (today or earlier) / Referensi / Catatan and a line with the amount recorded; the button reads "Simpan sebagai lunas"; one idempotency key per open, reused on retry; server `payment.*` errors are renamed to the form's flat field names; a 403 on a paid save explains the missing permission; the Periode helper steers to a descriptive label. Without the prop the dialog and its request body are unchanged. README admin-portal row names it (dropped its "KK/KTP copied to the guardian" clause to stay within the line budget).
+- T7: `e2e/admin-paid-invoice-spp-prepay.spec.ts` (paid-at-creation invoice → Lunas, one Tunai payment, no link; Catat SPP di muka → preview, confirm, every new month Lunas with no link, preview again is all "Sudah lunas"), counts block regenerated, JTBD-ADMIN-INV-10 and -11.
 - JTBD library: `docs/uat/jobs/admin.md` gains JTBD-ADMIN-INV-10 (a fee already paid in cash, no email) and JTBD-ADMIN-INV-11 (SPP paid in advance).
 
 ## Verification
 
+- App: production build, demo auth + disposable local Postgres 16 (throwaway cluster, port 54329). design-system: the dialogs reuse the existing Dialog, Field, Select, DatePicker, Alert and table components and the project voice.
+- Gate so far: `npm run lint` exit 0; `npx vitest run` 715 files passed / 2 skipped, 8545 tests passed; `verify-rls-coverage` 44/44; `verify-api-auth` 221/221; `DEMO_MODE=true` build ok; `npx tsc --noEmit` clean.
+- Playwright (container Chromium via a git-excluded wrapper config, since the installed Playwright expects a newer browser build than the container ships): the new `admin-paid-invoice-spp-prepay.spec.ts`, 2 passed.
+- Real-Postgres probes through the running production build (the things unit tests cannot prove):
+  - Stale preview: a wrong fingerprint returns 409 `PREVIEW_STALE` and writes nothing.
+  - Double submit: two simultaneous identical confirms return one 201 and one `replayed: true` 200; 9 invoices, 9 payments, 9 + 9 audit rows, contiguous invoice numbers, payments share the reference and note, back-dated paid date kept, every invoice sent-stamped, none holding a payment link.
+  - All or nothing: with a trigger forcing an error on the ninth month the route returned 500 and the invoice sequence, invoices and payments were unchanged; after removing the trigger, a retry with the same key succeeded (9 created).
+  - Race: a manual payment on October landing between preview and confirm made the confirm refuse as stale with nothing written; after a refresh the confirm settled October for the remaining Rp 750.000 (100.000 + 750.000 = 850.000), created the missing months, and left no paid invoice with a link.
+  - Invariants after every scenario: `totalPaid` equals the sum of non-reversed payments, no overpaid invoice, no month with two SPP invoices.
+  - A preview after a full prepay shows every month "Sudah lunas"; a confirm then returns 409 `NOTHING_TO_RECORD`.
+- Fix found by the seed during this step: a 13 Juli to 11 Juli academic year made the default range 13 months; see Implementation.
 
 ## Ship Notes
