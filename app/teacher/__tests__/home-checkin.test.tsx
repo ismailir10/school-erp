@@ -86,6 +86,17 @@ describe("journal task clearing (R2-T-5)", () => {
   });
 });
 
+describe("journal task on a hari tanpa buku penghubung", () => {
+  const marked = { ...cls, journal: { configured: true, totalStudents: 3, completeStudents: 0, completed: true, absentCount: 0, dayMarkReason: "Renang" } };
+  it("clears the open journal task and says why in the saved work", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[marked]} />);
+    expect(screen.queryByRole("link", { name: "Lanjutkan jurnal harian" })).toBeNull();
+    expect(screen.queryByText(/siswa lengkap/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pekerjaan yang sudah tersimpan" }));
+    expect(screen.getByText("Hari tanpa buku penghubung · Renang")).toBeInTheDocument();
+  });
+});
+
 describe("no-class teacher empty states (R2-T-12)", () => {
   it("does not point at tasks 'di atas' or 'di bawah' when there are no classes", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);

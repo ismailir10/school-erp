@@ -119,7 +119,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
         <CollapsibleContent>
         <TaskList>
           {classes.filter(c => c.rosterCount > 0 && c.attendanceRecorded === c.rosterCount).map(c => <TaskRow key={`saved-attendance-${c.id}`} title={`Absensi ${c.name}`} description={`${c.rosterCount} siswa sudah tercatat`} meta="Periksa" href={classHref(c.id,"attendance")} icon={<CheckCircle2 className="size-5"/>}/>) }
-          {classes.filter(c => c.journal?.completed).map(c => <TaskRow key={`saved-journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={`${c.journal?.completeStudents??c.rosterCount} siswa lengkap${c.journal?.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Periksa" href={classHref(c.id,"journal")} icon={<CheckCircle2 className="size-5"/>}/>) }
+          {classes.filter(c => c.journal?.completed).map(c => <TaskRow key={`saved-journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={c.journal?.dayMarkReason ? `Hari tanpa buku penghubung · ${c.journal.dayMarkReason}` : `${c.journal?.completeStudents??c.rosterCount} siswa lengkap${c.journal?.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Periksa" href={classHref(c.id,"journal")} icon={<CheckCircle2 className="size-5"/>}/>) }
         </TaskList>
         </CollapsibleContent>
       </Collapsible> : null}

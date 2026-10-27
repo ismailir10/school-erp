@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { TeacherHomeClient } from "./home-client";
 import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
+import { getDayMark } from "@/lib/student-journal/day-marks";
 import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { minutesLate } from "@/lib/attendance/status";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
@@ -47,18 +48,21 @@ export default async function TeacherHome() {
   const classes: TeacherClassSummary[] = await Promise.all(assignments.map(async assignment=>{
     const section = assignment.classSection;
     const studentIds = section.enrollments.map(e=>e.studentId);
-    const [attendance, journal, replies] = await Promise.allSettled([
+    const [attendance, journal, replies, dayMark] = await Promise.allSettled([
       prisma.studentAttendance.findMany({where:{classSectionId:section.id,date:today,isVoided:false,studentId:{in:studentIds}},select:{studentId:true,sessionId:true,status:true},orderBy:[{createdAt:"desc"},{id:"desc"}]}),
       prisma.studentJournalEntry.findMany({where:{tenantId:session.tenantId!,classSectionId:section.id,date:today,scope:"SCHOOL",studentId:{in:studentIds},indicatorId:{in:indicatorIds ?? []}},select:{studentId:true,indicatorId:true,checked:true}}),
       countUnreadNotesByStudent({tenantId:session.tenantId!,studentIds,readerUserId:session.id,authorRole:"GUARDIAN"}),
+      getDayMark(session.tenantId!,section.id,today),
     ]);
+    // A day marked "tanpa buku penghubung" is finished whatever the ticks say; a failed lookup just leaves it unmarked.
+    const dayMarkReason = dayMark.status==="fulfilled" ? dayMark.value?.reason ?? null : null;
     // Sakit/Izin/Alpa children leave the journal count, like the bulk fill skips them (R2-T-5).
     const absentIds = attendance.status==="fulfilled"
       ? [...classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).values()].filter(r=>isJournalAbsentStatus(r.status)).map(r=>r.studentId) : [];
     const slots = sessions.filter(s=>s.classSectionId===section.id).sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
     return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom:assignment.role === "HOMEROOM",slot:slots[0]?.slot ?? null,
       attendanceRecorded:attendance.status==="fulfilled" ? classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).size : null,
-      journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value,excludedStudentIds:absentIds}) : null,
+      journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value,excludedStudentIds:absentIds,dayMarkReason}) : null,
       replies:replies.status==="fulfilled" ? section.enrollments.filter(e=>(replies.value[e.studentId]??0)>0).map(e=>({studentId:e.studentId,studentName:e.student.nickname || e.student.name,count:replies.value[e.studentId]})) : null,
     };
   }));
