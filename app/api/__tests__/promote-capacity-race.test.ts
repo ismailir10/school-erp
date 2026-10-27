@@ -76,6 +76,8 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn().mockResolvedValue([
           {
             id: "cs-target",
@@ -84,6 +86,9 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
           },
         ]),
         studentEnrollment: {
+          findFirst: vi.fn().mockImplementation((args) => args.where.id ? null : prisma.studentEnrollment.findFirst(args)),
+          findUnique: vi.fn().mockResolvedValue(null),
+          count: vi.fn().mockResolvedValue(activeCount),
           update: vi.fn(),
           upsert: vi
             .fn()
@@ -151,6 +156,8 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn((strings: TemplateStringsArray) => {
           capturedSql.push(strings.join("?"));
           return Promise.resolve([
@@ -158,6 +165,9 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
           ]);
         }),
         studentEnrollment: {
+          findFirst: vi.fn().mockImplementation((args) => args.where.id ? null : prisma.studentEnrollment.findFirst(args)),
+          findUnique: vi.fn().mockResolvedValue(null),
+          count: vi.fn().mockResolvedValue(3),
           update: vi.fn(),
           upsert: vi
             .fn()
@@ -171,6 +181,6 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
 
     expect(capturedSql.length).toBe(1);
     expect(capturedSql[0]).toMatch(/FOR UPDATE OF cs/);
-    expect(capturedSql[0]).toMatch(/StudentEnrollment/);
+    expect(capturedSql[0]).not.toMatch(/GROUP BY/);
   });
 });

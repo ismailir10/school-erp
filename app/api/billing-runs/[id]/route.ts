@@ -59,6 +59,46 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     prisma.billingRunRow.count({ where }),
   ]);
 
+  // Which program each row is billed from. A row stores only its class label,
+  // and the fee structure follows the class's program, so a class linked to
+  // the wrong program is invisible without this. Derived with the builder's
+  // own scope rule (class in scope, or an explicitly included student).
+  // Read from the current enrolments, like the builder (active student, active
+  // enrolment): a class moved to another program after the draft was built
+  // shows its new program here while the lines still carry the old price, which
+  // is exactly the cue to rebuild the draft.
+  const scope = (run.scope ?? {}) as { classSectionIds?: unknown; includeStudentIds?: unknown };
+  const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  const scopedClasses = new Set(ids(scope.classSectionIds));
+  const included = new Set(ids(scope.includeStudentIds));
+  const enrollments =
+    rows.length === 0
+      ? []
+      : await prisma.studentEnrollment.findMany({
+          where: {
+            studentId: { in: rows.map((r) => r.studentId) },
+            status: "ACTIVE",
+            student: { status: "ACTIVE" },
+            classSection: { tenantId: session.tenantId, academicYearId: run.academicYearId },
+          },
+          select: {
+            studentId: true,
+            classSectionId: true,
+            classSection: { select: { program: { select: { name: true } } } },
+          },
+        });
+  const programsByStudent = new Map<string, Set<string>>();
+  for (const e of enrollments) {
+    if (!scopedClasses.has(e.classSectionId) && !included.has(e.studentId)) continue;
+    const names = programsByStudent.get(e.studentId) ?? new Set<string>();
+    names.add(e.classSection.program.name);
+    programsByStudent.set(e.studentId, names);
+  }
+  const rowsWithProgram = rows.map((r) => {
+    const names = programsByStudent.get(r.studentId);
+    return { ...r, programLabel: names && names.size > 0 ? [...names].sort().join(", ") : null };
+  });
+
   return NextResponse.json({
     id: run.id,
     periodLabel: run.periodLabel,
@@ -68,7 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     scope: run.scope,
     createdAt: run.createdAt,
     committedAt: run.committedAt,
-    rows: paginatedResponse(rows, total, page, pageSize),
+    rows: paginatedResponse(rowsWithProgram, total, page, pageSize),
   });
 }
 

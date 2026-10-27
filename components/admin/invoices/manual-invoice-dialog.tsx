@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { RupiahInput } from "@/components/ui/rupiah-input";
@@ -23,9 +24,16 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { ApiError } from "@/lib/api/client-errors";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { MANUAL_PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
-import { DUPLICATE_LINES_MESSAGE, manualInvoiceFormSchema } from "@/lib/validations/invoice";
+import {
+  DUPLICATE_LINES_MESSAGE,
+  manualInvoiceFormSchema,
+  paymentFromForm,
+} from "@/lib/validations/invoice";
 
 // ------------------------------------------------------------------
 // Types
@@ -52,8 +60,33 @@ function buildInitialForm() {
     periodLabel,
     dueDate,
     lines: [{ feeComponentId: "", amount: null as number | null }],
+    // "Sudah dibayar" (only reachable with `canRecordPayment`). Kept in form
+    // state while unticked but never sent.
+    markPaid: false,
+    method: "CASH" as "CASH" | "BANK_TRANSFER" | "OTHER" | "",
+    paidAt: getTodayInTimezone("Asia/Jakarta"),
+    reference: "",
+    notes: "",
   };
 }
+
+/** The API names the paid fields `payment.*`; the form binds them flat. */
+const PAYMENT_FIELD_PREFIX = "payment.";
+
+function flattenPaymentFieldErrors(err: unknown): unknown {
+  if (!(err instanceof ApiError) || err.fieldErrors.length === 0) return err;
+  return new ApiError(err.message, {
+    status: err.status,
+    fieldErrors: err.fieldErrors.map((e) =>
+      e.field.startsWith(PAYMENT_FIELD_PREFIX)
+        ? { ...e, field: e.field.slice(PAYMENT_FIELD_PREFIX.length) }
+        : e,
+    ),
+  });
+}
+
+const PAYMENT_FORBIDDEN_MESSAGE =
+  "Anda belum punya izin mencatat pembayaran. Hapus centang \"Sudah dibayar\", atau minta akses ke admin.";
 
 // ------------------------------------------------------------------
 // Dialog
@@ -63,15 +96,24 @@ type ManualInvoiceDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
+  /**
+   * Show the "Sudah dibayar" option (admin holds `payments.record`). When
+   * false the dialog behaves exactly as before and never sends `payment`.
+   */
+  canRecordPayment?: boolean;
 };
 
 export function ManualInvoiceDialog({
   open,
   onOpenChange,
   onCreated,
+  canRecordPayment = false,
 }: ManualInvoiceDialogProps) {
   const router = useRouter();
   const formId = useId();
+  // One key per dialog open: a double click or a retry after a failure replays
+  // the same payment instead of recording it twice. Cleared on success/close.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const form = useZodForm(manualInvoiceFormSchema, { defaultValues: buildInitialForm() });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lines" });
@@ -115,6 +157,8 @@ export function ManualInvoiceDialog({
 
   // Cheap arithmetic over a handful of rows — derive on every render rather
   // than memoising on a reference that can be stale.
+  const markPaidValue = useWatch({ control: form.control, name: "markPaid" });
+  const markPaid = canRecordPayment && markPaidValue === true;
   const total = (lines ?? []).reduce((sum, line) => {
     const amt = line?.amount;
     return typeof amt === "number" && amt > 0 ? sum + amt : sum;
@@ -159,15 +203,23 @@ export function ManualInvoiceDialog({
   useEffect(() => {
     if (!open) {
       form.reset(buildInitialForm());
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      idempotencyKeyRef.current = null;
       setSelectedStudent(null);
     }
   }, [open, form]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
+    // Only a ticked box (and only for an admin who may record payments) sends
+    // a payment; otherwise the body is exactly the pre-existing one.
+    let payment: ReturnType<typeof paymentFromForm> = undefined;
+    if (canRecordPayment && values.markPaid) {
+      idempotencyKeyRef.current ??= crypto.randomUUID();
+      payment = paymentFromForm(values, idempotencyKeyRef.current);
+    }
     try {
       const created = await sendJson<{
         id?: string;
+        paid?: boolean;
         xenditPaymentUrl?: string | null;
         xenditError?: string;
       }>(
@@ -179,14 +231,19 @@ export function ManualInvoiceDialog({
             periodLabel: values.periodLabel,
             dueDate: values.dueDate,
             lines: values.lines,
+            ...(payment ? { payment } : {}),
           },
         },
         "Gagal membuat tagihan",
       );
 
+      idempotencyKeyRef.current = null;
       onOpenChange(false);
 
-      if (created?.xenditPaymentUrl) {
+      if (payment) {
+        // Created paid: no payment link and no message to the wali.
+        toast.success("Tagihan dibuat dan dicatat lunas");
+      } else if (created?.xenditPaymentUrl) {
         const url = created.xenditPaymentUrl;
         toast.success("Tagihan dibuat", {
           action: {
@@ -210,7 +267,15 @@ export function ManualInvoiceDialog({
         router.push(`/admin/invoices/${created.id}`);
       }
     } catch (err) {
-      applyServerErrors(form, err, "Gagal membuat tagihan");
+      if (payment && err instanceof ApiError && err.status === 403) {
+        applyServerErrors(
+          form,
+          new ApiError(PAYMENT_FORBIDDEN_MESSAGE, { status: 403 }),
+          "Gagal membuat tagihan",
+        );
+        return;
+      }
+      applyServerErrors(form, flattenPaymentFieldErrors(err), "Gagal membuat tagihan");
     }
   });
 
@@ -233,8 +298,8 @@ export function ManualInvoiceDialog({
           formId={formId}
           pending={form.formState.isSubmitting}
           onCancel={() => onOpenChange(false)}
-          submitLabel="Buat Tagihan"
-          pendingLabel="Membuat..."
+          submitLabel={markPaid ? "Simpan sebagai lunas" : "Buat Tagihan"}
+          pendingLabel={markPaid ? "Menyimpan..." : "Membuat..."}
         />
       }
     >
@@ -267,7 +332,7 @@ export function ManualInvoiceDialog({
           label="Periode"
           required
           id="manual-invoice-period"
-          description="Contoh: April 2026"
+          description="Contoh: April 2026. Untuk biaya sekali bayar, tulis nama biayanya, mis. Biaya Sekolah Tahap 1 TA 2027/2028."
           render={({ field, controlProps }) => (
             <Input {...field} {...controlProps} placeholder="April 2026" maxLength={64} />
           )}
@@ -376,6 +441,100 @@ export function ManualInvoiceDialog({
             {formatRupiah(total)}
           </span>
         </div>
+
+        {canRecordPayment && (
+          <>
+            <FormField
+              control={form.control}
+              name="markPaid"
+              orientation="horizontal"
+              label="Sudah dibayar"
+              id="manual-invoice-mark-paid"
+              description="Tagihan langsung Lunas. Tidak ada link pembayaran dan tidak ada email ke wali."
+              render={({ field, controlProps }) => (
+                <Checkbox
+                  {...controlProps}
+                  checked={field.value === true}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                  onBlur={field.onBlur}
+                />
+              )}
+            />
+
+            {markPaid && (
+              <div className="space-y-field rounded-lg border border-border bg-muted/40 p-3">
+                <FormField
+                  control={form.control}
+                  name="method"
+                  label="Metode"
+                  required
+                  id="manual-invoice-method"
+                  render={({ field, controlProps }) => (
+                    <Select value={field.value ?? ""} onValueChange={(v) => v != null && field.onChange(v)}>
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur} className="w-full bg-background">
+                        <SelectValue placeholder="Pilih metode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MANUAL_PAYMENT_METHODS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {paymentMethodLabel(m)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="paidAt"
+                  label="Tanggal bayar"
+                  required
+                  id="manual-invoice-paid-at"
+                  description="Isi tanggal uangnya diterima jika sudah masuk sebelum hari ini."
+                  render={({ field, controlProps }) => (
+                    <DatePicker
+                      {...controlProps}
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      max={getTodayInTimezone("Asia/Jakarta")}
+                      required
+                    />
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="reference"
+                  label="Referensi"
+                  id="manual-invoice-reference"
+                  description="Nomor transfer, ID transaksi, dll."
+                  render={({ field, controlProps }) => (
+                    <Input {...field} {...controlProps} value={field.value ?? ""} placeholder="Opsional" maxLength={200} />
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  label="Catatan"
+                  id="manual-invoice-notes"
+                  render={({ field, controlProps }) => (
+                    <Input {...field} {...controlProps} value={field.value ?? ""} placeholder="Opsional" maxLength={2000} />
+                  )}
+                />
+
+                <p className="text-sm text-muted-foreground">
+                  Jumlah dibayar:{" "}
+                  <span className="font-currency font-semibold tabular-nums text-foreground">
+                    {formatRupiah(total)}
+                  </span>
+                  , sama dengan total tagihan.
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </form>
     </ResponsiveFormDialog>
   );

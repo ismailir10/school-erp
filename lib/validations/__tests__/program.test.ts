@@ -77,3 +77,33 @@ describe("programFormSchema", () => {
     expect(programFormSchema.safeParse({ code: "", name: "" }).success).toBe(false);
   });
 });
+
+describe("program name normalization", () => {
+  it("collapses inner whitespace runs and trims the ends on create", () => {
+    const r = createProgramSchema.safeParse({ code: "TKIT", name: "  TK  \t B " });
+    expect(r.success && r.data.name).toBe("TK B");
+  });
+
+  it("does the same on update, and on the admin form schema", () => {
+    const u = updateProgramSchema.safeParse({ name: "TK   A" });
+    expect(u.success && u.data.name).toBe("TK A");
+    const f = programFormSchema.safeParse({ code: "TKIT", name: "TK   A" });
+    expect(f.success && f.data.name).toBe("TK A");
+  });
+
+  it("leaves an omitted name omitted on a partial update", () => {
+    const u = updateProgramSchema.safeParse({ status: "INACTIVE" });
+    expect(u.success && "name" in u.data).toBe(false);
+  });
+
+  it("treats a whitespace-only name as missing, with the field message", () => {
+    const r = createProgramSchema.safeParse({ code: "TKIT", name: "   " });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]).toMatchObject({ path: ["name"], message: "Nama wajib diisi" });
+  });
+
+  it("applies the 120-character cap after normalizing", () => {
+    expect(createProgramSchema.safeParse({ code: "X", name: `${"a ".repeat(60)}` }).success).toBe(true);
+    expect(createProgramSchema.safeParse({ code: "X", name: "a".repeat(121) }).success).toBe(false);
+  });
+});

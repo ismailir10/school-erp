@@ -16,9 +16,18 @@ const ageMonthsField = z
   .optional()
   .nullable();
 
+// Program names are what an admin tells programs apart by on every picker and
+// fee screen, so "TK  B" (doubled space, from an import) and "TK B" must not
+// coexist as two lookalikes. Inner whitespace runs collapse to one space and
+// the ends are trimmed before the length rules apply.
+const programNameField = z
+  .string()
+  .transform((s) => s.replace(/\s+/g, " ").trim())
+  .pipe(z.string().min(1, "Nama wajib diisi").max(120));
+
 export const createProgramSchema = z.object({
   code: z.string().min(1, "Kode wajib diisi").max(32),
-  name: z.string().min(1, "Nama wajib diisi").max(120),
+  name: programNameField,
   description: z.string().max(500).optional().nullable(),
   type: z.enum(["SEMESTER", "YEAR_ROUND", "SESSION"]).default("SEMESTER"),
   ageMin: ageMonthsField,
@@ -26,7 +35,7 @@ export const createProgramSchema = z.object({
 });
 
 export const updateProgramSchema = z.object({
-  name: z.string().min(1, "Nama wajib diisi").max(120).optional(),
+  name: programNameField.optional(),
   description: z.string().max(500).optional().nullable(),
   type: z.enum(["SEMESTER", "YEAR_ROUND", "SESSION"]).optional(),
   ageMin: ageMonthsField,
