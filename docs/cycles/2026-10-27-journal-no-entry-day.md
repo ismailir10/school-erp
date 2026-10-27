@@ -47,19 +47,19 @@ Facts found in the code (not decisions):
 
 ## Acceptance criteria
 
-- [ ] A guru of a class can mark a date as "Hari tanpa buku penghubung" with a keterangan of 1-60 characters,
+- [x] A guru of a class can mark a date as "Hari tanpa buku penghubung" with a keterangan of 1-60 characters,
       and can edit or remove that mark.
-- [ ] On a marked day the teacher entry page shows the keterangan prominently and the class counts as finished
+- [x] On a marked day the teacher entry page shows the keterangan prominently and the class counts as finished
       on the teacher home (no "perlu diselesaikan" for that class on that day).
-- [ ] The parent's "Di sekolah" week view shows the keterangan in that day's column (e.g. "Renang") instead of
+- [x] The parent's "Di sekolah" week view shows the keterangan in that day's column (e.g. "Renang") instead of
       dashes; other days are unchanged. Parent can't create or change the mark.
-- [ ] School admin can set/clear the mark for any class and date from the admin journal side; a guru not
+- [x] School admin can set/clear the mark for any class and date from the admin journal side; a guru not
       assigned to the class cannot (403), and nobody can touch another school's classes.
-- [ ] A child with at least one ticked indicator counts as "lengkap" on the entry page, the teacher home card
+- [x] A child with at least one ticked indicator counts as "lengkap" on the entry page, the teacher home card
       and the avatar; a child with zero ticks is still "belum"; Sakit/Izin/Alpa children still leave the count.
-- [ ] Admin class roll-up / dossier week summary stay consistent with the new definition (no screen reports a
+- [x] Admin class roll-up / dossier week summary stay consistent with the new definition (no screen reports a
       class "complete" while another reports it incomplete for the same day).
-- [ ] The mark is audited like entries (who, when, before/after).
+- [x] The mark is audited like entries (who, when, before/after).
 
 ## Verify flows
 
@@ -143,4 +143,29 @@ Facts found in the code (not decisions):
 
 ## Verification
 
+- App: production build, demo auth + disposable local Postgres (local Postgres 16 on :5432, a throwaway database created for this walk and dropped afterwards; `prisma db push` without `--force-reset` because the database was empty). Staging check: pending (needs-staging-verify), because a new write route carries role logic.
+- Gate (all on this machine, this head):
+  - `npm run lint` clean (`--max-warnings=0`); `npx tsc --noEmit` clean.
+  - `npx vitest run`: 700 files passed, 2 skipped; 8267 tests passed, 42 todo (no `DEMO_MODE` in the env).
+  - `verify-rls-coverage.sh`: 44 / 44 tenant-scoped models. `verify-api-auth.sh`: 218 / 218 routes (after registering `requireDayMarkWriter(`; it failed on the new route before that).
+  - `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build`: exit 0.
+  - `npx playwright test` (full suite, Chromium, workers 1): 250 passed, none skipped or failed, 6.6 min. The preinstalled Chromium is a different build from the repo's Playwright, so the run used a throwaway config in the scratchpad that wraps `playwright.config.ts` and only sets `executablePath`; the repo config is untouched.
+  - `scripts/audit-docs.sh`: 13 ok, 1 warn (ADR rows past the 60-day window, pre-existing, judgement call), 0 fail.
+  - Migration SQL applied by hand to a scratch database: table, unique index, RLS enabled and the `service_role` policy all present; a second mark for the same class and day is rejected (unique violation).
+- Walk at 390x844 (teacher, parent) and 1280 (admin), seeded demo data, as Bu Sari / Pak Budi / a school admin:
+  1. Teacher entry page for Selasa 27 Oct: ghost button "Hari tanpa buku penghubung" -> dialog (keterangan field, 6/60 counter, chips Renang / Libur / Kegiatan luar) -> Simpan -> banner "Hari tanpa buku penghubung / Renang" with Ubah; roster still usable; toast "Hari ditandai tanpa buku penghubung".
+  2. Teacher home afterwards: "Yang perlu diselesaikan" lists only Absensi and Buka penilaian; the journal row is gone (it sits under "Pekerjaan yang sudah tersimpan").
+  3. Parent (child in KB, class marked by an admin): Jurnal > Di sekolah shows "Sel 27/10 · Tanpa buku penghubung: Renang" above the grid, a glyph under the Sel column header and a tinted unfilled cell; ticks that exist stay; other days unchanged.
+  4. Admin class week page: card "Hari tanpa buku penghubung" with the five days, Renang under Selasa with Ubah, Tandai only on days up to today.
+  5. Edge/error covered by the e2e and component tests: Hapus tanda restores the normal day with its ticks; weekend and future days offer no button; a wali PUT gets 403; empty or over-60 keterangan rejected.
+- Critique: no console `error` and no 5xx from the app. The only console errors are `/_vercel/insights` and `/_vercel/speed-insights` returning 404 off Vercel (minor, unrelated). Reviewed against `design-system`: existing dialog, field, input, button and `bg-muted` tokens, 44px tap targets, nothing under 12px.
+- Not exercised: an admin walking the Tandai flow in the browser (covered by the page component test and the API tests); a week whose `weekStart` param is not a Monday lists days from that date (pre-existing behaviour of the roll-up route, not changed here).
+
 ## Ship Notes
+
+- Migration: `20261027000000_add_student_journal_day_mark`. Additive only (one new table, indexes, RLS + `service_role` policy). No backfill, no ALTER on an existing table. Rollback: drop the table; nothing else references it. Vercel runs migrations the usual way for this repo; confirm the table exists on staging before the signed-in check.
+- Env vars: none. New dependencies: none.
+- Behaviour change to announce to the school: a pupil now counts as lengkap with one ticked indicator (teacher home, entry page progress and avatar). The admin roll-up percentages are tick sums and are unchanged.
+- Post-merge (staging, signed in): as a guru, mark a class-day and see the banner persist after a reload; the teacher home stops listing that class's journal; as a wali of a child in that class, Jurnal > Di sekolah shows the keterangan; as school admin, the class week page can Tandai / Ubah / Hapus a day; a wali cannot write (403). Then remove the test mark.
+- `prisma/seed.ts` was deliberately not touched (the table has no FKs and the seed-drift hook would require a meaningless `lib/db.ts` edit). A staging reseed leaves orphan marks for deleted classes, which are invisible.
+- Review notes (security reviewer, no blockers): body is validated before the guard because the guard needs `classSectionId` from the body (same as `entries/batch`); a pupil who changed class mid-week sees only current-class marks.
