@@ -11,6 +11,12 @@ import {
   findClassNameClash,
 } from "@/lib/classes/name-clash";
 import {
+  countInvoicedStudents,
+  findTypeChangeConflict,
+  programChangeInvoicedMessage,
+  typeChangeConflictMessage,
+} from "@/lib/classes/program-change";
+import {
   auditActionForUpdate,
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -23,6 +29,24 @@ import {
 class CapacityBelowRoster extends Error {
   constructor(readonly activeCount: number) {
     super("CAPACITY_BELOW_ROSTER");
+  }
+}
+
+class ProgramHasInvoices extends Error {
+  constructor(readonly invoicedStudents: number) {
+    super("PROGRAM_HAS_INVOICES");
+  }
+}
+
+class ProgramTypeConflict extends Error {
+  constructor(readonly detail: string) {
+    super("PROGRAM_TYPE_CONFLICT");
+  }
+}
+
+class ClassChangedMeanwhile extends Error {
+  constructor() {
+    super("CLASS_CHANGED_MEANWHILE");
   }
 }
 
@@ -94,6 +118,9 @@ async function update(
       classTrackId: true,
       academicYearId: true,
       campusId: true,
+      programId: true,
+      program: { select: { type: true } },
+      academicYear: { select: { startDate: true } },
     },
   });
   if (!before) {
@@ -114,6 +141,29 @@ async function update(
   if (body.slotTemplate !== undefined) data.slotTemplate = body.slotTemplate;
   if (body.ageGroup !== undefined) data.ageGroup = body.ageGroup;
   if (body.status !== undefined) data.status = body.status;
+
+  // Sending the class's current program is a no-op, not a change.
+  const programChanging =
+    body.programId !== undefined && body.programId !== before.programId;
+  let nextProgram: { id: string; type: string } | null = null;
+  if (programChanging) {
+    nextProgram = await prisma.program.findFirst({
+      where: { id: body.programId, tenantId: session.tenantId, status: "ACTIVE" },
+      select: { id: true, type: true },
+    });
+    if (!nextProgram) {
+      const message = "Program tidak ditemukan atau tidak aktif.";
+      return NextResponse.json(
+        {
+          error: message,
+          field: "programId",
+          errors: [{ field: "programId", message }],
+        },
+        { status: 400 },
+      );
+    }
+    data.programId = body.programId;
+  }
 
   // Renames are unique ignoring case within the year + campus. The check runs
   // whenever the name is sent but differs from the stored one (a case-only
@@ -158,6 +208,26 @@ async function update(
 
   try {
     await prisma.$transaction(async (tx) => {
+      if (programChanging && nextProgram) {
+        // Serialises against enrolments and other edits of this class. Invoice
+        // creation takes no such lock, so the invoice check narrows the race
+        // with a billing commit rather than closing it.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+        const invoicedStudents = await countInvoicedStudents(tx, {
+          tenantId: session.tenantId,
+          classSectionId: id,
+          academicYearId: before.academicYearId,
+          yearStartDate: before.academicYear.startDate,
+        });
+        if (invoicedStudents > 0) throw new ProgramHasInvoices(invoicedStudents);
+        const conflict = await findTypeChangeConflict(tx, {
+          classSectionId: id,
+          academicYearId: before.academicYearId,
+          currentType: before.program.type,
+          nextType: nextProgram.type,
+        });
+        if (conflict) throw new ProgramTypeConflict(typeChangeConflictMessage(conflict));
+      }
       if (capacityChanging) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         const activeCount = await tx.studentEnrollment.count({
@@ -167,10 +237,18 @@ async function update(
           throw new CapacityBelowRoster(activeCount);
         }
       }
-      await tx.classSection.updateMany({
-        where: { id, tenantId: session.tenantId },
+      // A program change only lands on the program the admin was looking at:
+      // someone else moving the class first makes this a conflict, not a
+      // silent overwrite with a wrong audit `before`.
+      const written = await tx.classSection.updateMany({
+        where: {
+          id,
+          tenantId: session.tenantId,
+          ...(programChanging ? { programId: before.programId } : {}),
+        },
         data,
       });
+      if (programChanging && written.count === 0) throw new ClassChangedMeanwhile();
       // Reactivating an INACTIVE section should also reactivate its parent
       // ClassTrack if the track was incidentally marked INACTIVE; otherwise
       // the unique-key upsert in POST would fail for a new section in the
@@ -195,8 +273,9 @@ async function update(
       actorId: session.id,
       entity: "ClassSection",
       entityId: id,
-      action: auditActionForUpdate(body),
+      action: programChanging ? "class.program_change" : auditActionForUpdate(body),
       before: {
+        programId: before.programId,
         name: before.name,
         capacity: before.capacity,
         slotTemplate: before.slotTemplate,
@@ -204,6 +283,7 @@ async function update(
         status: before.status,
       },
       after: {
+        programId: updated.programId,
         name: updated.name,
         capacity: updated.capacity,
         slotTemplate: updated.slotTemplate,
@@ -223,6 +303,36 @@ async function update(
           // the message inline on the Kapasitas field.
           errors: [{ field: "capacity", message }],
         },
+        { status: 409 },
+      );
+    }
+    if (err instanceof ProgramHasInvoices) {
+      const message = programChangeInvoicedMessage(err.invoicedStudents);
+      return NextResponse.json(
+        {
+          error: message,
+          field: "programId",
+          code: "PROGRAM_HAS_INVOICES",
+          errors: [{ field: "programId", message }],
+        },
+        { status: 409 },
+      );
+    }
+    if (err instanceof ProgramTypeConflict) {
+      return NextResponse.json(
+        {
+          error: err.detail,
+          field: "programId",
+          code: "PROGRAM_TYPE_CONFLICT",
+          errors: [{ field: "programId", message: err.detail }],
+        },
+        { status: 409 },
+      );
+    }
+    if (err instanceof ClassChangedMeanwhile) {
+      const message = "Kelas ini baru saja diubah orang lain. Muat ulang lalu coba lagi.";
+      return NextResponse.json(
+        { error: message, field: "programId", errors: [{ field: "programId", message }] },
         { status: 409 },
       );
     }

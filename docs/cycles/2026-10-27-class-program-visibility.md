@@ -27,12 +27,18 @@ Already done outside this cycle: the three production classes were relinked to t
 4. **Setup check in wizard step 1** warns, never blocks: a class with no fee structure for the chosen year, or whose
    name points at a different program than the one it is linked to.
 5. Program names are trimmed and whitespace-collapsed on save so near-duplicates like "TK  B" stop appearing.
+6. (Added in build, from review.) A move to a program of a **different type** (school vs daycare) is refused when a
+   student in the class would end up with two active enrolments of that type this year, the same rule the enrolment
+   screens enforce. The fee preview needs the finance permission on top of the class permission, because it shows
+   fee amounts.
 
 ## Acceptance criteria
 
 - [ ] In Ubah Kelas, an admin can change a class's Program; for an archived year it stays read-only.
 - [ ] Choosing a new program shows the old and new SPP and the active student count before saving.
 - [ ] Saving changes the class's fee source: a rebuilt billing draft for that class uses the new program's rates.
+- [ ] A move that would give a student two active enrolments of one program type in the year is refused and names the student and class.
+- [ ] The fee preview is visible only to roles that can view fees.
 - [ ] A class whose students already have invoices for that year cannot change program and says why.
 - [ ] Billing wizard step 1 shows each class with its program and SPP in the picker.
 - [ ] Billing wizard step 2 shows each row's program next to the class label.
@@ -89,16 +95,21 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 
 ## Tasks
 
-- [ ] T1 Allow program change in class update API — accept: PATCH with `programId` works for active/planning year, 409 with reason when students have invoices, audited, tenant-scoped (deps: none)
-- [ ] T2 Pure setup-check helper (missing fee structure, name vs program) — accept: unit tests cover both warnings and the clean case (deps: none; parallel with T1)
+- [x] T1 Allow program change in class update API — accept: PATCH with `programId` works for active/planning year, 409 with reason when students have invoices, audited, tenant-scoped (deps: none)
+- [x] T2 Pure setup-check helper (missing fee structure, name vs program) — accept: unit tests cover both warnings and the clean case (deps: none; parallel with T1)
 - [ ] T3 Ubah Kelas: editable Program with impact line — accept: shows old → new SPP and student count; disabled for archived year / invoiced class (deps: T1)
 - [ ] T4 Wizard step 1: program + SPP in class picker and setup warning — accept: warning appears for a mislinked or fee-less class, does not block (deps: T2)
 - [ ] T5 Wizard step 2: program next to class label on each row — accept: row shows program name (deps: none)
 - [ ] T6 Tarif per Program: "Dipakai oleh" class list with warning — accept: lists classes and counts for selected program+year (deps: T2)
-- [ ] T7 Normalize program names on save — accept: "TK  B " saves as "TK B" (deps: none; parallel)
+- [x] T7 Normalize program names on save — accept: "TK  B " saves as "TK B" (deps: none; parallel)
 - [ ] T8 Playwright: fix a class program, see corrected SPP — accept: passes locally (deps: T1, T3, T5)
 
 ## Implementation
+
+- Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (independent review subagents; no cheaper tier was used). T1, T2, T7 are independent and done inline in sequence, because each is a small slice sharing the same read context; T3→T4/T5/T6 follow in dependency order; reviews run per API/UI slice on the staged diff.
+- T1: `app/api/admin/classes/[id]/route.ts`, `…/program-impact/route.ts`, `lib/classes/program-change.ts`, `lib/finance/billable-fees.ts` (+ `materialize-billing-run.ts` using it), `lib/validations/class.ts`, two route test files — PATCH accepts `programId` (ACTIVE program of the tenant; advisory lock; compare-and-set write; audited as `class.program_change`); 409 when students already hold invoices (billing-run link or created since the year's Jakarta start) or when a different-type move would double a student's stream; new read-only `program-impact` route for the dialog (needs `academic.view` and `fees.view`). The impact shows the recurring fee total a billing run would bill per period, which equals SPP when SPP is the only recurring fee; T3 words it "tagihan rutin per periode". Independent standards/spec and security reviews raised: fees.view gate, stream-conflict rule, UTC vs Jakarta cutoff, billing-run link for pre-start invoices, race/CAS, missing archived/planning tests — all fixed; `ClassTrack.programId` deliberately left alone (Non-goals). Query shapes verified against real Postgres (seeded local DB).
+- T2: `lib/classes/setup-check.ts` (+ test) — pure `checkClassSetup`: NO_FEE_STRUCTURE and PROGRAM_NAME_MISMATCH (class name, falling back to kelompok usia, vs the group letter a program name ends in); warnings only.
+- T7: `lib/validations/program.ts` (+ test) — program name collapses inner whitespace and trims, on create, update and the admin form schema; existing rows untouched.
 
 ## Verification
 
