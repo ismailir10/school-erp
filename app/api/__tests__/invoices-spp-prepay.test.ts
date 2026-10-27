@@ -124,6 +124,7 @@ function inv(over: Partial<PlanInvoice> & { id: string; periodLabel: string }): 
     totalDue: D(500000),
     totalPaid: D(0),
     hasMonthlyLine: true,
+    hasOtherLine: false,
     hasLink: false,
     paymentLinkExpiresAt: null,
     ...over,

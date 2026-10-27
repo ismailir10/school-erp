@@ -100,15 +100,15 @@ describe("loadSppPrepayContext", () => {
     expect(ctx.parentId).toBe("par-1");
   });
 
-  it("a year that touches 13 calendar months still defaults to a 12-month range (Juli to Juni)", async () => {
-    // 13 Juli to 11 Juli: the year ends in its 13th month, but the planner accepts 12 at most.
+  it("a year that touches 13 calendar months bills only its own 12 (Juli to Juni)", async () => {
+    // 13 Juli to 11 Juli: the second Juli belongs to the next year, so it is neither the default
+    // nor allowed (a Juli 2027 invoice at this year's price would make next year's run skip it).
     const year = { id: "ay-1", name: "2026/2027", startDate: "2026-07-13", endDate: "2027-07-11" };
     const ctx = await loadOk(dbMock({ year }));
-    expect(ctx.academicYear).toMatchObject({ from: "2026-07", to: "2027-07" });
+    expect(ctx.academicYear).toMatchObject({ from: "2026-07", to: "2027-06" });
     expect(ctx.range).toEqual({ from: "2026-07", to: "2027-06" });
-    // The full year is still the boundary: the 13th month is allowed when asked for explicitly.
-    const explicit = await loadOk(dbMock({ year }), { from: "2026-08", to: "2027-07" });
-    expect(explicit.range).toEqual({ from: "2026-08", to: "2027-07" });
+    const outside = await load(dbMock({ year }), { from: "2026-08", to: "2027-07" });
+    expect(outside).toMatchObject({ ok: false, code: "RANGE_OUTSIDE_YEAR" });
   });
 
   it("accepts a narrower range and refuses one that is reversed or leaves the year", async () => {
@@ -367,6 +367,17 @@ describe("fingerprintPlan", () => {
     const a = fingerprintPlan({ rows: [row()] }, [inv()]);
     const b = fingerprintPlan({ rows: [row({ linkExpiresAt: new Date(), periodLabel: "x" })] }, [inv()]);
     expect(b).toBe(a);
+  });
+
+  it("flips when a payment link appears or is replaced between preview and confirm", () => {
+    const base = fingerprintPlan({ rows: [row()] }, [inv()]);
+    const linked = fingerprintPlan({ rows: [row()] }, [
+      { ...inv(), hasLink: true, paymentLinkExpiresAt: new Date("2026-11-01T02:00:00Z") },
+    ]);
+    const replaced = fingerprintPlan({ rows: [row()] }, [
+      { ...inv(), hasLink: true, paymentLinkExpiresAt: new Date("2026-11-08T02:00:00Z") },
+    ]);
+    expect(new Set([base, linked, replaced]).size).toBe(3);
   });
 
   it("flips when a context's invoice is paid between two loads", async () => {

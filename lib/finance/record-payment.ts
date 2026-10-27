@@ -131,7 +131,12 @@ export async function recordPaymentInTx(
   let relink = false;
   if (input.linkPolicy === "clear-link") {
     // Dropped after the recompute, which reads `xenditPaymentUrl` to pick the unpaid status.
-    await tx.invoice.update({ where: { id: invoiceId }, data: { ...LINK_CLEARED } });
+    // A settled invoice is stamped as sent when it never was, and a failed-link note no longer applies:
+    // reversing this payment later then falls back to Terkirim / Lewat Tempo, never an invisible DRAFT.
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: { ...LINK_CLEARED, paymentLinkError: null, ...(fresh.sentAt ? {} : { sentAt: new Date() }) },
+    });
   } else {
     // Still owing: the old link still charges the pre-payment balance (paying it would
     // be flagged as an overpayment), so drop it; the caller makes a new one. An invoice

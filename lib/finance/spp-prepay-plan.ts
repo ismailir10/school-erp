@@ -1,5 +1,5 @@
 import { Prisma } from "@/lib/generated/prisma/client";
-import { formatMonthLabel } from "@/lib/format";
+import { formatMonthLabel, formatRupiah } from "@/lib/format";
 import type { ResolvedLine } from "./apply-adjustments";
 import { sumDecimals } from "./invoice-numbers";
 import { lastDayOfMonth, parsePeriodMonth } from "./period-label";
@@ -20,6 +20,7 @@ export type PlanInvoice = {
   totalDue: Prisma.Decimal;
   totalPaid: Prisma.Decimal;
   hasMonthlyLine: boolean; // true when the invoice has a line for a billable recurring fee component (SPP)
+  hasOtherLine: boolean; // true when it also carries a one-time fee line (uang pangkal, seragam, ...)
   hasLink: boolean; // xenditPaymentUrl != null
   paymentLinkExpiresAt: Date | null;
 };
@@ -41,7 +42,7 @@ export type PlanRow = {
   linkExpiresAt: Date | null; // SETTLE only: latest paymentLinkExpiresAt among settled invoices that have a link
   beforeFirstBilling: boolean; // month is earlier than firstInvoicedMonth
 };
-export type PlanIssueCode = "NO_PRICE" | "UNPARSABLE_LABEL" | "MULTIPLE_MONTHLY_INVOICES" | "RANGE_INVALID";
+export type PlanIssueCode = "NO_PRICE" | "UNPARSABLE_LABEL" | "MULTIPLE_MONTHLY_INVOICES" | "SETTLES_OTHER_LINES" | "RANGE_INVALID";
 export type PlanIssue = {
   code: PlanIssueCode;
   blocking: boolean;
@@ -102,14 +103,17 @@ export function planSppPrepay(args: {
     if (!inv.hasMonthlyLine || inv.status === "CANCELLED") continue;
     const parsed = parsePeriodMonth(inv.periodLabel);
     if (!parsed) {
-      if (remainingOf(inv).gt(0)) {
-        issues.push({
-          code: "UNPARSABLE_LABEL",
-          blocking: false,
-          message: `Tagihan dengan label "${inv.periodLabel}" memuat SPP tetapi tidak menyebut satu bulan; tidak ikut dihitung.`,
-          invoiceId: inv.id,
-        });
-      }
+      // A fully paid invoice still matters: a family that paid one "SPP TA 2026/2027" invoice
+      // up front would otherwise be prepaid a second time, month by month.
+      const owes = remainingOf(inv).gt(0);
+      issues.push({
+        code: "UNPARSABLE_LABEL",
+        blocking: false,
+        message: owes
+          ? `Tagihan dengan label "${inv.periodLabel}" memuat SPP tetapi tidak menyebut satu bulan; tidak ikut dihitung.`
+          : `Tagihan lunas dengan label "${inv.periodLabel}" memuat SPP tetapi tidak menyebut satu bulan, jadi bulan-bulannya tidak terbaca. Pastikan SPP bulan-bulan itu belum dibayar sebelum mencatat.`,
+        invoiceId: inv.id,
+      });
       continue;
     }
     const key = monthIndex(parsed);
@@ -178,6 +182,18 @@ export function planSppPrepay(args: {
         linkExpiresAt: null,
       });
       continue;
+    }
+    for (const inv of unpaid) {
+      if (inv.hasOtherLine) {
+        issues.push({
+          code: "SETTLES_OTHER_LINES",
+          blocking: false,
+          message: `Tagihan ${base.periodLabel} juga memuat biaya sekali bayar; seluruh sisanya (${formatRupiah(remainingOf(inv).toString())}) akan dicatat lunas, bukan hanya SPP.`,
+          year: ym.year,
+          month: ym.month,
+          invoiceId: inv.id,
+        });
+      }
     }
     const withLink = unpaid.filter((inv) => inv.hasLink);
     const expiries = withLink

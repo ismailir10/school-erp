@@ -120,21 +120,18 @@ export async function loadSppPrepayContext(
     select: { id: true, name: true, startDate: true, endDate: true },
   });
   const yearFrom = year ? monthOfDate(year.startDate) : null;
-  const yearTo = year ? monthOfDate(year.endDate) : null;
-  if (!year || !yearFrom || !yearTo || monthIndex(yearFrom) > monthIndex(yearTo)) {
+  const yearEnd = year ? monthOfDate(year.endDate) : null;
+  if (!year || !yearFrom || !yearEnd || monthIndex(yearFrom) > monthIndex(yearEnd)) {
     return fail("NO_ACADEMIC_YEAR", "Belum ada tahun ajaran aktif. Aktifkan tahun ajaran lebih dulu.");
   }
+  // A year that runs 13 Juli to 11 Juli touches 13 calendar months, but only twelve are its own:
+  // the second Juli belongs to the next year (a Juli 2027 invoice made at this year's price would
+  // make next year's Billing Run skip it). The billing window therefore ends 11 months after the start.
+  const lastIdx = Math.min(monthIndex(yearEnd), monthIndex(yearFrom) + 11);
+  const yearTo: YearMonth = { year: Math.floor(lastIdx / 12), month: (lastIdx % 12) + 1 };
 
   const from = input.from ? parseYearMonth(input.from) : yearFrom;
-  // The default end is the year's last month, but never more than 12 months after the start:
-  // a year that runs 13 Juli to 11 Juli touches 13 calendar months, and the default must still
-  // be a range the planner accepts (Juli to Juni).
-  let defaultTo = yearTo;
-  if (from && monthIndex(yearTo) - monthIndex(from) > 11) {
-    const capIdx = monthIndex(from) + 11;
-    defaultTo = { year: Math.floor(capIdx / 12), month: (capIdx % 12) + 1 };
-  }
-  const to = input.to ? parseYearMonth(input.to) : defaultTo;
+  const to = input.to ? parseYearMonth(input.to) : yearTo;
   if (!from || !to || monthIndex(from) > monthIndex(to)) {
     return fail("RANGE_INVALID", "Rentang bulan tidak valid: bulan awal harus sebelum atau sama dengan bulan akhir.");
   }
@@ -260,6 +257,7 @@ export async function loadSppPrepayContext(
     totalDue: new Prisma.Decimal(inv.totalDue),
     totalPaid: new Prisma.Decimal(inv.totalPaid),
     hasMonthlyLine: inv.lines.some((l) => l.feeComponent.isRecurring),
+    hasOtherLine: inv.lines.some((l) => !l.feeComponent.isRecurring),
     hasLink: inv.xenditPaymentUrl !== null,
     paymentLinkExpiresAt: inv.paymentLinkExpiresAt,
   }));
@@ -349,12 +347,19 @@ export function planForContext(ctx: SppPrepayContext): SppPrepayPlan {
  */
 export function fingerprintPlan(
   plan: { rows: PlanRow[] },
-  invoices: Array<Pick<PlanInvoice, "id" | "totalDue" | "totalPaid">> = [],
+  invoices: Array<Pick<PlanInvoice, "id" | "totalDue" | "totalPaid"> & Partial<Pick<PlanInvoice, "hasLink" | "paymentLinkExpiresAt">> > = [],
 ): string {
-  const remainingById = new Map(invoices.map((inv) => [inv.id, remainingOfInvoice(inv).toString()]));
+  // A payment link made (or replaced) between preview and confirm flips the digest too:
+  // the preview warned about the old link, and the admin must see the new one before it is cleared.
+  const stateById = new Map(
+    invoices.map((inv) => [
+      inv.id,
+      [remainingOfInvoice(inv).toString(), inv.hasLink ?? false, inv.paymentLinkExpiresAt?.getTime() ?? null],
+    ]),
+  );
   const material = plan.rows.map((r) => {
     const ids = [...r.invoiceIds].sort();
-    return [r.year, r.month, r.action, r.amount.toString(), ids, ids.map((id) => remainingById.get(id) ?? null)];
+    return [r.year, r.month, r.action, r.amount.toString(), ids, ids.map((id) => stateById.get(id) ?? null)];
   });
   return createHash("sha256").update(JSON.stringify(material)).digest("hex");
 }

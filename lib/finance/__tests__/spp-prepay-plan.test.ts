@@ -11,6 +11,7 @@ function inv(over: Partial<PlanInvoice> & { id: string; periodLabel: string }): 
     totalDue: D(500000),
     totalPaid: D(0),
     hasMonthlyLine: true,
+    hasOtherLine: false,
     hasLink: false,
     paymentLinkExpiresAt: null,
     ...over,
@@ -133,7 +134,7 @@ describe("planSppPrepay", () => {
     expect(plan.total.equals(D(0))).toBe(true);
   });
 
-  it("warns about an unpaid SPP invoice whose label names no single month", () => {
+  it("warns about an SPP invoice whose label names no single month, paid or not", () => {
     const plan = planSppPrepay({
       range: { from: { year: 2026, month: 10 }, to: { year: 2026, month: 10 } },
       invoices: [
@@ -145,9 +146,29 @@ describe("planSppPrepay", () => {
       priceFor: flat(500000),
       firstInvoicedMonth: null,
     });
-    expect(plan.issues).toHaveLength(1);
-    expect(plan.issues[0]).toMatchObject({ code: "UNPARSABLE_LABEL", blocking: false, invoiceId: "sem" });
+    // A paid yearly invoice matters most: without the warning the family is prepaid twice.
+    expect(plan.issues.map((i) => i.invoiceId).sort()).toEqual(["sem", "sem-paid"]);
+    for (const issue of plan.issues) expect(issue).toMatchObject({ code: "UNPARSABLE_LABEL", blocking: false });
+    expect(plan.issues.find((i) => i.invoiceId === "sem-paid")?.message).toMatch(/lunas/i);
     expect(plan.rows[0].action).toBe("CREATE");
+    expect(plan.blocked).toBe(false);
+  });
+
+  it("warns when settling an invoice that also carries one-time fees", () => {
+    const plan = planSppPrepay({
+      range: { from: { year: 2026, month: 10 }, to: { year: 2026, month: 11 } },
+      invoices: [
+        inv({ id: "okt", periodLabel: "Oktober 2026", totalDue: D(1500000), hasOtherLine: true }),
+        inv({ id: "nov", periodLabel: "November 2026" }),
+      ],
+      priceFor: flat(500000),
+      firstInvoicedMonth: null,
+    });
+    const warn = plan.issues.filter((i) => i.code === "SETTLES_OTHER_LINES");
+    expect(warn).toHaveLength(1);
+    expect(warn[0]).toMatchObject({ blocking: false, invoiceId: "okt", year: 2026, month: 10 });
+    expect(warn[0].message).toMatch(/sekali bayar/);
+    expect(plan.rows.map((r) => r.action)).toEqual(["SETTLE", "SETTLE"]);
     expect(plan.blocked).toBe(false);
   });
 

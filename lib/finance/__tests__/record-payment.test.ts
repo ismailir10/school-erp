@@ -226,7 +226,7 @@ describe("recordPaymentInTx", () => {
       const tx = makeTx(INVOICE);
       const r = await run(tx, { linkPolicy: "clear-link" });
       expect(r.relink).toBe(false);
-      expect(tx.invoice.update).toHaveBeenCalledWith({ where: { id: "inv-1" }, data: { ...LINK_CLEARED } });
+      expect(tx.invoice.update).toHaveBeenCalledWith({ where: { id: "inv-1" }, data: { ...LINK_CLEARED, paymentLinkError: null } });
     });
 
     it("writes LINK_CLEARED when the invoice is settled too", async () => {
@@ -234,7 +234,16 @@ describe("recordPaymentInTx", () => {
       const tx = makeTx(INVOICE);
       const r = await run(tx, { linkPolicy: "clear-link", amount: D(1_000_000) });
       expect(r.relink).toBe(false);
-      expect(tx.invoice.update).toHaveBeenCalledWith({ where: { id: "inv-1" }, data: { ...LINK_CLEARED } });
+      expect(tx.invoice.update).toHaveBeenCalledWith({ where: { id: "inv-1" }, data: { ...LINK_CLEARED, paymentLinkError: null } });
+    });
+  });
+
+  it("clear-link stamps sentAt on an invoice that was never sent, so a later reversal falls back to Terkirim", async () => {
+    const tx = makeTx({ ...INVOICE, sentAt: null, xenditPaymentUrl: null, paymentLinkError: "unknown: gagal" });
+    await run(tx, { linkPolicy: "clear-link" });
+    expect(tx.invoice.update).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { ...LINK_CLEARED, paymentLinkError: null, sentAt: expect.any(Date) },
     });
   });
 
