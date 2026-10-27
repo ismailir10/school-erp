@@ -38,6 +38,12 @@ Facts found in the code (not decisions):
    the monitoring side. Parents only read it.
 4. A marked day counts as finished for that class on the teacher home, regardless of ticks. Existing ticks on that
    day are kept (not deleted), so unmarking the day restores the normal grid.
+5. **The threshold stays at one tick**, confirmed after the stray-tick risk was put to the user; no per-category
+   or percentage rule.
+6. **Keterangan is free text (max 60) with suggestion chips** (Renang, Libur, Kegiatan luar), not a fixed list.
+7. **A marked day does not lock the grid.** The guru can still tick children on that day (some may be filled
+   anyway); the mark only adds the keterangan and the "finished" status.
+8. **No parent notification** (no WhatsApp/push). The keterangan is visible when the wali opens Jurnal.
 
 ## Acceptance criteria
 
@@ -91,7 +97,8 @@ Facts found in the code (not decisions):
 - Points 3 (Penilaian Sentra cannot be filled) and 4 (when payslips appear on the web) from the same message.
 - Per-indicator "tidak berlaku" state and a per-child "Tandai selesai" button.
 - Per-child no-book days (a single child's exception); use Catatan.
-- Notifying parents when a day is marked.
+- Notifying parents when a day is marked (WhatsApp/push); separate cycle if wanted.
+- Locking the entry grid on a marked day.
 - Changing the "Di rumah" grid.
 
 ## Assumptions
