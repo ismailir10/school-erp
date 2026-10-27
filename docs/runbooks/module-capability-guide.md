@@ -129,7 +129,7 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 
 **6. Business rules**
 - Template structure freezes once used for real grading (name/type stay editable).
-- Publish/unpublish and curriculum writes need specific admin permission.
+- Publish/unpublish and curriculum writes need specific admin permission (`curriculum.write`; held by Super Admin and School Admin by default).
 - Curriculum imports never silently overwrite — conflicts always need explicit resolution.
 - Report card PDF only available after first save.
 

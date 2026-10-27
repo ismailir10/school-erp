@@ -3,6 +3,7 @@ import {
   hasPermission,
   getSystemRolePermissions,
   ALL_PERMISSIONS,
+  PERMISSION_GROUPS,
 } from "@/lib/permissions";
 
 /**
@@ -120,6 +121,16 @@ describe("getSystemRolePermissions", () => {
     expect(perms).toContain("users.edit");
   });
 
+  it("SCHOOL_ADMIN → holds every non-HR code except the teacher-only assessments.write", () => {
+    const hr = new Set(Object.keys(PERMISSION_GROUPS.hr.permissions));
+    const expected = ALL_PERMISSIONS.filter(
+      (p) => !hr.has(p) && p !== "assessments.write",
+    );
+    expect(getSystemRolePermissions("SCHOOL_ADMIN").sort()).toEqual(
+      expected.sort(),
+    );
+  });
+
   it("TEACHER → self-service set: attendance + leave + students + curriculum.read + assessments r/w", () => {
     expect(getSystemRolePermissions("TEACHER")).toEqual([
       "attendance.view",
@@ -211,14 +222,14 @@ describe("curriculum permissions (C1/T2)", () => {
     ).toBe(true);
   });
 
-  it("SCHOOL_ADMIN defaults → curriculum.read allowed, curriculum.write denied", () => {
+  it("SCHOOL_ADMIN defaults → curriculum.read and curriculum.write allowed (admin-curriculum-write)", () => {
     const perms = getSystemRolePermissions("SCHOOL_ADMIN");
     expect(
       hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "curriculum.read"),
     ).toBe(true);
     expect(
       hasPermission({ role: "SCHOOL_ADMIN", permissions: perms }, "curriculum.write"),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("TEACHER defaults → curriculum.read allowed, curriculum.write denied", () => {
