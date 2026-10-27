@@ -116,6 +116,7 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - T5: `app/api/billing-runs/[id]/route.ts`, `step-2-review.tsx`, `types.ts` — each review row shows "class · program". The label is derived on read from current active enrolments with the builder's own scope rule (no schema change); it shows the new program if a class was moved after the draft was built, which is the cue to rebuild.
 - T6: `components/admin/fees/program-classes-usage.tsx`, `app/admin/fees/page.tsx` — Tarif per Program gets "Dipakai oleh": the active classes of the selected program and year with campus and student count, plus the mismatch warning.
 - T2/T4/T5/T6 share the setup-check helper and the README line, so they are one commit (the `feat` hook wants README staged with each); fixes from the reviews follow as their own commit. The API security/correctness review is already applied here (fee totals gated, enrolment query matches the builder); the UI/spec review had not reported at commit time.
+- T8: `e2e/admin-class-program.spec.ts` — two flows: an admin moves a class to another program in Ubah Kelas (impact line, save) and sees the program and rate in the billing wizard picker; a class whose students are invoiced shows the reason, disables Simpan, and the API answers 409. Written and lint/type-clean; **not yet run** (not ticked) — it runs in verify-local against the production build.
 
 ## Verification
 
