@@ -98,9 +98,9 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - [x] T1 Allow program change in class update API — accept: PATCH with `programId` works for active/planning year, 409 with reason when students have invoices, audited, tenant-scoped (deps: none)
 - [x] T2 Pure setup-check helper (missing fee structure, name vs program) — accept: unit tests cover both warnings and the clean case (deps: none; parallel with T1)
 - [x] T3 Ubah Kelas: editable Program with impact line — accept: shows old → new SPP and student count; disabled for archived year / invoiced class (deps: T1)
-- [ ] T4 Wizard step 1: program + SPP in class picker and setup warning — accept: warning appears for a mislinked or fee-less class, does not block (deps: T2)
-- [ ] T5 Wizard step 2: program next to class label on each row — accept: row shows program name (deps: none)
-- [ ] T6 Tarif per Program: "Dipakai oleh" class list with warning — accept: lists classes and counts for selected program+year (deps: T2)
+- [x] T4 Wizard step 1: program + SPP in class picker and setup warning — accept: warning appears for a mislinked or fee-less class, does not block (deps: T2)
+- [x] T5 Wizard step 2: program next to class label on each row — accept: row shows program name (deps: none)
+- [x] T6 Tarif per Program: "Dipakai oleh" class list with warning — accept: lists classes and counts for selected program+year (deps: T2)
 - [x] T7 Normalize program names on save — accept: "TK  B " saves as "TK B" (deps: none; parallel)
 - [ ] T8 Playwright: fix a class program, see corrected SPP — accept: passes locally (deps: T1, T3, T5)
 
@@ -112,6 +112,10 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - T7: `lib/validations/program.ts` (+ test) — program name collapses inner whitespace and trims, on create, update and the admin form schema; existing rows untouched (an admin renames "TK  B" from the Program screen). Pinned by five schema tests.
 
 - T3: `app/admin/classes/client.tsx`, `components/admin/classes/program-change-impact.tsx` (+ tests) — Program is editable in Ubah Kelas (Kampus stays locked); choosing another program mounts the impact panel (old → new per-period fee, active students, "draf perlu dibuat ulang"; destructive Alert and disabled Simpan when the server would refuse; plain fallback note when the preview 403s/fails, save still allowed since the server enforces the guards); `programId` is sent only when changed. The panel ignores a response that was superseded by a newer choice (race caught by its own test). Cross-checked against `design-system` (Field/FieldDescription forms, shared Alert) and `crud.md`/`voice.md`.
+- T4: `app/api/class-sections/route.ts` (opt-in `?include=fees` → `recurringFeeTotal`, left out for a role with neither `fees.view` nor `invoices.view`), `components/admin/class-section-picker.tsx` (opt-in `showProgram`: second line "TK A · Rp 499.000 / periode"), `components/admin/classes/class-setup-warnings.tsx`, `step-1-scope.tsx` — the picker names each class's program and rate; a non-blocking Alert lists selected classes with no fee structure or whose name points at another program.
+- T5: `app/api/billing-runs/[id]/route.ts`, `step-2-review.tsx`, `types.ts` — each review row shows "class · program". The label is derived on read from current active enrolments with the builder's own scope rule (no schema change); it shows the new program if a class was moved after the draft was built, which is the cue to rebuild.
+- T6: `components/admin/fees/program-classes-usage.tsx`, `app/admin/fees/page.tsx` — Tarif per Program gets "Dipakai oleh": the active classes of the selected program and year with campus and student count, plus the mismatch warning.
+- T2/T4/T5/T6 share the setup-check helper and the README line, so they are one commit (the `feat` hook wants README staged with each); fixes from the reviews follow as their own commit. The API security/correctness review is already applied here (fee totals gated, enrolment query matches the builder); the UI/spec review had not reported at commit time.
 
 ## Verification
 

@@ -181,7 +181,7 @@ function RunRow({
             {row.studentNameSnapshot}
           </p>
           <p className="truncate text-small text-muted-foreground">
-            {row.classLabelSnapshot ?? "Tanpa kelas"}
+            {[row.classLabelSnapshot ?? "Tanpa kelas", row.programLabel].filter(Boolean).join(" · ")}
           </p>
         </div>
 

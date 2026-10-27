@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,8 @@ import {
   type ClassSection,
 } from "@/components/admin/class-section-picker";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
+import { ClassSetupWarnings } from "@/components/admin/classes/class-setup-warnings";
+import { checkClassSetup } from "@/lib/classes/setup-check";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { computeDefaultBillingForm, defaultDueDateForPeriod, type AcademicYear } from "./billing-defaults";
 import { WizardFooter } from "./wizard-footer";
@@ -92,11 +94,29 @@ export function ScopeStep({
   const [excludeStudents, setExcludeStudents] = useState<Student[]>([]);
 
   useEffect(() => {
-    fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING")
+    fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING&include=fees")
       .then((r) => r.json())
       .then((json) => setClassSections(Array.isArray(json) ? json : []))
       .catch((err) => console.error("[billing-run-wizard] class sections fetch failed", err));
   }, []);
+
+  // Billing follows each class's own program, so a class linked to the wrong
+  // program (or one without a fee structure) bills wrongly without a word.
+  const setupWarnings = useMemo(
+    () =>
+      checkClassSetup(
+        classSections
+          .filter((s) => classSectionIds.includes(s.id))
+          .map((s) => ({
+            id: s.id,
+            name: s.name,
+            ageGroup: s.ageGroup,
+            programName: s.program.name,
+            recurringFeeTotal: s.recurringFeeTotal,
+          })),
+      ),
+    [classSections, classSectionIds],
+  );
 
   const [scopeError, setScopeError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -353,10 +373,13 @@ export function ScopeStep({
             if (scopeError) setScopeError(null);
           }}
           placeholder="Pilih kelas..."
+          showProgram
         />
         <FieldDescription>Kelas mengikuti tahun ajaran terpilih. Semua siswa aktif di kelas terpilih akan ditagih.</FieldDescription>
         {scopeError && <FieldError>{scopeError}</FieldError>}
       </Field>
+
+      <ClassSetupWarnings warnings={setupWarnings} />
 
       <Field>
         <FieldLabel htmlFor="wizard-scope-include">Siswa Tambahan</FieldLabel>

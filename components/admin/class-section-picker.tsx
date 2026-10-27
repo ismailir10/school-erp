@@ -20,7 +20,7 @@ import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { formatClassOptionLabel } from "@/lib/format";
+import { formatClassOptionLabel, formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type ClassSection = {
@@ -31,7 +31,19 @@ export type ClassSection = {
   campus: { name: string };
   _count: { enrollments: number };
   capacity: number;
+  /** Kelompok usia; the setup check's fallback when the name names no group. */
+  ageGroup?: string | null;
+  /** Present with `?include=fees`: per-period fee of the class's program (`null` = no fee line). */
+  recurringFeeTotal?: number | null;
 };
+
+/** "TK A · Rp 499.000 / periode" — which program a class bills from, and at what rate. */
+export function classProgramLine(s: ClassSection): string {
+  if (s.recurringFeeTotal === undefined) return s.program.name;
+  return s.recurringFeeTotal === null
+    ? `${s.program.name} · belum ada tarif`
+    : `${s.program.name} · ${formatRupiah(s.recurringFeeTotal)} / periode`;
+}
 
 function baseLabel(s: ClassSection) {
   return formatClassOptionLabel({
@@ -174,6 +186,7 @@ export function ClassSectionMultiPicker({
   onChange,
   placeholder,
   disabled,
+  showProgram = false,
 }: {
   id?: string;
   sections: ClassSection[];
@@ -181,6 +194,8 @@ export function ClassSectionMultiPicker({
   onChange: (ids: string[]) => void;
   placeholder: string;
   disabled?: boolean;
+  /** Second line per class: its program and, when known, the fee it bills. Opt-in. */
+  showProgram?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedSet = new Set(value);
@@ -271,7 +286,7 @@ export function ClassSectionMultiPicker({
                   return (
                     <CommandItem
                       key={s.id}
-                      value={`${label(s)} ${s.id}`}
+                      value={`${label(s)} ${showProgram ? s.program.name : ""} ${s.id}`}
                       role="option"
                       aria-selected={checked}
                       // Multi-select must not close the popover on select —
@@ -285,7 +300,14 @@ export function ClassSectionMultiPicker({
                         tabIndex={-1}
                         aria-hidden="true"
                       />
-                      {label(s)}
+                      {showProgram ? (
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate">{label(s)}</span>
+                          <span className="truncate text-small text-muted-foreground">{classProgramLine(s)}</span>
+                        </span>
+                      ) : (
+                        label(s)
+                      )}
                     </CommandItem>
                   );
                 })}

@@ -8,7 +8,7 @@ vi.mock("@/components/admin/class-section-picker", () => ({
 }));
 import { ScopeStep } from "../billing-run-wizard/step-1-scope";
 const years = [{ id: "ay-new", name: "2026/2027", status: "ACTIVE" }, { id: "ay-old", name: "2025/2026", status: "ACTIVE" }];
-const classes = [{ id: "class-new", name: "Kelas Baru", academicYearId: "ay-new" }, { id: "class-old", name: "Kelas Lama", academicYearId: "ay-old" }];
+const classes = [{ id: "class-new", name: "Kelas Baru", academicYearId: "ay-new", program: { name: "TK A" } }, { id: "class-old", name: "Kelas Lama", academicYearId: "ay-old", program: { name: "TK A" } }];
 beforeEach(() => vi.clearAllMocks());
 describe("billing scope academic year", () => {
   it("shows only the selected year's classes and requires a fresh selection after switching years", async () => {
