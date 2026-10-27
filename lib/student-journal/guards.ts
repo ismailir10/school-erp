@@ -83,6 +83,37 @@ export async function requireTeacherForClass(classSectionId: string): Promise<
 }
 
 /**
+ * Guard for writing a class-day mark ("hari tanpa buku penghubung").
+ *
+ * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): any class of their own tenant, so a
+ *   past day can be corrected from the monitoring side. A class id from another
+ *   tenant answers 404 — same as the rest of the admin journal routes.
+ * - **Teacher**: delegates to `requireTeacherForClass` (assigned to this class).
+ * - Everyone else (wali included): 403.
+ */
+export async function requireDayMarkWriter(classSectionId: string): Promise<
+  | { session: SessionUser & { tenantId: string }; error?: undefined }
+  | { session?: undefined; error: NextResponse }
+> {
+  const session = await getSession();
+  if (!session) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (!isAdminRole(session.role)) return requireTeacherForClass(classSectionId);
+  if (!session.tenantId) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  const classSection = await prisma.classSection.findFirst({
+    where: { id: classSectionId, tenantId: session.tenantId },
+    select: { id: true },
+  });
+  if (!classSection) {
+    return { error: NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 }) };
+  }
+  return { session: session as SessionUser & { tenantId: string } };
+}
+
+/**
  * Note-surface guard — who may read or write the note thread of one student.
  *
  * Lifted verbatim out of `app/api/student-journal/notes/route.ts`'s POST, which

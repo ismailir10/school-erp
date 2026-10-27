@@ -3,6 +3,7 @@ import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
 import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
+import { getDayMark } from "@/lib/student-journal/day-marks";
 
 /**
  * GET /api/student-journal/class-grid?classSectionId=&date=
@@ -11,6 +12,7 @@ import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
  * - students: active enrollments in the class, sorted by name
  * - categories: SCHOOL-scope active categories with active indicators
  * - entries: existing SCHOOL entries for that class-day (for pre-fill)
+ * - dayMark: the "hari tanpa buku penghubung" keterangan for the class-day, or null
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -105,6 +107,8 @@ export async function GET(req: NextRequest) {
     readerUserId: session.id,
   });
 
+  const dayMark = await getDayMark(session.tenantId, classSectionId, date);
+
   return NextResponse.json({
     data: {
       students,
@@ -112,6 +116,7 @@ export async function GET(req: NextRequest) {
       entries,
       classSection,
       unreadNoteCounts,
+      dayMark,
     },
   });
 }

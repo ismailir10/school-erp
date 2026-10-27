@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
 import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
+import { getDayMarksForStudentWeek } from "@/lib/student-journal/day-marks";
 import {
   JOURNAL_FORBIDDEN_MSG,
   JOURNAL_NOT_ENROLLED_MSG,
@@ -143,6 +144,7 @@ export async function GET(
         homeCategories: [],
         homeEntries: [],
         notes: [],
+        dayMarks: {},
       },
     });
   }
@@ -220,6 +222,9 @@ export async function GET(
     lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
   }));
 
+  // Days the guru marked "tanpa buku penghubung", keyed by date (keterangan the wali reads).
+  const dayMarks = await getDayMarksForStudentWeek(session.tenantId, studentId, dates);
+
   const notesWithAuthor = await enrichNotesWithAuthorMetadata(session.tenantId, notes);
 
   return NextResponse.json({
@@ -237,6 +242,7 @@ export async function GET(
         checked,
       })),
       notes: notesWithAuthor,
+      dayMarks,
     },
   });
 }

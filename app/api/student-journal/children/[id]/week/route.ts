@@ -5,6 +5,7 @@ import { requireGuardianForStudent } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
 import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
+import { getDayMarksForStudentWeek } from "@/lib/student-journal/day-marks";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(
@@ -51,6 +52,7 @@ export async function GET(
         schoolEntries: [],
         homeEntries: [],
         notes: [],
+        dayMarks: {},
       },
     });
   }
@@ -138,6 +140,9 @@ export async function GET(
     lastAdminEdit: lastEditByEntryId.get(e.id) ?? null,
   });
 
+  // Days the guru marked "tanpa buku penghubung", keyed by date (keterangan the wali reads).
+  const dayMarks = await getDayMarksForStudentWeek(session.tenantId, studentId, dates);
+
   const notesWithAuthor = await enrichNotesWithAuthorMetadata(session.tenantId, notes);
 
   return NextResponse.json({
@@ -149,6 +154,7 @@ export async function GET(
       schoolEntries: schoolEntries.map(decorate),
       homeEntries: homeEntries.map(decorate),
       notes: notesWithAuthor,
+      dayMarks,
     },
   });
 }
