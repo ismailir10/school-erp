@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BulkPromoteDialog } from "@/components/admin/classes/bulk-promote-dialog";
+import { ProgramChangeImpact } from "@/components/admin/classes/program-change-impact";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { classFormSchema } from "@/lib/validations/class";
@@ -123,6 +124,10 @@ export function ClassesClient({
   const formId = useId();
   const form = useZodForm(classFormSchema, { defaultValues: EMPTY_CLASS_FORM });
   const dirty = form.formState.isDirty;
+  const watchedProgramId = form.watch("programId");
+  // The server refuses a program move once the class's students are invoiced;
+  // the impact panel reports it so Simpan is disabled instead of bouncing.
+  const [programChangeBlocked, setProgramChangeBlocked] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const draftFocus = useRef<HTMLElement | null>(null);
 
@@ -250,6 +255,7 @@ export function ClassesClient({
 
   const resetForm = useCallback(() => {
     setEditing(null);
+    setProgramChangeBlocked(false);
     form.reset(EMPTY_CLASS_FORM);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -288,6 +294,9 @@ export function ClassesClient({
           capacity: values.capacity,
           slotTemplate: values.slotTemplate,
           ageGroup: values.ageGroup,
+          // Only a changed program is sent; an untouched one is a no-op the
+          // server would answer with "Tidak ada perubahan" on its own.
+          ...(values.programId !== editing.programId ? { programId: values.programId } : {}),
         }
       : {
           campusId: values.campusId,
@@ -572,7 +581,7 @@ export function ClassesClient({
         title={editing ? "Ubah Kelas" : "Tambah Kelas"}
         description={
           editing
-            ? "Perbarui nama, kapasitas, atau pola slot. Kampus dan program tidak dapat diubah."
+            ? "Perbarui nama, kapasitas, pola slot, atau program. Kampus tidak dapat diubah."
             : "Pilih kampus dan program, beri nama, lalu tentukan kapasitas."
         }
         footer={
@@ -581,6 +590,7 @@ export function ClassesClient({
             pending={form.formState.isSubmitting}
             onCancel={requestFormClose}
             submitLabel={editing ? "Simpan Perubahan" : "Tambah Kelas"}
+            disabled={programChangeBlocked}
           />
         }
       >
@@ -625,7 +635,6 @@ export function ClassesClient({
               <Select
                 value={field.value}
                 onValueChange={(v) => v != null && field.onChange(v)}
-                disabled={!!editing}
               >
                 <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                   <SelectValue placeholder="Pilih program" />
@@ -643,6 +652,15 @@ export function ClassesClient({
               </Select>
             )}
           />
+
+          {editing && (
+            <ProgramChangeImpact
+              classId={editing.id}
+              currentProgramId={editing.programId}
+              nextProgramId={watchedProgramId}
+              onBlockedChange={setProgramChangeBlocked}
+            />
+          )}
 
           <FormField
             control={form.control}
