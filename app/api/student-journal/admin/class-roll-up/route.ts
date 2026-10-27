@@ -9,7 +9,9 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
  * GET /api/student-journal/admin/class-roll-up?classSectionId=&weekStart=
  *
  * Returns per-student weekly completion for a class:
- * { data: { weekStart, dates, students: [{ studentId, name, checkedCount, totalCells }] } }
+ * { data: { weekStart, dates, dayMarks, students: [{ studentId, name, checkedCount, totalCells }] } }
+ *
+ * dayMarks maps `YYYY-MM-DD → keterangan` for the class-days marked "hari tanpa buku penghubung".
  *
  * totalCells = activeSchoolIndicatorCount * 5
  */
@@ -56,6 +58,12 @@ export async function GET(req: NextRequest) {
   const dates = weekDates(ws);
   const weekEnd = dates[dates.length - 1];
 
+  const markRows = await prisma.studentJournalDayMark.findMany({
+    where: { tenantId: session.tenantId, classSectionId, date: { in: dates } },
+    select: { date: true, reason: true },
+  });
+  const dayMarks = Object.fromEntries(markRows.map((m) => [m.date, m.reason]));
+
   // Count active SCHOOL indicators for this tenant
   const template = await prisma.studentJournalTemplate.findUnique({
     where: { tenantId: session.tenantId },
@@ -89,7 +97,7 @@ export async function GET(req: NextRequest) {
 
   if (enrollments.length === 0) {
     return NextResponse.json({
-      data: { weekStart: ws, dates, students: [] },
+      data: { weekStart: ws, dates, dayMarks, students: [] },
     });
   }
 
@@ -120,5 +128,5 @@ export async function GET(req: NextRequest) {
     totalCells,
   }));
 
-  return NextResponse.json({ data: { weekStart: ws, dates, students } });
+  return NextResponse.json({ data: { weekStart: ws, dates, dayMarks, students } });
 }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
+import { CalendarOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -14,6 +16,8 @@ import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { PeriodStepper } from "@/components/ui/period-stepper";
+import { DayMarkDialog } from "@/components/student-journal/day-mark-dialog";
+import { isMarkableDate } from "@/lib/student-journal/day-mark-rules";
 
 // ------------------------------------------------------------------
 // Types
@@ -29,6 +33,8 @@ type StudentRow = {
 type RollUpData = {
   weekStart: string;
   dates: string[];
+  /** `YYYY-MM-DD → keterangan` for days marked "hari tanpa buku penghubung". */
+  dayMarks?: Record<string, string>;
   students: StudentRow[];
 };
 
@@ -107,6 +113,9 @@ export default function ClassWeekPage({
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize] = useState(10);
   const [loading, setLoading] = useState(true);
+  /** The date whose "tanpa buku penghubung" dialog is open, if any. */
+  const [markDate, setMarkDate] = useState<string | null>(null);
+  const today = getTodayInTimezone("Asia/Jakarta");
 
   const fetchRollUp = useCallback(
     async (weekStartYmd: string) => {
@@ -237,6 +246,63 @@ export default function ClassWeekPage({
             />
           </div>
         }
+      />
+
+      {rollUp ? (
+        <section
+          aria-labelledby="day-marks-heading"
+          className="mb-4 rounded-xl border border-border bg-card p-card"
+          data-testid="day-marks-section"
+        >
+          <h2 id="day-marks-heading" className="text-h2 font-semibold">
+            Hari tanpa buku penghubung
+          </h2>
+          <p className="mb-3 mt-1 text-xs text-muted-foreground">
+            Tandai hari ketika kelas tidak memakai buku (misal renang). Wali melihat keterangannya di Jurnal.
+          </p>
+          <ul className="divide-y divide-border/60">
+            {rollUp.dates.map((d) => {
+              const reason = rollUp.dayMarks?.[d];
+              return (
+                <li key={d} className="flex min-h-11 items-center justify-between gap-3 py-1.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      {formatDate(d, { weekday: "long", day: "numeric", month: "short" })}
+                    </p>
+                    {reason ? (
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid={`day-mark-${d}`}>
+                        <CalendarOff size={12} aria-hidden="true" className="shrink-0" />
+                        {reason}
+                      </p>
+                    ) : null}
+                  </div>
+                  {isMarkableDate(d, today) ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      data-testid={`day-mark-button-${d}`}
+                      onClick={() => setMarkDate(d)}
+                    >
+                      {reason ? "Ubah" : "Tandai"}
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      <DayMarkDialog
+        open={markDate !== null}
+        onOpenChange={(open) => {
+          if (!open) setMarkDate(null);
+        }}
+        classSectionId={classSectionId}
+        date={markDate ?? ws}
+        initialReason={markDate ? rollUp?.dayMarks?.[markDate] ?? null : null}
+        onSaved={() => fetchRollUp(ws)}
       />
 
       <DataTableToolbar
