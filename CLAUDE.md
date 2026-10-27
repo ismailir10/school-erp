@@ -289,14 +289,14 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 218 |
+| `app/api/**/route.ts` | 219 |
 | `app/admin` pages | 45 |
 | `app/teacher` pages | 14 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 71 |
-| `e2e/*.spec.ts` | 43 |
+| `e2e/*.spec.ts` | 44 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 122 / 233 |
+| `docs/cycles` active / archived | 123 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

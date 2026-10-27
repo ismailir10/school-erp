@@ -36,18 +36,18 @@ Already done outside this cycle: the three production classes were relinked to t
 
 ## Acceptance criteria
 
-- [ ] In Ubah Kelas, an admin can change a class's Program; for an archived year it stays read-only.
-- [ ] Choosing a new program shows the old and new SPP and the active student count before saving.
-- [ ] Saving changes the class's fee source: a rebuilt billing draft for that class uses the new program's rates.
-- [ ] A move that would give a student two active enrolments of one program type in the year is refused and names the student and class.
-- [ ] The fee preview is visible only to roles that can view fees.
-- [ ] A class whose students already have invoices for that year cannot change program and says why.
-- [ ] Billing wizard step 1 shows each class with its program and SPP in the picker.
-- [ ] Billing wizard step 2 shows each row's program next to the class label.
-- [ ] Step 1 shows a warning (not a blocker) for a selected class with no fee structure, or whose name suggests another program.
-- [ ] Tarif per Program lists the classes (and student counts) that use the selected program and year, with a warning on a class that looks mislinked.
-- [ ] Program names with doubled or edge whitespace are saved normalized.
-- [ ] Changing a program is recorded in the audit log.
+- [x] In Ubah Kelas, an admin can change a class's Program; for an archived year it stays read-only.
+- [x] Choosing a new program shows the old and new SPP and the active student count before saving.
+- [x] Saving changes the class's fee source: a rebuilt billing draft for that class uses the new program's rates.
+- [x] A move that would give a student two active enrolments of one program type in the year is refused and names the student and class.
+- [x] The fee preview is visible only to roles that can view fees.
+- [x] A class whose students already have invoices for that year cannot change program and says why.
+- [x] Billing wizard step 1 shows each class with its program and SPP in the picker.
+- [x] Billing wizard step 2 shows each row's program next to the class label.
+- [x] Step 1 shows a warning (not a blocker) for a selected class with no fee structure, or whose name suggests another program.
+- [x] Tarif per Program lists the classes (and student counts) that use the selected program and year, with a warning on a class that looks mislinked.
+- [x] Program names with doubled or edge whitespace are saved normalized.
+- [x] Changing a program is recorded in the audit log.
 
 ## Verify flows
 
@@ -104,7 +104,7 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - [x] T5 Wizard step 2: program next to class label on each row — accept: row shows program name (deps: none)
 - [x] T6 Tarif per Program: "Dipakai oleh" class list with warning — accept: lists classes and counts for selected program+year (deps: T2)
 - [x] T7 Normalize program names on save — accept: "TK  B " saves as "TK B" (deps: none; parallel)
-- [ ] T8 Playwright: fix a class program, see corrected SPP — accept: passes locally (deps: T1, T3, T5)
+- [x] T8 Playwright: fix a class program, see corrected SPP — accept: passes locally (deps: T1, T3, T5)
 
 ## Implementation
 
@@ -118,10 +118,28 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - T5: `app/api/billing-runs/[id]/route.ts`, `step-2-review.tsx`, `types.ts` — each review row shows "class · program". The label is derived on read from current active enrolments with the builder's own scope rule (no schema change); it shows the new program if a class was moved after the draft was built, which is the cue to rebuild.
 - T6: `components/admin/fees/program-classes-usage.tsx`, `app/admin/fees/page.tsx` — Tarif per Program gets "Dipakai oleh": the active classes of the selected program and year with campus and student count, plus the mismatch warning.
 - T2/T4/T5/T6 share the setup-check helper and the README line, so they are one commit (the `feat` hook wants README staged with each); fixes from the reviews follow as their own commit. The API security/correctness review is already applied here (fee totals gated, enrolment query matches the builder); the UI/spec review had not reported at commit time.
-- T8: `e2e/admin-class-program.spec.ts` — two flows: an admin moves a class to another program in Ubah Kelas (impact line, save) and sees the program and rate in the billing wizard picker; a class whose students are invoiced shows the reason, disables Simpan, and the API answers 409. Written and lint/type-clean; **not yet run** (not ticked) — it runs in verify-local against the production build.
+- T8: `e2e/admin-class-program.spec.ts` — two flows: an admin moves a class to another program in Ubah Kelas (impact line, save) and sees the program and rate in the billing wizard picker; a class whose students are invoiced shows the reason, disables Simpan, and the API answers 409. Passes on the production build against a fresh local Postgres (see Verification).
 - Review fixes (UI/spec reviewer): the picker no longer calls a sum of several components "SPP" (`/api/class-sections?include=fees` now also returns `recurringFeeLines` and the lone component's label); rate stays untruncated on a phone; "Dipakai oleh" is an h2 with a full-width link and a quiet 403 note; the setup warning lives in an always-mounted live region with terser copy; one phrase ("belum ada tarif rutin") on every screen; the program check recognises "TKB", "TK-B", "TK B (Reguler)"; the kelompok-usia fallback was dropped (too weak a signal); fragile picker test rewritten with realistic ids.
 - Browser walk polish: with several mislinked classes the warning repeated "Jika salah, ubah program di Kelas → Ubah Kelas…" on every line; each class now gets a short line and the guidance appears once below the list.
 
 ## Verification
 
+Diff classification: compared `origin/staging...HEAD` (merge base `fa56e3e1`, head `83907c5a` for code). Changed paths: `app/api/{admin/classes,class-sections,billing-runs}`, `app/admin/{classes,fees}`, `components/admin/{classes,fees,invoices,class-section-picker}`, `lib/{classes,finance,validations}`, `e2e/`, `README.md`, `docs/`. No auth, session, cookie, guard, dependency or schema file → **other code** (verify-local only, no signed-in staging check). The new routes add `academic.*` / `fees.view` permission checks through the existing `requirePermission` / `hasPermission`; no guard logic changed. Soft-skip delta vs `origin/staging`: 26 → 26 (0).
+
+### Verified locally — 83907c5a, 2026-10-27
+- Gate: `npm run lint` → exit 0 (run without my local git-excluded Playwright helper); `verify-rls-coverage.sh` → "RLS coverage OK: 44 / 44"; `verify-api-auth.sh` → "API auth coverage OK: 219 / 219"; `npx vitest run` (no DEMO_MODE) → "Test Files 709 passed | 2 skipped (711), Tests 8389 passed | 42 todo"; `DEMO_MODE=true npm run build` → exit 0; `npx playwright test` (production build, Chromium, workers 1, **fresh seeded local DB**) → "252 passed (6.9m)", including the two new `admin-class-program` flows. `bash scripts/audit-docs.sh` → 0 fail.
+- App: production build on http://localhost:3000, demo auth (`u_super_admin`), disposable local Postgres 16, Xendit/DOKU test stubs.
+- Walked (admin, 1440×900 and 390×844): Buat Tagihan step 1 (picker shows "TK B · SPP Bulanan Rp 504.000" per class; selecting a TK A class linked to TK B shows "Periksa sebelum lanjut" with the fix stated once) → step 2 (rows read "TK A … · TK B") → Tarif per Program → Dipakai oleh (warning + class list) → Ubah Kelas: Program editable, "Tagihan rutin per periode berubah dari Rp 504.000 ke Rp 499.000 untuk 3 siswa aktif", saved, class re-read as TK A. Edge: a class with 0 students and one on a one-component program read correctly. Error case: a seeded invoiced class → "Program tidak bisa diubah karena 10 siswa … sudah punya tagihan", Simpan disabled, and the API answers 409 `PROGRAM_HAS_INVOICES` (Playwright). Phone: picker second line keeps the rate, no horizontal overflow. Also on the final build: a PLANNING-year class accepts the move (200); an ARCHIVED-year class list shows the banner with no Tambah Kelas and no row actions, and the API answers 403 `YEAR_ARCHIVED`; creating a program named "  TK    Z  " saves "TK Z"; the audit log holds `class.program_change` rows with before and after `programId`.
+- Console/network: clean apart from `/_vercel/insights` and `/_vercel/speed-insights` script 404s, which exist only on Vercel hosting (pre-existing, unrelated). No 5xx, no dead clicks.
+- Screenshots: highlight `1-wizard-picker-shows-program-and-rate.png`, `2-wizard-step1-warning.png`; also `3-wizard-step2-rows-name-program`, `4-tarif-dipakai-oleh-warning`, `5-ubah-kelas-impact`, `6-ubah-kelas-blocked`, `7-phone-picker` (desktop + phone), kept in the session scratchpad.
+- Highlight: `1-wizard-picker-shows-program-and-rate.png`, `2-wizard-step1-warning.png`
+- Rounds: 3 — fixed: stale preview response applied after a newer choice (caught by its own test); picker called a sum of several recurring fees "SPP" (now the lone component's own name or a component count); rate clipped on a phone; warning repeated its fix-it sentence per class; kelompok-usia fallback dropped as too weak a signal; program check missed "TKB"/"TK-B"; and API/security review items (fees.view gate, program-type stream rule, UTC vs Jakarta cutoff, billing-run link for pre-start invoices, compare-and-set write).
+- Not checked: PR screenshot upload to `pr-assets` (`gh` has no valid token in this environment); a real Xendit/DOKU payment-link round trip (stubbed in e2e, untouched by this diff); the signed-in staging check (not required for this classification). One earlier Playwright pass on a *reused, polluted* local DB failed `journal-day-mark.spec.ts` ("a wali sees the keterangan…"); the pre-change code (`fa56e3e1`) fails it identically on that DB and passes on a pristine one, and the full suite is green on a fresh DB with this branch — a test-database artifact, not this diff.
+
 ## Ship Notes
+
+- Migrations: none. Env vars: none. New routes: `GET /api/admin/classes/[id]/program-impact`; opt-in `?include=fees` on `GET /api/class-sections`; `programLabel` added to `GET /api/billing-runs/[id]` rows.
+- **Production data already changed, outside this PR** (before the code, on explicit request): `ClassSection.programId` for TK A 1 / TK A 3 / TK A 4 (2026/2027) set from the TK B program (`program_61228711d354b0371994`) to TK A (`cmugxc7xs000004kwylwdu0xi`); ids `sec_7b1032e5fe852a45c8c7`, `sec_4d178d57027c8401702d`, `sec_f1e71ac88dcfcf37100b`. Anyone holding a Buat Tagihan draft built before that must "Hitung Ulang" / rebuild it. Rollback of the data = set those three `programId`s back.
+- Known limits: the invoice guard is "non-cancelled invoice for a student of the class from a committed billing run of that year, or created since the year's Jakarta start" — a manual invoice issued before the start date is not seen. `ClassTrack.programId` is left as is when a class changes program (billing and roll-forward read the section's own program). Invoice creation takes no class lock, so a billing commit racing the program change can slip through the invoice check.
+- Post-merge: staging deploy READY for the merge SHA; no signed-in check (not auth-impacting). Manual follow-up for the school: relink any other mislinked class from Kelas → Ubah Kelas; rebuild the existing TK A draft.
+- Rollback: revert the squash commit; no data migration to undo.
