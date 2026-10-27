@@ -44,6 +44,9 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
+// The route audits the created invoice inside the transaction; the tx mock has no auditLog table.
+vi.mock("@/lib/audit", () => ({ recordAudit: vi.fn() }));
+
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, getSession: vi.fn() };

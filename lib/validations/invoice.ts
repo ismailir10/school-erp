@@ -3,6 +3,7 @@ import { calendarDate, isRealCalendarDate, rupiahAmount, rupiahAmountCoerced } f
 import { labelText, longText } from "./text";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { INVOICE_LIST_STATUS_VALUES } from "@/lib/constants/invoice-status";
+import { MANUAL_PAYMENT_METHODS } from "@/lib/constants/payment-methods";
 
 // Due dates: real calendar date (no 2026-02-30), 2000-01-01 … 2100-12-31.
 const DUE_DATE_MESSAGES = {
@@ -127,9 +128,30 @@ function rejectDuplicateFeeComponents(
   }
 }
 
-export const createManualInvoiceSchema = manualInvoiceBaseSchema.superRefine(
-  rejectDuplicateFeeComponents
-);
+/** "Pilih Tunai, Transfer Bank, atau Lainnya." — also what a gateway rail (XENDIT/DOKU) is refused with. */
+export const MANUAL_METHOD_MESSAGE = "Pilih Tunai, Transfer Bank, atau Lainnya.";
+
+/**
+ * The optional "Sudah dibayar" part of a manual invoice: the invoice is created
+ * already paid in full (cycle 2026-10-27-paid-invoice-spp-prepay, D2). The amount
+ * is never sent; the route pays exactly the server-derived total.
+ */
+export const manualInvoicePaymentSchema = z.object({
+  idempotencyKey: z.string().uuid(),
+  method: z.enum(MANUAL_PAYMENT_METHODS, { error: MANUAL_METHOD_MESSAGE }),
+  // Required here (unlike the record-payment endpoint, where absent = now).
+  paidAt: paidAtSchema(),
+  reference: labelText().optional().nullable(),
+  notes: longText().optional().nullable(),
+});
+
+export type ManualInvoicePaymentInput = z.infer<typeof manualInvoicePaymentSchema>;
+
+export const createManualInvoiceSchema = manualInvoiceBaseSchema
+  .extend({ payment: manualInvoicePaymentSchema.optional() })
+  .superRefine(rejectDuplicateFeeComponents);
+
+export type CreateManualInvoiceInput = z.infer<typeof createManualInvoiceSchema>;
 
 // Client-only form schema for `ManualInvoiceDialog`. Differs from the API
 // schema in exactly one way: a not-yet-filled `amount` (RupiahInput's empty
@@ -150,8 +172,53 @@ const manualInvoiceFormLineSchema = z.object({
 export const manualInvoiceFormSchema = manualInvoiceBaseSchema
   .extend({
     lines: z.array(manualInvoiceFormLineSchema).min(1, "Tambahkan minimal satu komponen"),
+    // "Sudah dibayar": flat fields the dialog binds. They only matter while
+    // `markPaid` is true; `paymentFromForm` turns them into the API `payment`.
+    markPaid: z.boolean().default(false),
+    method: z.union([z.enum(MANUAL_PAYMENT_METHODS), z.literal("")]).optional(),
+    paidAt: z.string().optional(),
+    reference: labelText().optional().nullable(),
+    notes: longText().optional().nullable(),
   })
-  .superRefine(rejectDuplicateFeeComponents);
+  .superRefine((data, ctx) => {
+    rejectDuplicateFeeComponents(data, ctx);
+    if (!data.markPaid) return;
+    if (!data.method) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Pilih metode pembayaran", path: ["method"] });
+    }
+    if (!data.paidAt) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Tanggal bayar wajib diisi", path: ["paidAt"] });
+      return;
+    }
+    // Same date rules as the API (real calendar date, not in the future).
+    const date = paidAtSchema().safeParse(data.paidAt);
+    if (!date.success) {
+      for (const issue of date.error.issues) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: ["paidAt"] });
+      }
+    }
+  });
+
+export type ManualInvoiceFormValues = z.output<typeof manualInvoiceFormSchema>;
+
+/**
+ * The API `payment` object for a submitted form, or undefined when "Sudah
+ * dibayar" is not ticked. The caller owns the idempotency key (one per dialog
+ * open) so a double click or retry replays instead of paying twice.
+ */
+export function paymentFromForm(
+  values: Pick<ManualInvoiceFormValues, "markPaid" | "method" | "paidAt" | "reference" | "notes">,
+  idempotencyKey: string,
+): ManualInvoicePaymentInput | undefined {
+  if (!values.markPaid || !values.method || !values.paidAt) return undefined;
+  return {
+    idempotencyKey,
+    method: values.method,
+    paidAt: values.paidAt,
+    reference: values.reference?.trim() || null,
+    notes: values.notes?.trim() || null,
+  };
+}
 
 // Client form schema for the invoices/[id] "Catat Pembayaran" dialog (T6,
 // 2026-09-27 admin-finish-standard cycle). Differs from `recordPaymentSchema`
