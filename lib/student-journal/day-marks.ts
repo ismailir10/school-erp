@@ -10,16 +10,6 @@ import { prisma } from "@/lib/db";
 
 export type DayMark = { classSectionId: string; date: string; reason: string };
 
-/** Only school days can be marked, and not ones that have not happened yet. */
-export function isMarkableDate(date: string, todayYmd: string): boolean {
-  if (date > todayYmd) return false;
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-  return dow >= 1 && dow <= 5;
-}
-
-export const DAY_MARK_NOT_MARKABLE_MSG =
-  "Hanya hari sekolah (Senin–Jumat) yang sudah lewat atau hari ini yang bisa ditandai.";
-
 type WriteArgs = {
   tenantId: string;
   actorUserId: string;
@@ -35,8 +25,8 @@ type WriteArgs = {
  */
 export async function saveDayMark({ tenantId, actorUserId, classSectionId, date, reason }: WriteArgs & { reason: string }): Promise<DayMark> {
   return prisma.$transaction(async (tx) => {
-    const prior = await tx.studentJournalDayMark.findUnique({
-      where: { classSectionId_date: { classSectionId, date } },
+    const prior = await tx.studentJournalDayMark.findFirst({
+      where: { tenantId, classSectionId, date },
       select: { id: true, reason: true },
     });
     const row = await tx.studentJournalDayMark.upsert({
@@ -65,12 +55,15 @@ export async function saveDayMark({ tenantId, actorUserId, classSectionId, date,
 /** Remove the mark (and audit it). Returns false when there was nothing to remove. */
 export async function removeDayMark({ tenantId, actorUserId, classSectionId, date }: WriteArgs): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
-    const prior = await tx.studentJournalDayMark.findUnique({
-      where: { classSectionId_date: { classSectionId, date } },
+    const prior = await tx.studentJournalDayMark.findFirst({
+      where: { tenantId, classSectionId, date },
       select: { id: true, reason: true },
     });
     if (!prior) return false;
-    await tx.studentJournalDayMark.delete({ where: { id: prior.id } });
+    // deleteMany, not delete: of two concurrent removals the loser finds count 0
+    // and answers "nothing to remove" instead of throwing P2025 into a 500.
+    const { count } = await tx.studentJournalDayMark.deleteMany({ where: { id: prior.id, tenantId } });
+    if (count === 0) return false;
     await tx.studentJournalAudit.create({
       data: {
         tenantId,

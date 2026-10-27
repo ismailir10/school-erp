@@ -85,7 +85,6 @@ export const dayMarkSchema = z.object({
   reason: labelText({ required: "Keterangan wajib diisi", max: DAY_MARK_REASON_MAX }),
 });
 export const dayMarkRemoveSchema = dayMarkSchema.pick({ classSectionId: true, date: true });
-export type DayMarkInput = z.infer<typeof dayMarkSchema>;
 
 export const homeEntryBatchSchema = z.object({
   studentId: z.string().min(1),

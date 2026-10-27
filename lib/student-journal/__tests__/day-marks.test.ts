@@ -6,7 +6,8 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
-import { getDayMarksForStudentWeek, getDayMark, isMarkableDate } from "../day-marks";
+import { getDayMarksForStudentWeek, getDayMark } from "../day-marks";
+import { isMarkableDate } from "../day-mark-rules";
 
 const WEEK = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"];
 

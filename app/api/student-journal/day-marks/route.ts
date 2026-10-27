@@ -3,12 +3,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { dayMarkSchema, dayMarkRemoveSchema } from "@/lib/validations/student-journal";
 import { requireDayMarkWriter } from "@/lib/student-journal/guards";
-import {
-  DAY_MARK_NOT_MARKABLE_MSG,
-  isMarkableDate,
-  removeDayMark,
-  saveDayMark,
-} from "@/lib/student-journal/day-marks";
+import { removeDayMark, saveDayMark } from "@/lib/student-journal/day-marks";
+import { DAY_MARK_NOT_MARKABLE_MSG, isMarkableDate } from "@/lib/student-journal/day-mark-rules";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**

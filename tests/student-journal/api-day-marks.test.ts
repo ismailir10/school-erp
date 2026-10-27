@@ -11,9 +11,9 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   assignmentFindFirst: vi.fn(),
   classFindFirst: vi.fn(),
-  markFindUnique: vi.fn(),
+  markFindFirst: vi.fn(),
   markUpsert: vi.fn(),
-  markDelete: vi.fn(),
+  markDeleteMany: vi.fn(),
   auditCreate: vi.fn(),
   rateLimit: vi.fn(),
   today: vi.fn(),
@@ -26,9 +26,9 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/db", () => {
   const tx = {
     studentJournalDayMark: {
-      findUnique: mocks.markFindUnique,
+      findFirst: mocks.markFindFirst,
       upsert: mocks.markUpsert,
-      delete: mocks.markDelete,
+      deleteMany: mocks.markDeleteMany,
     },
     studentJournalAudit: { create: mocks.auditCreate },
   };
@@ -65,8 +65,9 @@ beforeEach(() => {
   mocks.getSession.mockResolvedValue(teacher);
   mocks.assignmentFindFirst.mockResolvedValue({ id: "ta" });
   mocks.classFindFirst.mockResolvedValue({ id: "c1" });
-  mocks.markFindUnique.mockResolvedValue(null);
+  mocks.markFindFirst.mockResolvedValue(null);
   mocks.markUpsert.mockResolvedValue({ id: "m1" });
+  mocks.markDeleteMany.mockResolvedValue({ count: 1 });
 });
 
 describe("PUT /day-marks — who may write", () => {
@@ -113,7 +114,7 @@ describe("PUT /day-marks — who may write", () => {
     mocks.getSession.mockResolvedValue(null);
     expect((await PUT(req(valid))).status).toBe(401);
     expect(mocks.markUpsert).not.toHaveBeenCalled();
-    expect(mocks.markDelete).not.toHaveBeenCalled();
+    expect(mocks.markDeleteMany).not.toHaveBeenCalled();
   });
 });
 
@@ -150,7 +151,7 @@ describe("PUT /day-marks — validation", () => {
 
 describe("PUT /day-marks — editing", () => {
   it("writes an UPDATE audit row with the previous reason when the keterangan changes", async () => {
-    mocks.markFindUnique.mockResolvedValue({ id: "m1", reason: "Renang" });
+    mocks.markFindFirst.mockResolvedValue({ id: "m1", reason: "Renang" });
     await PUT(req({ ...valid, reason: "Libur" }));
     expect(mocks.auditCreate.mock.calls[0][0].data).toMatchObject({
       action: "UPDATE", beforeJson: { reason: "Renang" }, afterJson: { reason: "Libur" },
@@ -158,7 +159,7 @@ describe("PUT /day-marks — editing", () => {
   });
 
   it("writes no audit row when the same keterangan is saved again", async () => {
-    mocks.markFindUnique.mockResolvedValue({ id: "m1", reason: "Renang" });
+    mocks.markFindFirst.mockResolvedValue({ id: "m1", reason: "Renang" });
     await PUT(req(valid));
     expect(mocks.auditCreate).not.toHaveBeenCalled();
   });
@@ -166,11 +167,11 @@ describe("PUT /day-marks — editing", () => {
 
 describe("DELETE /day-marks", () => {
   it("removes the mark and audits the DELETE with the old reason", async () => {
-    mocks.markFindUnique.mockResolvedValue({ id: "m1", reason: "Renang" });
+    mocks.markFindFirst.mockResolvedValue({ id: "m1", reason: "Renang" });
     const res = await DELETE(req({ classSectionId: "c1", date: TUESDAY }));
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ removed: true });
-    expect(mocks.markDelete).toHaveBeenCalledWith({ where: { id: "m1" } });
+    expect(mocks.markDeleteMany).toHaveBeenCalledWith({ where: { id: "m1", tenantId: "t1" } });
     expect(mocks.auditCreate.mock.calls[0][0].data).toMatchObject({
       entityType: "DAY_MARK", entityId: "m1", action: "DELETE", beforeJson: expect.objectContaining({ reason: "Renang" }),
     });
@@ -180,13 +181,48 @@ describe("DELETE /day-marks", () => {
     const res = await DELETE(req({ classSectionId: "c1", date: TUESDAY }));
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ removed: false });
-    expect(mocks.markDelete).not.toHaveBeenCalled();
+    expect(mocks.markDeleteMany).not.toHaveBeenCalled();
     expect(mocks.auditCreate).not.toHaveBeenCalled();
   });
 
   it("403s a guru of another class", async () => {
     mocks.assignmentFindFirst.mockResolvedValue(null);
     expect((await DELETE(req({ classSectionId: "c2", date: TUESDAY }))).status).toBe(403);
-    expect(mocks.markDelete).not.toHaveBeenCalled();
+    expect(mocks.markDeleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("auth and abuse limits", () => {
+  it("answers 429 and writes nothing once the per-user limit is hit", async () => {
+    mocks.rateLimit.mockReturnValue({ success: false });
+    expect((await PUT(req(valid))).status).toBe(429);
+    expect((await DELETE(req({ classSectionId: "c1", date: TUESDAY }))).status).toBe(429);
+    expect(mocks.markUpsert).not.toHaveBeenCalled();
+    expect(mocks.markDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("401s a signed-out DELETE and 404s an admin deleting in another tenant's class", async () => {
+    mocks.getSession.mockResolvedValue(null);
+    expect((await DELETE(req({ classSectionId: "c1", date: TUESDAY }))).status).toBe(401);
+    mocks.getSession.mockResolvedValue(admin);
+    mocks.classFindFirst.mockResolvedValue(null);
+    expect((await DELETE(req({ classSectionId: "c9", date: TUESDAY }))).status).toBe(404);
+    expect(mocks.markDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("scopes a guru's assignment lookup to their tenant's class", async () => {
+    await PUT(req(valid));
+    expect(mocks.assignmentFindFirst).toHaveBeenCalledWith({
+      where: { employeeId: "e1", classSectionId: "c1", classSection: { tenantId: "t1" } },
+    });
+  });
+
+  it("treats a concurrent removal that lost the race as nothing to remove, not a 500", async () => {
+    mocks.markFindFirst.mockResolvedValue({ id: "m1", reason: "Renang" });
+    mocks.markDeleteMany.mockResolvedValue({ count: 0 });
+    const res = await DELETE(req({ classSectionId: "c1", date: TUESDAY }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ removed: false });
+    expect(mocks.auditCreate).not.toHaveBeenCalled();
   });
 });
