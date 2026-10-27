@@ -1,3 +1,4 @@
+import { lockEnrollmentTopology } from "@/lib/enrollment/topology-lock";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -119,18 +120,22 @@ export async function POST(
   const today = getTodayInTimezone("Asia/Jakarta");
   try {
     const enrollment = await prisma.$transaction(async (tx) => {
-      // Student-stream advisory lock — MUST be the first statement in this
-      // transaction, before findStreamConflict below. Without it, two
-      // concurrent POSTs enrolling the SAME student into TWO DIFFERENT
-      // sections of the SAME program type in the SAME year each take only
-      // the per-class lock (below), so under Read Committed neither sees the
-      // other's uncommitted row: both findStreamConflict calls return null,
-      // both creates succeed, and the student ends up with two ACTIVE rows
-      // of the same stream. Locking order is fixed to (1) student-stream,
-      // then (2) class — identically in this door and in
-      // app/api/admin/classes/[id]/enrollments/route.ts — so two concurrent
-      // requests can never deadlock by acquiring the two locks in opposite
-      // orders.
+      await lockEnrollmentTopology(tx, tenantId, "shared");
+      const freshSection = await tx.classSection.findFirst({
+        where: { id: classSectionId, tenantId: tenantId },
+        select: { academicYearId: true, program: { select: { id: true, type: true } } },
+      });
+      if (!freshSection || freshSection.academicYearId !== sectionInfo.academicYearId ||
+          freshSection.program.id !== sectionInfo.program.id || freshSection.program.type !== sectionInfo.program.type) {
+        throw new EnrollError("Program kelas baru saja berubah. Muat ulang lalu coba lagi.", 409, "CLASS_CHANGED_MEANWHILE");
+      }
+
+      // Shared topology guard → fresh class snapshot → student-stream lock →
+      // class lock, in the same order as the class-detail enrollment door.
+      // The topology guard prevents a class program change while the stream
+      // check runs. The student-stream lock serialises concurrent enrollment
+      // of one student into different classes of the same type/year, so both
+      // requests cannot pass findStreamConflict before either creates its row.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${studentId}:${sectionInfo.academicYearId}:${sectionInfo.program.type}`}))`;
 
       // One ACTIVE enrollment per Program.type per academic year — scoped to

@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "../students/[id]/enroll/route";
 import type { SessionUser } from "@/lib/auth";
@@ -108,6 +109,7 @@ function makeTx(opts: {
 }) {
   const conflicts = opts.conflicts ?? [];
   return {
+    classSection: prisma.classSection,
     studentEnrollment: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       findFirst: vi.fn(async ({ where }: any) => {

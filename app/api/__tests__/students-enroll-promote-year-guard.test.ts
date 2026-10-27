@@ -123,6 +123,8 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) =>
       cb({
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         studentEnrollment: {
           findFirst: vi.fn().mockResolvedValue(null),
           count: vi.fn().mockResolvedValue(0),
@@ -132,8 +134,7 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
             .mockResolvedValue({ id: "e1", studentId: "s1", classSectionId: "cs1" }),
         },
         $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10 }]),
-        // Student-stream advisory lock taken first inside the transaction.
-        $executeRaw: vi.fn().mockResolvedValue(1),
+
       }),
     );
 
@@ -207,6 +208,13 @@ describe("POST /api/promotions (bulk promote) — academic-year guard", () => {
       status: "ACTIVE",
     } as never);
     vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([] as never);
+    const target = { id: "cs-target", academicYearId: "y-cur", program: { id: "p1", type: "SEMESTER" } };
+    vi.mocked(prisma.classSection.findFirst).mockReset()
+      .mockResolvedValueOnce({ id: "cs-source" } as never).mockResolvedValue(target as never);
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb) => (cb as (tx: unknown) => Promise<unknown>)({
+      classSection: prisma.classSection, $executeRaw: vi.fn(),
+      studentEnrollment: { findMany: vi.fn().mockImplementation(prisma.studentEnrollment.findMany) },
+    }));
 
     const res = await POST(bulkReq());
 
@@ -273,10 +281,14 @@ describe("POST /api/students/[id]/promote — academic-year guard", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) =>
       cb({
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn().mockResolvedValue([
           { id: "cs-target", capacity: 10, active_count: BigInt(3) },
         ]),
         studentEnrollment: {
+          findFirst: vi.fn().mockImplementation((args) => args.where.id ? null : prisma.studentEnrollment.findFirst(args)),
+          findUnique: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(3),
           update: vi.fn(),
           upsert: vi
             .fn()

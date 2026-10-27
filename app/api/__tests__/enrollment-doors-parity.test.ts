@@ -116,6 +116,7 @@ function txForConflict(
   } | null,
 ) {
   return {
+    classSection: db.classSection,
     studentEnrollment: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       findFirst: vi.fn(async ({ where }: any) => {

@@ -72,10 +72,15 @@ describe("POST /api/students/[id]/promote — source enrollment scoping", () => 
   async function setupTx() {
     const { prisma } = await import("@/lib/db");
     const tx = {
+      classSection: prisma.classSection,
+      $executeRaw: vi.fn(),
       $queryRaw: vi
         .fn()
         .mockResolvedValue([{ id: "cs-target", capacity: 10, active_count: BigInt(1) }]),
       studentEnrollment: {
+        findFirst: vi.fn().mockImplementation((args) => args.where.id ? null : prisma.studentEnrollment.findFirst(args)),
+        findUnique: vi.fn().mockResolvedValue(null),
+        count: vi.fn().mockResolvedValue(1),
         update: vi.fn(),
         upsert: vi
           .fn()

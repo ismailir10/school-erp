@@ -1,3 +1,4 @@
+import { lockEnrollmentTopology } from "@/lib/enrollment/topology-lock";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -140,26 +141,24 @@ export async function POST(
   }
 
   try {
-    // Capacity check + stream-conflict check + create wrapped in a
-    // transaction with two Postgres advisory locks: a student-stream lock
-    // keyed on (studentId, academicYearId, programType), then a class lock
-    // keyed on classId. The class lock serialises concurrent POSTs for the
-    // same class so two parallel requests at capacity-1 cannot both pass the
-    // count check and overfill (same pattern as `lib/sessions/reconcile.ts`
-    // + the invoice-payment route). The student-stream lock serialises
-    // concurrent POSTs enrolling the SAME student into DIFFERENT sections of
-    // the SAME program type in the SAME year — without it, two such POSTs
-    // each take only the class lock (for different classIds), so under Read
-    // Committed neither sees the other's uncommitted row and both
-    // findStreamConflict calls below return null, letting the student end up
-    // with two ACTIVE rows of the same stream.
-    //
-    // Locking order is fixed to (1) student-stream, then (2) class —
-    // identically in this door and in
-    // app/api/students/[id]/enroll/route.ts — so two concurrent requests can
-    // never deadlock by acquiring the two locks in opposite orders.
+    // Shared topology guard → fresh class snapshot → student-stream lock →
+    // class lock, in the same order as the students-detail enrollment door.
+    // The topology guard prevents program changes during the stream check;
+    // shared guards still allow unrelated enrollments to proceed together.
+    // The student-stream lock serialises one student's same-type/year writes,
+    // while the class lock protects the capacity check from parallel additions.
     const today = getTodayInTimezone(JAKARTA_TZ);
     const created = await prisma.$transaction(async (tx) => {
+      await lockEnrollmentTopology(tx, session.tenantId, "shared");
+      const freshSection = await tx.classSection.findFirst({
+        where: { id: classId, tenantId: session.tenantId },
+        select: { academicYearId: true, program: { select: { id: true, type: true } } },
+      });
+      if (!freshSection || freshSection.academicYearId !== classSection.academicYearId ||
+          freshSection.program.id !== classSection.program.id || freshSection.program.type !== classSection.program.type) {
+        throw new EnrollmentBlocked("CLASS_CHANGED_MEANWHILE", { message: "Program kelas baru saja berubah. Muat ulang lalu coba lagi.", status: 409 });
+      }
+
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${studentId}:${classSection.academicYearId}:${classSection.program.type}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
 
@@ -278,7 +277,7 @@ export async function POST(
 
 class EnrollmentBlocked extends Error {
   constructor(
-    public readonly code: "CAPACITY_EXCEEDED" | "ALREADY_ENROLLED",
+    public readonly code: "CAPACITY_EXCEEDED" | "ALREADY_ENROLLED" | "CLASS_CHANGED_MEANWHILE",
     public readonly detail: {
       message: string;
       status: number;

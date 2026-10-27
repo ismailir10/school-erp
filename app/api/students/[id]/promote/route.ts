@@ -1,3 +1,4 @@
+import { lockEnrollmentTopology, lockEnrollmentStreams } from "@/lib/enrollment/topology-lock";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -19,6 +20,7 @@ export async function POST(
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const tenantId = session.tenantId;
   if (!hasPermission(session, "students.edit")) {
     return NextResponse.json({ error: "forbidden", missing: "students.edit" }, { status: 403 });
   }
@@ -30,7 +32,7 @@ export async function POST(
 
   // Verify student belongs to tenant
   const student = await prisma.student.findFirst({
-    where: { id: studentId, tenantId: session.tenantId },
+    where: { id: studentId, tenantId: tenantId },
   });
   if (!student) {
     return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
@@ -40,8 +42,8 @@ export async function POST(
   // transaction below — mirror of the enroll route pattern). Also loads the
   // target's program type, which scopes the source-enrollment lookup below.
   const targetExists = await prisma.classSection.findFirst({
-    where: { id: targetClassSectionId, tenantId: session.tenantId },
-    select: { id: true, academicYearId: true, program: { select: { type: true } } },
+    where: { id: targetClassSectionId, tenantId: tenantId },
+    select: { id: true, academicYearId: true, program: { select: { id: true, type: true } } },
   });
   if (!targetExists) {
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
@@ -51,54 +53,10 @@ export async function POST(
   // years are immutable for audit integrity.
   const yearGuard = await ensureYearWritableById(
     targetExists.academicYearId,
-    session.tenantId,
+    tenantId,
     "Pilih kelas pada tahun ajaran yang aktif.",
   );
   if (yearGuard instanceof NextResponse) return yearGuard;
-
-  // Find the source ACTIVE enrollment — scoped to the target's program type
-  // (SEMESTER vs YEAR_ROUND) and to a non-ARCHIVED academic year.
-  //
-  // Program type, not academic year, is the stream key: a promote call only
-  // carries `targetClassSectionId`, and a "promotion" ordinarily moves a
-  // student from a class in one year into a class in the *next* year — so
-  // matching the target's own academicYearId would almost never find the
-  // source row. What must never happen is picking a stale ACTIVE row left
-  // behind in an ARCHIVED year (16 of 21 current-year students carry one —
-  // see cycle doc), so ARCHIVED years are excluded outright rather than
-  // pinned to one specific year id.
-  //
-  // This does NOT guarantee at most one candidate. `lib/classes/year-guard.ts`
-  // blocks only ARCHIVED, so a PLANNING (future) year is fully enrollable —
-  // a student legitimately enrolled ahead into next year's class while this
-  // year's row is still ACTIVE has TWO non-archived ACTIVE rows of the same
-  // program type: one in the current ACTIVE year, one in the future PLANNING
-  // year. `orderBy` below breaks that tie deterministically: it always picks
-  // the row in the chronologically EARLIEST non-archived year, which is the
-  // current (ACTIVE-status) year, never the future PLANNING one — a
-  // "promotion" graduates the student out of where they are now, not out of
-  // a class they haven't started yet.
-  //
-  // `findStreamConflict` (lib/enrollment/active.ts) doesn't fit here — it
-  // takes a concrete `academicYearId` to look for a *conflicting* row before
-  // a create, whereas this is a *lookup* of the row to graduate and the
-  // relevant year isn't known in advance. A narrow inline query is scoped to
-  // the route's own semantics instead of bending that helper's signature.
-  const programType = targetExists.program.type;
-  const currentEnrollment = await prisma.studentEnrollment.findFirst({
-    where: {
-      studentId,
-      status: "ACTIVE",
-      classSection: {
-        academicYear: { NOT: { status: "ARCHIVED" } },
-        program: { type: programType },
-      },
-    },
-    orderBy: { classSection: { academicYear: { startDate: "asc" } } },
-  });
-  if (!currentEnrollment) {
-    return NextResponse.json({ error: "Siswa belum terdaftar di kelas aktif" }, { status: 400 });
-  }
 
   const today = getTodayInTimezone("Asia/Jakarta");
 
@@ -107,22 +65,48 @@ export async function POST(
   // concurrent promotes from both seeing "one seat free" and overflowing.
   try {
     const newEnrollment = await prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<
-        Array<{ id: string; capacity: number; active_count: bigint }>
-      >`
-        SELECT cs.id, cs.capacity, COUNT(se.id)::int AS active_count
-        FROM "ClassSection" cs
-        LEFT JOIN "StudentEnrollment" se
-          ON se."classSectionId" = cs.id AND se.status = 'ACTIVE'
+      await lockEnrollmentTopology(tx, tenantId, "shared");
+      const target = await tx.classSection.findFirst({
+        where: { id: targetClassSectionId, tenantId: tenantId },
+        select: { id: true, academicYearId: true, program: { select: { id: true, type: true } } },
+      });
+      if (!target || target.academicYearId !== targetExists.academicYearId ||
+          target.program.id !== targetExists.program.id || target.program.type !== targetExists.program.type) {
+        throw new PromoteError("Program kelas baru saja berubah. Muat ulang lalu coba lagi.", 409);
+      }
+      await lockEnrollmentStreams(tx, [studentId], target.academicYearId, target.program.type);
+      // Choose the earliest live source of this stream, preserving a separate daycare enrollment.
+      const currentEnrollment = await tx.studentEnrollment.findFirst({
+        where: { studentId, status: "ACTIVE", classSection: {
+          academicYear: { NOT: { status: "ARCHIVED" } }, program: { type: target.program.type },
+        } },
+        orderBy: { classSection: { academicYear: { startDate: "asc" } } },
+      });
+      if (!currentEnrollment) throw new PromoteError("Siswa belum terdaftar di kelas aktif", 400);
+      const conflict = await tx.studentEnrollment.findFirst({
+        where: {
+          studentId, status: "ACTIVE", id: { not: currentEnrollment.id },
+          classSectionId: { not: targetClassSectionId },
+          classSection: { academicYearId: target.academicYearId, program: { type: target.program.type } },
+        },
+        select: { classSection: { select: { name: true } } },
+      });
+      if (conflict) throw new PromoteError(`Siswa sudah terdaftar di kelas ${conflict.classSection.name} pada tahun ajaran ini.`, 409);
+
+      const rows = await tx.$queryRaw<Array<{ id: string; capacity: number }>>`
+        SELECT cs.id, cs.capacity FROM "ClassSection" cs
         WHERE cs.id = ${targetClassSectionId}
-        GROUP BY cs.id, cs.capacity
         FOR UPDATE OF cs
       `;
       if (rows.length === 0) {
         throw new PromoteError("Kelas tujuan tidak ditemukan", 404);
       }
-      const activeCount = Number(rows[0].active_count);
-      if (activeCount >= rows[0].capacity) {
+      const activeCount = await tx.studentEnrollment.count({ where: { classSectionId: targetClassSectionId, status: "ACTIVE" } });
+      const existingTarget = await tx.studentEnrollment.findUnique({
+        where: { studentId_classSectionId: { studentId, classSectionId: targetClassSectionId } },
+        select: { status: true },
+      });
+      if (existingTarget?.status !== "ACTIVE" && activeCount >= rows[0].capacity) {
         throw new PromoteError(
           `Kelas tujuan penuh (${activeCount}/${rows[0].capacity})`,
         );
