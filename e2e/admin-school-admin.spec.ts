@@ -78,6 +78,58 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
     await expect(page).toHaveURL(/\/admin$/);
   });
 
+  // Cycle 2026-10-27-admin-curriculum-write: the school admin authors Kurikulum.
+  test("SCHOOL_ADMIN creates a Tema, Subtema and Pekan", async ({ page }) => {
+    // Native date inputs, as a touch device gets (the DatePicker popover is
+    // not worth paging to 2030 — same trick as curriculum-admin.spec.ts).
+    await page.addInitScript(() => {
+      const real = window.matchMedia.bind(window);
+      window.matchMedia = (q: string) =>
+        q === "(pointer: coarse)"
+          ? ({ matches: true, media: q, onchange: null, addListener() {}, removeListener() {},
+              addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false } as MediaQueryList)
+          : real(q);
+    });
+
+    const yearsRes = await page.request.get("/api/academic-years");
+    const years = (await yearsRes.json()) as Array<{ name: string; status: string }>;
+    const yearName = years.find((y) => y.status === "ACTIVE")?.name;
+    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=100");
+    const sems = (await semRes.json()) as {
+      data?: Array<{ id: string; number: number; academicYear: { name: string } }>;
+    };
+    const semester = sems.data?.find((x) => x.number === 1 && x.academicYear.name === yearName);
+    test.skip(!semester, "seed produced no Semester 1 for the ACTIVE academic year");
+
+    await page.goto(`/admin/semesters/${semester!.id}/themes`);
+    const themeCard = page.locator('[data-testid="theme-card"]');
+    await expect(themeCard.getByRole("button", { name: /Tambah/ })).toBeVisible({ timeout: 15_000 });
+
+    const themeName = `E2E Admin Tema ${Date.now()}`;
+    await themeCard.getByRole("button", { name: /Tambah/ }).click();
+    await page.locator('[data-testid="theme-name-input"]').fill(themeName);
+    await page.getByRole("button", { name: "Simpan", exact: true }).click();
+    const themeRow = page.locator('[data-testid="theme-row"]').filter({ hasText: themeName });
+    await expect(themeRow).toBeVisible({ timeout: 10_000 });
+    await themeRow.click();
+
+    const subName = `E2E Admin Subtema ${Date.now()}`;
+    await page.locator('[data-testid="subtheme-card"]').getByRole("button", { name: /Tambah/ }).click();
+    await page.locator('[data-testid="subtheme-name-input"]').fill(subName);
+    await page.getByRole("button", { name: "Simpan", exact: true }).click();
+    const subRow = page.locator('[data-testid="subtheme-row"]').filter({ hasText: subName });
+    await expect(subRow).toBeVisible({ timeout: 10_000 });
+    await subRow.click();
+
+    await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
+    await page.locator("#week-start-date").fill("2030-02-04");
+    await page.locator("#week-end-date").fill("2030-02-08");
+    await page.locator('[data-testid="week-save"]').click();
+    await expect(
+      page.locator('[data-testid="week-row"]').filter({ hasText: /Pekan/ }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("Settings not pinned in sidebar footer (Keluar only)", async ({ page }) => {
     // Footer must contain only the Keluar button — Pengaturan moved into
     // the scrollable SidebarContent in Task 7.

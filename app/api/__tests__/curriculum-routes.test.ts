@@ -210,6 +210,24 @@ describe("curriculum routes — auth + permissions", () => {
     expect(res.status).toBe(403);
   });
 
+  it("POST /semesters → passes the write gate for SCHOOL_ADMIN system defaults (admin-curriculum-write)", async () => {
+    const { POST } = await import("@/app/api/admin/curriculum/semesters/route");
+    const { getSession } = await import("@/lib/auth");
+    const { getSystemRolePermissions } = await import("@/lib/permissions");
+    vi.mocked(getSession).mockResolvedValue({
+      ...superAdmin,
+      id: "u-admin",
+      role: "SCHOOL_ADMIN" as const,
+      permissions: getSystemRolePermissions("SCHOOL_ADMIN"),
+    });
+    academicYearFindFirst.mockResolvedValue(null);
+    const res = await POST(
+      jsonReq({ academicYearId: "missing", number: 1, startDate: "2026-07-14", endDate: "2026-12-19" }) as never,
+    );
+    // 400 = got past auth and failed the AcademicYear check; 403 would mean the gate held.
+    expect(res.status).toBe(400);
+  });
+
   it("GET /semesters → 200 for TEACHER (read permission)", async () => {
     const { GET } = await import("@/app/api/admin/curriculum/semesters/route");
     const { getSession } = await import("@/lib/auth");

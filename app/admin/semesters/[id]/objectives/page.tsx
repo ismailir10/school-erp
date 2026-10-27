@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { assertPermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { ObjectivesClient } from "./client";
 
 /**
  * Tujuan Pembelajaran (TP) + Indikator Ketercapaian (IKTP) + theme-link
  * authoring page for a single Semester (C3). Server-side `curriculum.read`
- * gate; `canWrite` flag only true for SUPER_ADMIN (design doc §3.2).
+ * gate; `canWrite` follows the `curriculum.write` permission.
  * Cross-checked against `.claude/standards/design-system.html`
  * §Page header + §Accordion + §Dialog + §matrix patterns before edit.
  */
@@ -34,7 +35,7 @@ export default async function SemesterObjectivesPage({
 
   return (
     <ObjectivesClient
-      canWrite={session.role === "SUPER_ADMIN"}
+      canWrite={hasPermission(session, "curriculum.write")}
       semester={{
         id: semester.id,
         number: semester.number as 1 | 2,

@@ -148,9 +148,11 @@ export function getSystemRolePermissions(role: string): string[] {
         "settings.edit",
         "users.view",
         "users.edit",
-        // curriculum — SCHOOL_ADMIN can READ but not WRITE curriculum.
-        // Authoring is SUPER_ADMIN-only per design doc §3.2.
+        // curriculum — the school runs its own semester, theme, week and
+        // objective authoring (2026-10-27 admin-curriculum-write; this
+        // reversed the earlier SUPER_ADMIN-only rule of design doc §3.2).
         "curriculum.read",
+        "curriculum.write",
         // Penilaian — SCHOOL_ADMIN reads everything in the new admin
         // /admin/assessments rebuild (C7b) and can override entries
         // (Category-C event-log). Writing fresh entries stays teacher-only.

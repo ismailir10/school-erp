@@ -5,7 +5,7 @@ import { ImportPromesClient } from "./client";
 
 /**
  * Admin PROMES import surface (C2/T6). Server gate is `curriculum.write`
- * (SUPER_ADMIN only by system-role defaults — design doc §3.2). The
+ * (SUPER_ADMIN and SCHOOL_ADMIN by system-role defaults). The
  * route layer also enforces the gate, so this server-side
  * `assertPermission` is for navigation hygiene (avoid rendering the
  * page chrome to a caller who would 403 the API call).
