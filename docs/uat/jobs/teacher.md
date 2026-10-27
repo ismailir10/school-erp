@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
+> Last audited: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -219,7 +219,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   7. Each toggle fires `POST /api/student-journal/entries/batch` with a single-entry payload; the tapped cell pulses while saving and settles when persisted
   8. Navigate away at any point — nothing is lost; reload shows updated completion counts
   9. **Whole class at once (cycle `journal-ux`):** on the entry page tap **Isi cepat satu kelas** → the bottom sheet defaults to *Semua indikator* × *Semua siswa* → tap **Tandai (n)**. One gesture, one batched write (posted in chunks of 100); an inline **Batalkan** strip undoes it. Narrow by category/indicator or by student first when needed; **Kosongkan (n)** clears. Per-student edits in the accordion still win afterwards. Target: a full class in ≤3 taps.
-- **Done when:** Every toggled cell persists across reload without any explicit save action. A failed save visibly reverts the tapped cell and shows the "Catatan belum tersimpan. Ketuk ulang ya." toast. Rapid re-taps settle to the last tapped state (stale responses ignored). The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
+- **Done when:** A pupil counts as *lengkap* as soon as one indicator is ticked (some indicators legitimately stay empty, e.g. punctuality for a pupil who came late), so the teacher home stops listing the journal once every present pupil has at least one tick. Every toggled cell persists across reload without any explicit save action. A failed save visibly reverts the tapped cell and shows the "Catatan belum tersimpan. Ketuk ulang ya." toast. Rapid re-taps settle to the last tapped state (stale responses ignored). The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
 - **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. Before per-tap save, taps were silently lost when she navigated away without pressing Simpan (ui-sweep T8 user-harm item); autosave-on-tap removes that failure mode entirely.
 - **Expected perf:** roster load <1.5s for a 25-student class; per-student drill-down load <1s; tap-to-toggle latency <100ms (optimistic client state); per-tap save settle <2s.
 - **Error scenarios to verify:**
@@ -229,6 +229,31 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Class-level bulk: apply, undo, and a failed chunk (only that chunk's cells revert, one toast, "Coba simpan lagi"); Kosongkan then Batalkan restores the ticks
   - Missing class/date link → picker recovery explains that class and date must be chosen; grid-fetch failure offers local `Coba lagi` rather than an empty roster
 - **Known friction (from last UAT):** Entry page is a roster list, not a cell grid — UAT must drill into individual students to reach the indicator checkboxes.
+
+---
+
+### JTBD-TEACHER-JOURNAL-04 — Mark a day the class does not use the book (Hari tanpa buku penghubung)
+- **Persona:** Bu Sari
+- **Role:** TEACHER
+- **Preconditions:**
+  - Logged in as a teacher assigned to the class; the date is a school day (Senin–Jumat) that is today or earlier
+  - A parent of a child in that class (to check the other side)
+- **Steps:**
+  1. Open the entry page `/teacher/student-journal/entry?classId=…&date=…` for the day (e.g. Selasa, swimming day: the book stays at home)
+  2. Tap **Hari tanpa buku penghubung** — the dialog opens
+  3. Tap the **Renang** chip (or type a keterangan up to 60 characters) and tap **Simpan**
+  4. A banner shows "Hari tanpa buku penghubung · Renang" with **Ubah**; the roster below stays usable
+  5. Go back to Beranda: the class no longer appears under "Yang perlu diselesaikan" for the journal; under "Pekerjaan yang sudah tersimpan" it reads "Hari tanpa buku penghubung · Renang"
+  6. As the parent: Jurnal → Di sekolah — the Selasa column carries a marker and the line "Sel … · Tanpa buku penghubung: Renang"
+  7. Back on the entry page tap **Ubah** → **Hapus tanda**: the banner goes, the normal progress returns and earlier ticks are still there
+- **Done when:** The keterangan is visible to the guru, the admin and the wali; the day counts as finished on the teacher home; removing the mark restores the normal grid with its ticks intact. The button is absent on weekends and future days.
+- **Why this job matters:** swimming and outing days used to leave an empty column that the wali read as the guru forgetting, and the home card nagged forever.
+- **Expected perf:** dialog opens instantly; Simpan settles in <2s.
+- **Error scenarios to verify:**
+  - Empty or over-60-character keterangan → Simpan stays disabled / the server answers in Indonesian
+  - Network drop on Simpan → error shown inside the dialog, dialog stays open
+  - A teacher not assigned to the class calling `PUT /api/student-journal/day-marks` → 403
+- **Known friction (from last UAT):** none yet.
 
 ---
 

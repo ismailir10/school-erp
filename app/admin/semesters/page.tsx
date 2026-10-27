@@ -1,4 +1,5 @@
 import { assertPermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { SemestersClient } from "./client";
 
 /**
@@ -11,5 +12,5 @@ import { SemestersClient } from "./client";
  */
 export default async function SemestersPage() {
   const session = await assertPermission("curriculum.read");
-  return <SemestersClient canWrite={session.role === "SUPER_ADMIN"} />;
+  return <SemestersClient canWrite={hasPermission(session, "curriculum.write")} />;
 }

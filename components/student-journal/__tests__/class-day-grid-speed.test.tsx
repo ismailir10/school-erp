@@ -117,3 +117,17 @@ describe("ClassDayGrid — bulk fill", () => {
     expect(screen.queryByTestId("bulk-clear-all")).toBeNull();
   });
 });
+
+describe("ClassDayGrid — lengkap avatar", () => {
+  it("shows the done check once a single indicator is ticked, and initials while none is", () => {
+    const { rerender } = render(
+      <ClassDayGrid students={[abdullah]} categories={categories} state={{ s1: {} }} onToggle={vi.fn()} />,
+    );
+    expect(screen.getByText("AF")).toBeInTheDocument();
+    rerender(
+      <ClassDayGrid students={[abdullah]} categories={categories} state={{ s1: { "ind-1": true, "ind-2": false } }} onToggle={vi.fn()} />,
+    );
+    expect(screen.queryByText("AF")).toBeNull();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+  });
+});

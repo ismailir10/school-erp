@@ -76,6 +76,16 @@ export const entryBatchSchema = z.object({
     .max(JOURNAL_BATCH_MAX_ENTRIES, `Maksimal ${JOURNAL_BATCH_MAX_ENTRIES} entri per permintaan`),
 });
 
+/** Longest keterangan on a "hari tanpa buku penghubung" — one line the wali reads in a 44px-wide week column. */
+export const DAY_MARK_REASON_MAX = 60;
+
+export const dayMarkSchema = z.object({
+  classSectionId: z.string().min(1),
+  date: ymd,
+  reason: labelText({ required: "Keterangan wajib diisi", max: DAY_MARK_REASON_MAX }),
+});
+export const dayMarkRemoveSchema = dayMarkSchema.pick({ classSectionId: true, date: true });
+
 export const homeEntryBatchSchema = z.object({
   studentId: z.string().min(1),
   date: ymd,

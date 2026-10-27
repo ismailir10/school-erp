@@ -2,13 +2,25 @@ import { describe, expect, it } from "vitest";
 import { BULK_ABSENCE_LABELS } from "@/components/student-journal/class-bulk-sheet";
 import { getJournalProgress, isJournalAbsentStatus, resolveTeacherDate, teacherSlotRank, compareTeacherClasses } from "../home-progress";
 describe("teacher work summaries", () => {
-  it("requires every active indicator for each active student, ignoring duplicate and retired ticks", () => {
-    const input = {studentIds:["a","b"],indicatorIds:["i","j"],entries:[
+  it("counts a pupil lengkap with one tick, ignoring duplicate, retired and withdrawn-pupil ticks", () => {
+    const input = {studentIds:["a","b","c"],indicatorIds:["i","j"],entries:[
       {studentId:"a",indicatorId:"i",checked:true},{studentId:"a",indicatorId:"j",checked:true},
-      {studentId:"a",indicatorId:"j",checked:true},{studentId:"b",indicatorId:"i",checked:true},
-      {studentId:"b",indicatorId:"retired",checked:true},{studentId:"withdrawn",indicatorId:"j",checked:true}]};
-    expect(getJournalProgress(input)).toEqual({configured:true,totalStudents:2,completeStudents:1,completed:false,absentCount:0});
-    expect(getJournalProgress({...input, entries:[...input.entries,{studentId:"b",indicatorId:"j",checked:true}]}).completed).toBe(true);
+      {studentId:"a",indicatorId:"j",checked:true},{studentId:"b",indicatorId:"i",checked:false},
+      {studentId:"c",indicatorId:"retired",checked:true},{studentId:"withdrawn",indicatorId:"j",checked:true}]};
+    expect(getJournalProgress(input)).toEqual({configured:true,totalStudents:3,completeStudents:1,completed:false,absentCount:0});
+    const oneTickEach = [...input.entries,{studentId:"b",indicatorId:"j",checked:true},{studentId:"c",indicatorId:"i",checked:true}];
+    expect(getJournalProgress({...input, entries:oneTickEach})).toMatchObject({completeStudents:3,completed:true});
+  });
+  it("keeps a pupil with a late arrival (one indicator left empty) complete", () => {
+    const r = getJournalProgress({studentIds:["late"],indicatorIds:["onTime","pray","eat"],entries:[
+      {studentId:"late",indicatorId:"pray",checked:true},{studentId:"late",indicatorId:"eat",checked:true}]});
+    expect(r).toMatchObject({completeStudents:1,completed:true});
+  });
+  it("finishes a marked day whatever the ticks say, and reports why", () => {
+    const r = getJournalProgress({studentIds:["a","b"],indicatorIds:["i"],entries:[],dayMarkReason:"Renang"});
+    expect(r).toEqual({configured:true,totalStudents:2,completeStudents:0,completed:true,absentCount:0,dayMarkReason:"Renang"});
+    expect(getJournalProgress({studentIds:["a"],indicatorIds:["i"],entries:[],dayMarkReason:null})).not.toHaveProperty("dayMarkReason");
+    expect(getJournalProgress({studentIds:["a"],indicatorIds:["i"],entries:[],dayMarkReason:null}).completed).toBe(false);
   });
   it("does not claim completion with no indicators or no pupils", () => {
     expect(getJournalProgress({studentIds:["a"],indicatorIds:[],entries:[]}).configured).toBe(false);

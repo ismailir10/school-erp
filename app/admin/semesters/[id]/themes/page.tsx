@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { assertPermission } from "@/lib/auth-guards";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { ThemesClient } from "./client";
 
 /**
  * Theme / SubTheme / Week authoring page for a single Semester.
- * Server-side `curriculum.read` gate; `canWrite` flag only true for
- * SUPER_ADMIN (design doc §3.2). Cross-checked against
+ * Server-side `curriculum.read` gate; `canWrite` follows the
+ * `curriculum.write` permission. Cross-checked against
  * `.claude/standards/design-system.html` §Page header + §Dialog +
  * §ConfirmDialog before edit.
  */
@@ -36,7 +37,7 @@ export default async function SemesterThemesPage({
 
   return (
     <ThemesClient
-      canWrite={session.role === "SUPER_ADMIN"}
+      canWrite={hasPermission(session, "curriculum.write")}
       semester={{
         id: semester.id,
         number: semester.number as 1 | 2,

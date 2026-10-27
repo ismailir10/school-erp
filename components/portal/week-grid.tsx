@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Check, Pencil } from "lucide-react";
+import { CalendarOff, Check, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -70,6 +70,13 @@ type WeekGridProps = {
    * week that has not happened. Omit to keep the silent behaviour.
    */
   emptyWeekMessage?: string;
+  /**
+   * Days the guru marked "hari tanpa buku penghubung", `YYYY-MM-DD → keterangan`
+   * ("Renang"). A 44px column cannot carry the reason, so each marked day gets a
+   * line above the grid, an icon in its header, and a quiet tint on the cells
+   * that would otherwise read as "belum diisi". Ticks that exist stay visible.
+   */
+  dayMarks?: Record<string, string>;
 };
 
 // Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
@@ -145,6 +152,7 @@ export function WeekGrid({
   earliestEditableDate,
   featureLabel = "Buku Penghubung",
   emptyWeekMessage,
+  dayMarks,
 }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
@@ -172,10 +180,26 @@ export function WeekGrid({
   }
 
   const hasAnyCheck = entries.some((e) => e.checked);
+  const markedDates = dates.filter((d) => dayMarks?.[d]);
 
   return (
     <div>
-      {emptyWeekMessage && !hasAnyCheck ? (
+      {markedDates.length > 0 ? (
+        <ul data-testid="day-mark-notes" className="mb-2 space-y-1">
+          {markedDates.map((d) => (
+            <li key={d} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <CalendarOff size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+              <span>
+                <span className="font-medium text-foreground">
+                  {DAY_LABELS[dates.indexOf(d)] ?? ""} {formatColDate(d)}
+                </span>{" "}
+                · Tanpa buku penghubung: {dayMarks?.[d]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {emptyWeekMessage && !hasAnyCheck && markedDates.length === 0 ? (
         <p data-testid="empty-week-note" className="mb-2 text-xs text-muted-foreground">
           {emptyWeekMessage}
         </p>
@@ -207,6 +231,14 @@ export function WeekGrid({
                   <div className={`text-xs ${isToday ? "text-primary-text" : "text-muted-foreground/70 font-normal"}`}>
                     {formatColDate(d)}
                   </div>
+                  {dayMarks?.[d] ? (
+                    <CalendarOff
+                      size={12}
+                      className="mx-auto mt-0.5 text-muted-foreground"
+                      role="img"
+                      aria-label={`Tanpa buku penghubung: ${dayMarks[d]}`}
+                    />
+                  ) : null}
                 </th>
               );
             })}
@@ -255,7 +287,10 @@ export function WeekGrid({
                     // Success/hadir-subtle tint is reserved for cells actually checked —
                     // an unfilled today cell gets the neutral "today" accent instead, so
                     // an empty entry never visually reads as "done" (finding F5a).
-                    const todayCellBg = isToday
+                    const markReason = !checked ? dayMarks?.[d] : undefined;
+                    const todayCellBg = markReason
+                      ? " bg-muted/60"
+                      : isToday
                       ? checked
                         ? " bg-status-present-subtle"
                         : " bg-primary/5"
@@ -321,7 +356,7 @@ export function WeekGrid({
                           <span
                             className="flex h-[36px] cursor-default items-center justify-center"
                             role="img"
-                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya bisa dilihat)`}
+                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : markReason ? `tanpa buku penghubung (${markReason})` : "belum diisi"} (hanya bisa dilihat)`}
                           >
                             {/*
                               Was "✓" and "—" as text, same size and same grey:

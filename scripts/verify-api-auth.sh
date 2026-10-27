@@ -5,7 +5,7 @@
 #   - reference a session helper: getSession(, requireAdmin(, requireSuperAdmin(,
 #     requireTeacher(, requireParent(, requireGuardian(, requireAuth(,
 #     requireTeacherForClass(, requireGuardianForStudent(,
-#     requireNoteAccessForStudent(, or requirePermission(
+#     requireNoteAccessForStudent(, requireDayMarkWriter(, or requirePermission(
 #   - OR declare itself public with a top-of-file `// @public` sentinel comment.
 #
 # Rationale: proxy.ts short-circuits /api/* before any auth check (each route
@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-AUTH_PATTERN='getSession\(|requireAdmin\(|requireSuperAdmin\(|requireTeacher\(|requireParent\(|requireGuardian\(|requireAuth\(|requireTeacherForClass\(|requireGuardianForStudent\(|requireNoteAccessForStudent\(|requirePermission\(|// @public'
+AUTH_PATTERN='getSession\(|requireAdmin\(|requireSuperAdmin\(|requireTeacher\(|requireParent\(|requireGuardian\(|requireAuth\(|requireTeacherForClass\(|requireGuardianForStudent\(|requireNoteAccessForStudent\(|requireDayMarkWriter\(|requirePermission\(|// @public'
 
 missing=()
 total=0
