@@ -17,12 +17,13 @@ import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
+import { SppPrepayDialog } from "@/components/admin/invoices/spp-prepay-dialog";
 import { PaymentLinkExpiryCell } from "@/components/admin/invoices/payment-link-expiry-cell";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
@@ -206,6 +207,10 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // Manual single-invoice dialog — submission redirects to the detail page,
   // so no list refresh is needed on success (the user leaves the list view).
   const [manualDialog, setManualDialog] = useState(false);
+  const [sppPrepayDialog, setSppPrepayDialog] = useState(false);
+  // "Catat SPP di muka" creates invoices and records their payments in one step,
+  // so it needs both permissions (same pair the endpoints enforce).
+  const canPrepaySpp = capabilities.create && capabilities.recordPayment;
 
   // Billing Run wizard (bulk invoice wizard arc, Cycle B1, Task T8) — the
   // only bulk-generate entry point since Task T10 retired the legacy
@@ -784,6 +789,11 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                 <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
                   <Plus size={14} className="mr-1.5" /> Tagihan Manual
                 </Button>
+                {canPrepaySpp && (
+                  <Button size="sm" variant="outline" onClick={() => setSppPrepayDialog(true)}>
+                    <CalendarCheck size={14} className="mr-1.5" /> Catat SPP di muka
+                  </Button>
+                )}
                 <Button size="sm" onClick={openWizard}>
                   <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan
                 </Button>
@@ -976,6 +986,8 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       <ManualInvoiceDialog
         open={manualDialog}
         onOpenChange={setManualDialog}
+        // "Sudah dibayar" records the payment too, so it needs payments.record as well as invoices.create.
+        canRecordPayment={capabilities.recordPayment}
         // FIND-012: pre-fix the dialog navigated straight to /admin/invoices/[id]
         // after create. When the admin clicked back to the list, the client
         // component re-mounted and re-fetched from scratch, showing the
@@ -986,6 +998,19 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           fetchStats();
         }}
       />
+
+      {/* SPP paid in advance (cycle 2026-10-27-paid-invoice-spp-prepay) — preview,
+          then one confirm that settles every month. Needs create + recordPayment. */}
+      {canPrepaySpp && (
+        <SppPrepayDialog
+          open={sppPrepayDialog}
+          onOpenChange={setSppPrepayDialog}
+          onRecorded={() => {
+            fetchInvoices();
+            fetchStats();
+          }}
+        />
+      )}
 
       {/* Billing Run wizard (Cycle B1, Tasks T8-T9) — the sole bulk-generate
           entry point since Task T10 retired the legacy "Buat Tagihan

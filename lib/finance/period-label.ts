@@ -93,3 +93,21 @@ export function parsePeriodMonth(label: string): { year: number; month: number }
   if (months.size !== 1 || years.size !== 1) return null;
   return { year: Number([...years][0]), month: [...months][0] };
 }
+
+/** Last day of `month` (1-12) of `year` as YYYY-MM-DD. */
+export function lastDayOfMonth(year: number, month: number): string {
+  const last = new Date(year, month, 0); // day 0 of the next month = last day of `month`
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * End of the month named by a typed period label ("Oktober 2026", "Okt 2026"),
+ * or `null` when the label does not name one month + year (e.g. "Semester 1
+ * 2025/2026") — the caller then leaves the due date alone. Same rule as the
+ * default for the current month, applied to the PERIOD's month so a run typed
+ * for next month is not due before it starts.
+ */
+export function defaultDueDateForPeriod(periodLabel: string): string | null {
+  const parsed = parsePeriodMonth(periodLabel);
+  return parsed ? lastDayOfMonth(parsed.year, parsed.month) : null;
+}

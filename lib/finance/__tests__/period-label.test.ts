@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePeriodLabel, parsePeriodMonth } from "../period-label";
+import { defaultDueDateForPeriod, lastDayOfMonth, normalizePeriodLabel, parsePeriodMonth } from "../period-label";
 
 describe("normalizePeriodLabel", () => {
   it.each([
@@ -68,5 +68,26 @@ describe("parsePeriodMonth", () => {
     expect(parsePeriodMonth("2026")).toBeNull();
     expect(parsePeriodMonth("Okt - Des 2026")).toBeNull();
     expect(parsePeriodMonth("")).toBeNull();
+  });
+});
+
+describe("lastDayOfMonth", () => {
+  it("returns the last day as YYYY-MM-DD", () => {
+    expect(lastDayOfMonth(2026, 10)).toBe("2026-10-31");
+    expect(lastDayOfMonth(2026, 11)).toBe("2026-11-30");
+    expect(lastDayOfMonth(2027, 2)).toBe("2027-02-28");
+    expect(lastDayOfMonth(2028, 2)).toBe("2028-02-29");
+    expect(lastDayOfMonth(2026, 12)).toBe("2026-12-31");
+  });
+});
+
+describe("defaultDueDateForPeriod", () => {
+  it("is the last day of the month named by the label", () => {
+    expect(defaultDueDateForPeriod("Oktober 2026")).toBe("2026-10-31");
+    expect(defaultDueDateForPeriod("Feb 2028")).toBe("2028-02-29");
+  });
+
+  it("is null when the label does not name one month", () => {
+    expect(defaultDueDateForPeriod("Semester 1 2025/2026")).toBeNull();
   });
 });

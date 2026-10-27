@@ -281,6 +281,8 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 vi.mock("@/lib/db", () => ({ prisma: dbFake }));
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
+// POST /api/invoices audits the created invoice inside its transaction; the fake has no auditLog table.
+vi.mock("@/lib/audit", () => ({ recordAudit: vi.fn() }));
 // The guardian routes evict the parent-children cache; stub it (parent-helpers builds unstable_cache at import).
 vi.mock("@/lib/parent-helpers", () => ({ invalidateParentChildren: vi.fn() }));
 
