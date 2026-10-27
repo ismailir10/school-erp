@@ -986,6 +986,8 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       <ManualInvoiceDialog
         open={manualDialog}
         onOpenChange={setManualDialog}
+        // "Sudah dibayar" records the payment too, so it needs payments.record as well as invoices.create.
+        canRecordPayment={capabilities.recordPayment}
         // FIND-012: pre-fix the dialog navigated straight to /admin/invoices/[id]
         // after create. When the admin clicked back to the list, the client
         // component re-mounted and re-fetched from scratch, showing the

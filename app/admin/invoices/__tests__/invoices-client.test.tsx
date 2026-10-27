@@ -787,3 +787,23 @@ describe("InvoicesClient — Catat SPP di muka button (gate)", () => {
     expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
   });
 });
+
+describe("InvoicesClient — Tagihan Manual offers Sudah dibayar only with payments.record", () => {
+  it("shows the option when the admin can record payments", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await user.click(await screen.findByRole("button", { name: "Tagihan Manual" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
+    expect(within(dialog).getByRole("checkbox", { name: /Sudah dibayar/ })).toBeInTheDocument();
+  });
+
+  it("hides the option without payments.record", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={{ create: true, recordPayment: false, void: false }} />);
+    await user.click(await screen.findByRole("button", { name: "Tagihan Manual" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
+    expect(within(dialog).queryByRole("checkbox", { name: /Sudah dibayar/ })).not.toBeInTheDocument();
+  });
+});
