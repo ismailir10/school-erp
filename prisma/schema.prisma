@@ -1172,10 +1172,28 @@ model StudentJournalNoteRead {
   @@index([tenantId, studentId])
 }
 
+/// "Hari tanpa buku penghubung": one row marks a whole class-day as not using the
+/// book on purpose (swimming, a trip), with a short keterangan the wali reads in
+/// that day's column. Existing entries on the day are untouched — the mark only
+/// adds the reason and counts the day as finished for the guru.
+model StudentJournalDayMark {
+  id             String   @id @default(cuid())
+  tenantId       String
+  classSectionId String
+  date           String
+  reason         String
+  markedByUserId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([classSectionId, date])
+  @@index([tenantId, classSectionId, date])
+}
+
 model StudentJournalAudit {
   id              String   @id @default(cuid())
   tenantId        String
-  entityType      String // ENTRY | NOTE
+  entityType      String // ENTRY | NOTE | DAY_MARK
   entityId        String
   action          String // CREATE | UPDATE | DELETE
   beforeJson      Json?

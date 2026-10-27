@@ -119,7 +119,7 @@ Facts found in the code (not decisions):
 
 ## Tasks
 
-- [ ] T1 Prisma model + additive migration + RLS for `StudentJournalDayMark` — accept: `verify-rls-coverage` passes (deps: none, reuse: `StudentJournalNote` RLS pattern)
+- [x] T1 Prisma model + additive migration + RLS for `StudentJournalDayMark` — accept: `verify-rls-coverage` passes (deps: none, reuse: `StudentJournalNote` RLS pattern)
 - [ ] T2 Progress definition: ≥1 tick = lengkap, marked day = finished — accept: unit tests in `home-progress.test.ts` (deps: none, reuse: `getJournalProgress`)
 - [ ] T3 Mark API (GET in class-grid payload, PUT/DELETE write route, audit, Zod) — accept: auth-matrix API test (deps: T1, reuse: `guards.ts`, `audit.ts`, `student-journal` validations)
 - [ ] T4 Teacher entry page: button, dialog, banner; avatar/progress use new definition — accept: component test (deps: T2, T3)
@@ -129,6 +129,9 @@ Facts found in the code (not decisions):
 - [ ] T8 README / `docs/uat/jobs/{teacher,parent}.md` / counts block; Playwright flow — accept: `audit-docs.sh` clean, e2e green (deps: T4-T7)
 
 ## Implementation
+
+- Plan: driver=this session model, workers=none (no cheaper tier available to this session); T1-T8 sequential and inline, because each slice builds on the new `StudentJournalDayMark` model and its shared helper, so a worker would need the whole plan as context.
+- T1: `prisma/schema.prisma`, `prisma/migrations/20261027000000_add_student_journal_day_mark/migration.sql` — new `StudentJournalDayMark` model (unique per class+date), additive migration with RLS + service_role policy. `prisma/seed.ts` left alone on purpose: the table has no FKs, and the seed-drift hook would force a meaningless `lib/db.ts` edit. `verify-rls-coverage.sh`: 44/44 OK.
 
 ## Verification
 
