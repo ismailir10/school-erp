@@ -117,7 +117,7 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 ## Tasks
 
 - [x] T1 Shared payment function — accept: the existing "Catat Pembayaran" route behaves exactly as before (its tests stay green) and the function never schedules a relink (deps: none, reuse: payments route, `recomputeInvoiceFromPayments`)
-- [ ] T2 Move the due-date-for-period helper into `lib/finance` and add the SPP month planner — accept: planner unit tests cover month status, cancelled, unreadable label, waivers per month, no program, range (deps: none, reuse: `parsePeriodMonth`, `applyAdjustments`, `BILLABLE_FEE_COMPONENT_WHERE`) — parallel with T1
+- [x] T2 Move the due-date-for-period helper into `lib/finance` and add the SPP month planner — accept: planner unit tests cover month status, cancelled, unreadable label, waivers per month, no program, range (deps: none, reuse: `parsePeriodMonth`, `applyAdjustments`, `BILLABLE_FEE_COMPONENT_WHERE`) — parallel with T1
 - [ ] T3 `POST /api/invoices` "payment" mode plus rate limit, audit, standard validation, idempotency — accept: paid invoice with no gateway call, `sentAt` set, replay safe, permission and tenant tests (deps: T1)
 - [ ] T4 Tagihan Manual dialog "Sudah dibayar" — accept: component tests; the reveal, labels and errors per UX notes (deps: T3)
 - [ ] T5 SPP prepay preview and confirm routes — accept: link cleared on settle, drift returns 409, replay writes nothing, one transaction with an explicit timeout, lock order documented in code (deps: T1, T2)

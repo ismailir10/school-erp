@@ -1,5 +1,5 @@
 import { formatMonthLabel } from "@/lib/format";
-import { parsePeriodMonth } from "@/lib/finance/period-label";
+import { defaultDueDateForPeriod, lastDayOfMonth } from "@/lib/finance/period-label";
 
 // Shared default period/due-date/year derivation for the "Buat Tagihan"
 // forms (Cycle B1, Task T8). Lives in the wizard directory rather than in
@@ -11,22 +11,9 @@ import { parsePeriodMonth } from "@/lib/finance/period-label";
 
 export type AcademicYear = { id: string; name: string; status: string };
 
-function lastDayOfMonth(year: number, month: number): string {
-  const last = new Date(year, month, 0); // day 0 of the next month = last day of `month` (1-12)
-  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
-}
-
-/**
- * End of the month named by a typed period label ("Oktober 2026", "Okt 2026"),
- * or `null` when the label does not name one month + year (e.g. "Semester 1
- * 2025/2026") — the caller then leaves the due date alone. Same rule as the
- * default for the current month, applied to the PERIOD's month so a run typed
- * for next month is not due before it starts.
- */
-export function defaultDueDateForPeriod(periodLabel: string): string | null {
-  const parsed = parsePeriodMonth(periodLabel);
-  return parsed ? lastDayOfMonth(parsed.year, parsed.month) : null;
-}
+// Moved to lib/finance so server code can share it; re-exported so every
+// existing importer keeps working unchanged.
+export { defaultDueDateForPeriod };
 
 export function computeDefaultBillingForm(years: AcademicYear[]) {
   const now = new Date();
