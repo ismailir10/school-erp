@@ -8,13 +8,10 @@ import { recordPaymentSchema } from "@/lib/validations/invoice";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { fieldErrorResponse } from "@/lib/api/field-errors";
-import { recordAudit } from "@/lib/audit";
-import { recomputeInvoiceFromPayments } from "@/lib/finance/invoice-payment-state";
+import { PaymentError, recordPaymentInTx } from "@/lib/finance/record-payment";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { isGatewayPayment } from "@/lib/constants/payment-methods";
-import { formatRupiah } from "@/lib/format";
-import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
-import { scheduleRelink, staleLinkCleared } from "@/lib/payments/ensure-link";
+import { scheduleRelink } from "@/lib/payments/ensure-link";
 import { rateLimit } from "@/lib/rate-limit";
 
 // Record a manual payment for an invoice
@@ -81,87 +78,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // recompute. Same lock the Xendit webhook uses so a manual payment tab and
   // a webhook cannot both pass the overpayment guard concurrently.
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${invoiceId}))`;
-
-      const fresh = await tx.invoice.findUnique({ where: { id: invoiceId } });
-      if (!fresh) throw new Error("NOT_FOUND");
-      // Check under the existing invoice lock, before balance/status guards:
-      // a successful first request may already have settled this invoice.
-      if (idempotencyKey) {
-        const existing = await tx.payment.findFirst({ where: { invoiceId, idempotencyKey } });
-        if (existing) {
-          if (existing.requestHash !== requestHash) throw new Error("RETRY_MISMATCH");
-          return { payment: existing, replayed: true, relink: false };
-        }
-      }
-      if (fresh.status === "CANCELLED") throw new Error("CANCELLED");
-      if (fresh.status === "PAID") throw new Error("PAID");
-
-      const totalDueDec = new Prisma.Decimal(fresh.totalDue.toString());
-      const currentPaidDec = new Prisma.Decimal(fresh.totalPaid.toString());
-      const remainingDec = totalDueDec.sub(currentPaidDec);
-      if (amountDec.gt(remainingDec)) {
-        throw Object.assign(new Error("OVERPAYMENT"), {
-          msg: `Jumlah pembayaran (${formatRupiah(amountDec.toString())}) melebihi sisa tagihan (${formatRupiah(remainingDec.toString())})`,
-        });
-      }
-
-      const p = await tx.payment.create({
-        data: {
-          invoiceId,
-          ...(idempotencyKey ? { idempotencyKey, requestHash } : {}),
-          amount: amountDec,
-          method: parsed.data.method,
-          reference: parsed.data.reference?.trim() || null,
-          notes: parsed.data.notes?.trim() || null,
-          // FIN-7: who took this money. Gateway rows (webhook) stay null.
-          createdBy: session.id,
-          ...(backdatedPaidAt ? { paidAt: backdatedPaidAt } : {}),
-        },
-      });
-
-      // Shared with the reversal route — REVERSED rows never count.
-      const after = await recomputeInvoiceFromPayments(tx, fresh, todayYmd);
-      // The invoice was not PAID going in (guarded above), so if this payment
-      // settles it, its "lunas" date is the chosen payment date, not the day
-      // the admin typed it in — the kuitansi prints this.
-      if (backdatedPaidAt && after.status === "PAID") {
-        await tx.invoice.update({ where: { id: invoiceId }, data: { paidAt: backdatedPaidAt } });
-      }
-
-      // Still owing: the old link still charges the pre-payment balance (paying it would
-      // be flagged as an overpayment), so drop it and make a new one below. Dropped after
-      // the recompute, which reads `xenditPaymentUrl` to pick the unpaid status. An
-      // invoice that is no longer owing keeps its link fields as they were.
-      const relink =
-        (UNPAID_INVOICE_STATUSES as readonly string[]).includes(after.status) &&
-        totalDueDec.gt(after.totalPaid);
-      if (relink) {
-        await tx.invoice.update({ where: { id: invoiceId }, data: staleLinkCleared(new Date()) });
-      }
-
-      await recordAudit(
-        {
-          tenantId: session.tenantId!,
-          actorId: session.id,
-          entity: "Payment",
-          entityId: p.id,
-          action: "record",
-          before: { invoiceStatus: fresh.status, totalPaid: fresh.totalPaid.toString() },
-          after: {
-            invoiceId,
-            amount: amountDec.toString(),
-            method: p.method,
-            invoiceStatus: after.status,
-            totalPaid: after.totalPaid.toString(),
-          },
-        },
-        tx,
-      );
-
-      return { payment: p, replayed: false, relink };
-    });
+    const result = await prisma.$transaction((tx) =>
+      recordPaymentInTx(tx, {
+        invoiceId,
+        tenantId,
+        actorId: session.id,
+        amount: amountDec,
+        method: parsed.data.method,
+        reference: parsed.data.reference?.trim() || null,
+        notes: parsed.data.notes?.trim() || null,
+        paidAt: backdatedPaidAt,
+        idempotencyKey,
+        requestHash,
+        todayYmd,
+        linkPolicy: "relink-if-owing",
+      }),
+    );
 
     // Manual payment writes Invoice.status + Invoice.totalPaid; bust the
     // parent-portal Tagihan + per-student caches so /parent and /parent/invoices
@@ -172,15 +104,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (result.relink) scheduleRelink(invoiceId, tenantId, new URL(req.url).origin, "RECORD PAYMENT");
     return NextResponse.json(result.payment, { status: result.replayed ? 200 : 201 });
   } catch (e) {
-    if (e instanceof Error) {
-      if (e.message === "RETRY_MISMATCH") return NextResponse.json({ error: "Pembayaran ini sudah dicatat dengan rincian berbeda. Periksa riwayat pembayaran sebelum mencatat pembayaran baru." }, { status: 409 });
-      if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
-      if (e.message === "CANCELLED") return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
-      if (e.message === "PAID") return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
+    if (e instanceof PaymentError) {
+      if (e.code === "RETRY_MISMATCH") return NextResponse.json({ error: "Pembayaran ini sudah dicatat dengan rincian berbeda. Periksa riwayat pembayaran sebelum mencatat pembayaran baru." }, { status: 409 });
+      if (e.code === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (e.code === "CANCELLED") return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
+      if (e.code === "PAID") return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
       // Land the message on the Jumlah field, not just a banner (FIN-8).
-      if (e.message === "OVERPAYMENT") {
-        return fieldErrorResponse("amount", (e as Error & { msg: string }).msg, 400);
-      }
+      if (e.code === "OVERPAYMENT") return fieldErrorResponse("amount", e.msg ?? e.message, 400);
     }
     throw e;
   }

@@ -116,7 +116,7 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 
 ## Tasks
 
-- [ ] T1 Shared payment function — accept: the existing "Catat Pembayaran" route behaves exactly as before (its tests stay green) and the function never schedules a relink (deps: none, reuse: payments route, `recomputeInvoiceFromPayments`)
+- [x] T1 Shared payment function — accept: the existing "Catat Pembayaran" route behaves exactly as before (its tests stay green) and the function never schedules a relink (deps: none, reuse: payments route, `recomputeInvoiceFromPayments`)
 - [ ] T2 Move the due-date-for-period helper into `lib/finance` and add the SPP month planner — accept: planner unit tests cover month status, cancelled, unreadable label, waivers per month, no program, range (deps: none, reuse: `parsePeriodMonth`, `applyAdjustments`, `BILLABLE_FEE_COMPONENT_WHERE`) — parallel with T1
 - [ ] T3 `POST /api/invoices` "payment" mode plus rate limit, audit, standard validation, idempotency — accept: paid invoice with no gateway call, `sentAt` set, replay safe, permission and tenant tests (deps: T1)
 - [ ] T4 Tagihan Manual dialog "Sudah dibayar" — accept: component tests; the reveal, labels and errors per UX notes (deps: T3)
@@ -126,6 +126,9 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 
 ## Implementation
 
-## Verification
+- Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (this session runs on Sonnet, so there is no higher tier to keep for the driver; the design was reviewed by Opus 5.5 before the spec). T1 and T2 parallel (disjoint files); T3 and T5 parallel after them; T4 after T3 and T6 after T5, parallel with each other; T7 inline (docs, e2e wiring, counts).
+- Branch note: this cloud session is assigned `claude/charming-rubin-j6dkje`, not `feat/*`, and works in the main checkout of an isolated container.
+- Local DB note: no Docker here, so the disposable Postgres 16 is a throwaway cluster on port 54329 (`/var/lib/postgresql/talib-verify`); `prisma db push` without `--force-reset` on the empty database (Prisma refuses `--force-reset` for agents).
+
 
 ## Ship Notes
