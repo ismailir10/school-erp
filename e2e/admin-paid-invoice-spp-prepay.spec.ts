@@ -49,6 +49,16 @@ async function signInAsAdmin(page: Page) {
   ]);
 }
 
+/**
+ * Pick the student in an open StudentPicker by NIS: the seed holds students with identical names, and
+ * the first name match may be a twin whose invoices this spec does not look at.
+ */
+async function pickStudent(page: Page, student: { name: string; nis: string | null }) {
+  const options = page.getByRole("option").filter({ hasText: student.name });
+  const option = student.nis ? options.filter({ hasText: `NIS ${student.nis}` }) : options;
+  await option.first().click();
+}
+
 async function listInvoices(page: Page, studentId: string): Promise<Invoice[]> {
   const response = await page.request.get(`/api/invoices?studentId=${studentId}&pageSize=100`);
   expect(response.ok()).toBeTruthy();
@@ -64,7 +74,7 @@ test.describe("Admin — money already taken", () => {
   test("Tagihan Manual → Sudah dibayar creates a Lunas invoice with no payment link", async ({ page }) => {
     const studentsResponse = await page.request.get("/api/students?status=ACTIVE&pageSize=1");
     expect(studentsResponse.ok()).toBeTruthy();
-    const student = (await studentsResponse.json()).data[0] as { id: string; name: string };
+    const student = (await studentsResponse.json()).data[0] as { id: string; name: string; nis: string | null };
     expect(student, "CI seed must provide an active student").toBeDefined();
     const before = await listInvoices(page, student.id);
 
@@ -76,7 +86,7 @@ test.describe("Admin — money already taken", () => {
     const studentPicker = dialog.getByRole("combobox").first();
     await studentPicker.click();
     await page.getByPlaceholder("Cari nama siswa...").fill(student.name);
-    await page.getByRole("option").filter({ hasText: student.name }).first().click();
+    await pickStudent(page, student);
     await expect(studentPicker).toContainText(student.name);
 
     await dialog.getByLabel(/^Periode/).fill("E2E Biaya Sekolah Tahap 1 TA 2027/2028");
@@ -109,8 +119,8 @@ test.describe("Admin — money already taken", () => {
     // Find an active student the preview can price (enrolled this year, fee structure present).
     const studentsResponse = await page.request.get("/api/students?status=ACTIVE&pageSize=50");
     expect(studentsResponse.ok()).toBeTruthy();
-    const candidates = (await studentsResponse.json()).data as { id: string; name: string }[];
-    let target: { id: string; name: string } | null = null;
+    const candidates = (await studentsResponse.json()).data as { id: string; name: string; nis: string | null }[];
+    let target: { id: string; name: string; nis: string | null } | null = null;
     for (const candidate of candidates) {
       const preview = await page.request.post("/api/invoices/spp-prepay/preview", { data: { studentId: candidate.id } });
       if (!preview.ok()) continue;
@@ -132,7 +142,7 @@ test.describe("Admin — money already taken", () => {
     const studentPicker = dialog.getByRole("combobox").first();
     await studentPicker.click();
     await page.getByPlaceholder("Cari nama siswa...").fill(target!.name);
-    await page.getByRole("option").filter({ hasText: target!.name }).first().click();
+    await pickStudent(page, target!);
 
     // The preview lists the months with what will happen to each.
     const table = dialog.getByRole("table");
