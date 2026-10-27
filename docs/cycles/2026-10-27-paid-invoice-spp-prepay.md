@@ -35,7 +35,7 @@ The design was reviewed against the code by a second model (Opus 5.5). Its findi
 - **D8. Existing unpaid SPP invoices in the range are settled.** Oktober and November already exist and are unpaid for a prepaying family. A partly paid one gets its remaining balance.
 - **D9. Settling an existing invoice clears its old payment link.** The gateway has no way to cancel a session, so the app forgets the link and the preview tells the admin when the old Virtual Account expires and to tell the parent not to pay it. If the parent pays anyway the app already flags it "Perlu dicek" and the remedy is a refund. Known gap, not widened here: the nightly check does not poll paid invoices, so a lost notification on a paid invoice goes unseen.
 - **D10. Pricing is the Billing Run's, per month.** Each month's amount is the student's program SPP for the year plus any active fee waiver (keringanan) valid on that month's due date (last day of the month). A student with no program for the year gets a clear error and cannot be prepaid. No "amount received" field: a discount for paying early is entered as a keringanan first.
-- **D11. Default range.** From the earliest month that has an unpaid SPP invoice (or the current month if none) to the end of the active academic year. The admin can widen it back to July; Juli to September are never added silently.
+- **D11. Default range is the whole academic year, July to June.** Indonesian schools start the new year in mid-July and end in June (2026/2027 began 13 July 2026 for most regions), and this school's year is 1 July 2026 to 30 June 2027, so a family paying "SPP setahun" pays Juli to Juni. The admin can narrow the range. Months before the first month this school ever invoiced (here Juli to September) carry a note, "belum pernah ditagih di sistem ini", so the admin knows those invoices are new; they are not hidden or skipped.
 - **D12. All or nothing, and refuse when things changed.** All months are written in one transaction. If any invoice's balance changed since the preview (for example the gateway credited October meanwhile) the action refuses and asks for a fresh preview, because the cash total is fixed. A resubmit finds the months already paid and writes nothing more.
 - **D13. Permissions.** Both features need `invoices.create` and `payments.record`. The existing invoice-create route also gains the rate limit, audit entries and standard validation it lacks today.
 - **D14. No schema change.** Payments of one prepay share a reference ("SPP di muka TA 2026/2027") and a note; that is how they are grouped.
@@ -67,13 +67,13 @@ SPP in advance:
 - [ ] If any invoice changed between preview and confirm, nothing is saved and the admin is told to refresh the preview.
 - [ ] Confirming twice writes nothing the second time.
 - [ ] The next monthly Billing Run does not bill this student for the prepaid months.
-- [ ] The range cannot leave the academic year. An unreadable SPP label shows a warning on that student.
+- [ ] The default range is the academic year's first to last month (Juli to Juni); the admin can narrow it but it cannot leave the academic year. Months before the school's first invoice carry a "belum pernah ditagih" note. An unreadable SPP label shows a warning on that student.
 - [ ] Audit entries exist for each created invoice and each payment.
 
 ## Verify flows
 
 1. **Cash tahap 1, no email.** Admin → Keuangan → Tagihan → Tagihan Manual. Student: an active student with no class. Add Uang Pangkal + Sarana, label "Biaya Sekolah Tahap 1 TA 2027/2028", tick Sudah dibayar, Tunai, a date three days ago. Expect: invoice Lunas, one Tunai payment, kuitansi shows that date, no link on the detail, parent portal shows Lunas. Edge: reverse the payment, the invoice is Terkirim and "Buat link baru" appears. Error: pick a future date, the Tanggal bayar field shows a message.
-2. **Prepay SPP, mixed months.** Student with Oktober paid, November unpaid with a link, December onward missing. Catat SPP di muka, range Oktober → Juni. Expect preview: Oktober skip, November pay (old link expiry shown), Desember to Juni create and pay. Confirm: all Lunas, one shared reference; November's link gone. Then run Billing Run for Desember: this student is skipped.
+2. **Prepay SPP, mixed months.** Student with Oktober paid, November unpaid with a link, December onward missing. Catat SPP di muka, default range (Juli → Juni). Expect preview: Juli to September create and pay (with the "belum pernah ditagih" note), Oktober skip, November pay (old link expiry shown), Desember to Juni create and pay. Confirm: all Lunas, one shared reference; November's link gone. Then run Billing Run for Desember: this student is skipped.
 3. **Drift refusal.** Open the preview, then record a payment on November from another tab, then confirm. Expect refusal with "muat ulang pratinjau"; nothing written. Confirm again after refreshing: works.
 4. **Cannot price.** Student with no class enrollment, Catat SPP di muka. Expect a clear "belum punya program tahun ini" message and no Confirm.
 
@@ -105,7 +105,7 @@ Data: local seeded demo tenant with a student per case above; a role without `pa
 
 1. The TA 2027/2028 payers are already active Student records (like the 24 new-intake students). If they are still Admissions applicants they must be converted first. Not verifiable from the data.
 2. "Tahap 1" is the whole invoice being entered; tahap 2 is a separate later invoice.
-3. The default prepay range starts at the earliest unpaid billed month (October), not July.
+3. A family that pays SPP for the year pays all twelve months, Juli to Juni, including the months before this school started billing in the system (Juli to September). Those months are created as paid invoices; the admin narrows the range if some were settled elsewhere.
 4. If a parent pays a cleared Virtual Account anyway, the existing "Perlu dicek" flag plus a refund is accepted as the remedy.
 5. Whether DOKU emails the VA is taken from the existing code comment; it was not observed live.
 6. Future-dated paid invoices (Desember to Juni) are acceptable; the dashboard "collected" figure will look high this month while billed months are in the future (cosmetic).
