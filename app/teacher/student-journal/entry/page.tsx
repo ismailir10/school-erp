@@ -10,13 +10,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
+import { DayMarkDialog } from "@/components/student-journal/day-mark-dialog";
+import { isMarkableDate } from "@/lib/student-journal/day-mark-rules";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
   ClassBulkSheet,
   isBulkAbsenceStatus,
   type BulkAbsences,
   type BulkApply,
 } from "@/components/student-journal/class-bulk-sheet";
-import { ListChecks, Users } from "lucide-react";
+import { CalendarOff, ListChecks, Pencil, Users } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
@@ -134,6 +137,10 @@ export default function StudentJournalEntryPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkUndo, setBulkUndo] = useState<{ plan: BulkPlan; label: string } | null>(null);
 
+  // "Hari tanpa buku penghubung": the keterangan when this class-day is marked, else null.
+  const [dayMark, setDayMark] = useState<string | null>(null);
+  const [dayMarkOpen, setDayMarkOpen] = useState(false);
+
   // Add-note dialog state + optimistic per-student note counter (resets each grid load)
   const [noteStudent, setNoteStudent] = useState<Student | null>(null);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
@@ -187,6 +194,7 @@ export default function StudentJournalEntryPage() {
     setCategories(loadedCategories);
     setClassSection(data.classSection ?? null);
     setUnreadCounts(data.unreadNoteCounts ?? {});
+    setDayMark(data.dayMark?.reason ?? null);
 
     // Build initial grid state from pre-filled entries
     const initial: Record<string, Record<string, boolean>> = {};
@@ -457,10 +465,12 @@ export default function StudentJournalEntryPage() {
   // loaded payload — the guru is looking at this number precisely while they
   // tap, and a figure that only moved on reload would be worse than none.
   const progress = getJournalProgress({
-    studentIds: students.map(s => s.id), excludedStudentIds: Object.keys(absences), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
+    studentIds: students.map(s => s.id), excludedStudentIds: Object.keys(absences), dayMarkReason: dayMark, indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
     entries: Object.entries(gridState).flatMap(([studentId, row]) => Object.entries(row).map(([indicatorId, checked]) => ({studentId, indicatorId, checked}))),
   });
   const completeStudents = progress.completeStudents;
+
+  const canMarkDay = Boolean(date) && isMarkableDate(date, getTodayInTimezone("Asia/Jakarta"));
 
   const pickerHref = `/teacher/student-journal?pick=1&classId=${encodeURIComponent(classId)}&date=${date}`;
   const changePicker = (
@@ -550,6 +560,36 @@ export default function StudentJournalEntryPage() {
         </Button>
       ) : null}
 
+      {dayMark ? (
+        <div
+          role="status"
+          data-testid="day-mark-banner"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-3"
+        >
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Hari tanpa buku penghubung</p>
+            <p className="text-sm font-semibold [overflow-wrap:anywhere]">{dayMark}</p>
+          </div>
+          {canMarkDay ? (
+            <Button type="button" variant="outline" className="min-h-11" data-testid="day-mark-edit" onClick={() => setDayMarkOpen(true)}>
+              <Pencil aria-hidden="true" />
+              Ubah
+            </Button>
+          ) : null}
+        </div>
+      ) : canMarkDay ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="mb-4 min-h-11 w-full text-muted-foreground"
+          data-testid="day-mark-open"
+          onClick={() => setDayMarkOpen(true)}
+        >
+          <CalendarOff aria-hidden="true" />
+          Hari tanpa buku penghubung
+        </Button>
+      ) : null}
+
       {bulkUndo ? (
         <div
           role="status"
@@ -593,6 +633,15 @@ export default function StudentJournalEntryPage() {
         state={gridState}
         absences={absences}
         onApply={applyClassBulk}
+      />
+
+      <DayMarkDialog
+        open={dayMarkOpen}
+        onOpenChange={setDayMarkOpen}
+        classSectionId={classId}
+        date={date}
+        initialReason={dayMark}
+        onSaved={setDayMark}
       />
 
       {noteStudent && (
