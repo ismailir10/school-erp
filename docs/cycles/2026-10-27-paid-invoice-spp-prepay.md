@@ -121,7 +121,7 @@ None: no schema migration, no new dependency, no new personal data. Touches mone
 - [x] T3 `POST /api/invoices` "payment" mode plus rate limit, audit, standard validation, idempotency — accept: paid invoice with no gateway call, `sentAt` set, replay safe, permission and tenant tests (deps: T1)
 - [ ] T4 Tagihan Manual dialog "Sudah dibayar" — accept: component tests; the reveal, labels and errors per UX notes (deps: T3)
 - [x] T5 SPP prepay preview and confirm routes — accept: link cleared on settle, drift returns 409, replay writes nothing, one transaction with an explicit timeout, lock order documented in code (deps: T1, T2)
-- [ ] T6 Catat SPP di muka dialog and button — accept: component tests; preview table, warnings, empty and error states (deps: T5, parallel with T4)
+- [x] T6 Catat SPP di muka dialog and button — accept: component tests; preview table, warnings, empty and error states (deps: T5, parallel with T4)
 - [ ] T7 E2E spec, README module line, `docs/uat/jobs/admin.md` job text, counts block via `bash scripts/audit-docs.sh --write` — accept: audit-docs passes (deps: T4, T6)
 
 ## Implementation

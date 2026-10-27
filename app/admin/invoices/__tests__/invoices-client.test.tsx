@@ -761,3 +761,29 @@ describe("InvoicesClient — Link berlaku column (cycle 2026-10-20-payment-link-
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("InvoicesClient — Catat SPP di muka button (gate)", () => {
+  const label = "Catat SPP di muka";
+
+  it("is offered with both invoices.create and payments.record, and opens the dialog", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    await user.click(await screen.findByRole("button", { name: label }));
+    expect(await screen.findByRole("dialog", { name: "Catat SPP di Muka" })).toBeInTheDocument();
+  });
+
+  it("is hidden without payments.record", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="xendit" capabilities={{ create: true, recordPayment: false, void: false }} />);
+    await screen.findByRole("button", { name: "Tagihan Manual" });
+    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+  });
+
+  it("is hidden without invoices.create", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="xendit" capabilities={{ create: false, recordPayment: true, void: false }} />);
+    await screen.findByRole("button", { name: "Cek semua belum lunas" });
+    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+  });
+});
