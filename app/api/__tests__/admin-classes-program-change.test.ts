@@ -13,7 +13,8 @@ const { requirePermission, db, tx, recordAudit } = vi.hoisted(() => {
   const tx = {
     $executeRaw: vi.fn(),
     studentEnrollment: { count: vi.fn(), findFirst: vi.fn() },
-    classSection: { updateMany: vi.fn() },
+    classSection: { updateMany: vi.fn(), findFirst: vi.fn() },
+    program: { findFirst: vi.fn() },
     classTrack: { updateMany: vi.fn() },
     invoice: { findMany: vi.fn() },
     billingRunRow: { findMany: vi.fn() },
@@ -72,6 +73,8 @@ beforeEach(() => {
   );
   db.classSection.findFirstOrThrow.mockResolvedValue({ ...BEFORE, programId: "p-a" });
   db.program.findFirst.mockResolvedValue({ id: "p-a", type: "SEMESTER" });
+  tx.classSection.findFirst.mockResolvedValue(BEFORE);
+  tx.program.findFirst.mockImplementation(db.program.findFirst);
   tx.invoice.findMany.mockResolvedValue([]);
   tx.billingRunRow.findMany.mockResolvedValue([]);
   tx.classSection.updateMany.mockResolvedValue({ count: 1 });
@@ -171,7 +174,7 @@ describe("PATCH /api/admin/classes/[id] — program change", () => {
   it("serialises on the class with an advisory lock before checking", async () => {
     await PATCH(req({ programId: "p-a" }), ctx);
 
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
   });
 
   it("refuses a move to a program of another type when a student would hold two enrolments in it", async () => {

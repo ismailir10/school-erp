@@ -1,3 +1,4 @@
+import { lockEnrollmentTopology } from "@/lib/enrollment/topology-lock";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
@@ -209,7 +210,20 @@ async function update(
   try {
     await prisma.$transaction(async (tx) => {
       if (programChanging && nextProgram) {
-        // Serialises against enrolments and other edits of this class. Invoice
+        await lockEnrollmentTopology(tx, session.tenantId, "exclusive");
+        const freshSection = await tx.classSection.findFirst({
+          where: { id, tenantId: session.tenantId },
+          select: { programId: true, program: { select: { type: true } } },
+        });
+        if (!freshSection || freshSection.programId !== before.programId || freshSection.program.type !== before.program.type) {
+          throw new ClassChangedMeanwhile();
+        }
+        const freshProgram = await tx.program.findFirst({
+          where: { id: nextProgram.id, tenantId: session.tenantId, status: "ACTIVE" },
+          select: { id: true, type: true },
+        });
+        if (!freshProgram || freshProgram.type !== nextProgram.type) throw new ClassChangedMeanwhile();
+        // The topology guard serialises enrollment writers and other program moves. Invoice
         // creation takes no such lock, so the invoice check narrows the race
         // with a billing commit rather than closing it.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;

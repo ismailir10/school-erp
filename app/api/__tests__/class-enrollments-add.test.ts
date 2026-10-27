@@ -94,6 +94,7 @@ function makeTx(opts: {
 }) {
   const conflicts = opts.conflicts ?? [];
   return {
+    classSection: db.classSection,
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     studentEnrollment: {
       count: vi.fn().mockResolvedValue(opts.activeCount ?? 0),

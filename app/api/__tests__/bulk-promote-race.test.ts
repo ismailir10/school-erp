@@ -56,7 +56,7 @@ async function primeMocks(toPromoteCount: number) {
   const { prisma } = await import("@/lib/db");
   vi.mocked(getSession).mockResolvedValue(makeSession());
   vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
-    id: "cs-target",
+    id: "cs-target", academicYearId: "y1", program: { id: "p1", type: "SEMESTER" },
   } as never);
   vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue(
     Array.from({ length: toPromoteCount }, (_, i) => ({
@@ -76,10 +76,16 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn().mockResolvedValue([
           { id: "cs-target", capacity: 10, active_count: BigInt(8) },
         ]),
-        studentEnrollment: { updateMany: vi.fn(), upsert: vi.fn() },
+        studentEnrollment: { updateMany: vi.fn(), upsert: vi.fn(), findFirst: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockImplementation(async (args) => {
+            const rows = await prisma.studentEnrollment.findMany();
+            return args.where.id ? rows.filter((row) => args.where.id.in.includes(row.id)) : rows;
+          }) },
       };
       return cb(tx);
     });
@@ -101,6 +107,8 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn((strings: TemplateStringsArray) => {
           capturedSql.push(strings.join("?"));
           return Promise.resolve([
@@ -108,6 +116,11 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
           ]);
         }),
         studentEnrollment: {
+          findFirst: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockImplementation(async (args) => {
+            const rows = await prisma.studentEnrollment.findMany();
+            return args.where.id ? rows.filter((row) => args.where.id.in.includes(row.id)) : rows;
+          }),
           updateMany: vi.fn(),
           upsert: vi.fn().mockResolvedValue({ id: "e-new" }),
         },
@@ -135,10 +148,17 @@ describe("POST /api/promotions (bulk promote) — capacity race safety", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
       const tx = {
+        classSection: prisma.classSection,
+        $executeRaw: vi.fn(),
         $queryRaw: vi.fn().mockResolvedValue([
           { id: "cs-target", capacity: 10, active_count: BigInt(2) },
         ]),
         studentEnrollment: {
+          findFirst: vi.fn().mockResolvedValue(null), count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockImplementation(async (args) => {
+            const rows = await prisma.studentEnrollment.findMany();
+            return args.where.id ? rows.filter((row) => args.where.id.in.includes(row.id)) : rows;
+          }),
           updateMany: vi.fn(),
           upsert: vi.fn().mockResolvedValue({ id: "e-new" }),
         },
