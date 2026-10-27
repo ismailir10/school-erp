@@ -126,7 +126,15 @@ export async function loadSppPrepayContext(
   }
 
   const from = input.from ? parseYearMonth(input.from) : yearFrom;
-  const to = input.to ? parseYearMonth(input.to) : yearTo;
+  // The default end is the year's last month, but never more than 12 months after the start:
+  // a year that runs 13 Juli to 11 Juli touches 13 calendar months, and the default must still
+  // be a range the planner accepts (Juli to Juni).
+  let defaultTo = yearTo;
+  if (from && monthIndex(yearTo) - monthIndex(from) > 11) {
+    const capIdx = monthIndex(from) + 11;
+    defaultTo = { year: Math.floor(capIdx / 12), month: (capIdx % 12) + 1 };
+  }
+  const to = input.to ? parseYearMonth(input.to) : defaultTo;
   if (!from || !to || monthIndex(from) > monthIndex(to)) {
     return fail("RANGE_INVALID", "Rentang bulan tidak valid: bulan awal harus sebelum atau sama dengan bulan akhir.");
   }

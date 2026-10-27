@@ -100,6 +100,17 @@ describe("loadSppPrepayContext", () => {
     expect(ctx.parentId).toBe("par-1");
   });
 
+  it("a year that touches 13 calendar months still defaults to a 12-month range (Juli to Juni)", async () => {
+    // 13 Juli to 11 Juli: the year ends in its 13th month, but the planner accepts 12 at most.
+    const year = { id: "ay-1", name: "2026/2027", startDate: "2026-07-13", endDate: "2027-07-11" };
+    const ctx = await loadOk(dbMock({ year }));
+    expect(ctx.academicYear).toMatchObject({ from: "2026-07", to: "2027-07" });
+    expect(ctx.range).toEqual({ from: "2026-07", to: "2027-06" });
+    // The full year is still the boundary: the 13th month is allowed when asked for explicitly.
+    const explicit = await loadOk(dbMock({ year }), { from: "2026-08", to: "2027-07" });
+    expect(explicit.range).toEqual({ from: "2026-08", to: "2027-07" });
+  });
+
   it("accepts a narrower range and refuses one that is reversed or leaves the year", async () => {
     const narrow = await loadOk(dbMock(), { from: "2026-10", to: "2026-12" });
     expect(narrow.range).toEqual({ from: "2026-10", to: "2026-12" });
