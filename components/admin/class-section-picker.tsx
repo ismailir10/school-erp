@@ -31,18 +31,27 @@ export type ClassSection = {
   campus: { name: string };
   _count: { enrollments: number };
   capacity: number;
-  /** Kelompok usia; the setup check's fallback when the name names no group. */
-  ageGroup?: string | null;
   /** Present with `?include=fees`: per-period fee of the class's program (`null` = no fee line). */
   recurringFeeTotal?: number | null;
+  /** With `?include=fees`: how many recurring components make up the total, and the name of a lone one. */
+  recurringFeeLines?: number;
+  recurringFeeLabel?: string | null;
 };
 
-/** "TK A · Rp 499.000 / periode" — which program a class bills from, and at what rate. */
+/** The rate part of a class's program line: "SPP Bulanan Rp 499.000", or "Rp 604.000 / periode (2 komponen)". */
+export function classFeeText(s: ClassSection): string | null {
+  if (s.recurringFeeTotal === undefined) return null;
+  if (s.recurringFeeTotal === null) return "belum ada tarif rutin";
+  const amount = formatRupiah(s.recurringFeeTotal);
+  if (s.recurringFeeLabel) return `${s.recurringFeeLabel} ${amount}`;
+  const lines = s.recurringFeeLines ?? 0;
+  return lines > 1 ? `${amount} / periode (${lines} komponen)` : `${amount} / periode`;
+}
+
+/** "TK A · SPP Bulanan Rp 499.000" — which program a class bills from, and at what rate. */
 export function classProgramLine(s: ClassSection): string {
-  if (s.recurringFeeTotal === undefined) return s.program.name;
-  return s.recurringFeeTotal === null
-    ? `${s.program.name} · belum ada tarif`
-    : `${s.program.name} · ${formatRupiah(s.recurringFeeTotal)} / periode`;
+  const fee = classFeeText(s);
+  return fee ? `${s.program.name} · ${fee}` : s.program.name;
 }
 
 function baseLabel(s: ClassSection) {
@@ -303,7 +312,11 @@ export function ClassSectionMultiPicker({
                       {showProgram ? (
                         <span className="flex min-w-0 flex-col">
                           <span className="truncate">{label(s)}</span>
-                          <span className="truncate text-small text-muted-foreground">{classProgramLine(s)}</span>
+                          {/* The rate is the part that must stay readable on a phone: only the program name truncates. */}
+                          <span className="flex gap-1 text-small text-muted-foreground">
+                            <span className="truncate">{s.program.name}</span>
+                            {classFeeText(s) && <span className="shrink-0">· {classFeeText(s)}</span>}
+                          </span>
                         </span>
                       ) : (
                         label(s)

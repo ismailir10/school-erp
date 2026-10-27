@@ -12,8 +12,8 @@ const cls = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function stub(body: unknown, init: { ok?: boolean } = {}) {
-  const f = vi.fn().mockResolvedValue({ ok: init.ok ?? true, json: async () => body } as Response);
+function stub(body: unknown, init: { ok?: boolean; status?: number } = {}) {
+  const f = vi.fn().mockResolvedValue({ ok: init.ok ?? true, status: init.status ?? 200, json: async () => body } as Response);
   vi.stubGlobal("fetch", f);
   return f;
 }
@@ -79,6 +79,26 @@ describe("ProgramClassesUsage", () => {
     expect(await screen.findByText(/Daftar kelas tidak bisa dimuat/)).toBeInTheDocument();
     expect(screen.queryByText(/forbidden/)).not.toBeInTheDocument();
     expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it("says it is for roles with academic access, quietly, when the classes are forbidden", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stub({ error: "forbidden" }, { ok: false, status: 403 });
+
+    render(<ProgramClassesUsage programId="p-a" programName="TK A" yearId="y1" />);
+
+    expect(await screen.findByText(/hanya terlihat oleh peran dengan akses akademik/)).toBeInTheDocument();
+    expect(screen.queryByText(/Muat ulang/)).not.toBeInTheDocument();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("heads the section one level under the page title and gives the class link a full-width tap target", async () => {
+    stub({ data: [cls("c1", "TK A 1")] });
+
+    render(<ProgramClassesUsage programId="p-a" programName="TK A" yearId="y1" />);
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Dipakai oleh" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "TK A 1" }).className).toContain("block");
   });
 
   it("refetches when the admin switches program, ignoring the superseded answer", async () => {

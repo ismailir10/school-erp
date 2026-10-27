@@ -110,7 +110,6 @@ export function ScopeStep({
           .map((s) => ({
             id: s.id,
             name: s.name,
-            ageGroup: s.ageGroup,
             programName: s.program.name,
             recurringFeeTotal: s.recurringFeeTotal,
           })),

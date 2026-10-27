@@ -44,10 +44,9 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("step 1 — class setup warnings", () => {
   const years = [{ id: "ay-1", name: "2026/2027", status: "ACTIVE" }];
-  const cls = (id: string, name: string, program: string, fee: number | null, ageGroup = "A") => ({
+  const cls = (id: string, name: string, program: string, fee: number | null) => ({
     id,
     name,
-    ageGroup,
     academicYearId: "ay-1",
     program: { name: program },
     recurringFeeTotal: fee,
@@ -55,7 +54,7 @@ describe("step 1 — class setup warnings", () => {
   const classes = [
     cls("ok", "TK A 1", "TK A", 499000),
     cls("mislinked", "TK A 4", "TK B", 504000),
-    cls("nofee", "KB 1", "KB", null, "A"),
+    cls("nofee", "KB 1", "KB", null),
   ];
   let fetcher: ReturnType<typeof vi.fn>;
 
@@ -78,7 +77,7 @@ describe("step 1 — class setup warnings", () => {
 
     await user.click(await screen.findByRole("checkbox", { name: "TK A 1" }));
 
-    expect(screen.queryByText("Periksa dulu sebelum lanjut")).not.toBeInTheDocument();
+    expect(screen.queryByText("Periksa sebelum lanjut")).not.toBeInTheDocument();
   });
 
   it("warns, without blocking, about a TK A class linked to the TK B program", async () => {
@@ -103,10 +102,10 @@ describe("step 1 — class setup warnings", () => {
     render(<ScopeStep years={years} onAdvance={vi.fn()} onCancel={vi.fn()} />);
 
     await user.click(await screen.findByRole("checkbox", { name: "KB 1" }));
-    expect(await screen.findByText(/KB 1 memakai program KB, yang belum punya tarif rutin/)).toBeInTheDocument();
+    expect(await screen.findByText(/KB 1 memakai program KB, yang belum ada tarif rutin/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "KB 1" }));
-    expect(screen.queryByText(/belum punya tarif rutin/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/belum ada tarif rutin/)).not.toBeInTheDocument();
   });
 
   it("does not warn about fees when the response carries no fee information", async () => {
@@ -118,7 +117,7 @@ describe("step 1 — class setup warnings", () => {
 
     await user.click(await screen.findByRole("checkbox", { name: "KB 1" }));
 
-    expect(screen.queryByText("Periksa dulu sebelum lanjut")).not.toBeInTheDocument();
+    expect(screen.queryByText("Periksa sebelum lanjut")).not.toBeInTheDocument();
   });
 });
 
@@ -167,7 +166,8 @@ describe("step 2 — program on each row", () => {
     stubRun([reviewRow("r1", "Abrina", { programLabel: "TK B" })]);
     render(<ReviewStep runId="run-1" onAdvance={vi.fn()} onClose={vi.fn()} />);
 
-    expect(await screen.findByText("TKA 4 · TK B")).toBeInTheDocument();
+    expect(await screen.findByText("TKA 4")).toBeInTheDocument();
+    expect(screen.getByText("· TK B")).toBeInTheDocument();
   });
 
   it("shows just the class when no program could be derived", async () => {

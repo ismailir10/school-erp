@@ -63,9 +63,9 @@ beforeEach(() => {
     section("tka-next", "p-a", "y2"),
   ]);
   feeStructureFindMany.mockResolvedValue([
-    { programId: "p-a", academicYearId: "y1", amount: "499000.00" },
-    { programId: "p-b", academicYearId: "y1", amount: "504000.00" },
-    { programId: "p-b", academicYearId: "y1", amount: "100000.00" },
+    { programId: "p-a", academicYearId: "y1", amount: "499000.00", feeComponent: { label: "SPP Bulanan" } },
+    { programId: "p-b", academicYearId: "y1", amount: "504000.00", feeComponent: { label: "SPP Bulanan" } },
+    { programId: "p-b", academicYearId: "y1", amount: "100000.00", feeComponent: { label: "Katering" } },
   ]);
 });
 
@@ -81,6 +81,19 @@ describe("GET /api/class-sections?include=fees", () => {
       ["kb", null], // no billable fee line at all
       ["tka-next", null], // same program, but nothing set for that year
     ]);
+  });
+
+  it("says what the total is made of: the lone component's own name, or how many there are", async () => {
+    await mockSession(session());
+
+    const body = await (await call("?include=fees")).json();
+    const by = Object.fromEntries(
+      body.map((s: { id: string; recurringFeeLines: number; recurringFeeLabel: string | null }) => [s.id, s]),
+    );
+
+    expect([by.tka.recurringFeeLines, by.tka.recurringFeeLabel]).toEqual([1, "SPP Bulanan"]);
+    expect([by.tkb.recurringFeeLines, by.tkb.recurringFeeLabel]).toEqual([2, null]);
+    expect([by.kb.recurringFeeLines, by.kb.recurringFeeLabel]).toEqual([0, null]);
   });
 
   it("reads only this tenant's billable (enabled, recurring) fees for the sections' programs and years", async () => {

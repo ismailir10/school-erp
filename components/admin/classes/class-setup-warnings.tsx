@@ -4,8 +4,8 @@ import type { SetupWarning } from "@/lib/classes/setup-check";
 
 function message(w: SetupWarning): string {
   return w.kind === "NO_FEE_STRUCTURE"
-    ? `${w.className} memakai program ${w.programName}, yang belum punya tarif rutin tahun ajaran ini. Siswanya tidak akan ditagih.`
-    : `Nama ${w.className} tidak cocok dengan program ${w.programName}. Kalau salah, ubah program kelas ini lewat Kelas → Ubah Kelas sebelum membuat tagihan.`;
+    ? `${w.className} memakai program ${w.programName}, yang belum ada tarif rutin tahun ajaran ini. Siswanya tidak akan ditagih.`
+    : `Nama ${w.className} tidak cocok dengan program ${w.programName}. Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.`;
 }
 
 /**
@@ -14,23 +14,28 @@ function message(w: SetupWarning): string {
  */
 export function ClassSetupWarnings({
   warnings,
-  title = "Periksa dulu sebelum lanjut",
+  title = "Periksa sebelum lanjut",
 }: {
   warnings: SetupWarning[];
   title?: string;
 }) {
-  if (warnings.length === 0) return null;
+  // The live region stays mounted while empty (and takes no space), so a
+  // screen reader is already listening when a warning appears in it.
   return (
-    <Alert role="status">
-      <AlertTriangle aria-hidden="true" />
-      <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>
-        <ul className="list-disc space-y-1 pl-4">
-          {warnings.map((w) => (
-            <li key={`${w.kind}-${w.classSectionId}`}>{message(w)}</li>
-          ))}
-        </ul>
-      </AlertDescription>
-    </Alert>
+    <div role="status" className="empty:hidden">
+      {warnings.length > 0 && (
+        <Alert role="none">
+          <AlertTriangle aria-hidden="true" />
+          <AlertTitle>{title}</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc space-y-1 pl-4">
+              {warnings.map((w) => (
+                <li key={`${w.kind}-${w.classSectionId}`}>{message(w)}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
   );
 }

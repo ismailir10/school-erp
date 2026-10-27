@@ -4,9 +4,26 @@ import { render, screen } from "@testing-library/react";
 import { ClassSetupWarnings } from "../class-setup-warnings";
 
 describe("ClassSetupWarnings", () => {
-  it("renders nothing when the setup is fine", () => {
-    const { container } = render(<ClassSetupWarnings warnings={[]} />);
-    expect(container).toBeEmptyDOMElement();
+  it("keeps an empty live region mounted, with nothing visible, when the setup is fine", () => {
+    render(<ClassSetupWarnings warnings={[]} />);
+
+    const region = screen.getByRole("status");
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveClass("empty:hidden");
+  });
+
+  it("announces a warning inside the same live region", () => {
+    const { rerender } = render(<ClassSetupWarnings warnings={[]} />);
+    const region = screen.getByRole("status");
+
+    rerender(
+      <ClassSetupWarnings
+        warnings={[{ kind: "NO_FEE_STRUCTURE", classSectionId: "c1", className: "KB 1", programName: "KB" }]}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("KB 1 memakai program KB");
   });
 
   it("says a mislinked class does not match its program and where to fix it", () => {
@@ -18,10 +35,10 @@ describe("ClassSetupWarnings", () => {
       />,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Periksa dulu sebelum lanjut");
+    expect(screen.getByRole("status")).toHaveTextContent("Periksa sebelum lanjut");
     expect(
       screen.getByText(
-        "Nama TK A 4 tidak cocok dengan program TK B. Kalau salah, ubah program kelas ini lewat Kelas → Ubah Kelas sebelum membuat tagihan.",
+        "Nama TK A 4 tidak cocok dengan program TK B. Jika salah, ubah program di Kelas → Ubah Kelas sebelum membuat tagihan.",
       ),
     ).toBeInTheDocument();
   });
@@ -35,7 +52,7 @@ describe("ClassSetupWarnings", () => {
 
     expect(
       screen.getByText(
-        "KB 1 memakai program KB, yang belum punya tarif rutin tahun ajaran ini. Siswanya tidak akan ditagih.",
+        "KB 1 memakai program KB, yang belum ada tarif rutin tahun ajaran ini. Siswanya tidak akan ditagih.",
       ),
     ).toBeInTheDocument();
   });

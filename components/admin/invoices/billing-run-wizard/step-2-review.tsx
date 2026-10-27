@@ -180,8 +180,9 @@ function RunRow({
           <p className="truncate text-body font-medium text-foreground">
             {row.studentNameSnapshot}
           </p>
-          <p className="truncate text-small text-muted-foreground">
-            {[row.classLabelSnapshot ?? "Tanpa kelas", row.programLabel].filter(Boolean).join(" · ")}
+          <p className="flex gap-1 text-small text-muted-foreground">
+            <span className="truncate">{row.classLabelSnapshot ?? "Tanpa kelas"}</span>
+            {row.programLabel && <span className="max-w-[50%] shrink-0 truncate">· {row.programLabel}</span>}
           </p>
         </div>
 

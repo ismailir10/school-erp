@@ -75,18 +75,28 @@ export async function GET(req: NextRequest) {
       academicYearId: { in: [...new Set(sections.map((s) => s.academicYearId))] },
       feeComponent: BILLABLE_FEE_COMPONENT_WHERE,
     },
-    select: { programId: true, academicYearId: true, amount: true },
+    select: { programId: true, academicYearId: true, amount: true, feeComponent: { select: { label: true } } },
   });
-  const totals = new Map<string, number>();
+  const fees = new Map<string, { total: number; labels: string[] }>();
   for (const f of structures) {
     const key = `${f.programId}|${f.academicYearId}`;
-    totals.set(key, (totals.get(key) ?? 0) + Number(f.amount));
+    const entry = fees.get(key) ?? { total: 0, labels: [] };
+    entry.total += Number(f.amount);
+    entry.labels.push(f.feeComponent.label);
+    fees.set(key, entry);
   }
   return NextResponse.json(
-    sections.map((s) => ({
-      ...s,
-      recurringFeeTotal: totals.get(`${s.programId}|${s.academicYearId}`) ?? null,
-    })),
+    sections.map((s) => {
+      const entry = fees.get(`${s.programId}|${s.academicYearId}`);
+      return {
+        ...s,
+        recurringFeeTotal: entry?.total ?? null,
+        // What the total is made of, so a screen never calls a sum of several
+        // components "SPP": the component's own name when there is just one.
+        recurringFeeLines: entry?.labels.length ?? 0,
+        recurringFeeLabel: entry?.labels.length === 1 ? entry.labels[0] : null,
+      };
+    }),
   );
 }
 

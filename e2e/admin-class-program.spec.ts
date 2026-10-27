@@ -117,7 +117,8 @@ test.describe("Admin: class ↔ program setup", () => {
       await page.getByPlaceholder("Cari kelas...").fill(className);
       const option = page.locator(`[role="option"][data-value$=" ${created.id}"]`);
       await expect(option).toBeVisible({ timeout: 10_000 });
-      await expect(option).toContainText(`${target!.name} · ${rupiah(impact!.next!.fees.total)} / periode`);
+      await expect(option).toContainText(target!.name);
+      await expect(option).toContainText(rupiah(impact!.next!.fees.total));
     } finally {
       await page.request.delete(`/api/admin/classes/${created.id}`).catch(() => {});
     }

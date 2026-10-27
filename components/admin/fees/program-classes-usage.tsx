@@ -9,14 +9,14 @@ import { checkClassSetup } from "@/lib/classes/setup-check";
 type UsedClass = {
   id: string;
   name: string;
-  ageGroup?: string | null;
   campus: { name: string };
   enrolledCount: number;
 };
 
-// `classes: null` = the request for `key` failed. Loading is derived (the
-// stored answer belongs to another program/year), never set from the effect.
-type Answer = { key: string; classes: UsedClass[] | null };
+// `classes: null` = the request for `key` failed (`forbidden` when the role may
+// not read classes). Loading is derived (the stored answer belongs to another
+// program/year), never set from the effect.
+type Answer = { key: string; classes: UsedClass[] | null; forbidden?: boolean };
 
 /**
  * The classes a program's fee structure is actually billed to, for the year
@@ -41,6 +41,10 @@ export function ProgramClassesUsage({
     const params = new URLSearchParams({ programId, yearId, status: "ACTIVE", pageSize: "100" });
     fetch(`/api/admin/classes?${params.toString()}`, { signal: controller.signal })
       .then(async (res) => {
+        if (res.status === 403) {
+          if (!controller.signal.aborted) setAnswer({ key, classes: null, forbidden: true });
+          return;
+        }
         if (!res.ok) throw new Error("classes read failed");
         const json = await res.json();
         if (controller.signal.aborted) return;
@@ -60,20 +64,24 @@ export function ProgramClassesUsage({
   const warnings = useMemo(
     () =>
       classes
-        ? checkClassSetup(classes.map((c) => ({ id: c.id, name: c.name, ageGroup: c.ageGroup, programName })))
+        ? checkClassSetup(classes.map((c) => ({ id: c.id, name: c.name, programName })))
         : [],
     [classes, programName],
   );
 
   return (
     <section aria-labelledby="program-usage-heading" className="mt-section space-y-field">
-      <h3 id="program-usage-heading" className="text-h2 font-semibold">
+      <h2 id="program-usage-heading" className="text-h2 font-semibold">
         Dipakai oleh
-      </h3>
+      </h2>
 
       {!current && <Skeleton className="h-16 rounded-xl" />}
 
-      {current && classes === null && (
+      {current?.forbidden && (
+        <p className="text-small text-muted-foreground">Daftar kelas hanya terlihat oleh peran dengan akses akademik.</p>
+      )}
+
+      {current && classes === null && !current.forbidden && (
         <p className="text-small text-muted-foreground">Daftar kelas tidak bisa dimuat sekarang. Muat ulang halaman untuk mencoba lagi.</p>
       )}
 
@@ -90,7 +98,7 @@ export function ProgramClassesUsage({
               {classes.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                   <div className="min-w-0">
-                    <Link href={`/admin/classes/${c.id}`} className="truncate text-body font-medium hover:underline">
+                    <Link href={`/admin/classes/${c.id}`} className="block truncate py-1 text-body font-medium hover:underline">
                       {c.name}
                     </Link>
                     <p className="truncate text-small text-muted-foreground">{c.campus.name}</p>

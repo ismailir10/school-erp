@@ -8,8 +8,6 @@
 export type SetupClass = {
   id: string;
   name: string;
-  /** Kelompok usia set on the class; the fallback when the name does not say. */
-  ageGroup?: string | null;
   programName: string;
   /**
    * Recurring fee total of the class's program for its year. `null` = the
@@ -24,24 +22,24 @@ export type SetupWarning =
 
 type Group = "A" | "B";
 
-// "TK A 1", "TKA 4", "TK B3", "TKIT-A", "KB A": the A/B right after a school-level prefix.
-const CLASS_GROUP = /^\s*(?:TKIT|TK|KB|RA)\s*-?\s*([AB])(?=[\s\d-]|$)/i;
-// "TK B", "TK  A", "TK Islam Terpadu Kelas B": a program named for its group ends in A or B.
-const PROGRAM_GROUP = /(?:^|\s)([AB])\s*$/i;
+// "TK A 1", "TKA 4", "TK B3", "TKIT-A", "KB A", "TK B (Reguler)": the A/B right after a
+// school-level prefix. "TK A/B" and "TK Bintang" name no single group, so they read as none.
+const GROUP_AFTER_PREFIX = /^\s*(?:TKIT|TK|KB|RA)\s*-?\s*([AB])(?=[\s\d-]|$)/i;
+// "TK Islam Terpadu Kelas B": a program named for its group may also just end in A or B.
+const GROUP_AT_END = /(?:^|\s)([AB])\s*$/i;
 
 function asGroup(letter: string | undefined): Group | null {
   const g = letter?.toUpperCase();
   return g === "A" || g === "B" ? g : null;
 }
 
-/** Group a class says it belongs to: its name first, then its kelompok usia. */
-export function classGroup(c: Pick<SetupClass, "name" | "ageGroup">): Group | null {
-  return asGroup(CLASS_GROUP.exec(c.name)?.[1]) ?? asGroup(c.ageGroup ?? undefined);
-}
-
-/** Group a program's name points at, or `null` when it names none ("Daycare"). */
-export function programGroup(programName: string): Group | null {
-  return asGroup(PROGRAM_GROUP.exec(programName)?.[1]);
+/**
+ * Group a name points at, or `null` when it names none ("Daycare", "Sakura").
+ * Only the name is read: the kelompok usia on a class is required for every
+ * class (daycare included), so it says too little to warn on.
+ */
+export function groupOf(name: string): Group | null {
+  return asGroup(GROUP_AFTER_PREFIX.exec(name)?.[1]) ?? asGroup(GROUP_AT_END.exec(name)?.[1]);
 }
 
 /** One entry per problem, in class order. A class can carry both warnings. */
@@ -50,8 +48,8 @@ export function checkClassSetup(classes: SetupClass[]): SetupWarning[] {
   for (const c of classes) {
     const base = { classSectionId: c.id, className: c.name, programName: c.programName };
     if (c.recurringFeeTotal === null) warnings.push({ kind: "NO_FEE_STRUCTURE", ...base });
-    const cg = classGroup(c);
-    const pg = programGroup(c.programName);
+    const cg = groupOf(c.name);
+    const pg = groupOf(c.programName);
     if (cg && pg && cg !== pg) warnings.push({ kind: "PROGRAM_NAME_MISMATCH", ...base });
   }
   return warnings;

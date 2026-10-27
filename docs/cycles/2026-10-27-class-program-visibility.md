@@ -19,13 +19,15 @@ Already done outside this cycle: the three production classes were relinked to t
 ## Decisions
 
 1. **Program is editable on an existing class** (current or planning year, never archived), because a locked wrong
-   link has no admin remedy. The dialog shows impact before saving: old → new SPP and the number of active students.
+   link has no admin remedy. The dialog shows impact before saving: old → new recurring fee per period (what a billing run bills, which is the SPP when SPP is the only recurring fee) and the number of active students.
 2. **Blocked when the class's students already hold invoices for that year** — changing the program then would make
    issued invoices disagree with the class. The message names the reason and says what to do.
 3. **Visibility lives where the mistake is made and where it is caught**: billing wizard (step 1 picker and step 2
    rows) and Tarif per Program. The Kelas list is untouched.
 4. **Setup check in wizard step 1** warns, never blocks: a class with no fee structure for the chosen year, or whose
-   name points at a different program than the one it is linked to.
+   name points at a different program than the one it is linked to. Only names are compared (A/B after a TK/KB/RA/TKIT
+   prefix, against the group a program name carries); the class's kelompok usia is required on every class, daycare
+   included, so it is too weak a signal to warn on.
 5. Program names are trimmed and whitespace-collapsed on save so near-duplicates like "TK  B" stop appearing.
 6. (Added in build, from review.) A move to a program of a **different type** (school vs daycare) is refused when a
    student in the class would end up with two active enrolments of that type this year, the same rule the enrolment
@@ -60,10 +62,10 @@ Already done outside this cycle: the three production classes were relinked to t
 
 ## UX notes
 
-- Impact line in Ubah Kelas, Indonesian per `voice.md`, e.g. "SPP berubah dari Rp 504.000 ke Rp 499.000 untuk 13 siswa aktif. Draf tagihan yang sudah dibuat perlu dibuat ulang."
-- Program shown as secondary text under the class label in the wizard (muted, same pattern as campus in lists).
-- Wizard warning is an inline Alert in step 1 above the class picker, listing class names; no modal.
-- Tarif per Program: a "Dipakai oleh" section below the fee table; empty state "Belum ada kelas yang memakai program ini".
+- Impact line in Ubah Kelas, Indonesian per `voice.md`: "Tagihan rutin per periode berubah dari Rp 504.000 ke Rp 499.000 untuk 13 siswa aktif. Draf tagihan yang sudah dibuat perlu dibuat ulang."
+- Program shown as secondary text under the class label in the wizard picker, with the rate: "TK A · SPP Bulanan Rp 499.000" for one recurring fee (its own name, never a bare total), "Rp 604.000 / periode (2 komponen)" for several, "belum ada tarif rutin" for none. Only the program name may truncate on a phone, never the rate. Review rows show "class · program".
+- Wizard warning is an inline Alert in step 1 directly under the class picker (next to the selection it is about, so it does not shift the picker), in an always-mounted live region, listing class names; no modal.
+- Tarif per Program: a "Dipakai oleh" section (h2) below the fee table; empty state "Belum ada kelas yang memakai program ini di tahun ajaran ini…"; a quiet note, not an error, for a role without class access.
 - Frontend gate: verify against `design-system` and the `crud.md`, `patterns.md`, `voice.md` standards.
 
 ## Test seams
@@ -108,7 +110,7 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 
 - Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (independent review subagents; no cheaper tier was used). T1, T2, T7 are independent and done inline in sequence, because each is a small slice sharing the same read context; T3→T4/T5/T6 follow in dependency order; reviews run per API/UI slice on the staged diff.
 - T1: `app/api/admin/classes/[id]/route.ts`, `…/program-impact/route.ts`, `lib/classes/program-change.ts`, `lib/finance/billable-fees.ts` (+ `materialize-billing-run.ts` using it), `lib/validations/class.ts`, two route test files — PATCH accepts `programId` (ACTIVE program of the tenant; advisory lock; compare-and-set write; audited as `class.program_change`); 409 when students already hold invoices (billing-run link or created since the year's Jakarta start) or when a different-type move would double a student's stream; new read-only `program-impact` route for the dialog (needs `academic.view` and `fees.view`). The impact shows the recurring fee total a billing run would bill per period, which equals SPP when SPP is the only recurring fee; T3 words it "tagihan rutin per periode". Independent standards/spec and security reviews raised: fees.view gate, stream-conflict rule, UTC vs Jakarta cutoff, billing-run link for pre-start invoices, race/CAS, missing archived/planning tests — all fixed; `ClassTrack.programId` deliberately left alone (Non-goals). Query shapes verified against real Postgres (seeded local DB).
-- T2: `lib/classes/setup-check.ts` (+ test) — pure `checkClassSetup`: NO_FEE_STRUCTURE and PROGRAM_NAME_MISMATCH (class name, falling back to kelompok usia, vs the group letter a program name ends in); warnings only.
+- T2: `lib/classes/setup-check.ts` (+ test) — pure `checkClassSetup`: NO_FEE_STRUCTURE and PROGRAM_NAME_MISMATCH (the A/B group a class name carries vs the one its program name carries; names only); warnings only.
 - T7: `lib/validations/program.ts` (+ test) — program name collapses inner whitespace and trims, on create, update and the admin form schema; existing rows untouched (an admin renames "TK  B" from the Program screen). Pinned by five schema tests.
 
 - T3: `app/admin/classes/client.tsx`, `components/admin/classes/program-change-impact.tsx` (+ tests) — Program is editable in Ubah Kelas (Kampus stays locked); choosing another program mounts the impact panel (old → new per-period fee, active students, "draf perlu dibuat ulang"; destructive Alert and disabled Simpan when the server would refuse; plain fallback note when the preview 403s/fails, save still allowed since the server enforces the guards); `programId` is sent only when changed. The panel ignores a response that was superseded by a newer choice (race caught by its own test). Cross-checked against `design-system` (Field/FieldDescription forms, shared Alert) and `crud.md`/`voice.md`.
@@ -117,6 +119,7 @@ None (no migration, dependency, auth/PII change, production write or paid API). 
 - T6: `components/admin/fees/program-classes-usage.tsx`, `app/admin/fees/page.tsx` — Tarif per Program gets "Dipakai oleh": the active classes of the selected program and year with campus and student count, plus the mismatch warning.
 - T2/T4/T5/T6 share the setup-check helper and the README line, so they are one commit (the `feat` hook wants README staged with each); fixes from the reviews follow as their own commit. The API security/correctness review is already applied here (fee totals gated, enrolment query matches the builder); the UI/spec review had not reported at commit time.
 - T8: `e2e/admin-class-program.spec.ts` — two flows: an admin moves a class to another program in Ubah Kelas (impact line, save) and sees the program and rate in the billing wizard picker; a class whose students are invoiced shows the reason, disables Simpan, and the API answers 409. Written and lint/type-clean; **not yet run** (not ticked) — it runs in verify-local against the production build.
+- Review fixes (UI/spec reviewer): the picker no longer calls a sum of several components "SPP" (`/api/class-sections?include=fees` now also returns `recurringFeeLines` and the lone component's label); rate stays untruncated on a phone; "Dipakai oleh" is an h2 with a full-width link and a quiet 403 note; the setup warning lives in an always-mounted live region with terser copy; one phrase ("belum ada tarif rutin") on every screen; the program check recognises "TKB", "TK-B", "TK B (Reguler)"; the kelompok-usia fallback was dropped (too weak a signal); fragile picker test rewritten with realistic ids.
 
 ## Verification
 

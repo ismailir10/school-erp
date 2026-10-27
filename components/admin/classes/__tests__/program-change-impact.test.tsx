@@ -81,9 +81,9 @@ describe("ProgramChangeImpact", () => {
 
     render(<ProgramChangeImpact classId="c1" currentProgramId="p-b" nextProgramId="p-a" />);
 
-    const note = await screen.findByText(/belum punya tarif rutin/);
+    const note = await screen.findByText(/belum ada tarif rutin/);
     expect(text(note)).toBe(
-      "TK A belum punya tarif rutin untuk tahun ajaran 2026/2027. 13 siswa aktif di kelas ini tidak akan ditagih sampai tarifnya diisi di Biaya → Tarif per Program.",
+      "TK A belum ada tarif rutin untuk tahun ajaran 2026/2027. 13 siswa aktif di kelas ini tidak akan ditagih sampai tarifnya diisi di Biaya → Tarif per Program.",
     );
   });
 

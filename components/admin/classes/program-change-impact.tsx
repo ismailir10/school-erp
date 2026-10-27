@@ -115,7 +115,7 @@ export function ProgramChangeImpact({
     return (
       <Alert role="status">
         <AlertDescription>
-          {next.programName} belum punya tarif rutin untuk tahun ajaran {impact.academicYear.name}. {students} di
+          {next.programName} belum ada tarif rutin untuk tahun ajaran {impact.academicYear.name}. {students} di
           kelas ini tidak akan ditagih sampai tarifnya diisi di Biaya → Tarif per Program.
         </AlertDescription>
       </Alert>
