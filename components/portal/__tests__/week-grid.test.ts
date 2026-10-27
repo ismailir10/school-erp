@@ -148,3 +148,39 @@ describe("isWeekGridDateEditable", () => {
     expect(screen.queryByText(/Buku Penghubung/)).toBeNull();
   });
 });
+
+describe("WeekGrid — hari tanpa buku penghubung", () => {
+  const categories = [{ id: "cat", name: "Kemandirian", scope: "SCHOOL", indicators: [{ id: "ind", label: "Merapi", order: 1 }] }];
+  const dates = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"];
+
+  it("names the day and its keterangan above the grid, and flags the column header", () => {
+    render(createElement(WeekGrid, { categories, entries: [], dates, dayMarks: { "2026-07-28": "Renang" } }));
+    expect(screen.getByTestId("day-mark-notes")).toHaveTextContent("Sel 28/07 · Tanpa buku penghubung: Renang");
+    expect(screen.getByRole("img", { name: "Tanpa buku penghubung: Renang" })).toBeInTheDocument();
+  });
+
+  it("explains an unfilled cell on a marked day instead of calling it belum diisi", () => {
+    render(createElement(WeekGrid, { categories, entries: [], dates, dayMarks: { "2026-07-28": "Renang" } }));
+    expect(screen.getByRole("img", { name: "Merapi 2026-07-28 — tanpa buku penghubung (Renang) (hanya bisa dilihat)" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Merapi 2026-07-29 — belum diisi (hanya bisa dilihat)" })).toBeInTheDocument();
+  });
+
+  it("keeps a tick that exists on a marked day", () => {
+    render(createElement(WeekGrid, {
+      categories, dates, dayMarks: { "2026-07-28": "Renang" },
+      entries: [{ indicatorId: "ind", date: "2026-07-28", checked: true }],
+    }));
+    expect(screen.getByRole("img", { name: "Merapi 2026-07-28 — diisi (hanya bisa dilihat)" })).toBeInTheDocument();
+  });
+
+  it("shows no mark list for a week without marks, and still shows the empty-week note", () => {
+    render(createElement(WeekGrid, { categories, entries: [], dates, emptyWeekMessage: "Belum diisi." }));
+    expect(screen.queryByTestId("day-mark-notes")).toBeNull();
+    expect(screen.getByTestId("empty-week-note")).toBeInTheDocument();
+  });
+
+  it("drops the 'belum diisi' empty-week note when the week holds a marked day", () => {
+    render(createElement(WeekGrid, { categories, entries: [], dates, dayMarks: { "2026-07-28": "Libur" }, emptyWeekMessage: "Belum diisi." }));
+    expect(screen.queryByTestId("empty-week-note")).toBeNull();
+  });
+});

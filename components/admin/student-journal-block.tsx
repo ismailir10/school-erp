@@ -35,6 +35,7 @@ type WeekData = {
   dates: string[];
   schoolCategories: Category[];
   schoolEntries: Entry[];
+  dayMarks?: Record<string, string>;
 };
 
 export const StudentJournalBlock = memo(function StudentJournalBlock({
@@ -158,6 +159,7 @@ export const StudentJournalBlock = memo(function StudentJournalBlock({
               categories={categories}
               entries={entries}
               dates={dates}
+              dayMarks={data?.dayMarks}
               emptyWeekMessage="Belum ada centang di pekan ini."
             />
           </div>

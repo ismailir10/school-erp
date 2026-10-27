@@ -60,6 +60,8 @@ type WeekData = {
   schoolEntries: Entry[];
   homeEntries: Entry[];
   notes: Note[];
+  /** `YYYY-MM-DD → keterangan` for days the guru marked "tanpa buku penghubung". */
+  dayMarks?: Record<string, string>;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -425,6 +427,7 @@ export default function ParentStudentJournalPage() {
               entries={data.schoolEntries}
               dates={data.dates}
               featureLabel="Jurnal"
+              dayMarks={data.dayMarks}
               emptyWeekMessage="Sekolah belum mengisi jurnal untuk pekan ini."
             />
           </TabsContent>
