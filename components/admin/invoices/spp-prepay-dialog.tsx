@@ -19,7 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -436,31 +435,33 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="reference"
-          label="Referensi"
-          id="spp-prepay-reference"
-          description="Opsional, misalnya nomor kuitansi atau bukti transfer."
-          render={({ field, controlProps }) => (
-            <Input
-              {...field}
-              {...controlProps}
-              value={field.value ?? ""}
-              maxLength={64}
-            />
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="notes"
-          label="Catatan"
-          id="spp-prepay-notes"
-          render={({ field, controlProps }) => (
-            <Textarea {...field} {...controlProps} value={field.value ?? ""} rows={2} />
-          )}
-        />
+        <div className="grid grid-cols-1 gap-field sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="reference"
+            label="Referensi"
+            id="spp-prepay-reference"
+            description="Opsional, mis. nomor kuitansi."
+            render={({ field, controlProps }) => (
+              <Input
+                {...field}
+                {...controlProps}
+                value={field.value ?? ""}
+                maxLength={64}
+              />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="notes"
+            label="Catatan"
+            id="spp-prepay-notes"
+            description="Opsional."
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={field.value ?? ""} />
+            )}
+          />
+        </div>
 
         {/* Step 2: the preview. Polite live region so a screen reader hears it settle. */}
         <section
@@ -531,36 +532,6 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
                 </Alert>
               )}
 
-              {warningIssues.length > 0 && (
-                <Alert role="status">
-                  <TriangleAlert aria-hidden="true" className="text-warning" />
-                  <AlertTitle>Perlu diperiksa</AlertTitle>
-                  <AlertDescription>
-                    <ul className="list-disc space-y-1 pl-4">
-                      {warningIssues.map((issue, i) => (
-                        <li key={`${issue.code}-${i}`}>{issue.message}</li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {linkRows.length > 0 && (
-                <Alert role="status">
-                  <TriangleAlert aria-hidden="true" className="text-warning" />
-                  <AlertTitle>Link pembayaran lama dihapus</AlertTitle>
-                  <AlertDescription>
-                    <p>
-                      {linkRows.length} tagihan yang dilunasi masih punya link pembayaran lama
-                      {latestLinkExpiry
-                        ? `, aktif sampai ${formatDateTime(latestLinkExpiry)} WIB`
-                        : ""}
-                      . Minta wali tidak membayar VA dari email.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
-
               {data.rows.length > 0 && (
                 <Table>
                   <TableCaption className="sr-only">
@@ -607,6 +578,36 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
                     </TableRow>
                   </TableFooter>
                 </Table>
+              )}
+
+              {warningIssues.length > 0 && (
+                <Alert role="status">
+                  <TriangleAlert aria-hidden="true" className="text-warning" />
+                  <AlertTitle>Perlu diperiksa</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc space-y-1 pl-4">
+                      {warningIssues.map((issue, i) => (
+                        <li key={`${issue.code}-${i}`}>{issue.message}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {linkRows.length > 0 && (
+                <Alert role="status">
+                  <TriangleAlert aria-hidden="true" className="text-warning" />
+                  <AlertTitle>Link pembayaran lama dihapus</AlertTitle>
+                  <AlertDescription>
+                    <p>
+                      {linkRows.length} tagihan yang dilunasi masih punya link pembayaran lama
+                      {latestLinkExpiry
+                        ? `, aktif sampai ${formatDateTime(latestLinkExpiry)} WIB`
+                        : ""}
+                      . Minta wali tidak membayar VA dari email.
+                    </p>
+                  </AlertDescription>
+                </Alert>
               )}
 
               {!isBlocked && data.total <= 0 && (
