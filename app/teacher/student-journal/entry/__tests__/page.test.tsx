@@ -4,6 +4,7 @@ const nav = vi.hoisted(() => ({ params: new URLSearchParams() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => nav.params }));
 vi.mock("@/components/student-journal/class-day-grid", () => ({ ClassDayGrid: ({ students, onToggle, state }: { students: Array<{ id: string; name: string }>; onToggle:(s:string,i:string)=>void; state:Record<string,Record<string,boolean>> }) => <div data-testid="grid">{students.map((s) => `${s.id}:${s.name}`).join(",")}<button onClick={()=>onToggle(students[0].id,"i1")}>Toggle {String(state[students[0].id]?.i1 ?? false)}</button></div> }));
 vi.mock("@/components/student-journal/note-compose-dialog", () => ({ NoteComposeDialog: () => null }));
+vi.mock("@/components/student-journal/day-mark-dialog", () => ({ DayMarkDialog: ({ open, initialReason, onSaved }: { open: boolean; initialReason?: string | null; onSaved: (r: string | null) => void }) => open ? <div role="dialog">Dialog {initialReason ?? "baru"}<button onClick={() => onSaved("Renang")}>Simpan tanda</button><button onClick={() => onSaved(null)}>Hapus tanda</button></div> : null }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 import Page from "../page";
 const ok = (data: unknown) => ({ ok: true, json: async () => data });
@@ -38,4 +39,40 @@ it("ignores an old class-day save failure after navigating to another date",asyn
  await act(async()=>{rejectSave(Error("old failure"));});
  expect(screen.queryByRole("alert")).toBeNull();
  expect(screen.queryByRole("button",{name:"Coba simpan lagi"})).toBeNull();
+});
+
+describe("hari tanpa buku penghubung", () => {
+ const load = (date: string, extra: Record<string, unknown> = {}) => {
+  nav.params = new URLSearchParams(`classId=c&date=${date}`);
+  vi.stubGlobal("fetch", vi.fn((url: string) => url.includes("class-grid") ? Promise.resolve(ok({ data: { ...grid, classSection: { id: "c", name: "DCARE" }, ...extra } })) : Promise.resolve(ok([]))));
+  return render(<Page />);
+ };
+ it("offers the mark on a school day and shows the keterangan once it is saved", async () => {
+  load("2026-09-25");
+  fireEvent.click(await screen.findByTestId("day-mark-open"));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Dialog baru");
+  fireEvent.click(screen.getByRole("button", { name: "Simpan tanda" }));
+  expect(await screen.findByTestId("day-mark-banner")).toHaveTextContent("Renang");
+  expect(screen.queryByTestId("day-mark-open")).toBeNull();
+  expect(screen.getByTestId("grid")).toBeInTheDocument(); // the mark never locks the grid
+ });
+ it("shows an existing mark with an Ubah button that opens the dialog on that keterangan", async () => {
+  load("2026-09-25", { dayMark: { reason: "Libur" } });
+  expect(await screen.findByTestId("day-mark-banner")).toHaveTextContent("Libur");
+  fireEvent.click(screen.getByTestId("day-mark-edit"));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Dialog Libur");
+  fireEvent.click(screen.getByRole("button", { name: "Hapus tanda" }));
+  await waitFor(() => expect(screen.queryByTestId("day-mark-banner")).toBeNull());
+  expect(screen.getByTestId("day-mark-open")).toBeInTheDocument();
+ });
+ it("leaves the per-pupil progress line alone on a marked day", async () => {
+  load("2026-09-25", { dayMark: { reason: "Renang" } });
+  await screen.findByTestId("day-mark-banner");
+  expect(screen.getByTestId("class-progress")).toHaveTextContent("0/1 siswa lengkap"); // pupils stay as they are; the home card is what turns done
+ });
+ it("does not offer the mark on a weekend or a future day", async () => {
+  load("2026-09-26"); // Saturday
+  await screen.findByTestId("grid");
+  expect(screen.queryByTestId("day-mark-open")).toBeNull();
+ });
 });

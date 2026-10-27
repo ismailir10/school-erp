@@ -26,6 +26,7 @@ vi.mock("@/lib/db", () => ({
     studentJournalEntry: { findMany: mocks.entryFindMany },
     studentJournalNote: { findMany: mocks.noteFindMany },
     studentJournalAudit: { findMany: mocks.auditFindMany },
+    studentJournalDayMark: { findMany: vi.fn().mockResolvedValue([]) },
     user: { findMany: mocks.userFindMany },
   },
 }));

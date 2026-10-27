@@ -62,6 +62,8 @@ type WeekData = {
   homeCategories?: Category[];
   homeEntries?: Entry[];
   notes: Note[];
+  /** `YYYY-MM-DD → keterangan` for class-days marked "tanpa buku penghubung". */
+  dayMarks?: Record<string, string>;
 };
 
 /** "Abdullah · DCARE" — nickname first (what the guru actually calls them), class second. */
@@ -303,6 +305,7 @@ export default function TeacherStudentWeekPage() {
             categories={data?.categories ?? []}
             entries={data?.entries ?? []}
             dates={data?.dates ?? []}
+            dayMarks={data?.dayMarks}
             emptyWeekMessage="Belum ada centang di pekan ini."
           />
 

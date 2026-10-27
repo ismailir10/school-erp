@@ -45,6 +45,7 @@ type WeekData = {
   schoolCategories: Category[];
   homeCategories: Category[];
   schoolEntries: Entry[];
+  dayMarks?: Record<string, string>;
   homeEntries: Entry[];
 };
 
@@ -354,6 +355,7 @@ export default function StudentJournalDetailPage({
               categories={weekData?.schoolCategories ?? []}
               entries={weekData?.schoolEntries ?? []}
               dates={weekData?.dates ?? []}
+              dayMarks={weekData?.dayMarks}
               editable={isEditing}
               disablePastDays={false}
               emptyWeekMessage="Belum ada centang di pekan ini."
