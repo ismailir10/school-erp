@@ -177,7 +177,7 @@ runs on deploy), no change to the BillingRun tables.
 - [x] T4 API under `app/api/students/[id]/leaves/`: list, create (advisory lock, window/active/tenant checks,
       draft/committing exclusion, returns open invoices), cancel, open-invoices — accept: route tests (deps: T2, T3;
       reuse: enroll route pattern, `ensureYearWritableById`, `VOIDABLE_INVOICE_STATUSES`)
-- [ ] T5 Student page "Cuti" section, create/cancel dialogs, invoice follow-up dialog — accept: component tests
+- [x] T5 Student page "Cuti" section, create/cancel dialogs, invoice follow-up dialog — accept: component tests
       (deps: T4)
 - [ ] T6 e2e spec + docs: README line, voice.md glossary row, UAT job, `audit-docs.sh --write`, local full gate
       (deps: T3–T5)
@@ -207,6 +207,14 @@ runs on deploy), no change to the BillingRun tables.
   Response notes for the UI: create's `affectedRuns` lists only drafts whose rows were actually excluded; cancel's lists every
   open DRAFT/COMMITTING run covering the months (it does not check the student has a row), so the copy there is "hitung ulang
   draf jika ada". `openInvoices` is null without `invoices.view`; an archived year answers 403 (existing year guard).
+- T5: components/admin/students/detail/{cuti-section,cuti-create-dialog,cuti-invoices-dialog,cuti-months,cuti-types}, sections.ts,
+  group-summaries.ts, app/admin/students/[id]/page.tsx + tests — lazy "Cuti" subsection in the Keuangan group (list, empty state,
+  Catat cuti dialog limited to eligible enrollments and the year window, Batalkan cuti confirm, re-openable "Cek tagihan"
+  follow-up with an inline per-invoice cancel, draft-recalculate notice). Gated on students.edit in the UI; the API additionally
+  needs invoices.create (a 403 shows a friendly message). Standards loaded: design-system.html, ui.md, patterns.md, crud.md,
+  voice.md, better-accessibility/writing/layout. Worker walked it in a real browser at 1280x900 and 390x844 (no horizontal
+  overflow, dialogs and bottom sheet render); the driver looked at the follow-up and mobile dialog screenshots and re-ran
+  `components/admin` + `app/admin/students`: 76 files / 689 tests pass, `tsc` and eslint clean.
 - Dedupe: `loadSppPrepayContext` now takes its academic-year billing window from `lib/enrollment-leave/window.ts` (one rule, two
   consumers); lib/finance, lib/enrollment-leave and app/api suites re-run green (218 files / 3185 tests), `tsc --noEmit` clean.
 

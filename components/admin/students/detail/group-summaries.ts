@@ -71,12 +71,15 @@ export function keuanganSummary({
   error,
   summary,
   keringananCount,
+  cutiCount = null,
 }: {
   loading: boolean;
   error: boolean;
   summary: Pick<StudentInvoiceSummary, "invoiceCount" | "outstanding">;
   /** Known only once the lazy Keringanan row has been opened. */
   keringananCount: number | null;
+  /** Active cuti, known only once the lazy Cuti row has been opened. */
+  cutiCount?: number | null;
 }): string {
   if (loading) return "Memuat…";
   if (error) return "Gagal memuat";
@@ -86,7 +89,11 @@ export function keuanganSummary({
       : summary.invoiceCount > 0
         ? "Semua tagihan lunas"
         : "Belum ada tagihan";
-  return join([money, keringananCount != null && keringananCount > 0 ? `${keringananCount} keringanan` : null]);
+  return join([
+    money,
+    keringananCount != null && keringananCount > 0 ? `${keringananCount} keringanan` : null,
+    cutiCount != null && cutiCount > 0 ? `${cutiCount} cuti aktif` : null,
+  ]);
 }
 
 /**

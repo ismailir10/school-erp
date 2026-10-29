@@ -75,6 +75,14 @@ describe("keuanganSummary", () => {
     expect(keuanganSummary({ ...base, summary, keringananCount: null })).toBe("Semua tagihan lunas");
     expect(keuanganSummary({ ...base, summary, keringananCount: 0 })).toBe("Semua tagihan lunas");
   });
+  it("names active cuti only once known and above zero", () => {
+    const summary = { invoiceCount: 1, outstanding: 0 };
+    expect(keuanganSummary({ ...base, summary, cutiCount: null })).toBe("Semua tagihan lunas");
+    expect(keuanganSummary({ ...base, summary, cutiCount: 0 })).toBe("Semua tagihan lunas");
+    expect(keuanganSummary({ ...base, summary, keringananCount: 1, cutiCount: 2 })).toBe(
+      "Semua tagihan lunas · 1 keringanan · 2 cuti aktif",
+    );
+  });
 });
 
 describe("catatanSummary", () => {
