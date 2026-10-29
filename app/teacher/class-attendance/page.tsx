@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
-import { Users, Check, LoaderCircle } from "lucide-react";
+import { Users, Check } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
@@ -308,7 +309,7 @@ export default function ClassAttendancePage() {
             </SelectContent>
           </Select>
         ) : (
-          <p id="class-attendance-class" className="min-w-0 flex-1 truncate text-h2 font-semibold">
+          <p id="class-attendance-class" className="min-w-0 flex-1 truncate text-h2">
             {currentAssignment?.classSection.name}
             <span className="ml-1.5 text-small font-normal text-muted-foreground">{currentAssignment?.classSection.program.name}</span>
           </p>
@@ -416,7 +417,7 @@ export default function ClassAttendancePage() {
           </ul>
 
           {/* Most children are present: one tap records the rest. Children who already have a status are never touched. */}
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-sticky -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
             {bulkError ? (
               <div className="mb-2 flex items-center justify-between gap-2">
                 <SaveStatus state="error" message={`Absensi belum tersimpan. ${bulkError.message}`} />
@@ -430,7 +431,7 @@ export default function ClassAttendancePage() {
               </Button>
             ) : confirming ? (
               <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" /> Menyimpan…
+                <Spinner aria-hidden /> Menyimpan…
               </p>
             ) : (
               <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">

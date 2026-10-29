@@ -7,7 +7,8 @@ import { MotionConfig, motion } from "framer-motion";
 import { Aurora } from "@/components/reactbits/aurora";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { createClient } from "@/lib/supabase/client";
-import { CalendarCheck2, CreditCard, Loader2, NotebookPen, Pause, Play } from "lucide-react";
+import { CalendarCheck2, CreditCard, NotebookPen, Pause, Play } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { LegalFooter } from "@/components/layout/legal-footer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -163,7 +164,7 @@ function SignInPage() {
             </Alert>
           )}
 
-          <h1 className="text-h1 font-semibold tracking-tight text-balance">
+          <h1 className="text-h1 tracking-tight text-balance">
             Masuk ke Talib
           </h1>
           <p className="mt-1.5 max-w-[36ch] text-body leading-relaxed text-muted-foreground text-pretty">
@@ -181,7 +182,7 @@ function SignInPage() {
             // measures 2.36:1 and fails the 3:1 non-text contrast floor.
             className="mt-6 h-auto min-h-12 w-full gap-3 rounded-xl border-border bg-card font-semibold shadow-xs hover:bg-muted focus-visible:border-primary-text focus-visible:ring-2 focus-visible:ring-primary-text"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <GoogleMark />}
+            {loading ? <Spinner aria-hidden /> : <GoogleMark />}
             Masuk dengan Google
           </Button>
 
@@ -346,7 +347,7 @@ function DemoLoginPage() {
                       <p className="text-white font-medium text-sm truncate">{user.name ?? user.email}</p>
                       <p className="text-sidebar-foreground text-xs">Admin Sekolah</p>
                     </div>
-                    {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
+                    {loginLoading === user.id && <Spinner aria-hidden className="text-white" />}
                   </Button>
                   </motion.div>
                 ))}
@@ -375,7 +376,7 @@ function DemoLoginPage() {
                         <p className="text-white/90 text-sm truncate">{user.name}</p>
                         <p className="text-sidebar-foreground text-xs truncate">{user.email}</p>
                       </div>
-                      {loginLoading === user.id && <Loader2 size={16} className="text-white animate-spin" />}
+                      {loginLoading === user.id && <Spinner aria-hidden className="text-white" />}
                     </Button>
                     </motion.div>
                   ))}

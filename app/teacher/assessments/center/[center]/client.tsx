@@ -2,7 +2,8 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, NotebookPen, Save, Users } from "lucide-react";
+import { NotebookPen, Save, Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -775,7 +776,7 @@ export function CenterSessionClient({
         >
           {saving ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> Menyimpan…
+              <Spinner aria-hidden className="mr-2" /> Menyimpan…
             </>
           ) : (
             <>

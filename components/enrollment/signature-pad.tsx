@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Eraser, Loader2 } from "lucide-react";
+import { Eraser } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { DrawCheck } from "@/components/reactbits/draw-check";
 
 /**
@@ -131,7 +132,7 @@ export function SignaturePad({
           aria-disabled={saving}
           aria-busy={saving}
         >
-          {saving && <Loader2 size={14} className="animate-spin" aria-hidden />}{" "}
+          {saving && <Spinner aria-hidden className="size-3.5" />}{" "}
           {saving ? "Menyimpan tanda tangan…" : "Simpan tanda tangan"}
         </Button>
       </div>

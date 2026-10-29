@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import type { BatchProgressSnapshot, FailureRow } from "@/lib/finance/run-bulk-generate";
 import type { BulkRetrySnapshot, RetryFailureRow } from "@/lib/finance/run-bulk-retry";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
@@ -100,10 +101,10 @@ function GenerateCard({
   useBeforeUnloadWhileRunning(isRunning);
 
   return (
-    <Card className="sticky top-4 z-10 p-4 mb-4 border-primary/30 shadow-sm">
+    <Card className="sticky top-4 z-sticky p-4 mb-4 border-primary/30 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         {isRunning ? (
-          <Loader2 size={16} className="animate-spin text-primary" aria-hidden />
+          <Spinner className="text-primary" aria-hidden />
         ) : null}
         {progress.phase === "done" ? (
           <CheckCircle2 size={16} className="text-success" aria-hidden />
@@ -153,10 +154,10 @@ function RetryCard({
   useBeforeUnloadWhileRunning(isRunning);
 
   return (
-    <Card className="sticky top-4 z-10 p-4 mb-4 border-primary/30 shadow-sm">
+    <Card className="sticky top-4 z-sticky p-4 mb-4 border-primary/30 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         {isRunning ? (
-          <Loader2 size={16} className="animate-spin text-primary" aria-hidden />
+          <Spinner className="text-primary" aria-hidden />
         ) : null}
         {progress.phase === "done" ? (
           <CheckCircle2 size={16} className="text-success" aria-hidden />

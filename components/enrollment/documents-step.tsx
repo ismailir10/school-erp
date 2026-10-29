@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Paperclip } from "lucide-react";
+import { CheckCircle2, Paperclip } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -324,7 +325,7 @@ export function DocumentsStep({
                     }}
                   >
                     {state === "upload" ? (
-                      <Loader2 size={14} className="animate-spin" aria-hidden />
+                      <Spinner aria-hidden className="size-3.5" />
                     ) : (
                       <Paperclip size={14} aria-hidden />
                     )}{" "}
@@ -352,7 +353,7 @@ export function DocumentsStep({
                         }
                       }}
                     >
-                      {state === "delete" && <Loader2 size={14} className="animate-spin" aria-hidden />}{" "}
+                      {state === "delete" && <Spinner aria-hidden className="size-3.5" />}{" "}
                       {state === "delete" ? "Menghapus…" : "Hapus"}
                     </Button>
                   )}

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, MessageCircle, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { MessageCircle, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -120,7 +121,7 @@ export function AdmissionRowActions({ admission: a, canEdit, onSend, sending = f
             if (!sending) onSend(a);
           }}
         >
-          {sending ? <Loader2 aria-hidden className="motion-safe:animate-spin" /> : null}
+          {sending ? <Spinner aria-hidden /> : null}
           {plan.primary.label}
         </Button>
       )}

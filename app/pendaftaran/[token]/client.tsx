@@ -10,7 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Check, Copy, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { EASE_EMPHASIZED } from "@/lib/motion";
 import { motion } from "framer-motion";
 import { BlurText } from "@/components/reactbits/blur-text";
 import { DrawCheck } from "@/components/reactbits/draw-check";
@@ -818,7 +820,7 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
           className="h-full origin-left rounded-full bg-primary-text"
           initial={false}
           animate={{ scaleX: progress }}
-          transition={reduced ? { duration: 0 } : { duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          transition={reduced ? { duration: 0 } : { duration: 0.4, ease: EASE_EMPHASIZED }}
         />
       </div>
       {/* One row at every width: a sideways-scrolling strip on phones, seven equal columns from `sm`. */}
@@ -860,7 +862,7 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
                       className="inline-flex shrink-0 text-primary-text"
                       initial={reduced || i < openedAt ? false : { scale: 0.4 }}
                       animate={{ scale: 1 }}
-                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      transition={{ duration: 0.25, ease: EASE_EMPHASIZED }}
                     >
                       <Check className="size-3.5 sm:size-3" aria-hidden="true" />
                     </motion.span>
@@ -1326,7 +1328,7 @@ function HandoverNote({
                 <Copy size={14} aria-hidden /> Salin link
               </Button>
               <Button type="button" variant="outline" size="sm" className="h-11 px-4 text-base aria-disabled:pointer-events-none aria-disabled:opacity-50" onClick={check} aria-disabled={checking} aria-busy={checking}>
-                <RefreshCw size={14} aria-hidden className={checking ? "animate-spin" : undefined} />{" "}
+                {checking ? <Spinner aria-hidden className="size-3.5" /> : <RefreshCw size={14} aria-hidden />}{" "}
                 {checking ? "Memeriksa…" : "Periksa lagi"}
               </Button>
             </div>
