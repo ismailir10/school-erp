@@ -43,6 +43,7 @@ model Tenant {
   invoices               Invoice[]
   invoiceNumberSequences InvoiceNumberSequence[]
   studentFeeAdjustments  StudentFeeAdjustment[]
+  enrollmentLeaves       EnrollmentLeave[]
   emailLogs              EmailLog[]
   auditLogs              AuditLog[]
   semesters              Semester[]
@@ -566,6 +567,7 @@ model Student {
   reportCardEntries   ReportCardEntry[]
   studentMeasurements StudentMeasurement[]
   feeAdjustments      StudentFeeAdjustment[]
+  enrollmentLeaves    EnrollmentLeave[]
   billingRunRows      BillingRunRow[]
 
   @@index([tenantId, status])
@@ -643,10 +645,42 @@ model StudentEnrollment {
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Restrict)
+  leaves       EnrollmentLeave[]
 
   @@unique([studentId, classSectionId])
   @@index([classSectionId, status])
   @@index([studentId, status])
+}
+
+// ── ENROLLMENT LEAVE (Cuti siswa) ────────────────────────────
+// Cycle 2026-10-29-student-enrollment-leave. An admin pauses billing for ONE
+// placement (a daycare enrollment, say) for whole months; the bulk billing run
+// skips that enrollment while an ACTIVE leave covers the run's month. Months are
+// "YYYY-MM" text (inclusive range) and must sit inside the enrollment's academic
+// year billing window. Cancel-only (status INACTIVE + cancelledBy/At), never edited
+// or deleted. studentId is derived from the enrollment server-side. All FKs Restrict —
+// the billing history that leaned on a leave must stay explainable.
+model EnrollmentLeave {
+  id           String    @id @default(cuid())
+  tenantId     String
+  studentId    String
+  enrollmentId String
+  startMonth   String // YYYY-MM, inclusive
+  endMonth     String // YYYY-MM, inclusive
+  reason       String
+  status       String    @default("ACTIVE") // ACTIVE | INACTIVE (cancelled)
+  createdBy    String
+  createdAt    DateTime  @default(now())
+  cancelledBy  String?
+  cancelledAt  DateTime?
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  student    Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment StudentEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@index([enrollmentId, status])
+  @@index([studentId])
 }
 
 // ── ADMISSION ────────────────────────────────────────────────
@@ -887,7 +921,7 @@ model BillingRunRow {
   classLabelSnapshot  String?
   parentId            String?
   totalDue            Decimal @default(0) @db.Decimal(15, 2)
-  status              String  @default("PENDING") // PENDING | EXCLUDED | SKIPPED_ALREADY_INVOICED | SKIPPED_NO_FEE_STRUCTURE | COMMITTED | FAILED
+  status              String  @default("PENDING") // PENDING | EXCLUDED | SKIPPED_ALREADY_INVOICED | SKIPPED_NO_FEE_STRUCTURE | SKIPPED_ON_LEAVE | COMMITTED | FAILED
   invoiceId           String? // set on commit; idempotency guard — not a relation on purpose (see above)
   error               String?
 
