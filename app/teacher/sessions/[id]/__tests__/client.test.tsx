@@ -98,7 +98,7 @@ describe("SessionRosterClient", () => {
     expect(screen.getByRole("button", { name: "Menyimpan absensi…" })).toBeDisabled();
 
     resolveSave({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 1 siswa"));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 1 siswa", expect.anything()));
   });
 
   it("never sends an untouched row (TCHX-1)", async () => {
@@ -257,11 +257,45 @@ describe("SessionRosterClient", () => {
     // Wiping the required name makes the row changed and invalid.
     fireEvent.change(screen.getByLabelText("Nama penjemput Aisyah"), { target: { value: "" } });
 
+    // The field says why at the field, not only in a toast that disappears.
+    const name = screen.getByLabelText("Nama penjemput Aisyah");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAttribute("aria-describedby", "pickup-name-s1-error");
+    expect(screen.getByText("Wajib diisi.")).toHaveAttribute("id", "pickup-name-s1-error");
+
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
     expect(toastError).toHaveBeenCalledWith(
       "Isi nama penjemput untuk Aisyah (hubungan: Lainnya).",
     );
+    expect(name).toHaveFocus();
     expect(fetch).not.toHaveBeenCalled();
+
+    fireEvent.change(name, { target: { value: "Pak Budi" } });
+    expect(screen.queryByText("Wajib diisi.")).toBeNull();
+    expect(name).toHaveAttribute("aria-invalid", "false");
+    expect(name).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("keeps a failed save on screen with Coba lagi that re-sends the same rows", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    const [message, options] = toastError.mock.calls[0];
+    expect(message).toBe("Koneksi terputus. Coba lagi sebentar ya.");
+    expect(options).toMatchObject({ duration: Infinity, action: { label: "Coba lagi" } });
+
+    options.action.onClick();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][1].body).toBe(fetchMock.mock.calls[0][1].body);
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
   });
 
   describe("unsaved changes (TCH-2)", () => {

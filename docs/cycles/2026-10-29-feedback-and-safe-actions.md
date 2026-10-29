@@ -118,7 +118,7 @@ None: no schema, dependency, auth or PII change.
 
 - [ ] T1 `lib/feedback.ts` catalog + `toastError` + tests; migrate the generic literal error toasts app-wide (outside
       T2's files) — accept: tests; no duplicated generic literal. (parallel)
-- [ ] T2 Teacher flows: inline field errors (journal picker, centre assessment, session pickup name) and persistent
+- [x] T2 Teacher flows: inline field errors (journal picker, centre assessment, session pickup name) and persistent
       save errors with retry (class attendance, weekly, centre, category accordion, sessions) — accept: component
       tests. (parallel; uses T1's API as specified)
 - [x] T3 Safety and hit areas + empty states: `ConfirmDialog` on "Hapus semua", week-grid badge hit area, 7 empty
@@ -132,6 +132,7 @@ None: no schema, dependency, auth or PII change.
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (all four slices, plus the three audits that fed the spec) + claude-haiku (consistency sweep). T1–T4 run in parallel on disjoint file sets; T5 (docs) runs after them. The driver wrote `lib/feedback.ts` up front because it is the API contract T1 and T2 build against.
 - T4: `formatNumber` (id-ID, a cached formatter per fraction-digit setting) in `lib/format.ts`; `formatRupiah`/`formatRupiahParts` now build on it, with identical output. The three dashboard analytics cards, `chart.tsx` (a bare `toLocaleString()` → system locale) and `fee-admin-view`/`raport/build` are migrated, with identical strings. Guard rule G fails on `.toLocaleString(` in `app/` and `components/`. The one allowlisted line is the vendored `ui/calendar.tsx` month-name formatter (a Date, not a number).
 - T3: "Hapus semua" on the class-day grid goes through `ConfirmDialog` (destructive, focus on Batal, body names the count, child and date); "Tandai semua" stays one tap. The week-grid admin-edit badge keeps its 16px look with an `after:-inset-3.5` 44px hit area. The teacher home, slips and parent perkembangan empty states use `EmptyState`. `element-progress-row` keeps its one-line in-row caption, because a full `EmptyState` would bloat a progress row.
+- T2: inline field errors (`FieldError` + `aria-invalid`/`aria-describedby`, focus on the first invalid field, clears once fixed) on the journal class/date picker, centre-assessment kegiatan and session pickup name ("Wajib diisi."). Centre-assessment Simpan no longer sits disabled without a reason; tapping it explains what is missing. Failed saves in class attendance, weekly and centre assessment, journal categories and sessions use `toastError`, which persists with "Coba lagi" re-sending the same payload under a stable id. Weekly re-applies the failed cell. Class attendance shows no retry on 401/403, where retrying cannot work. The centre no-match state uses `EmptyState`.
 
 ## Verification
 
