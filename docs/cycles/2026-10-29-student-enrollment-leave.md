@@ -179,7 +179,7 @@ runs on deploy), no change to the BillingRun tables.
       reuse: enroll route pattern, `ensureYearWritableById`, `VOIDABLE_INVOICE_STATUSES`)
 - [x] T5 Student page "Cuti" section, create/cancel dialogs, invoice follow-up dialog — accept: component tests
       (deps: T4)
-- [ ] T6 e2e spec + docs: README line, voice.md glossary row, UAT job, `audit-docs.sh --write`, local full gate
+- [x] T6 e2e spec + docs: README line, voice.md glossary row, UAT job, `audit-docs.sh --write`, local full gate
       (deps: T3–T5)
 
 ## Implementation
@@ -215,6 +215,11 @@ runs on deploy), no change to the BillingRun tables.
   voice.md, better-accessibility/writing/layout. Worker walked it in a real browser at 1280x900 and 390x844 (no horizontal
   overflow, dialogs and bottom sheet render); the driver looked at the follow-up and mobile dialog screenshots and re-ran
   `components/admin` + `app/admin/students`: 76 files / 689 tests pass, `tsc` and eslint clean.
+- T6: e2e/admin-student-leave.spec.ts, README, voice.md glossary ("Cuti"), UAT job JTBD-ADMIN-INV-12, CLAUDE.md counts via
+  `audit-docs.sh --write` — two e2e tests: (1) record a leave on the student page → a billing run for that month reads
+  SKIPPED_ON_LEAVE → cancel the leave from the page → the next run bills the student again; (2) a draft built before the
+  leave is parked as EXCLUDED with the leave reason, an overlapping leave answers 409, rebuild turns the row into
+  SKIPPED_ON_LEAVE. Runs set up billing runs through the API and cancel them (one DRAFT per tenant).
 - Dedupe: `loadSppPrepayContext` now takes its academic-year billing window from `lib/enrollment-leave/window.ts` (one rule, two
   consumers); lib/finance, lib/enrollment-leave and app/api suites re-run green (218 files / 3185 tests), `tsc --noEmit` clean.
 
