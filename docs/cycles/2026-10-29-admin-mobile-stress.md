@@ -99,10 +99,13 @@ None.
       `StatTile`/rail tiles if they share the defect; dashboard + invoice-detail amounts; employee-attendance
       "Terlambat" — accept: tests; the stress probe is clean on those pages. (parallel)
 - [ ] T2 Invoices phone header: primary + "Lainnya" menu below `sm` — accept: tests; every action works. (parallel)
-- [ ] T3 `e2e/mobile-stress.spec.ts` — accept: it passes after T1/T2 and fails with T1 reverted. (parallel, finalised
+- [x] T3 `e2e/mobile-stress.spec.ts` — accept: it passes after T1/T2 and fails with T1 reverted. (parallel, finalised
       after T1)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5. T1, T2 and T3 run in parallel on disjoint files. The driver built and ran the 62-route stress probe that scoped the spec; T3 ports its rules into Playwright.
+- T3: `e2e/mobile-stress.spec.ts`. 360×780 with touch, one context per role, 15 pages (8 admin + invoice detail, 2 teacher, 3 parent). For each page: networkidle, then wait 1.8 s (CountUp runs 0.9 s and then swaps in plain text), inflate the figures, measure. Rules: (a) no page overflow; (b) no number taller than 1.6 line-heights; (c) no text past a bordered card's padded edge. `expect.soft` per page, about 46 s. Against the pre-fix build it fails on exactly the defects in Context: 6 admin list pages, the dashboard, invoice detail and employee attendance. Teacher and parent pass.
 
 ## Verification
 
