@@ -185,7 +185,7 @@ function PaymentReview({
         <ReviewRow label="Tagihan"><span className="font-currency">{invoice.invoiceNumber}</span></ReviewRow>
         <ReviewRow label="Siswa">{invoice.student.name}</ReviewRow>
         <ReviewRow label="Jumlah">
-          <span className="font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
+          <span className="whitespace-nowrap font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
         </ReviewRow>
         <ReviewRow label="Metode">{paymentMethodLabel(method)}</ReviewRow>
         <ReviewRow label="Tanggal bayar">{formatDateShort(paidAt)}</ReviewRow>
@@ -804,21 +804,21 @@ export default function InvoiceDetailPage() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Rincian Tagihan</h3>
           <div className="space-y-2">
             {invoice.lines.map(line => (
-              <div key={line.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <div>
+              <div key={line.id} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{line.labelSnapshot}</p>
                   {line.adjustmentAmount !== 0 && (
                     <p className="text-xs text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
                   )}
                 </div>
-                <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
+                <span className="shrink-0 whitespace-nowrap font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
               </div>
             ))}
           </div>
           <div className="border-t border-border mt-3 pt-3 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
-            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
+            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="shrink-0 whitespace-nowrap font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
+            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Dibayar</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
+            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Sisa</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
           </div>
         </Card>
 

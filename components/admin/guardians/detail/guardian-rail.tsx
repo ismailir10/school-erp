@@ -21,6 +21,7 @@ export function GuardianRail({ parent }: { parent: ParentDetail }) {
       tone: s.outstanding > 0 ? "critical" : "positive",
       hint: s.outstanding > 0 ? `${s.unpaidCount} dari ${s.invoiceCount} tagihan belum lunas` : "Tidak ada tunggakan",
       wide: true,
+      mono: true,
     },
     {
       label: "Anak Terdaftar",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { fluidFigureClass, type FluidCap } from "@/lib/fluid-figure";
 import { cn } from "@/lib/utils";
 
 export type StatTone = "default" | "muted" | "positive" | "warning" | "critical";
@@ -21,6 +22,9 @@ const VALUE_SIZE = {
   md: "text-h2",
   lg: "text-display",
 } as const;
+
+// The cap a `mono` (currency/count) figure scales up to; matches VALUE_SIZE.
+const FLUID_CAP: Record<keyof typeof VALUE_SIZE, FluidCap> = { sm: "base", md: "h2", lg: "display" };
 
 const TILE_CLASS = "relative isolate block min-w-0 overflow-hidden rounded-lg border bg-card p-3 text-left";
 const LINK_TILE_CLASS =
@@ -62,16 +66,26 @@ export function StatTile({
   /** Extra content under the hint (a retry button, a hover effect). */
   children?: ReactNode;
 }) {
+  const fluid = mono && (typeof value === "string" || typeof value === "number");
+  const figureClass = fluid
+    ? `font-currency whitespace-nowrap ${fluidFigureClass(String(value).length, FLUID_CAP[size])}`
+    : `wrap-anywhere ${VALUE_SIZE[size]} ${mono ? "font-currency" : ""}`;
+  // `@container`: the tile's content box is the width a fluid figure is sized from.
+  const containerClass = fluid ? "@container" : "";
+  const tileClass = cn(TILE_CLASS, containerClass, className);
   const body = (
     <>
       <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p
-        // `wrap-anywhere`: the tile clips overflow (Spotlight glow), so a long amount
-        // ("Rp 10.000.000.000" in a half-width tile) must wrap instead of being cut off.
+        // A `mono` figure (money, counts) never wraps: it is sized from the tile's width
+        // with container-query units (lib/fluid-figure.ts), so "Rp 10.000.000.000" in a
+        // half-width tile shrinks to fit instead of breaking mid-number or being clipped.
+        // Other values (text like "5 thn 3 bln") keep the fixed size and `wrap-anywhere`,
+        // because the tile clips overflow (Spotlight glow).
         // Size is a plain string, not an argument to `cn`: tailwind-merge doesn't know
         // our `text-display` / `text-h2` size tokens and would drop them as a
         // conflicting text *colour* next to `text-foreground`. Only the colour merges.
-        className={`mt-1 font-bold leading-tight tabular-nums wrap-anywhere ${VALUE_SIZE[size]} ${mono ? "font-currency" : ""} ${cn(TONE_CLASS[tone], valueClassName)}`}
+        className={`mt-1 font-bold leading-tight tabular-nums ${figureClass} ${cn(TONE_CLASS[tone], valueClassName)}`}
       >
         {value}
       </p>
@@ -82,13 +96,13 @@ export function StatTile({
 
   if (href) {
     return (
-      <Link href={href} aria-label={ariaLabel} className={cn(TILE_CLASS, LINK_TILE_CLASS, className)}>
+      <Link href={href} aria-label={ariaLabel} className={cn(TILE_CLASS, LINK_TILE_CLASS, containerClass, className)}>
         {body}
       </Link>
     );
   }
   return (
-    <div aria-label={ariaLabel} className={cn(TILE_CLASS, className)}>
+    <div aria-label={ariaLabel} className={tileClass}>
       {body}
     </div>
   );

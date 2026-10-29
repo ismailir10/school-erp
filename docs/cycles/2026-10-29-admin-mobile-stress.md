@@ -95,7 +95,7 @@ None.
 
 ## Tasks
 
-- [ ] T1 Stat-card family: `StatCard` fluid figure + icon row, `StatsCardsRow` orphan span, and the same treatment for
+- [x] T1 Stat-card family: `StatCard` fluid figure + icon row, `StatsCardsRow` orphan span, and the same treatment for
       `StatTile`/rail tiles if they share the defect; dashboard + invoice-detail amounts; employee-attendance
       "Terlambat" — accept: tests; the stress probe is clean on those pages. (parallel)
 - [x] T2 Invoices phone header: primary + "Lainnya" menu below `sm` — accept: tests; every action works. (parallel)
@@ -107,6 +107,7 @@ None.
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5. T1, T2 and T3 run in parallel on disjoint files. The driver built and ran the 62-route stress probe that scoped the spec; T3 ports its rules into Playwright.
 - T3: `e2e/mobile-stress.spec.ts`. 360×780 with touch, one context per role, 15 pages (8 admin + invoice detail, 2 teacher, 3 parent). For each page: networkidle, then wait 1.8 s (CountUp runs 0.9 s and then swaps in plain text), inflate the figures, measure. Rules: (a) no page overflow; (b) no number taller than 1.6 line-heights; (c) no text past a bordered card's padded edge. `expect.soft` per page, about 46 s. Against the pre-fix build it fails on exactly the defects in Context: 6 admin list pages, the dashboard, invoice detail and employee attendance. Teacher and parent pass.
 - T2: `app/admin/invoices/invoices-client.tsx` defines the secondary actions once (`{key,label,icon,onSelect,disabled}`, gated as before). They render inline in a `hidden sm:contents` wrapper, and below `sm` in a "Lainnya" `DropdownMenu` with the same icons, labels, "(N)" counts, disabled states and handlers. No JS viewport detection. "Buat Tagihan" stays the visible primary. 9 tests cover the menu contents, role gating, its absence when there is nothing secondary, and each item triggering the same handler. `PendingLinkBreakdownPopover` ("Coba lagi link (N)", shown only when links failed) stays inline: it is a popover with its own fetch.
+- T1: `lib/fluid-figure.ts` (`fluidFigureClass(len, cap)` → `text-[length:clamp(0.75rem,Ncqi,cap)]`; buckets ≤4/≤6/≤10/longer → 38/24/15/9 cqi, sized at ~0.6em per mono character to stay under ~91% of the card). `StatCard` puts label and icon on one row and the figure full-width in an `@container`, `whitespace-nowrap tabular-nums`; the old `length>8 → text-h2` branch is gone. `StatsCardsRow` spans an odd last card on phones (`max-lg:[&>*:last-child:nth-child(odd)]:col-span-2`). `StatTile` mono figures get the same fluid treatment, which also fixes the dashboard finance tiles. `RailTile` gains `mono`. Invoice-detail amounts are nowrap/`shrink-0`. The compiled CSS was checked with `@tailwindcss/node`, and `cn()` keeps the clamp class next to a text colour (test added). The worker checked the fit arithmetically; the driver checks it in the browser during verify.
 
 ## Verification
 
