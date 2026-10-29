@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { BackLink } from "@/components/portal/back-link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
@@ -676,12 +677,12 @@ export function ObjectiveEditDialog({
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/admin/curriculum/objectives/${objective.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/admin/curriculum/objectives/${objective.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("TP tersimpan");
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 
@@ -829,12 +830,12 @@ export function IndicatorEditDialog({
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/admin/curriculum/indicators/${indicator.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/admin/curriculum/indicators/${indicator.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("IKTP tersimpan");
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -167,7 +168,7 @@ export default function StudentJournalEntryPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (requestId !== loadRequestId.current) return;
-      toast.error(err.error || "Gagal memuat data kelas");
+      toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
       setLoadError(true); setLoading(false);
       return;
     }
@@ -213,7 +214,7 @@ export default function StudentJournalEntryPage() {
     } catch {
       if (requestId !== loadRequestId.current) return;
       setLoadError(true);
-      toast.error("Gagal memuat data kelas. Coba lagi sebentar ya.");
+      toast.error(MESSAGES.loadFailed("Data kelas"));
       setLoading(false);
     }
   }, [classId, date]);

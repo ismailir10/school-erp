@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { memo, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
@@ -168,7 +169,7 @@ export const CutiSection = memo(function CutiSection({
     try {
       const res = await fetch(`/api/students/${studentId}/leaves/${leave.id}/open-invoices`);
       if (!res.ok) {
-        toast.error(res.status === 403 ? NO_ACCESS_VIEW : "Gagal memuat tagihan");
+        toast.error(res.status === 403 ? NO_ACCESS_VIEW : MESSAGES.loadFailed("Tagihan"));
         return;
       }
       const json = await res.json();
@@ -179,7 +180,7 @@ export const CutiSection = memo(function CutiSection({
       });
       setFollowUpOpen(true);
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setCheckingId(null);
     }

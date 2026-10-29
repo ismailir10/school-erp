@@ -5,6 +5,7 @@
  * link offers "Link tidak bisa dibuka? Minta link baru". Every message is the
  * app's own; nothing the server says is rendered.
  */
+import { MESSAGES } from "@/lib/feedback";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -110,7 +111,7 @@ describe("no link (expired and cleared)", () => {
     const user = userEvent.setup();
     renderSheet({}, "network-error");
     await user.click(await screen.findByRole("button", { name: "Buat link pembayaran" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Koneksi terputus. Coba lagi sebentar ya."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(MESSAGES.network));
   });
 
   it("too many tries is said plainly", async () => {

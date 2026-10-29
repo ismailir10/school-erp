@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { Control, Path } from "react-hook-form";
@@ -74,7 +75,7 @@ type ConfigProgram = FeeProgram & { name: string };
 type Ctl = Control<EditorValues, unknown, EditorValues>;
 type Name = Path<EditorValues>;
 
-const SAVE_FALLBACK = "Gagal menyimpan. Periksa koneksi, lalu coba lagi.";
+const SAVE_FALLBACK = MESSAGES.saveFailed;
 const INPUT_CLASS = "h-11 text-base md:text-base";
 
 // ── Field controls (one FormField each, so label ↔ control ↔ error stay wired) ──

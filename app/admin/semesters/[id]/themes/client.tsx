@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { BackLink } from "@/components/portal/back-link";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
@@ -235,7 +236,7 @@ export function ThemeCard({
         toast.error(r.error ?? "Gagal");
       }
     } catch {
-      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+      toast.error(MESSAGES.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -481,7 +482,7 @@ export function SubThemeCard({
         toast.error(r.error ?? "Gagal");
       }
     } catch {
-      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+      toast.error(MESSAGES.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -738,7 +739,7 @@ function WeekCard({
         toast.error(r.error ?? "Gagal");
       }
     } catch {
-      toast.error("Gagal menyimpan. Periksa koneksi lalu coba lagi.");
+      toast.error(MESSAGES.saveFailed);
     } finally {
       setSaving(false);
     }

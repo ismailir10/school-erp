@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,7 @@ export function OverrideModal({
         onSuccess();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Gagal menyimpan");
+        toast.error(data.error || MESSAGES.saveFailed);
       }
     } else {
       // Create new record for employee on this date
@@ -86,7 +87,7 @@ export function OverrideModal({
         onSuccess();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Gagal menyimpan");
+        toast.error(data.error || MESSAGES.saveFailed);
       }
     }
     setSaving(false);

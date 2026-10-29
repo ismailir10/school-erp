@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
@@ -96,7 +97,7 @@ export function DataAnakSection({
         toast.error(d.error || "Gagal mengunggah foto");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setUploadingPhoto(false);
     }
@@ -114,7 +115,7 @@ export function DataAnakSection({
         toast.error("Gagal menghapus foto");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setUploadingPhoto(false);
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useWatch } from "react-hook-form";
@@ -190,7 +191,7 @@ export function ManualInvoiceDialog({
       })
       .catch((err) => {
         console.error("[manual-invoice] fee components fetch failed", err);
-        toast.error("Gagal memuat komponen biaya");
+        toast.error(MESSAGES.loadFailed("Komponen biaya"));
       });
 
     return () => {

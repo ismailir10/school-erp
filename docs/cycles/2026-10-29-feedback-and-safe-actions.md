@@ -80,7 +80,7 @@ Taken on the product owner's behalf ("proceed with your best judgement").
 
 Copy follows `voice.md` (warm "ya", Islamic courtesy layer where it already exists). The catalog:
 - **network:** "Koneksi terputus. Coba lagi sebentar ya."
-- **save:** "Belum tersimpan. Periksa koneksi lalu coba lagi."
+- **save:** "Belum tersimpan. Coba lagi sebentar ya." (neutral: a save can fail on the server, not only the connection)
 - **load:** "{X} belum bisa dimuat. Coba lagi sebentar ya."
 - **delete:** "Belum terhapus. Coba lagi sebentar ya."
 - **required field:** "Wajib diisi."
@@ -116,7 +116,7 @@ None: no schema, dependency, auth or PII change.
 
 ## Tasks
 
-- [ ] T1 `lib/feedback.ts` catalog + `toastError` + tests; migrate the generic literal error toasts app-wide (outside
+- [x] T1 `lib/feedback.ts` catalog + `toastError` + tests; migrate the generic literal error toasts app-wide (outside
       T2's files) — accept: tests; no duplicated generic literal. (parallel)
 - [x] T2 Teacher flows: inline field errors (journal picker, centre assessment, session pickup name) and persistent
       save errors with retry (class attendance, weekly, centre, category accordion, sessions) — accept: component
@@ -133,6 +133,7 @@ None: no schema, dependency, auth or PII change.
 - T4: `formatNumber` (id-ID, a cached formatter per fraction-digit setting) in `lib/format.ts`; `formatRupiah`/`formatRupiahParts` now build on it, with identical output. The three dashboard analytics cards, `chart.tsx` (a bare `toLocaleString()` → system locale) and `fee-admin-view`/`raport/build` are migrated, with identical strings. Guard rule G fails on `.toLocaleString(` in `app/` and `components/`. The one allowlisted line is the vendored `ui/calendar.tsx` month-name formatter (a Date, not a number).
 - T3: "Hapus semua" on the class-day grid goes through `ConfirmDialog` (destructive, focus on Batal, body names the count, child and date); "Tandai semua" stays one tap. The week-grid admin-edit badge keeps its 16px look with an `after:-inset-3.5` 44px hit area. The teacher home, slips and parent perkembangan empty states use `EmptyState`. `element-progress-row` keeps its one-line in-row caption, because a full `EmptyState` would bloat a progress row.
 - T2: inline field errors (`FieldError` + `aria-invalid`/`aria-describedby`, focus on the first invalid field, clears once fixed) on the journal class/date picker, centre-assessment kegiatan and session pickup name ("Wajib diisi."). Centre-assessment Simpan no longer sits disabled without a reason; tapping it explains what is missing. Failed saves in class attendance, weekly and centre assessment, journal categories and sessions use `toastError`, which persists with "Coba lagi" re-sending the same payload under a stable id. Weekly re-applies the failed cell. Class attendance shows no retry on 401/403, where retrying cannot work. The centre no-match state uses `EmptyState`.
+- T1: `lib/feedback.ts` (`MESSAGES` catalog, `toastError`, `toastCaughtError`; the driver wrote it as the contract) + 12 tests. About 125 generic error sites across ~65 files are migrated: saveFailed 42, network 15, generic 6, deleteFailed 1, `loadFailed(noun)` 61. Tests import `MESSAGES` rather than re-hardcoding strings. Domain-specific copy, server files and error-boundary titles are left alone. Driver change on review: `saveFailed` became neutral ("Belum tersimpan. Coba lagi sebentar ya."). A save can fail on the server, so it must not tell an admin to check the connection.
 
 ## Verification
 

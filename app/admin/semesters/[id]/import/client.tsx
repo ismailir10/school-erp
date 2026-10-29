@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { BackLink } from "@/components/portal/back-link";
 import { useRouter } from "next/navigation";
 import {
@@ -218,7 +219,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         };
       };
       if (!res.ok) {
-        setFormError(body.error ?? "Gagal menyimpan. Coba lagi sebentar ya.");
+        setFormError(body.error ?? MESSAGES.saveFailed);
         setCommitting(false);
         committingRef.current = false;
         return;
