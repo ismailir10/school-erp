@@ -12,16 +12,15 @@ import { test, expect, type Page } from "@playwright/test";
  *   (a) the page scrolls sideways;
  *   (b) a number or amount wraps onto a second line (a split "12.345" or "Rp" / "1.234...");
  *   (c) text sticks out past the padded edge of the bordered, rounded card it sits in
- *       (unless it lives in a horizontal scroller that really scrolls).
+ *       (unless it lives in a horizontal scroller that really scrolls);
+ *   (d) an essential label is cut off with an ellipsis / line clamp (see ESSENTIALS).
+ *
+ * Teacher and parent also get a second pass at 320x640, the smallest phone we support.
  *
  * sr-only (<= 1px) boxes, aria-hidden subtrees and svg are ignored.
  */
 
-test.use({
-  viewport: { width: 360, height: 780 },
-  hasTouch: true,
-  isMobile: true,
-});
+test.use({ hasTouch: true, isMobile: true });
 
 // Deterministic layout measurement: a retry would only double the runtime of a real failure.
 test.describe.configure({ retries: 0 });
@@ -35,21 +34,53 @@ const USER: Record<Role, string> = {
 };
 
 // A route ending in `:/list` is the first detail page linked from `/list`.
-const ROUTES: Record<Role, string[]> = {
-  admin: [
-    "/admin",
-    "/admin/invoices",
-    "/admin/invoices/:/admin/invoices",
-    "/admin/students",
-    "/admin/payments",
-    "/admin/employees",
-    "/admin/admissions",
-    "/admin/payroll",
-    "/admin/employee-attendance",
-  ],
-  teacher: ["/teacher", "/teacher/class-attendance"],
-  parent: ["/parent", "/parent/invoices", "/parent/attendance"],
-};
+type Pass = { role: Role; width: number; height: number; routes: string[] };
+
+const PASSES: Pass[] = [
+  {
+    role: "admin",
+    width: 360,
+    height: 780,
+    routes: [
+      "/admin",
+      "/admin/invoices",
+      "/admin/invoices/:/admin/invoices",
+      "/admin/students",
+      "/admin/payments",
+      "/admin/employees",
+      "/admin/admissions",
+      "/admin/payroll",
+      "/admin/employee-attendance",
+    ],
+  },
+  { role: "teacher", width: 360, height: 780, routes: ["/teacher", "/teacher/class-attendance"] },
+  { role: "parent", width: 360, height: 780, routes: ["/parent", "/parent/invoices", "/parent/attendance"] },
+  // Smallest supported phone. student-journal redirects to its entry page.
+  {
+    role: "teacher",
+    width: 320,
+    height: 640,
+    routes: ["/teacher", "/teacher/class-attendance", "/teacher/student-journal"],
+  },
+  { role: "parent", width: 320, height: 640, routes: ["/parent", "/parent/invoices", "/parent/attendance"] },
+];
+
+/**
+ * Rule (d): text the user needs to read must not be clipped. An element matching one of these
+ * selectors is a violation when it is ellipsised / line-clamped AND actually cut off. Free-text
+ * notes (journal notes, nicknames, recent-activity text) are deliberately not listed.
+ *
+ *  - bottom nav label: <nav aria-label="Navigasi utama ..."> span (portal-bottom-nav.tsx, `truncate`)
+ *  - class-attendance student name: first <p> of the roster row's text column (data-testid="roster-row")
+ *  - status / summary lines: TaskRow descriptions (data-slot="item-description" from components/ui/item):
+ *    parent home attendance + bill card, parent invoice rows, teacher home progress lines. They sit in a
+ *    task-list Card or a plain Card (the parent home bill card), so the slot alone is the stable hook.
+ */
+const ESSENTIALS: { what: string; selector: string }[] = [
+  { what: "bottom-nav label", selector: 'nav[aria-label^="Navigasi utama"] a span, nav[aria-label^="Navigasi utama"] button span' },
+  { what: "student name", selector: '[data-testid="roster-row"] .min-w-0 > p:first-child' },
+  { what: "status line", selector: '[data-slot="item-description"]' },
+];
 
 // components/reactbits/count-up.tsx animates 0.9s on a fresh mount, then swaps the animated
 // span for a bare text node. Inflating before it settles would be overwritten, so wait it out.
@@ -81,7 +112,10 @@ function inflate(): void {
 }
 
 // Plain function: serialised into the page by page.evaluate. Returns one readable string per violation.
-function measure(): string[] {
+type MeasureArg = { phase: "layout" | "essentials"; essentials: { what: string; selector: string }[] };
+
+function measure(arg: MeasureArg): string[] {
+  const { phase, essentials } = arg;
   const out: string[] = [];
   const vw = window.innerWidth;
   const label = (el: Element) => (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 50);
@@ -89,7 +123,7 @@ function measure(): string[] {
 
   // (a) the whole page must fit the viewport.
   const overflow = document.documentElement.scrollWidth - vw;
-  if (overflow > 0) out.push(`page scrolls sideways by ${overflow}px`);
+  if (phase === "layout" && overflow > 0) out.push(`page scrolls sideways by ${overflow}px`);
 
   // A box inside a horizontal scroller that really scrolls may extend past its card: that is the point.
   const inRealScroller = (el: Element) => {
@@ -104,20 +138,26 @@ function measure(): string[] {
     return s.visibility === "hidden" || s.display === "none" || Number(s.opacity) === 0;
   };
 
-  for (const el of document.querySelectorAll("body *")) {
+  for (const el of phase === "layout" ? document.querySelectorAll("body *") : []) {
     if (el.closest('[aria-hidden="true"],[data-sonner-toaster],script,style,svg')) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width <= 1 || rect.height <= 1 || invisible(el)) continue; // sr-only / collapsed
     const ownText = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent ?? "").join("").trim();
     if (!ownText) continue;
 
-    // (b) a number or amount must stay on one line: taller than 1.6 lines means it wrapped.
+    // (b) a number or amount must stay on one line: count the line boxes of its own text.
     if (/^(Rp\s?)?[\d.,]+\s*%?$/.test(ownText)) {
-      const cs = getComputedStyle(el);
-      const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
-      if (rect.height > lineHeight * 1.6) {
-        out.push(`wrapped number (${Math.round(rect.height)}px tall, line ${Math.round(lineHeight)}px) ${tag(el)} "${label(el)}"`);
+      const tops: number[] = [];
+      for (const n of el.childNodes) {
+        if (n.nodeType !== 3 || !(n.textContent ?? "").trim()) continue;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        for (const q of r.getClientRects()) if (q.width > 0 && q.height > 0) tops.push(q.top);
       }
+      const fontSize = parseFloat(getComputedStyle(el).fontSize) || 14;
+      // Two rects on one line share a top (+-1px of subpixel noise); a wrap moves down by ~a line.
+      const lines = [...tops].sort((x, y) => x - y).filter((t, i, all) => i === 0 || t - all[i - 1] > fontSize * 0.6).length;
+      if (lines > 1) out.push(`wrapped number (${lines} lines) ${tag(el)} "${label(el)}"`);
     }
 
     // (c) text must stay inside the padded content edge of its nearest bordered, rounded ancestor.
@@ -139,30 +179,51 @@ function measure(): string[] {
       break; // only the nearest card counts
     }
   }
+
+  // (d) no truncated essentials. Measured on the data as seeded: inflating counts inside a sentence
+  // ("12.345 tagihan") would make a status line longer than any real one.
+  for (const { what, selector } of phase === "essentials" ? essentials : []) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      if (el.closest('[aria-hidden="true"]')) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 1 || rect.height <= 1 || invisible(el)) continue;
+      const cs = getComputedStyle(el);
+      const clamped = cs.textOverflow === "ellipsis" || (cs.getPropertyValue("-webkit-line-clamp") || "none") !== "none";
+      if (!clamped) continue;
+      if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) {
+        out.push(`truncated ${what} ${tag(el)} "${label(el)}"`);
+      }
+    }
+  }
   return [...new Set(out)];
 }
 
-for (const role of Object.keys(ROUTES) as Role[]) {
-  test(`${role} pages survive production-sized numbers on a 360px phone`, async ({ context, page }) => {
-    test.setTimeout(120_000);
-    await context.addCookies([
-      { name: "school-erp-session", value: USER[role], domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" },
-    ]);
+for (const { role, width, height, routes } of PASSES) {
+  test.describe(`${role} @ ${width}px`, () => {
+    test.use({ viewport: { width, height } });
 
-    for (const route of ROUTES[role]) {
-      let url: string | null = route;
-      if (route.includes(":/")) {
-        url = await firstDetailHref(page, route.split(":")[1]);
-        expect(url, `no detail row to open from ${route.split(":")[1]}`).not.toBeNull();
+    test(`${role} pages survive production-sized numbers on a ${width}px phone`, async ({ context, page }) => {
+      test.setTimeout(120_000);
+      await context.addCookies([
+        { name: "school-erp-session", value: USER[role], domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" },
+      ]);
+
+      for (const route of routes) {
+        let url: string | null = route;
+        if (route.includes(":/")) {
+          url = await firstDetailHref(page, route.split(":")[1]);
+          expect(url, `no detail row to open from ${route.split(":")[1]}`).not.toBeNull();
+        }
+        await page.goto(url!, { waitUntil: "networkidle" });
+        await page.locator("h1").first().waitFor();
+        await page.waitForTimeout(COUNT_UP_SETTLE_MS);
+
+        const truncated = await page.evaluate(measure, { phase: "essentials", essentials: ESSENTIALS } as MeasureArg);
+        await page.evaluate(inflate);
+        await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+        const violations = [...(await page.evaluate(measure, { phase: "layout", essentials: ESSENTIALS } as MeasureArg)), ...truncated];
+        expect.soft(violations, `${width}px ${page.url().replace(/^https?:\/\/[^/]+/, "")} (${violations.length} violations):\n${violations.join("\n")}`).toEqual([]);
       }
-      await page.goto(url!, { waitUntil: "networkidle" });
-      await page.locator("h1").first().waitFor();
-      await page.waitForTimeout(COUNT_UP_SETTLE_MS);
-
-      await page.evaluate(inflate);
-      await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
-      const violations = await page.evaluate(measure);
-      expect.soft(violations, `${url} (${violations.length} violations):\n${violations.join("\n")}`).toEqual([]);
-    }
+    });
   });
 }

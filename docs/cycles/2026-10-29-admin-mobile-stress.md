@@ -103,7 +103,7 @@ None.
       after T1)
 
 - [x] T4 Small phones (320px), teacher and parent: class-attendance names never truncate, the nav labels fit, and the bill/invoice/progress status lines wrap instead of truncating — accept: tests; the 320 stress pass is clean. (added after the owner asked to check small phones)
-- [ ] T5 Stress spec: a 320px teacher/parent pass, a truncated-essentials rule, and precise wrapped-number detection — accept: it fails on the pre-fix build and passes after T4.
+- [x] T5 Stress spec: a 320px teacher/parent pass, a truncated-essentials rule, and precise wrapped-number detection — accept: it fails on the pre-fix build and passes after T4.
 
 ## Implementation
 
@@ -116,6 +116,10 @@ None.
   - **`PortalBottomNav`:** labels are `whitespace-nowrap` with fluid `clamp(0.625rem,3.4vw,0.75rem)` and no truncate, so "Kehadiran" fits at 320.
   - **Shared `TaskRow`:** an opt-in `stackMeta` drops the amount under the title in a body narrower than 15rem, and the description is now `line-clamp-3` instead of truncating. The parent bill row and invoice list opt in, so "2 lewat tempo" and due dates stay visible. Teacher home inherits the wrap.
   - **Compiled:** `@max-[20rem]`/`@max-[15rem]` compile to `@container (width < …)`.
+- T5: `e2e/mobile-stress.spec.ts` now runs a table of passes: all roles at 360, plus teacher and parent at 320×640.
+  - **Rule (b), wrapped numbers:** counts distinct line tops via `Range.getClientRects()` on the element's own text. That removes the false positive on square calendar cells.
+  - **New rule (d), truncated essentials:** checked on seeded data before inflation. It covers bottom-nav labels (`nav[aria-label^="Navigasi utama"]`), roster names (`[data-testid=roster-row]`) and the item-description status lines.
+  - **Against the pre-fix build:** all 5 passes fail, each on a real defect (about 63 s). Admin stat-card wraps, the employee-attendance "Terlambat" crossing, 7 truncated names at 360 and 19 at 320, the teacher progress line, the parent bill/invoice status lines and "Kehadiran" at 320. It also caught a truncated parent attendance status line, which T4's `line-clamp-3` covers.
 
 ## Verification
 
