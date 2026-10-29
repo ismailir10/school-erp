@@ -22,28 +22,32 @@
  */
 export type FluidCap = "display" | "h2" | "base";
 
-const FLUID: Record<FluidCap, [string, string, string, string]> = {
+const FLUID: Record<FluidCap, [string, string, string, string, string]> = {
   display: [
     "text-[length:clamp(0.75rem,38cqi,var(--type-display))]",
     "text-[length:clamp(0.75rem,24cqi,var(--type-display))]",
     "text-[length:clamp(0.75rem,15cqi,var(--type-display))]",
+    "text-[length:clamp(0.75rem,10.5cqi,var(--type-display))]",
     "text-[length:clamp(0.75rem,9cqi,var(--type-display))]",
   ],
   h2: [
     "text-[length:clamp(0.75rem,38cqi,var(--type-h2))]",
     "text-[length:clamp(0.75rem,24cqi,var(--type-h2))]",
     "text-[length:clamp(0.75rem,15cqi,var(--type-h2))]",
+    "text-[length:clamp(0.75rem,10.5cqi,var(--type-h2))]",
     "text-[length:clamp(0.75rem,9cqi,var(--type-h2))]",
   ],
   base: [
     "text-[length:clamp(0.75rem,38cqi,1rem)]",
     "text-[length:clamp(0.75rem,24cqi,1rem)]",
     "text-[length:clamp(0.75rem,15cqi,1rem)]",
+    "text-[length:clamp(0.75rem,10.5cqi,1rem)]",
     "text-[length:clamp(0.75rem,9cqi,1rem)]",
   ],
 };
 
 export function fluidFigureClass(length: number, cap: FluidCap = "display"): string {
-  const bucket = length <= 4 ? 0 : length <= 6 ? 1 : length <= 10 ? 2 : 3;
+  // ≤14 covers everyday Rupiah ("Rp 55.825.000", "Rp 999.999.999"): 14 × 0.6em × 10.5cqi ≈ 88% of the card.
+  const bucket = length <= 4 ? 0 : length <= 6 ? 1 : length <= 10 ? 2 : length <= 14 ? 3 : 4;
   return FLUID[cap][bucket];
 }

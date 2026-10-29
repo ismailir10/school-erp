@@ -19,7 +19,9 @@ describe("<StatCard> fluid figure (FIN-21)", () => {
     rerender(<StatCard label="Total" value="12.345" icon={Wallet} />);
     expect(screen.getByText("12.345").className).toContain("24cqi");
     rerender(<StatCard label="Total" value="Rp 12.345.678" icon={Wallet} />);
-    expect(screen.getByText("Rp 12.345.678").className).toContain("9cqi");
+    expect(screen.getByText("Rp 12.345.678").className).toContain("10.5cqi");
+    rerender(<StatCard label="Total" value="Rp 1.234.567.890" icon={Wallet} />);
+    expect(screen.getByText("Rp 1.234.567.890").className).toContain("(0.75rem,9cqi,");
   });
 
   it("measures a count by what it renders", () => {
