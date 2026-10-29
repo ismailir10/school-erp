@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { DossierSubsection } from "@/components/admin/dossier-section";
@@ -53,12 +54,12 @@ export function RiwayatStatusSection({
 
   const handleSave = form.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/students/${student.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/students/${student.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Alasan diperbarui");
       setEditing(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

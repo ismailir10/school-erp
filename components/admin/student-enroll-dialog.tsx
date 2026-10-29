@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -93,13 +94,13 @@ export function StudentEnrollDialog({
         // are not valid enroll targets (server also 403s them as YEAR_ARCHIVED).
         const res = await fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING");
         if (!res.ok) {
-          if (!cancelled) toast.error("Gagal memuat data kelas");
+          if (!cancelled) toast.error(MESSAGES.loadFailed("Data kelas"));
           return;
         }
         const data = await res.json();
         if (!cancelled) setSections(data);
       } catch {
-        if (!cancelled) toast.error("Terjadi kesalahan");
+        if (!cancelled) toast.error(MESSAGES.generic);
       }
     })();
     return () => {
@@ -158,7 +159,7 @@ export function StudentEnrollDialog({
         "Gagal mendaftarkan",
       );
     } catch (err) {
-      applyServerErrors(form, err, "Terjadi kesalahan jaringan");
+      applyServerErrors(form, err, MESSAGES.network);
     }
   });
 

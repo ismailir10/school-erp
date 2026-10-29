@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -640,7 +641,7 @@ export default function StudentsPage() {
       setCapabilities({ canCreate: json.capabilities?.canCreate === true, canEdit: json.capabilities?.canEdit === true });
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data siswa");
+      toast.error(MESSAGES.loadFailed("Data siswa"));
     } finally {
       setLoading(false);
     }

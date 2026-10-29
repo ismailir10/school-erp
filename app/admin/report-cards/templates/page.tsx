@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GuardedLink } from "@/components/admin/guarded-link";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
@@ -107,7 +108,7 @@ export default function RaportTemplatesPage() {
       setLoadedKey(`${termId}:${ageGroup}`);
     } catch (err) {
       if (version !== requestVersion.current) return;
-      setError(userMessage(err, "Gagal memuat bank narasi. Coba lagi."));
+      setError(userMessage(err, MESSAGES.loadFailed("Bank narasi")));
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }

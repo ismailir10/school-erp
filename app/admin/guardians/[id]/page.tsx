@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, use, useId, useRef } from "react";
 import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
@@ -175,14 +176,14 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
       const res = await fetch(`/api/parents/${id}`);
       if (!res.ok) {
         setLoadError(res.status === 404 ? "not-found" : res.status === 401 || res.status === 403 ? "denied" : "failed");
-        toast.error("Gagal memuat data wali");
+        toast.error(MESSAGES.loadFailed("Data wali"));
         return;
       }
       setParent(await res.json());
       setLoadError(null);
     } catch {
       setLoadError("failed");
-      toast.error("Terjadi kesalahan");
+      toast.error(MESSAGES.generic);
     } finally {
       setLoading(false);
     }
@@ -227,12 +228,12 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const saveParent = editForm.handleSubmit(async (values) => {
     if (!parent) return;
     try {
-      await sendJson(`/api/parents/${parent.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/parents/${parent.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Data wali diperbarui");
       setIsEditing(false);
       fetchParent();
     } catch (err) {
-      applyServerErrors(editForm, err, "Gagal menyimpan");
+      applyServerErrors(editForm, err, MESSAGES.saveFailed);
     }
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -172,13 +173,13 @@ export default function FeesPage() {
         fetch("/api/academic-years"),
       ]);
       if (!cRes.ok || !pRes.ok || !yRes.ok) {
-        toast.error("Gagal memuat data biaya");
+        toast.error(MESSAGES.loadFailed("Data biaya"));
         return;
       }
       const [c, p, y] = await Promise.all([cRes.json(), pRes.json(), yRes.json()]);
       setComponents(c); setPrograms(p); setYears(y);
     } catch {
-      toast.error("Gagal memuat data biaya");
+      toast.error(MESSAGES.loadFailed("Data biaya"));
     } finally {
       setLoading(false);
     }
@@ -252,7 +253,7 @@ export default function FeesPage() {
     setStructureLoading(true);
     try {
       const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
-      if (!res.ok) { toast.error("Gagal memuat struktur biaya"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Struktur biaya")); return; }
       const data: FeeStructure[] = await res.json();
       setStructures(data);
       const amounts: Record<string, number> = {};
@@ -261,7 +262,7 @@ export default function FeesPage() {
       setStructureAmounts(amounts);
       setStructureBaseline(amounts);
     } catch {
-      toast.error("Gagal memuat struktur biaya");
+      toast.error(MESSAGES.loadFailed("Struktur biaya"));
     } finally {
       setStructureLoading(false);
     }

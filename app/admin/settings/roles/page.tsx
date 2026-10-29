@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -289,13 +290,13 @@ export default function RolesPage() {
     try {
       const res = await fetch("/api/roles");
       if (!res.ok) {
-        toast.error("Gagal memuat peran. Coba lagi sebentar.");
+        toast.error(MESSAGES.loadFailed("Peran"));
         return;
       }
       const json = await res.json();
       setRoles(json.data ?? []);
     } catch {
-      toast.error("Gagal memuat peran. Periksa koneksi lalu coba lagi.");
+      toast.error(MESSAGES.loadFailed("Peran"));
     } finally {
       setLoading(false);
     }

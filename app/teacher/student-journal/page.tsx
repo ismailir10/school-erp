@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { BookHeart, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
@@ -42,6 +42,8 @@ export default function StudentJournalPickerPage() {
   const today = getTodayInTimezone("Asia/Jakarta");
   const [date, setDate] = useState(resolveTeacherDate(requestedDate,today));
   const [loading, setLoading] = useState(true);
+  const [classError, setClassError] = useState("");
+  const [dateError, setDateError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -92,12 +94,14 @@ export default function StudentJournalPickerPage() {
   }, [willAutoRoute, assignments, router, today]);
 
   function handleSubmit() {
-    if (!selectedClass) {
-      toast.error("Pilih kelas dulu ya.");
-      return;
-    }
-    if (!resolveTeacherDate(date,"")) {
-      toast.error("Pilih tanggal dulu ya.");
+    // Mark the missing field(s) at the field, then focus the first one.
+    // A toast alone vanishes in seconds and says nothing about which control.
+    const missingClass = !selectedClass;
+    const missingDate = !resolveTeacherDate(date, "");
+    setClassError(missingClass ? "Pilih kelas dulu ya." : "");
+    setDateError(missingDate ? "Pilih tanggal dulu ya." : "");
+    if (missingClass || missingDate) {
+      document.getElementById(missingClass ? "journal-class" : "journal-date")?.focus();
       return;
     }
     router.push(`/teacher/student-journal/entry?classId=${selectedClass}&date=${date}`);
@@ -143,8 +147,17 @@ export default function StudentJournalPickerPage() {
       <div className="space-y-4">
         <Field>
           <FieldLabel htmlFor="journal-class">Kelas</FieldLabel>
-          <Select value={selectedClass} onValueChange={(v) => v && setSelectedClass(v)} items={assignments.map((a) => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-            <SelectTrigger id="journal-class" className="tap-target w-full">
+          <Select value={selectedClass} onValueChange={(v) => {
+            if (!v) return;
+            setSelectedClass(v);
+            setClassError("");
+          }} items={assignments.map((a) => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
+            <SelectTrigger
+              id="journal-class"
+              className="tap-target w-full"
+              aria-invalid={classError ? true : undefined}
+              aria-describedby={classError ? "journal-class-error" : undefined}
+            >
               <SelectValue placeholder="Pilih kelas" />
             </SelectTrigger>
             <SelectContent>
@@ -155,6 +168,7 @@ export default function StudentJournalPickerPage() {
               ))}
             </SelectContent>
           </Select>
+          {classError && <FieldError id="journal-class-error">{classError}</FieldError>}
         </Field>
 
         <Field>
@@ -164,9 +178,15 @@ export default function StudentJournalPickerPage() {
             type="date"
             value={date}
             max={today}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              setDate(e.target.value);
+              if (resolveTeacherDate(e.target.value, "")) setDateError("");
+            }}
             className="tap-target w-full"
+            aria-invalid={dateError ? true : undefined}
+            aria-describedby={dateError ? "journal-date-error" : undefined}
           />
+          {dateError && <FieldError id="journal-date-error">{dateError}</FieldError>}
         </Field>
 
         <Button onClick={handleSubmit} className="tap-target w-full mt-2" size="lg">

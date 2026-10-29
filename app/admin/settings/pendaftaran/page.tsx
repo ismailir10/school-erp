@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
@@ -19,7 +20,7 @@ import { enrollmentConfigSchema } from "@/lib/validations/enrollment-config";
 import { DOCUMENT_ITEMS, isDocumentKey, type DocumentItem } from "@/lib/enrollment/documents";
 
 const ITEMS = DOCUMENT_ITEMS as readonly DocumentItem[];
-const SAVE_FALLBACK = "Gagal menyimpan. Coba lagi.";
+const SAVE_FALLBACK = MESSAGES.saveFailed;
 
 /** Keys in form order, dropping anything the client does not know. */
 function normalize(keys: unknown): string[] {

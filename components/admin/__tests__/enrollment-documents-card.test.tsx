@@ -3,6 +3,7 @@
  * Covers status badges, the "x / 9" progress, the edit gate on the
  * "Diterima fisik" tick and the PATCH body it sends.
  */
+import { MESSAGES } from "@/lib/feedback";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -118,7 +119,7 @@ describe("EnrollmentDocumentsCard", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Diterima fisik: KTP Ayah" }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Gagal menyimpan. Coba lagi."));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(MESSAGES.saveFailed));
     expect(screen.getByText("2 / 9 berkas lengkap")).toBeInTheDocument();
   });
 

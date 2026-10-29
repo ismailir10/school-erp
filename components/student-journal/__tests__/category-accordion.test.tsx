@@ -59,7 +59,10 @@ describe("CategoryAccordion deactivation confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("Kategori masih digunakan");
+      expect(toastError).toHaveBeenCalledWith(
+        "Kategori masih digunakan",
+        expect.objectContaining({ duration: Infinity, action: expect.objectContaining({ label: "Coba lagi" }) }),
+      );
     });
     expect(toastError).toHaveBeenCalledTimes(1);
     expect(
@@ -69,7 +72,7 @@ describe("CategoryAccordion deactivation confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ya, Nonaktifkan" }));
 
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("Kategori diperbarui");
+      expect(toastSuccess).toHaveBeenCalledWith("Kategori diperbarui", expect.anything());
     });
     await waitFor(() => {
       expect(

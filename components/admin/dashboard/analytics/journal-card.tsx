@@ -8,7 +8,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { CountUp } from "@/components/reactbits/count-up";
 import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import type { AnalyticsSource, JournalAnalytics, JournalWeek } from "@/lib/dashboard/analytics";
-import { formatDate, formatWeekRangeLabel } from "@/lib/format";
+import { formatDate, formatNumber, formatWeekRangeLabel } from "@/lib/format";
 import { ANALYTICS_CHART_CLASS, AnalyticsCard, AnalyticsUnavailable } from "./analytics-card";
 import { ClassRankList } from "./class-rank-list";
 import { TooltipCard } from "./chart-tooltip";
@@ -136,7 +136,7 @@ function JournalBarChart({ weeks }: { weeks: JournalWeek[] }) {
                     ? [{ label: "Kelengkapan", value: "Belum ada data" }]
                     : [
                         { label: "Kelengkapan", value: `${week.completionPct}%`, color: "var(--primary)" },
-                        { label: "Butir terisi", value: `${week.checked.toLocaleString("id-ID")} dari ${week.possible.toLocaleString("id-ID")}` },
+                        { label: "Butir terisi", value: `${formatNumber(week.checked)} dari ${formatNumber(week.possible)}` },
                         { label: "Catatan guru", value: week.teacherNotes },
                         { label: "Catatan wali", value: week.guardianNotes },
                       ]

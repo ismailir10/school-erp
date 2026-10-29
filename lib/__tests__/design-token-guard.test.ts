@@ -22,6 +22,7 @@ const RULES: Rule[] = [
   { id: "D", why: "spinner must come from components/ui/spinner.tsx", pattern: /\bLoader2\b|\banimate-spin\b/, skip: (f) => f === "components/ui/spinner.tsx" },
   { id: "E", why: "opacity tint on a semantic colour (use the -subtle token)", pattern: /\b(bg|text)-(success|warning|info|destructive)\/\d+/, skip: (f) => f.startsWith("components/ui/") },
   { id: "F", why: "easing literal duplicated (import from lib/motion.ts)", pattern: /0\.22,\s*1,\s*0\.36,\s*1/, skip: (f) => f === "lib/motion.ts" },
+  { id: "G", why: "number formatting via toLocaleString (use formatNumber/formatRupiah from lib/format.ts)", pattern: /\.toLocaleString\(/ },
 ];
 
 /**
@@ -29,7 +30,11 @@ const RULES: Rule[] = [
  * unless justified. components/ui/chart.tsx was checked and does not match B,
  * so it needs no entry. Stale entries fail the last tree-scan test.
  */
-const ALLOWLIST: Record<string, Partial<Record<string, string>>> = {};
+const ALLOWLIST: Record<string, Partial<Record<string, string>>> = {
+  "components/ui/calendar.tsx": {
+    G: "vendored react-day-picker month-name formatter: Date.toLocaleString with an explicit locale, not a number",
+  },
+};
 
 const SKIP_DIRS = new Set(["node_modules", "__tests__", "generated", ".next"]);
 
@@ -115,6 +120,14 @@ describe("design-token guard: matcher self-tests", () => {
     expect(hit("F", `ease: [0.22, 1, 0.36, 1]`)).toBe(true);
     expect(hit("F", `ease: [0.22, 1, 0.36, 1]`, "lib/motion.ts")).toBe(false);
     expect(hit("F", `ease: EASE_OUT`)).toBe(false);
+  });
+
+  it("G flags toLocaleString, not date/time formatters or formatNumber", () => {
+    expect(hit("G", `{n.toLocaleString("id-ID")}`)).toBe(true);
+    expect(hit("G", `{item.value.toLocaleString()}`)).toBe(true);
+    expect(hit("G", `d.toLocaleDateString("id-ID")`)).toBe(false);
+    expect(hit("G", `d.toLocaleTimeString("id-ID")`)).toBe(false);
+    expect(hit("G", `{formatNumber(n)}`)).toBe(false);
   });
 });
 

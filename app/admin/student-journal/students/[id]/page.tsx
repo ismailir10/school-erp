@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -122,7 +123,7 @@ export default function StudentJournalDetailPage({
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error(err.error || "Gagal memuat data jurnal. Coba lagi sebentar.");
+          toast.error(err.error || MESSAGES.loadFailed("Data jurnal"));
           return;
         }
         const json = await res.json();
@@ -130,7 +131,7 @@ export default function StudentJournalDetailPage({
         setWeekData(data);
         // Attempt to get student name from the response (or fetch separately)
       } catch {
-        toast.error("Gagal memuat data jurnal. Coba lagi sebentar.");
+        toast.error(MESSAGES.loadFailed("Data jurnal"));
       } finally {
         setLoading(false);
       }
@@ -166,13 +167,13 @@ export default function StudentJournalDetailPage({
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal memuat riwayat perubahan. Coba lagi sebentar.");
+        toast.error(err.error || MESSAGES.loadFailed("Riwayat perubahan"));
         return;
       }
       const json = await res.json();
       setAuditRows(json.data ?? []);
     } catch {
-      toast.error("Gagal memuat riwayat perubahan. Coba lagi sebentar.");
+      toast.error(MESSAGES.loadFailed("Riwayat perubahan"));
     } finally {
       setAuditLoading(false);
     }

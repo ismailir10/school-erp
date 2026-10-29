@@ -1,3 +1,4 @@
+import { MESSAGES } from "@/lib/feedback";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -90,6 +91,6 @@ describe("DayMarkDialog", () => {
     expect(await screen.findByText("Terlalu banyak permintaan. Coba lagi sebentar.")).toBeInTheDocument();
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
     fireEvent.click(screen.getByTestId("day-mark-save"));
-    expect(await screen.findByText("Koneksi terputus. Coba lagi sebentar ya.")).toBeInTheDocument();
+    expect(await screen.findByText(MESSAGES.network)).toBeInTheDocument();
   });
 });

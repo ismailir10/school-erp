@@ -16,6 +16,7 @@
 // still see what a grant applies to while correcting `mode` / `value` /
 // `reason` / validity window.
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { toast } from "sonner";
@@ -184,7 +185,7 @@ export function KeringananTab() {
       if (!res.ok) {
         setLoadError(true);
         setAdjustments([]);
-        toast.error("Gagal memuat data keringanan");
+        toast.error(MESSAGES.loadFailed("Data keringanan"));
         return;
       }
       const json = await res.json();
@@ -194,7 +195,7 @@ export function KeringananTab() {
     } catch {
       setLoadError(true);
       setAdjustments([]);
-      toast.error("Gagal memuat data keringanan");
+      toast.error(MESSAGES.loadFailed("Data keringanan"));
     } finally {
       setLoading(false);
     }
@@ -213,7 +214,7 @@ export function KeringananTab() {
       .then(async ([fcRes, ayRes]) => {
         if (cancelled) return;
         if (!fcRes.ok || !ayRes.ok) {
-          toast.error("Gagal memuat data referensi");
+          toast.error(MESSAGES.loadFailed("Data referensi"));
           return;
         }
         const [fc, ay] = await Promise.all([fcRes.json(), ayRes.json()]);
@@ -221,7 +222,7 @@ export function KeringananTab() {
         setAcademicYears(Array.isArray(ay) ? ay : []);
       })
       .catch(() => {
-        if (!cancelled) toast.error("Gagal memuat data referensi");
+        if (!cancelled) toast.error(MESSAGES.loadFailed("Data referensi"));
       });
     return () => {
       cancelled = true;

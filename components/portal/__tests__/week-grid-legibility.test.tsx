@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { WeekGrid } from "@/components/portal/week-grid";
@@ -95,5 +95,32 @@ describe("WeekGrid — legibility", () => {
 
     // An unchecked entry row is not a tick — the week is still empty to a reader.
     expect(screen.getByTestId("empty-week-note")).toBeInTheDocument();
+  });
+
+  it("gives the 16px admin-edit badge a 44px hit area and keeps it openable", async () => {
+    render(
+      <WeekGrid
+        categories={categories}
+        entries={[
+          {
+            indicatorId: "ind-1",
+            date: "2026-08-24",
+            checked: true,
+            lastAdminEdit: { changedByName: "Bu Admin", changedAt: "2026-08-25T03:00:00.000Z" },
+          },
+        ]}
+        dates={dates}
+      />,
+    );
+
+    const badge = screen.getByRole("button", { name: /Entri ini diedit oleh admin pada/ });
+    // 16px look (w-4 h-4) + after:-inset-3.5 (14px each side) = 44px square.
+    expect(badge.className).toContain("w-4");
+    expect(badge.className).toContain("h-4");
+    expect(badge.className).toContain("after:absolute");
+    expect(badge.className).toContain("after:-inset-3.5");
+
+    fireEvent.click(badge);
+    expect(await screen.findByText("Diedit admin")).toBeInTheDocument();
   });
 });

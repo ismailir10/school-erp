@@ -155,6 +155,8 @@ A default string in `components/ui/**` ships to every caller that omits the prop
 - **Always actionable.** Tell the user what to do next, or tell them it's safe to retry.
 - **Tone scales with audience.** Admin gets terse; parent gets gentle.
 - **Never expose status codes.** `Network error 503` is not a user message.
+- **Generic messages live in `lib/feedback.ts` `MESSAGES`** (`network`, `saveFailed`, `deleteFailed`, `generic`, `required`, `loadFailed(what)`): use them, don't re-word. Domain-specific messages stay at the call site and name the thing plus the next action.
+- **A save fallback must not claim a cause it can't know.** No "periksa koneksi" when the server may have rejected the request; say "Belum tersimpan. Coba lagi sebentar ya."
 
 | Audience | Good | Bad |
 |---|---|---|

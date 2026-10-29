@@ -3,6 +3,7 @@
  * PATCH body it builds (only what changed, blank = clear), how server field
  * errors land on inputs, and the toasts that follow a save.
  */
+import { MESSAGES } from "@/lib/feedback";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -312,7 +313,7 @@ describe("EnrollmentApplicationEditor — server answers", () => {
     await user.type(screen.getByLabelText("Nama panggilan"), "x");
     await user.click(screen.getByRole("button", { name: "Simpan Perubahan" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Gagal menyimpan. Periksa koneksi, lalu coba lagi.");
+    expect(alert).toHaveTextContent(MESSAGES.saveFailed);
     expect(document.body).not.toHaveTextContent("Failed to fetch");
     expect(onDone).not.toHaveBeenCalled();
   });

@@ -7,6 +7,8 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SectionLabel } from "@/components/portal/section-label";
 import { BULK_ABSENCE_LABELS, type BulkAbsences } from "@/components/student-journal/class-bulk-sheet";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatDate } from "@/lib/format";
 
 type Indicator = {
   id: string;
@@ -63,6 +65,8 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
   // animated surface in the portal.
   const reduceMotion = useReducedMotion();
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
+  // "Hapus semua" autosaves, so it asks first. "Tandai semua" is additive and stays one tap.
+  const [clearTargetId, setClearTargetId] = useState<string | null>(null);
 
   function toggleExpand(studentId: string) {
     setExpandedStudents((prev) => {
@@ -105,8 +109,31 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
 
   const totalIndicators = categories.reduce((sum, cat) => sum + cat.indicators.length, 0);
 
+  const clearTarget = clearTargetId ? students.find((s) => s.id === clearTargetId) ?? null : null;
+  const clearCount = clearTarget ? countChecked(clearTarget.id) : 0;
+
   return (
     <div className="space-y-2">
+      <ConfirmDialog
+        open={clearTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setClearTargetId(null);
+        }}
+        title="Hapus semua tanda?"
+        description={
+          clearTarget
+            ? `${clearCount} tanda ${clearTarget.name}${
+                visibleDate ? ` pada ${formatDate(visibleDate)}` : " hari ini"
+              } akan dihapus.`
+            : undefined
+        }
+        confirmLabel="Hapus semua"
+        destructive
+        focusCancel
+        onConfirm={() => {
+          if (clearTarget) onBulkSet?.(clearTarget.id, false);
+        }}
+      />
       {students.map((student, i) => {
         const isExpanded = expandedStudents.has(student.id);
         const checkedCount = countChecked(student.id);
@@ -240,7 +267,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                         <button
                           type="button"
                           data-testid="bulk-clear-all"
-                          onClick={() => onBulkSet(student.id, false)}
+                          onClick={() => setClearTargetId(student.id)}
                           disabled={checkedCount === 0}
                           className="tap-target inline-flex items-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
