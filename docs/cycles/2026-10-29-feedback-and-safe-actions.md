@@ -125,7 +125,7 @@ None: no schema, dependency, auth or PII change.
       states → `EmptyState` — accept: tests, screenshots. (parallel)
 - [x] T4 `formatNumber` + migrate number formats + `chart.tsx`; guard rule for `toLocaleString(` — accept: tests.
       (parallel)
-- [ ] T5 Docs: `ui.md` feedback pattern; `voice.md` points to the catalog — accept: audit-docs green. (after T1–T4)
+- [x] T5 Docs: `ui.md` feedback pattern; `voice.md` points to the catalog — accept: audit-docs green. (after T1–T4)
 
 ## Implementation
 
@@ -134,6 +134,7 @@ None: no schema, dependency, auth or PII change.
 - T3: "Hapus semua" on the class-day grid goes through `ConfirmDialog` (destructive, focus on Batal, body names the count, child and date); "Tandai semua" stays one tap. The week-grid admin-edit badge keeps its 16px look with an `after:-inset-3.5` 44px hit area. The teacher home, slips and parent perkembangan empty states use `EmptyState`. `element-progress-row` keeps its one-line in-row caption, because a full `EmptyState` would bloat a progress row.
 - T2: inline field errors (`FieldError` + `aria-invalid`/`aria-describedby`, focus on the first invalid field, clears once fixed) on the journal class/date picker, centre-assessment kegiatan and session pickup name ("Wajib diisi."). Centre-assessment Simpan no longer sits disabled without a reason; tapping it explains what is missing. Failed saves in class attendance, weekly and centre assessment, journal categories and sessions use `toastError`, which persists with "Coba lagi" re-sending the same payload under a stable id. Weekly re-applies the failed cell. Class attendance shows no retry on 401/403, where retrying cannot work. The centre no-match state uses `EmptyState`.
 - T1: `lib/feedback.ts` (`MESSAGES` catalog, `toastError`, `toastCaughtError`; the driver wrote it as the contract) + 12 tests. About 125 generic error sites across ~65 files are migrated: saveFailed 42, network 15, generic 6, deleteFailed 1, `loadFailed(noun)` 61. Tests import `MESSAGES` rather than re-hardcoding strings. Domain-specific copy, server files and error-boundary titles are left alone. Driver change on review: `saveFailed` became neutral ("Belum tersimpan. Coba lagi sebentar ya."). A save can fail on the server, so it must not tell an admin to check the connection.
+- T5: `ui.md` gains a Feedback section (field errors at the field, `toastError` for failed saves, the `MESSAGES` catalog, confirm on bulk destructive, invisible 44px hit areas), three "Reach for" rows and guard rule G. The Overlays toast bullet now points at `toastError`. `voice.md` § Errors gains the catalog and the rule that a save fallback must not claim a cause. `portal.md`'s fetch contract now uses `readApiError` → `toastCaughtError`. The Sonnet worker hit the plan's usage limit mid-task; the driver reviewed and finished it, correcting the `portal.md` example, which had passed a raw JSON body and would always have dropped the server's copy.
 
 ## Verification
 
