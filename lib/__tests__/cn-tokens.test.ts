@@ -18,4 +18,10 @@ describe("cn with theme tokens", () => {
     expect(cn("z-10", "z-sticky")).toBe("z-sticky");
     expect(cn("shadow-raised", "shadow-primary/20")).toBe("shadow-raised shadow-primary/20");
   });
+
+  it("keeps a fluid figure size next to a text colour", () => {
+    const fluid = "text-[length:clamp(0.75rem,9cqi,var(--type-display))]";
+    expect(cn(fluid, "text-foreground")).toBe(`${fluid} text-foreground`);
+    expect(cn("text-foreground", fluid)).toBe(`text-foreground ${fluid}`);
+  });
 });

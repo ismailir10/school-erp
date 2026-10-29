@@ -99,6 +99,8 @@ export type RailTile = {
    * the width, and it keeps an odd tile count from leaving a hole in the grid.
    */
   wide?: boolean;
+  /** A money or count figure: set in the KPI face and sized to the tile so it never wraps (see StatTile). */
+  mono?: boolean;
 };
 
 /**
@@ -118,6 +120,7 @@ export function RailStatTiles({ tiles }: { tiles: RailTile[] }) {
           hint={tile.hint}
           tone={tile.tone}
           size="sm"
+          mono={tile.mono}
           className={cn("p-2.5", tile.wide && "col-span-2")}
         />
       ))}

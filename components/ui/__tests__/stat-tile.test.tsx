@@ -23,9 +23,20 @@ describe("StatTile", () => {
     expect(cls).toContain("text-foreground");
   });
 
-  it("lets a long amount wrap instead of being clipped by the tile", () => {
-    render(<StatTile label="Piutang" value="Rp 10.000.000.000" mono />);
-    expect(screen.getByText("Rp 10.000.000.000").className).toContain("wrap-anywhere");
+  it("sizes a long amount from the tile and never wraps it", () => {
+    render(<StatTile label="Piutang" value="Rp 10.000.000.000" size="sm" mono />);
+    const cls = screen.getByText("Rp 10.000.000.000").className;
+    expect(cls).toContain("whitespace-nowrap");
+    expect(cls).toContain("text-[length:clamp(0.75rem,9cqi,1rem)]");
+    expect(cls).not.toContain("wrap-anywhere");
+  });
+
+  it("makes a fluid tile a size container, and leaves text values wrapping", () => {
+    const { container, rerender } = render(<StatTile label="Piutang" value="Rp 1.000" mono />);
+    expect(container.firstElementChild).toHaveClass("@container");
+    rerender(<StatTile label="Masa kerja" value="5 thn 3 bln" />);
+    expect(container.firstElementChild).not.toHaveClass("@container");
+    expect(screen.getByText("5 thn 3 bln").className).toContain("wrap-anywhere");
   });
 
   it("lets a caller override the tone colour", () => {

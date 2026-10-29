@@ -56,19 +56,25 @@ export type PortalBottomNavProps = {
  * never exceed its container and tap targets stay uniform.
  */
 /**
- * `px-1`, not `px-2`. Horizontal padding is pure label budget here — the 20 px
- * icon never needs it, and the slot's tap width is set by `flex-1 basis-0`
- * regardless. At 360 px (the most common Android width in the pilot) `px-2`
- * left 56 px for a label and truncated "Kehadiran" (57.8 px) to "Kehadir…";
- * `px-1` leaves 64 px and it renders in full. `truncate` stays as the
- * last-resort guard for narrower screens.
+ * Horizontal padding is pure label budget — the 20 px icon never needs it and
+ * the slot's tap width is set by `flex-1 basis-0` regardless. `px-0.5`: at
+ * 320 px (iPhone SE 1st gen, small Android) a slot is 64 px, and "Kehadiran"
+ * (57.8 px at 12 px) used to truncate to "Kehadi…" inside `px-1`'s 56 px.
+ * The label is also fluid (see LABEL_CLASS) so the five labels fit at every
+ * width from 320 up; tap targets stay the full slot (64 px x 64 px bar).
  */
 const SLOT_CLASS =
-  "flex flex-col items-center justify-center gap-1 relative py-1 px-1 flex-1 basis-0 min-w-0 " +
+  "flex flex-col items-center justify-center gap-1 relative py-1 px-0.5 flex-1 basis-0 min-w-0 " +
   "rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
   "focus-visible:ring-offset-card";
 
-const LABEL_CLASS = "text-xs font-medium max-w-full truncate";
+/**
+ * Fluid size, 10 px floor: 3.4vw is 10.9 px at 320, 11.7 px at 344 and reaches
+ * the old 12 px (`text-xs`) from 353 px up, so 360+ renders exactly as before.
+ * `whitespace-nowrap`, no `truncate`: a nav label must never be cut.
+ */
+const LABEL_CLASS =
+  "max-w-full whitespace-nowrap text-[length:clamp(0.625rem,3.4vw,0.75rem)] leading-4 font-medium";
 
 export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavProps) {
   const pathname = usePathname();

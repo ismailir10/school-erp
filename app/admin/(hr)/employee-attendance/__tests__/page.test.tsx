@@ -65,8 +65,9 @@ describe("AttendancePage — weekend view (Alpa fix)", () => {
 
     await screen.findByText("Budi Santoso");
 
+    // The figure is the row below the label + icon row.
     const alpaLabel = screen.getByText("Alpa");
-    expect(alpaLabel.nextElementSibling?.textContent).toBe("0");
+    expect(alpaLabel.parentElement?.nextElementSibling?.textContent).toBe("0");
 
     const liburBadges = screen.getAllByText("Libur");
     // Two employees, each badged twice: in the Status column (md+) and in the
@@ -89,8 +90,9 @@ describe("AttendancePage — tenant that works on Saturday", () => {
 
     await screen.findByText("Budi Santoso");
 
+    // The figure is the row below the label + icon row.
     const alpaLabel = screen.getByText("Alpa");
-    await vi.waitFor(() => expect(alpaLabel.nextElementSibling?.textContent).toBe("2"));
+    await vi.waitFor(() => expect(alpaLabel.parentElement?.nextElementSibling?.textContent).toBe("2"));
     expect(screen.queryByText("Libur")).not.toBeInTheDocument();
   });
 });

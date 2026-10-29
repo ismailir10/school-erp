@@ -670,6 +670,7 @@ function InvoiceRow({
       description={secondary}
       icon={<Receipt className="size-5" />}
       meta={<Amount value={amount} size="row" tone={tone === "paid" ? "paid" : "neutral"} />}
+      stackMeta
       tone={tone === "paid" ? "teal" : "warm"}
       className={highlight ? "ring-2 ring-status-present-text/40" : undefined}
     />
