@@ -140,4 +140,42 @@ None: no schema, dependency, auth or PII change.
 
 - design-system cross-check: §Forms prescribes `.field-error` (0.75rem, destructive, under the input) with `aria-invalid` and "announced, not just colour" (design-system.html ~L314, L1614, L2941). T2's inline errors follow it. §Toast (`.toast-error`) is unchanged; T1 changes copy and duration only. The display figures in §Type (`Rp 12.450.000`) match the id-ID grouping `formatNumber` produces.
 
+### Verified locally — 4e5012c4, 2026-10-29
+- Route: other code (no auth, session, cookie or guard paths). Compared `origin/staging` 0929e41d...4e5012c4: 93 files, across `app/{admin,teacher,parent,pendaftaran,…}`, `components/{admin,student-journal,portal,ui,…}`, `lib/{feedback,format}.ts`, `lib/__tests__`, `lib/{enrollment,raport}` and `.claude/standards/{ui,voice,portal}.md`.
+- Gate (disposable Postgres):
+  - `npm run lint` → exit 0.
+  - `npx vitest run` → `Test Files 730 passed | 2 skipped (732)`, `Tests 8792 passed | 42 todo (8834)`.
+  - Guards → RLS 45 / 45, API auth 224 / 224.
+  - `DEMO_MODE=true` build → exit 0.
+  - `npx playwright test` → `263 passed (6.1m)`.
+- App: production build, demo auth + disposable local Postgres, signed in as `u_teacher` / `u_rightjet` at 390×844 with touch.
+- Walked:
+  - Flow 1 (`/teacher/student-journal?pick=1`, date cleared, "Isi Buku Penghubung" tapped) → "Pilih tanggal dulu ya." shows under the field, with `aria-invalid=true` and focus on the input. It clears once a date is set.
+  - Flow 2 (journal entry → Tandai semua → Hapus semua) → `alertdialog` "Hapus semua tanda? 16 tanda Abdul Zahra Mahendra pada 29 Oktober 2026 akan dihapus.", with focus on Batal. Batal sends 0 write requests and the marks are kept; confirming sends 1 write and the marks are cleared.
+  - Flow 4, error case (class attendance with every non-GET `/api/**` routed to 500) → the error toast "Server sedang bermasalah. Coba lagi sebentar lagi." carries a "Coba lagi" action and is still visible after 6 s. With the route unblocked, "Coba lagi" re-sent the save, which got 1 successful response.
+  - Flow 3 (pickup name "Wajib diisi.") and flow 5 (empty states) are covered by component tests. The seeded teacher has slips and students, so those empty states do not render in the seed.
+- Tap targets (runtime probe, 390×844, `hasTouch`): 0 of ~280 interactive elements on 11 teacher/parent pages are under 44px, both before and after.
+- Console/network: 0 console errors and 0 unexpected 4xx/5xx across all walks (the 500s in flow 4 were injected).
+- Screenshots: before/after of teacher home, journal, attendance, slips, assessments and parent home/perkembangan (local, not committed).
+- Highlight: `docs/cycles/screenshots/feedback-and-safe-actions/{flow4-persistent-save-error,flow2-hapus-semua-confirm,flow1-journal-field-error}.png`.
+- Rounds: 1. Driver review changes:
+  - `saveFailed` copy made neutral.
+  - The `portal.md` fetch example now goes through `readApiError`.
+  - Polish noted, not changed: on class attendance the persistent toast and the existing inline "Absensi belum tersimpan…" banner both show. The toast carries the retry and the banner keeps context by the button.
+- Not checked: a browser walk of flows 3 and 5 (component tests cover them).
+
 ## Ship Notes
+
+- **Migrations / env / dependencies:** none.
+- **Visible changes:**
+  - Validation errors show under their field.
+  - Failed teacher saves persist with "Coba lagi".
+  - Generic error copy is unified, for example "Belum tersimpan. Coba lagi sebentar ya." and "Koneksi terputus. Coba lagi sebentar ya.".
+  - "Hapus semua" asks first.
+  - Centre-assessment Simpan is enabled and explains a missing kegiatan.
+- **Post-merge:** the Vercel staging deploy is `READY` for the merge SHA. There is no auth impact, so no `needs-staging-verify`.
+- **Rollback:** revert the squash commit.
+- **Follow-ups:**
+  - Admin `FormMessage` forms already show field errors.
+  - The remaining domain-specific "Gagal …" toasts could adopt `toastError` where they are saves.
+  - UAT items: user invite, pickup display, HR permission message, photo compression.
