@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -81,13 +82,13 @@ export default function HolidaysPage() {
       await sendJson(
         editing ? `/api/config/holidays/${editing.id}` : "/api/config/holidays",
         { method: editing ? "PUT" : "POST", body: values },
-        "Gagal menyimpan",
+        MESSAGES.saveFailed,
       );
       toast.success(editing ? "Hari libur diperbarui" : "Hari libur ditambahkan");
       setDialogOpen(false);
       fetchHolidays();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 
@@ -95,7 +96,7 @@ export default function HolidaysPage() {
     if (!deleteTarget) return;
     const res = await fetch(`/api/config/holidays/${deleteTarget.id}`, { method: "DELETE" });
     if (res.ok) { toast.success("Hari libur dihapus"); setDeleteTarget(null); fetchHolidays(); }
-    else toast.error("Gagal menghapus");
+    else toast.error(MESSAGES.deleteFailed);
   }
 
   const filteredHolidays = useMemo(() => {

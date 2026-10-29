@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,7 +172,7 @@ export default function TeacherAttendancePage() {
       // Current month drives the UI.
       if (currentData === null) {
         setMonthError(true);
-        toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
+        toast.error(MESSAGES.loadFailed("Kehadiran"));
       } else {
         cache.current.set(cacheKey(initYear, initMonth), currentData);
         setRecords(currentData);
@@ -234,7 +235,7 @@ export default function TeacherAttendancePage() {
         if (signal.aborted) return;
         if (data === null) {
           setMonthError(true);
-          toast.error("Gagal memuat kehadiran. Coba lagi sebentar ya.");
+          toast.error(MESSAGES.loadFailed("Kehadiran"));
         } else {
           cache.current.set(key, data);
           setRecords(data);

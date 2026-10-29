@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -152,7 +153,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           endDate: values.endDate,
         };
     try {
-      const saved = await sendJson<{ status?: string; number?: number } | null>(url, { method, body }, "Gagal menyimpan");
+      const saved = await sendJson<{ status?: string; number?: number } | null>(url, { method, body }, MESSAGES.saveFailed);
       if (!editing && saved?.status === "INACTIVE") {
         // DOC-3: the year already has an active semester and creating another
         // must not silently take over. Say so, and show it (the default list
@@ -166,7 +167,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
       resetForm();
       fetchAll();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

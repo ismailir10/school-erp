@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -207,7 +208,7 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
       const data = await sendJson<Preview>(
         "/api/invoices/spp-prepay/preview",
         { method: "POST", body: { studentId, ...(from && to ? { from, to } : {}) } },
-        "Gagal memuat pratinjau SPP",
+        MESSAGES.loadFailed("Pratinjau SPP"),
       );
       if (seq !== previewSeq.current) return;
       setPreview({ status: "ready", data });
@@ -222,7 +223,7 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
       }
     } catch (err) {
       if (seq !== previewSeq.current) return;
-      setPreview({ status: "error", message: userMessage(err, "Gagal memuat pratinjau SPP") });
+      setPreview({ status: "error", message: userMessage(err, MESSAGES.loadFailed("Pratinjau SPP")) });
     }
   }
 

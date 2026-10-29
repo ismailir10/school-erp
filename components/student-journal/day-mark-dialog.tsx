@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -70,7 +71,7 @@ export function DayMarkDialog({ open, onOpenChange, classSectionId, date, initia
       onSaved(method === "PUT" ? trimmed : null);
       onOpenChange(false);
     } catch {
-      const message = "Koneksi terputus. Coba lagi sebentar ya.";
+      const message = MESSAGES.network;
       setError(message);
       toast.error(message);
     } finally {

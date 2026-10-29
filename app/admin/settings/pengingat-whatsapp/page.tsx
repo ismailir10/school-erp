@@ -7,6 +7,7 @@
  * wali will see it in a chat, filled with sample data, as the admin types.
  */
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
@@ -26,7 +27,7 @@ import {
   validateReminderTemplate,
 } from "@/lib/finance/reminder-template";
 
-const SAVE_FALLBACK = "Gagal menyimpan. Coba lagi.";
+const SAVE_FALLBACK = MESSAGES.saveFailed;
 const SAMPLE = sampleReminderValues();
 
 type Stored = { template?: unknown; defaultTemplate?: unknown };

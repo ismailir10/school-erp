@@ -270,8 +270,9 @@ Every `fetch()` call MUST check response:
 ```tsx
 const res = await fetch("/api/...");
 if (!res.ok) {
-  const err = await res.json().catch(() => ({}));
-  toast.error(err.error || "Terjadi kesalahan");
+  // readApiError (lib/api/client-errors.ts) keeps the server's Indonesian copy and maps
+  // 401/403/5xx to ours; toastCaughtError (lib/feedback.ts) never shows a raw err.message.
+  toastCaughtError(await readApiError(res, MESSAGES.generic), MESSAGES.generic);
   return;
 }
 const data = await res.json();

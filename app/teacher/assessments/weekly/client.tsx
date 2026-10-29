@@ -2,7 +2,7 @@
 
 import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastError } from "@/lib/feedback";
 import { NotebookPen, Users } from "lucide-react";
 import {
   NativeSelect,
@@ -186,10 +186,16 @@ export function WeeklyClient({
     return map;
   }, [entries, activeIndicatorId, activeDay]);
 
-  async function setLevel(student: Student, level: Level): Promise<void> {
-    if (!activeIndicatorId) return;
-    const indicatorId = activeIndicatorId;
-    const day = activeDay;
+  async function setLevel(
+    student: Student,
+    level: Level,
+    // "Coba lagi" re-applies the exact cell that failed, even if the teacher
+    // has since moved to another indicator or day.
+    target?: { indicatorId: string; day: string },
+  ): Promise<void> {
+    const indicatorId = target?.indicatorId ?? activeIndicatorId;
+    if (!indicatorId) return;
+    const day = target?.day ?? activeDay;
     const matchesCell = (e: Entry): boolean =>
       e.studentId === student.id &&
       e.indicatorId === indicatorId &&
@@ -249,7 +255,10 @@ export function WeeklyClient({
         const without = curr.filter((e) => !matchesCell(e));
         return priorCell ? [...without, priorCell] : without;
       });
-      toast.error(message);
+      toastError(message, {
+        retry: () => void setLevel(student, level, { indicatorId, day }),
+        id: `weekly-save-${student.id}-${indicatorId}-${day}`,
+      });
     }
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
@@ -150,7 +151,7 @@ export default function EmployeeDetailPage() {
       ]);
       setEmployee(emp); setSalaryValues(sal); setSalaryComponents(Array.isArray(comps) ? comps : null); setCampuses(camps); setPositions(pos);
     } catch {
-      toast.error("Gagal memuat data karyawan");
+      toast.error(MESSAGES.loadFailed("Data karyawan"));
     } finally {
       setLoading(false);
     }
@@ -166,13 +167,13 @@ export default function EmployeeDetailPage() {
 
   const handleSave = editForm.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/employees/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/employees/${id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Data karyawan disimpan");
       setIsEditing(false);
       const updated = await fetch(`/api/employees/${id}`).then(r => r.json());
       setEmployee(updated);
     } catch (err) {
-      applyServerErrors(editForm, err, "Gagal menyimpan");
+      applyServerErrors(editForm, err, MESSAGES.saveFailed);
     }
   });
 
@@ -199,7 +200,7 @@ export default function EmployeeDetailPage() {
           const d = await res.json();
           detail = d?.errors?.[0]?.message ?? d?.error;
         } catch { /* non-JSON body — fall back to generic */ }
-        toast.error(detail ?? "Gagal menyimpan");
+        toast.error(detail ?? MESSAGES.saveFailed);
       }
     } finally {
       setSavingSalary(false);
@@ -682,9 +683,9 @@ function EmployeeAttendanceContent({ employeeId }: { employeeId: string }) {
     setAttLoading(true);
     try {
       const res = await fetch(`/api/employees/${employeeId}/attendance?month=${month}&year=${year}`);
-      if (!res.ok) { toast.error("Gagal memuat kehadiran"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Kehadiran")); return; }
       setData(await res.json());
-    } catch { toast.error("Terjadi kesalahan"); }
+    } catch { toast.error(MESSAGES.generic); }
     finally { setAttLoading(false); }
   }, [employeeId, month, year]);
 

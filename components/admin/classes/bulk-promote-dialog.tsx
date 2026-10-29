@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -49,7 +50,7 @@ async function fetchSections(yearId: string): Promise<SectionOption[]> {
     status: "ACTIVE",
   });
   const res = await fetch(`/api/admin/classes?${params}`);
-  if (!res.ok) throw new ApiError("Gagal memuat daftar kelas");
+  if (!res.ok) throw new ApiError(MESSAGES.loadFailed("Daftar kelas"));
   const j = await res.json().catch(() => null);
   const rows = Array.isArray(j?.data) ? j.data : [];
   return rows.map(
@@ -111,7 +112,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setSourceSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
+        if (!cancelled) toast.error(userMessage(e, MESSAGES.loadFailed("Data")));
       });
     return () => {
       cancelled = true;
@@ -126,7 +127,7 @@ export function BulkPromoteDialog({
         if (!cancelled) setTargetSections(s);
       })
       .catch((e) => {
-        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
+        if (!cancelled) toast.error(userMessage(e, MESSAGES.loadFailed("Data")));
       });
     return () => {
       cancelled = true;
@@ -147,7 +148,7 @@ export function BulkPromoteDialog({
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new ApiError(err.error || "Gagal memuat daftar siswa");
+          throw new ApiError(err.error || MESSAGES.loadFailed("Daftar siswa"));
         }
         return res.json();
       })
@@ -157,7 +158,7 @@ export function BulkPromoteDialog({
         setExcluded(new Set());
       })
       .catch((e) => {
-        if (!cancelled) toast.error(userMessage(e, "Gagal memuat data"));
+        if (!cancelled) toast.error(userMessage(e, MESSAGES.loadFailed("Data")));
       })
       .finally(() => {
         if (!cancelled) setRosterLoading(false);

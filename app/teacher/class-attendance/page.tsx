@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { failureFromError, fetchOrDescribe, type FetchFailure } from "@/lib/teacher/fetch-error-copy";
+import { toastError } from "@/lib/feedback";
 
 type Assignment = {
   id: string;
@@ -229,7 +230,14 @@ export default function ClassAttendancePage() {
           setFailedIntents(prev => ({ ...prev, [op.studentId]: next }));
           setSaveState(prev => ({ ...prev, [op.studentId]: "error" }));
         }
-        toast.error(failure.message);
+        // Stays until dismissed: this is the teacher's own record. Retry re-sends
+        // the same ids and status; one id per child (or bulk) so repeats replace.
+        toastError(failure.message, {
+          // A 401/403 can never succeed on retry; it still stays until dismissed.
+          retry: failure.canRetry ? () => persist(studentIds, next, { bulk }) : undefined,
+          persistent: true,
+          id: `class-attendance-save-${context}-${bulk ? "bulk" : studentIds[0]}`,
+        });
       }
     };
     const prior = Promise.all(ops.map((op) => saveQueues.current[op.key] ?? Promise.resolve()));

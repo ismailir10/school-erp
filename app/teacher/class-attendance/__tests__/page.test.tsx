@@ -85,7 +85,11 @@ describe("ClassAttendancePage recovery", () => {
     await act(async () => { pending.reject(new TypeError("Failed to fetch")); });
     expect(screen.getByRole("alert")).toHaveTextContent("Absensi belum tersimpan. Koneksi terputus. Periksa internet, lalu coba lagi.");
     expect(screen.queryByText(/Failed to fetch/)).toBeNull();
-    expect(toastError).toHaveBeenCalledWith("Koneksi terputus. Periksa internet, lalu coba lagi.");
+    // A failed save of the teacher's record stays until dismissed and offers "Coba lagi".
+    expect(toastError).toHaveBeenCalledWith(
+      "Koneksi terputus. Periksa internet, lalu coba lagi.",
+      expect.objectContaining({ duration: Infinity, action: expect.objectContaining({ label: "Coba lagi" }) }),
+    );
     expect(await pick("Aisyah", "Izin")).toHaveAttribute("aria-checked", "false");
     fireEvent.click(screen.getByRole("button", {name:"Coba lagi"}));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan"));
@@ -273,6 +277,26 @@ describe("class attendance failure copy (TCHX-4/15, TCH-10, TCH-11)", () => {
       if (url.includes("student-attendance?")) return rosterRes ? rosterRes() : Promise.resolve(ok(rosterData));
       return mark();
     }));
+  it("failed save toast persists and its Coba lagi action re-sends the same save", async () => {
+    let saves = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
+      if (url.includes("student-attendance?")) return Promise.resolve(ok(roster));
+      return ++saves === 1 ? Promise.reject(new TypeError("Failed to fetch")) : Promise.resolve(ok({ saved: 1 }));
+    }));
+    render(<ClassAttendancePage />);
+    fireEvent.click(await pick("Aisyah", "Izin"));
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    const options = toastError.mock.calls[0][1];
+    expect(options.duration).toBe(Infinity);
+    expect(options.action.label).toBe("Coba lagi");
+    expect(options.id).toEqual(expect.stringContaining("class-attendance-save"));
+    expect(markRequests()).toHaveLength(1);
+    await act(async () => { options.action.onClick(); });
+    await waitFor(() => expect(markRequests()).toHaveLength(2));
+    expect(markRequests()[1]).toEqual(markRequests()[0]);
+  });
+
   const resetAll = () => { vi.unstubAllGlobals(); toastError.mockClear(); navigation.params = new URLSearchParams(); navigation.replace.mockClear(); };
 
   it("401 on a row save: Indonesian copy, a sign-in link, no Coba lagi, no raw 'Unauthorized'", async () => {
@@ -285,7 +309,10 @@ describe("class attendance failure copy (TCHX-4/15, TCH-10, TCH-11)", () => {
     expect(screen.getByRole("link", { name: "Masuk lagi" })).toHaveAttribute("href", "/");
     expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
     expect(screen.queryByText(/Unauthorized/)).toBeNull();
-    expect(toastError).toHaveBeenCalledWith("Sesi Anda sudah berakhir. Masuk lagi, lalu simpan ulang.");
+    expect(toastError).toHaveBeenCalledWith(
+      "Sesi Anda sudah berakhir. Masuk lagi, lalu simpan ulang.",
+      expect.objectContaining({ duration: Infinity, action: undefined }),
+    );
   });
 
   it("403 on a row save: permission copy and no retry or sign-in link", async () => {

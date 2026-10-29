@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
@@ -84,7 +84,7 @@ describe("ClassDayGrid — bulk fill", () => {
     expect(onBulkSet).toHaveBeenCalledWith("s1", true);
   });
 
-  it("spends the mark-all control once the student is complete, leaving clear-all live", () => {
+  it("spends the mark-all control once the student is complete, leaving clear-all live", async () => {
     const onBulkSet = vi.fn();
     render(
       <ClassDayGrid
@@ -99,7 +99,56 @@ describe("ClassDayGrid — bulk fill", () => {
     expand();
     expect(screen.getByTestId("bulk-check-all")).toBeDisabled();
     fireEvent.click(screen.getByTestId("bulk-clear-all"));
-    expect(onBulkSet).toHaveBeenCalledWith("s1", false);
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getByRole("button", { name: "Hapus semua" }));
+    await waitFor(() => expect(onBulkSet).toHaveBeenCalledWith("s1", false));
+  });
+
+  it("asks before clearing: Batal changes nothing, confirm runs the clear", async () => {
+    const onBulkSet = vi.fn();
+    render(
+      <ClassDayGrid
+        students={[abdullah]}
+        categories={categories}
+        state={{ s1: { "ind-1": true, "ind-2": false } }}
+        onToggle={vi.fn()}
+        onBulkSet={onBulkSet}
+        visibleDate="2026-08-24"
+      />,
+    );
+
+    expand();
+    fireEvent.click(screen.getByTestId("bulk-clear-all"));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Hapus semua tanda?");
+    expect(dialog).toHaveTextContent("1 tanda Abdullah Faris Siregar pada 24 Agustus 2026 akan dihapus.");
+    expect(onBulkSet).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(onBulkSet).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("bulk-clear-all"));
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getByRole("button", { name: "Hapus semua" }));
+    await waitFor(() => expect(onBulkSet).toHaveBeenCalledWith("s1", false));
+    expect(onBulkSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps mark-all one tap with no dialog", () => {
+    render(
+      <ClassDayGrid
+        students={[abdullah]}
+        categories={categories}
+        state={{}}
+        onToggle={vi.fn()}
+        onBulkSet={vi.fn()}
+      />,
+    );
+    expand();
+    fireEvent.click(screen.getByTestId("bulk-check-all"));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("renders no bulk controls for a caller that passes no handler", () => {

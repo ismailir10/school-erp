@@ -1,3 +1,4 @@
+import { MESSAGES } from "@/lib/feedback";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +44,6 @@ describe("NoteDeleteDialog", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
     render(<NoteDeleteDialog noteId="n1" onClose={vi.fn()} onDeleted={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Hapus" }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Koneksi terputus. Coba lagi sebentar ya."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(MESSAGES.network));
   });
 });

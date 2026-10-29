@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -30,7 +31,7 @@ export function NoteDeleteDialog({ noteId, onClose, onDeleted }: Props) {
       }
     } catch (error) {
       if (!(error instanceof Error && error.message === "delete failed")) {
-        toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+        toast.error(MESSAGES.network);
       }
       throw error;
     }

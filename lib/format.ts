@@ -1,9 +1,27 @@
+const NUMBER_FORMATTERS = new Map<number | undefined, Intl.NumberFormat>();
+
+/**
+ * Plain number in Indonesian grouping: 1234567 → "1.234.567", 104.5 → "104,5".
+ * Single source of truth for non-currency numbers — never call a bare
+ * `toLocaleString()` (it reads the process locale, so SSR and the browser can
+ * disagree). Without `maximumFractionDigits` the ICU default (3) applies.
+ */
+export function formatNumber(n: number, opts?: { maximumFractionDigits?: number }): string {
+  const key = opts?.maximumFractionDigits;
+  let fmt = NUMBER_FORMATTERS.get(key);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat("id-ID", key === undefined ? undefined : { maximumFractionDigits: key });
+    NUMBER_FORMATTERS.set(key, fmt);
+  }
+  return fmt.format(n);
+}
+
 /**
  * Format number as Indonesian Rupiah.
  * Single source of truth — use this everywhere instead of inline formatters.
  */
 export function formatRupiah(amount: number | string): string {
-  return "Rp " + Math.round(Number(amount)).toLocaleString("id-ID");
+  return "Rp " + formatNumber(Math.round(Number(amount)));
 }
 
 const COMPACT_RUPIAH = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
@@ -30,7 +48,7 @@ export function formatRupiahParts(amount: number | string): {
 } {
   return {
     symbol: "Rp",
-    digits: Math.round(Number(amount)).toLocaleString("id-ID"),
+    digits: formatNumber(Math.round(Number(amount))),
   };
 }
 

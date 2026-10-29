@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -72,7 +73,7 @@ export function EnrollmentDocumentsCard({
       toast.error(
         err instanceof SaveError && err.status === 403
           ? "Anda tidak memiliki akses untuk mengubah berkas."
-          : "Gagal menyimpan. Coba lagi.",
+          : MESSAGES.saveFailed,
       );
     } finally {
       setSaving((s) => {

@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
@@ -71,5 +72,52 @@ describe("StudentJournalPickerPage", () => {
 
     expect(await screen.findByText("Belum ditugaskan ke kelas")).toBeInTheDocument();
     expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("marks an emptied date inline, focuses it, and clears the error once a date is set", async () => {
+    mockAssignments(twoClasses);
+    render(<PickerPage />);
+    const date = (await screen.findByLabelText("Tanggal")) as HTMLInputElement;
+    expect(date).not.toHaveAttribute("aria-invalid");
+
+    fireEvent.change(date, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Isi Buku Penghubung/ }));
+
+    const error = await screen.findByText("Pilih tanggal dulu ya.");
+    expect(error).toHaveAttribute("id", "journal-date-error");
+    expect(date).toHaveAttribute("aria-invalid", "true");
+    expect(date).toHaveAttribute("aria-describedby", "journal-date-error");
+    expect(date).toHaveFocus();
+    expect(nav.push).not.toHaveBeenCalled();
+
+    fireEvent.change(date, { target: { value: "2026-08-03" } });
+    expect(screen.queryByText("Pilih tanggal dulu ya.")).toBeNull();
+    expect(date).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("marks a missing class inline on the class control and clears it after picking one", async () => {
+    // The picker preselects a class, so reach the "nothing picked" state with a
+    // first assignment that has no class id.
+    mockAssignments([
+      { id: "ta-1", classSection: { id: "", name: "X", program: { name: "P" } } },
+      { id: "ta-2", classSection: { id: "class-2", name: "TKIT-A", program: { name: "TKIT" } } },
+    ]);
+    nav.params = new URLSearchParams("pick=1");
+    render(<PickerPage />);
+    const trigger = await screen.findByRole("combobox", { name: "Kelas" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Isi Buku Penghubung/ }));
+
+    expect(await screen.findByText("Pilih kelas dulu ya.")).toHaveAttribute("id", "journal-class-error");
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(trigger).toHaveAttribute("aria-describedby", "journal-class-error");
+    expect(trigger).toHaveFocus();
+    expect(nav.push).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: /TKIT-A/ }));
+    await waitFor(() => expect(screen.queryByText("Pilih kelas dulu ya.")).toBeNull());
+    expect(trigger).not.toHaveAttribute("aria-invalid");
   });
 });

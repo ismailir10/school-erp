@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
@@ -32,7 +33,7 @@ export type PaymentPanelMode = "start" | "pending" | "cancelled";
 const COPY = {
   closed: "Pendaftaran ini tidak dilanjutkan. Silakan hubungi tim penerimaan untuk informasi lebih lanjut.",
   generic: "Pembayaran belum bisa dimulai. Silakan hubungi tim penerimaan.",
-  offline: "Koneksi terputus. Coba lagi sebentar ya.",
+  offline: MESSAGES.network,
   rateLimited: "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
   linkFailed: "Tautan pembayaran belum bisa dibuat. Coba lagi sebentar.",
   expired: "Tautan sudah kedaluwarsa. Hubungi tim penerimaan untuk tautan baru.",

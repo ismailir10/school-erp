@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ function DocumentUploadCell({
           : d.error || `Gagal mengunggah ${label}`);
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setBusy(false);
     }
@@ -86,7 +87,7 @@ function DocumentUploadCell({
         toast.error(`Gagal menghapus ${label}`);
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setBusy(false);
     }

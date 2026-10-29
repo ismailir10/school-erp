@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -472,7 +473,7 @@ export default function ParentStudentJournalPage() {
                   }
                 } catch {
                   if (isActiveMutation()) {
-                    toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+                    toast.error(MESSAGES.network);
                   }
                 }
               }}

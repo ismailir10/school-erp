@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { pickDefaultYear } from "./pick-default-year";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -308,12 +309,12 @@ export function ClassesClient({
           ageGroup: values.ageGroup,
         };
     try {
-      await sendJson(url, { method, body }, "Gagal menyimpan");
+      await sendJson(url, { method, body }, MESSAGES.saveFailed);
       toast.success(editing ? "Kelas diperbarui" : "Kelas ditambahkan");
       closeForm();
       fetchRows();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

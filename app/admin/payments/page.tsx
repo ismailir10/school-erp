@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -96,7 +97,7 @@ export default function PaymentsLedgerPage() {
         const res = await fetch(`/api/payments?${buildParams()}`);
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new ApiError(err.error || "Gagal memuat penerimaan");
+          throw new ApiError(err.error || MESSAGES.loadFailed("Penerimaan"));
         }
         const json = await res.json();
         if (!signal.cancelled) {
@@ -110,7 +111,7 @@ export default function PaymentsLedgerPage() {
           setSummary({ totalAmount: 0, totalCount: 0, byMethod: [] });
           setPagination((p) => ({ ...p, total: 0, totalPages: 1 }));
           setFetchError(true);
-          toast.error(userMessage(e, "Gagal memuat penerimaan"));
+          toast.error(userMessage(e, MESSAGES.loadFailed("Penerimaan")));
         }
       } finally {
         if (!signal.cancelled) setLoading(false);

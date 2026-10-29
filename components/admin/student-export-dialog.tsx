@@ -16,6 +16,7 @@
  * mutation submit.
  */
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
@@ -146,7 +147,7 @@ export function StudentExportDialog({
         setSections(Array.isArray(s) ? s : []);
         setRefsLoaded(true);
       } catch {
-        if (!cancelled) toast.error("Gagal memuat pilihan filter");
+        if (!cancelled) toast.error(MESSAGES.loadFailed("Pilihan filter"));
       }
     })();
     return () => {

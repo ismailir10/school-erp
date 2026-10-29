@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId } from "react";
 import { toast } from "sonner";
 
@@ -70,13 +71,13 @@ export function EditClassDialog({
             slotTemplate: values.slotTemplate,
           },
         },
-        "Gagal menyimpan",
+        MESSAGES.saveFailed,
       );
       toast.success("Kelas diperbarui");
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

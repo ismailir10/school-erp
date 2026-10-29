@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { memo, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DossierSubsection } from "@/components/admin/dossier-section";
@@ -43,12 +44,12 @@ export const KehadiranSection = memo(function KehadiranSection({
     setLoading(true);
     try {
       const res = await fetch(`/api/students/${studentId}/attendance?month=${m}`);
-      if (!res.ok) { toast.error("Gagal memuat riwayat kehadiran"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Riwayat kehadiran")); return; }
       const data = await res.json();
       setRecords(data.records);
       setSummary(data.summary);
     } catch {
-      toast.error("Terjadi kesalahan");
+      toast.error(MESSAGES.generic);
     } finally {
       setLoading(false);
     }

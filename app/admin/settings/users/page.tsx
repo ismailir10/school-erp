@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -209,14 +210,14 @@ export default function UsersPage() {
       const res = await fetch(`/api/users?${params}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Terjadi kesalahan");
+        toast.error(err.error || MESSAGES.generic);
         return;
       }
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data pengguna");
+      toast.error(MESSAGES.loadFailed("Data pengguna"));
     } finally {
       setLoading(false);
     }
@@ -327,13 +328,13 @@ export default function UsersPage() {
             status: values.status,
           },
         },
-        "Gagal menyimpan",
+        MESSAGES.saveFailed,
       );
       toast.success("Pengguna diperbarui");
       setEditTarget(null);
       fetchUsers();
     } catch (err) {
-      applyServerErrors(editForm, err, "Gagal menyimpan");
+      applyServerErrors(editForm, err, MESSAGES.saveFailed);
     }
   });
 

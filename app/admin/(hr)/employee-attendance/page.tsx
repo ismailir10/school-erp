@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
@@ -79,13 +80,13 @@ export default function AttendancePage() {
         fetch("/api/config/campuses"),
       ]);
       if (!attRes.ok || !campRes.ok) {
-        toast.error("Gagal memuat data kehadiran");
+        toast.error(MESSAGES.loadFailed("Data kehadiran"));
         return;
       }
       setData(await attRes.json());
       setCampuses(await campRes.json());
     } catch {
-      toast.error("Gagal memuat data kehadiran");
+      toast.error(MESSAGES.loadFailed("Data kehadiran"));
     } finally {
       setLoading(false);
     }

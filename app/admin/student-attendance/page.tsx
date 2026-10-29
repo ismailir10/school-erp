@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -238,7 +239,7 @@ export default function StudentAttendancePage() {
     fetch("/api/class-sections")
       .then((r) => r.json())
       .then((d) => setClassSections(Array.isArray(d) ? d : []))
-      .catch(() => toast.error("Gagal memuat data"));
+      .catch(() => toast.error(MESSAGES.loadFailed("Data")));
   }, []);
 
   // ── Fetch stats (today's date range for context) ────────────────
@@ -249,7 +250,7 @@ export default function StudentAttendancePage() {
       .then((data) => {
         if (data.present !== undefined) setStats(data);
       })
-      .catch(() => toast.error("Gagal memuat data"));
+      .catch(() => toast.error(MESSAGES.loadFailed("Data")));
   }, []);
 
   // ── Fetch list ──────────────────────────────────────────────────
@@ -727,13 +728,13 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
       const res = await fetch(`/api/student-attendance/recap?${buildParams()}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new ApiError(err.error || "Gagal memuat rekap");
+        throw new ApiError(err.error || MESSAGES.loadFailed("Rekap"));
       }
       const json = await res.json();
       if (!signal.cancelled) setRows(json.data ?? []);
     } catch (e) {
       if (!signal.cancelled) {
-        toast.error(userMessage(e, "Gagal memuat rekap"));
+        toast.error(userMessage(e, MESSAGES.loadFailed("Rekap")));
       }
     } finally {
       if (!signal.cancelled) setLoading(false);

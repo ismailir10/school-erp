@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef, useId } from "react";
 import { useParams } from "next/navigation";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
@@ -172,10 +173,10 @@ export default function StudentDetailPage() {
     try {
       // Same year scoping as Enroll — see StudentEnrollDialog.
       const res = await fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING");
-      if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Data kelas")); return; }
       setPromoteSections(await res.json());
       setPromoteDialogOpen(true);
-    } catch { toast.error("Terjadi kesalahan"); }
+    } catch { toast.error(MESSAGES.generic); }
   }
 
   // Kehadiran is lazy like Keringanan/Buku Penghubung: nothing is requested
@@ -227,7 +228,7 @@ export default function StudentDetailPage() {
     try {
       const res = await fetch(`/api/students/${id}`);
       if (!res.ok) {
-        toast.error("Gagal memuat data siswa");
+        toast.error(MESSAGES.loadFailed("Data siswa"));
         setLoadError(res.status === 404 ? "not-found" : res.status === 401 || res.status === 403 ? "denied" : "failed");
         return;
       }
@@ -243,7 +244,7 @@ export default function StudentDetailPage() {
       setMetaSystem(split.system);
       setMetaExtra(split.extra);
       tambahanRef.current = { dirty: false, rows: split.extra };
-    } catch { toast.error("Terjadi kesalahan jaringan"); setLoadError("failed"); }
+    } catch { toast.error(MESSAGES.network); setLoadError("failed"); }
     finally { setLoading(false); }
   }, [id]);
 
@@ -428,12 +429,12 @@ export default function StudentDetailPage() {
     if (savingDataAnak.current) return;
     savingDataAnak.current = true;
     try {
-      await sendStudentJson(`/api/students/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendStudentJson(`/api/students/${id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Data siswa diperbarui");
       setIsEditingDataAnak(false);
       fetchStudent();
     } catch (err) {
-      applyStudentErrors(dataAnakForm, err, "Gagal menyimpan");
+      applyStudentErrors(dataAnakForm, err, MESSAGES.saveFailed);
     } finally {
       savingDataAnak.current = false;
     }
@@ -463,10 +464,10 @@ export default function StudentDetailPage() {
       });
       if (res.ok) return true;
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menyimpan");
+      toast.error(d.error || MESSAGES.saveFailed);
       return false;
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
       return false;
     }
   }

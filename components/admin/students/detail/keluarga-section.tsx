@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -191,7 +192,7 @@ export function KeluargaSection({
         toast.error(d.error || "Gagal menautkan wali");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setSavingGuardian(false);
     }
@@ -237,7 +238,7 @@ export function KeluargaSection({
         }
         toast.error(d.error || "Gagal menambahkan wali");
       } catch {
-        toast.error("Terjadi kesalahan jaringan");
+        toast.error(MESSAGES.network);
       }
     });
   }

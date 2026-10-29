@@ -8,7 +8,7 @@
 
 ## Design tokens
 
-Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, and `bg-<semantic>/10` tints outside `components/ui`. A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
+Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, `bg-<semantic>/10` tints outside `components/ui`, and `toLocaleString` outside `lib/format.ts` (rule G: use `formatNumber` / `formatRupiah`). A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
 
 | Family | Utilities | Notes |
 |---|---|---|
@@ -34,6 +34,9 @@ Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilit
 | Confirm, destructive or not | `<ConfirmDialog>` (`destructive` for delete/void/cancel) | Raw `<AlertDialog>`, `window.confirm()` |
 | Page title | `PageHeader` (`components/admin/page-header.tsx`, `components/portal/page-header.tsx`) | A hand-rolled `<h1>` |
 | Money | `formatRupiah()` + `font-currency` (admin, mono) or `font-amount` (parent, sans) | Inline formatting |
+| Plain number | `formatNumber()` (`lib/format.ts`) | `.toLocaleString()` (guard rule G) |
+| Field validation error | shadcn `<FieldError>` under the field | A toast as the only signal |
+| Failed save of a record being entered | `toastError(msg, { retry, id })` (`lib/feedback.ts`) | Bare `toast.error`, `{ duration: Infinity }` by hand |
 
 ## Rule: Shadcn FIRST. Never build custom when Shadcn has it.
 
@@ -80,7 +83,7 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
 - **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; `destructive` for the irreversible ones). Never import `<AlertDialog>` outside `confirm-dialog.tsx`. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), destructive-right (`variant="destructive"`).
 - **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
-- **Toasts stack, overlays don't.** Sonner's default 3–5s suits success; errors stay longer (`toast.error(..., { duration: Infinity })` for critical failures).
+- **Toasts stack, overlays don't.** Sonner's default 3–5s suits success; a failed save persists with a retry via `toastError` (see Feedback below).
 - **Body copy states the consequence** ("Data akan hilang selamanya" for hard delete, "Bisa diaktifkan kembali kapan saja" for soft delete); see `voice.md`.
 
 **Named exceptions** (raw overlay outside `confirm-dialog.tsx` / `ResponsiveFormDialog`, deliberately not "fixed"):
@@ -96,6 +99,14 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 // Wrong (old style):
 <SidebarMenuButton asChild><Link href="/admin">
 ```
+
+## Feedback
+
+- **Validation shows at the field.** Shadcn `FieldError` + `aria-invalid` + `aria-describedby`; focus the first invalid field on submit; clear the error as soon as the value is fixed. A toast is never the only signal. Never disable a submit button without saying why: leave it enabled and let the tap explain. Reference: `app/teacher/student-journal/page.tsx`.
+- **Failed save of a record the user is entering** → `toastError(msg, { retry, id })`: it persists with a "Coba lagi" action, and `id` stops repeats stacking. Loads and minor actions keep the short default toast. No `retry` when retrying can't help (401/403). Reference: `app/teacher/class-attendance/page.tsx`.
+- **Generic copy comes from `MESSAGES`** in `lib/feedback.ts`; caught errors go through `toastCaughtError` / `userMessage`, never raw `err.message`. Wording rules: `voice.md` § Errors.
+- **Bulk destructive one-taps confirm** through `<ConfirmDialog>` (reference: `components/student-journal/class-day-grid.tsx`).
+- **Small visual controls get an invisible ≥44px hit area**: `relative after:absolute after:-inset-N` (reference: `components/portal/week-grid.tsx`).
 
 ## Dialog & Sheet button labels (canonical)
 

@@ -5,6 +5,8 @@
  * worth leaking into a browser.
  */
 
+import { formatRupiah } from "@/lib/format";
+
 type FeeRow = {
   status: string;
   method: string | null;
@@ -78,7 +80,7 @@ export function feeAttentionFrom(events: { errorMessage: string | null }[], stat
     if (msg.startsWith("AMOUNT_MISMATCH")) {
       if (status !== "UNPAID") continue;
       const m = /expected=(\d+);got=(\d+)/.exec(msg);
-      const detail = m ? ` (masuk Rp ${Number(m[2]).toLocaleString("id-ID")}, seharusnya Rp ${Number(m[1]).toLocaleString("id-ID")})` : "";
+      const detail = m ? ` (masuk ${formatRupiah(m[2]!)}, seharusnya ${formatRupiah(m[1]!)})` : "";
       add("AMOUNT_MISMATCH", `Ada pembayaran yang jumlahnya berbeda dari biaya${detail}, jadi biaya tetap Belum bayar. Periksa di dashboard DOKU lalu tangani manual.`);
     } else if (msg === "DUPLICATE_PAYMENT_AFTER_PAID") {
       add("DUPLICATE_PAYMENT_AFTER_PAID", "Ada pembayaran kedua untuk biaya yang sudah lunas. Periksa di dashboard DOKU dan kembalikan dana bila perlu.");

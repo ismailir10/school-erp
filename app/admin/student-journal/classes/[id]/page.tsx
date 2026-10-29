@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -127,13 +128,13 @@ export default function ClassWeekPage({
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error(err.error || "Gagal memuat data kelas");
+          toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
           return;
         }
         const json = await res.json();
         setRollUp(json.data ?? null);
       } catch {
-        toast.error("Gagal memuat data kelas");
+        toast.error(MESSAGES.loadFailed("Data kelas"));
       } finally {
         setLoading(false);
       }

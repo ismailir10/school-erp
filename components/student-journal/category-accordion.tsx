@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { toastError } from "@/lib/feedback";
 import {
   ArrowDown,
   ArrowUp,
@@ -74,6 +75,12 @@ export function CategoryAccordion({
   async function patchCategory(id: string, data: Record<string, unknown>) {
     setPending(`cat:${id}`);
     let errorToasted = false;
+    // A failed save stays with "Coba lagi" that re-sends the same payload; the
+    // caller already handles the rethrow, so the retry swallows it.
+    const toastId = `journal-category-save-${id}`;
+    const retry = () => {
+      void patchCategory(id, data).catch(() => {});
+    };
     try {
       const res = await fetch(`/api/student-journal/categories/${id}`, {
         method: "PUT",
@@ -84,14 +91,14 @@ export function CategoryAccordion({
         const err = await res.json().catch(() => ({}));
         const message = err.error ?? "Gagal memperbarui kategori";
         errorToasted = true;
-        toast.error(message);
+        toastError(message, { retry, id: toastId });
         throw new Error(message);
       }
-      toast.success("Kategori diperbarui");
+      toast.success("Kategori diperbarui", { id: toastId });
       await onRefresh();
     } catch (error) {
       if (!errorToasted) {
-        toast.error("Gagal memperbarui kategori. Coba lagi.");
+        toastError("Gagal memperbarui kategori. Coba lagi.", { retry, id: toastId });
       }
       throw error instanceof Error
         ? error
@@ -104,6 +111,12 @@ export function CategoryAccordion({
   async function patchIndicator(id: string, data: Record<string, unknown>) {
     setPending(`ind:${id}`);
     let errorToasted = false;
+    // A failed save stays with "Coba lagi" that re-sends the same payload; the
+    // caller already handles the rethrow, so the retry swallows it.
+    const toastId = `journal-indicator-save-${id}`;
+    const retry = () => {
+      void patchIndicator(id, data).catch(() => {});
+    };
     try {
       const res = await fetch(`/api/student-journal/indicators/${id}`, {
         method: "PUT",
@@ -114,14 +127,14 @@ export function CategoryAccordion({
         const err = await res.json().catch(() => ({}));
         const message = err.error ?? "Gagal memperbarui indikator";
         errorToasted = true;
-        toast.error(message);
+        toastError(message, { retry, id: toastId });
         throw new Error(message);
       }
-      toast.success("Indikator diperbarui");
+      toast.success("Indikator diperbarui", { id: toastId });
       await onRefresh();
     } catch (error) {
       if (!errorToasted) {
-        toast.error("Gagal memperbarui indikator. Coba lagi.");
+        toastError("Gagal memperbarui indikator. Coba lagi.", { retry, id: toastId });
       }
       throw error instanceof Error
         ? error

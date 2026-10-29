@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -228,7 +229,7 @@ export function InvoiceDetailSheet({
         toast.error("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
       }
     } catch {
-      if (stillShown()) toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+      if (stillShown()) toast.error(MESSAGES.network);
     } finally {
       setRequestingLinkFor((current) => (current === requestedId ? null : current));
     }

@@ -3,6 +3,7 @@ import {
   formatDate,
   formatDateShort,
   formatDateTime,
+  formatNumber,
   formatRelativeTime,
   formatRupiah,
   formatRupiahCompact,
@@ -10,6 +11,21 @@ import {
   formatWeekRangeLabel,
   maskBankAccount,
 } from "@/lib/format";
+
+describe("formatNumber", () => {
+  it("groups thousands the Indonesian way", () => {
+    expect(formatNumber(1234567)).toBe("1.234.567");
+    expect(formatNumber(0)).toBe("0");
+    expect(formatNumber(-1500)).toBe("-1.500");
+  });
+
+  it("uses a decimal comma and honours maximumFractionDigits", () => {
+    expect(formatNumber(104.5)).toBe("104,5");
+    expect(formatNumber(1.23456)).toBe("1,235");
+    expect(formatNumber(1.23456, { maximumFractionDigits: 2 })).toBe("1,23");
+    expect(formatNumber(1234.5, { maximumFractionDigits: 0 })).toBe("1.235");
+  });
+});
 
 describe("formatRupiahCompact", () => {
   it("abbreviates thousands, millions and billions the Indonesian way", () => {
