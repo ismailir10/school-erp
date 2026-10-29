@@ -159,7 +159,7 @@ existing permissions), no production write by the agent.
       rate limit, audit, no caching) — accept: route tests (deps: T1; parallel with T2a/T2)
 - [x] T4 UI: `components/admin/fees/bundle-fees-section.tsx` on Tarif per Program, shared dirty gate, read-only without edit —
       accept: component tests, fees page test mock (deps: T3)
-- [ ] T5 e2e + docs: e2e spec, README, UAT job, glossary row "Harga paket", counts, full local gate, PR (deps: T2–T4)
+- [x] T5 e2e + docs: e2e spec, README, UAT job, glossary row "Harga paket", counts, full local gate, PR (deps: T2–T4)
 
 ## Implementation
 
@@ -186,6 +186,13 @@ existing permissions), no production write by the agent.
   rows = school program × component both programs price (or already bundled), "Jumlah biasa" from saved fees, own save sending only changed cells, read-only without `fees.edit`,
   year-switch discard gate now covers bundle edits, hints refetch after "Simpan Tarif". Checked against design-system (existing Table, RupiahInput, SectionCard). Re-run by the driver:
   46 files / 945 tests pass.
+- T4 follow-up (found by looking at a 390px screenshot of the built page): the four-column table scrolled sideways inside the card and hid the "Harga paket" input, the one field
+  the admin must fill. Below `sm` each row now stacks (`max-sm:` utilities on the same cells, one DOM, one set of inputs, labels via `data-label` pseudo-content); at 640px and up
+  the markup and look are unchanged. design-system respected (existing Table, RupiahInput, 44px touch floor, 16px input text below md).
+- T5: e2e/admin-fee-bundle.spec.ts — one test: school class ticked only → SPP line is the sum; set a bundle price through the UI → rebuild → exactly the bundle amount; daycare class
+  ticked only → same bundle amount for the same child (per-student scope); clear through the UI → rebuild → the sum again; cleanup withdraws the daycare placement, cancels runs
+  and deactivates the price. Passed twice in a row on the production build. README (Billing line; a >600-char line the hook does not check was shortened), UAT job
+  JTBD-ADMIN-FEE-03, glossary "Harga paket", counts via `audit-docs.sh --write`.
 
 ## Verification
 

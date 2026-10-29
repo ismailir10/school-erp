@@ -143,6 +143,19 @@ describe("BundleFeesSection", () => {
     expect(empty).toHaveAttribute("placeholder", "Belum diisi");
   });
 
+  it("labels the amount cells for the stacked phone layout and renders each input exactly once", async () => {
+    stubFetch(() => makeData());
+    setup();
+
+    const rowA = (await screen.findByText("TKIT-A")).closest("tr")!;
+    // The phone layout paints these through a CSS ::before (jsdom applies no breakpoints).
+    expect(within(rowA).getByText("Rp 1.560.000")).toHaveAttribute("data-label", "Jumlah biasa");
+    const input = within(rowA).getByRole("textbox", { name: inputName("SPP Bulanan", "TKIT-A") });
+    expect(input.closest("td")).toHaveAttribute("data-label", "Harga paket");
+    // One DOM, one set of inputs: no second copy for a mobile view.
+    expect(screen.getAllByRole("textbox")).toHaveLength(2);
+  });
+
   it("shows a cleared (INACTIVE) price as an empty input, and keeps its row even without shared fees", async () => {
     stubFetch(() =>
       makeData({

@@ -295,8 +295,17 @@ export function BundleFeesSection({
         blocks.map((block) => (
           <div key={block.daycareProgram.id} className="space-y-2">
             <h3 className="text-body font-medium">Daycare: {block.daycareProgram.name}</h3>
-            <Table aria-label={`Harga paket untuk ${block.daycareProgram.name}`}>
-              <TableHeader>
+            {/*
+              One table, one set of inputs. From `sm` up it is the plain four-column
+              table. Below `sm` the same elements turn into stacked blocks (`max-sm:`
+              only, so nothing changes at >= 640px): a row becomes name + component,
+              then "Jumlah biasa", then "Harga paket" over a full-width input, so the
+              field the admin must fill never scrolls off a 390px screen. The labels
+              come from `data-label` through a CSS ::before; each input keeps its own
+              aria-label, and the header row is hidden once the columns are gone.
+            */}
+            <Table aria-label={`Harga paket untuk ${block.daycareProgram.name}`} className="max-sm:block">
+              <TableHeader className="max-sm:hidden">
                 <TableRow>
                   <TableHead>Program sekolah</TableHead>
                   <TableHead>Komponen</TableHead>
@@ -304,22 +313,32 @@ export function BundleFeesSection({
                   <TableHead className="text-right">Harga paket</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="max-sm:block">
                 {block.cells.map((cell) => (
-                  <TableRow key={cell.cellKey}>
-                    <TableCell className="whitespace-normal font-medium">{cell.schoolProgram.name}</TableCell>
-                    <TableCell className="whitespace-normal">{cell.component.label}</TableCell>
-                    <TableCell className="text-right font-currency tabular-nums text-muted-foreground">
+                  <TableRow key={cell.cellKey} className="max-sm:flex max-sm:flex-col max-sm:gap-1.5 max-sm:px-2 max-sm:py-3">
+                    <TableCell className="whitespace-normal font-medium max-sm:block max-sm:p-0">
+                      {cell.schoolProgram.name}
+                    </TableCell>
+                    <TableCell className="whitespace-normal max-sm:-mt-1 max-sm:block max-sm:p-0 max-sm:text-muted-foreground">
+                      {cell.component.label}
+                    </TableCell>
+                    <TableCell
+                      data-label="Jumlah biasa"
+                      className="text-right font-currency tabular-nums text-muted-foreground max-sm:flex max-sm:items-baseline max-sm:justify-between max-sm:gap-3 max-sm:p-0 max-sm:before:font-sans max-sm:before:content-[attr(data-label)]"
+                    >
                       {formatRupiah(cell.usual)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell
+                      data-label="Harga paket"
+                      className="max-sm:flex max-sm:flex-col max-sm:gap-1 max-sm:p-0 max-sm:before:text-sm max-sm:before:font-medium max-sm:before:text-foreground max-sm:before:content-[attr(data-label)]"
+                    >
                       <RupiahInput
                         aria-label={`Harga paket ${cell.component.label}, ${cell.schoolProgram.name} + ${cell.daycareProgram.name}`}
                         placeholder="Belum diisi"
                         value={valueOf(cell)}
                         onChange={(v) => setCell(cell.cellKey, v)}
                         disabled={!canEdit || saving}
-                        className="ml-auto max-w-44"
+                        className="ml-auto max-w-44 max-sm:max-w-none"
                       />
                     </TableCell>
                   </TableRow>
