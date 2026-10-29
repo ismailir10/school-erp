@@ -129,4 +129,45 @@ None.
 
 - design-system cross-check: §11 Stat Cards (`.stat-label` uppercase caption on top, `.stat-value` 1.75rem bold tabular-nums below, currency in the mono face). T1's label row + full-width figure follows that structure; the fluid cap stays at `--text-display`. §14 Admin List recipe ("page header → primary action → …"): T2 keeps one visible primary action on a phone.
 
+### Verified locally — 757db78f, 2026-10-30
+- Route: other code (no auth, session or guard paths). Compared `origin/staging` f7822dda...757db78f: 25 files across `components/admin/{stat-card,stats-cards-row,detail-rail,guardians,dashboard/attendance-trend-chart}`, `components/ui/stat-tile`, `components/portal/{portal-bottom-nav,task-list}`, `app/admin/invoices/{invoices-client,[id]/page}`, `app/teacher/class-attendance`, `app/parent/{page,invoices/client}`, `lib/fluid-figure.ts`, tests, `e2e/{mobile-stress,admin-manual-invoice-layout}.spec.ts`.
+- Gate (disposable Postgres):
+  - `npm run lint` → exit 0.
+  - `npx vitest run` → `Test Files 734 passed | 2 skipped (736)`, `Tests 8931 passed | 42 todo (8973)`.
+  - Guards → RLS + API-auth OK.
+  - `DEMO_MODE=true` build → exit 0.
+  - `npx playwright test` → `268 passed (7.2m)`, 1 skipped. That includes all 5 `mobile-stress` passes (admin, teacher and parent at 360; teacher and parent at 320) and the 6 updated manual-invoice layout tests.
+  - The stress spec failed all 5 passes against the pre-fix build, each on the defects in Context.
+- App: production build, demo auth + disposable local Postgres.
+- Walked:
+  - `/admin/invoices` at 390: the header is "Lainnya" + "Buat Tagihan" on one row. The menu lists "Buat link baru (78) | Cek semua belum lunas | Pengingat WhatsApp | Tagihan Manual | Catat SPP di muka". Tagihan Manual opens its dialog, and on Escape focus returns to "Lainnya".
+  - With inflated content, "12.345" and "Rp 1.234.567.890" fit their cards without wrapping, and the odd "Lewat tempo" card spans the row.
+  - At 1440 the inline actions and display-size figures are as before.
+  - Teacher class attendance at 320: full names, with the H/S/I/A row stacked below.
+  - Parent home at 320: "2 lewat tempo" is visible, the amount sits under the title, and "Kehadiran" is in full in the nav.
+- Driver probe, 64 of 67 routes × 320/360/390 with inflated content:
+  - No page overflow anywhere.
+  - At 360/390, no real defect. The remaining hits are inflated "12.345" in monthly-grid and calendar day cells, which no real day can hold (box-height false positives that the Playwright rule fixes), and a +1px URL in the WhatsApp template preview.
+  - At 320, teacher and parent have no real defect.
+- Console/network: 0 errors.
+- Highlight: `docs/cycles/screenshots/admin-mobile-stress/invoices-390-before-after-stress-menu.png` (before · after · after with production-plus numbers · Lainnya open) and `parent-home-320-before-after.png`. Also `teacher-class-attendance-320.png`.
+- Rounds: 2.
+  - Round 1: the manual-invoice spec follows "Lainnya" on phones, and narrow tile labels drop their wide tracking.
+  - Round 2: everyday Rupiah figures get a ≤14-character tier, so they are no smaller than the counts.
+- Not checked: admin at 320px (desktop-first portal, not in the request). The probe still flags the dashboard count, invoice/payroll detail amounts and two filter labels there — see the follow-ups.
+
 ## Ship Notes
+
+- **Migrations / env / dependencies:** none.
+- **Visible changes on phones:**
+  - Admin stat cards put the label and icon on one row with the figure below, sized to the card, and an odd last card spans the row.
+  - The invoices header becomes "Lainnya" + "Buat Tagihan".
+  - Teacher class attendance stacks the H/S/I/A row under the name in narrow rows.
+  - Parent nav labels never truncate.
+  - Bill and invoice status lines wrap.
+- **Desktop:** unchanged apart from the stat-card icon now sitting in the label row.
+- **Post-merge:** the Vercel staging deploy is `READY`. Open `/admin/invoices` and `/parent` on a phone. No auth impact.
+- **Rollback:** revert the squash commit.
+- **Follow-ups:**
+  - Admin at 320px: dashboard KPI count, invoice/payroll detail amounts, and the classes/semesters filter labels.
+  - Port the precise wrapped-number rule into the driver probe.
