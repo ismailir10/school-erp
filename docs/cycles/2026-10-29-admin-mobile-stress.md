@@ -124,6 +124,7 @@ None.
   - **My T2 change broke an existing spec.** `admin-manual-invoice-layout.spec.ts` failed at 390/320 because "Tagihan Manual" now lives in "Lainnya" on phones. The spec now opens through whichever control is visible and asserts focus returns to it ("Lainnya" on a phone). All 6 of its tests pass.
   - **The stress spec found one remaining crossing:** "TERLAMBAT" in the employee-attendance trend card's 3-up `StatTile` row, +6px. `StatTile` labels drop their wide tracking when the tile is narrower than 7rem (`@max-[7rem]:tracking-normal`), and the trend tiles' padding goes `px-3` → `px-2.5`.
 - Verify round 2 (driver review of the 390px screenshots): everyday Rupiah figures ("Rp 55.825.000", 13 characters) fell into the smallest tier and rendered smaller than the counts beside them, inverting the hierarchy on a money page. `fluidFigureClass` gains a ≤14-character tier at 10.5cqi (14 × 0.6em × 10.5 ≈ 88% of the card), so those amounts are ~17% larger, and "Rp 1.234.567.890" keeps 9cqi. The test asserts both tiers.
+- CI round 1: the CI `E2E` job failed only `mobile-stress` admin@360. "Terlambat" crossed its tile's padding by 3px on the runner (+6px pre-fix locally, 0 after round 1): the runner's font rendering is a few px wider. Root cause: the label fit with almost no slack. Narrow tiles (<7rem) now also step the label down to 10px (`@max-[7rem]:text-[0.625rem]`), ~7px of headroom on top of the dropped tracking. The other CI checks were green.
 
 ## Verification
 
