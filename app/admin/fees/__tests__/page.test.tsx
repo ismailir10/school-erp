@@ -38,6 +38,24 @@ const STRUCTURES = [
   { id: "fs-2", feeComponentId: "fc-pangkal", amount: "250000", notes: null, feeComponent: COMPONENTS[1] },
 ];
 
+// What GET /api/fee-bundles answers for the "Harga paket sekolah + daycare"
+// section: the page's "Program Aktif" is the school program, "Day Care" the
+// daycare one, and both price SPP.
+const BUNDLE_DATA = {
+  canEdit: true,
+  programs: [
+    { id: "prog-active", code: "BBB", name: "Program Aktif", type: "SEMESTER", status: "ACTIVE" },
+    { id: "prog-day", code: "DCARE", name: "Day Care", type: "YEAR_ROUND", status: "ACTIVE" },
+  ],
+  components: [{ id: "fc-spp", code: "spp", label: "SPP Bulanan" }],
+  programFees: [
+    { programId: "prog-active", feeComponentId: "fc-spp", amount: 500000 },
+    { programId: "prog-day", feeComponentId: "fc-spp", amount: 1000000 },
+  ],
+  bundles: [],
+};
+const BUNDLE_INPUT = "Harga paket SPP Bulanan, Program Aktif + Day Care";
+
 // `withStructure: false` keeps `/api/programs` and `/api/academic-years`
 // empty — used by tests that only exercise the Komponen Biaya tab, so the
 // Tarif per Program tab's own default-selection effect (and the
@@ -50,6 +68,7 @@ function fixture({ withStructure = true }: { withStructure?: boolean } = {}) {
     if (input.startsWith("/api/programs")) return { ok: true, json: async () => (withStructure ? PROGRAMS : []) };
     if (input.startsWith("/api/academic-years")) return { ok: true, json: async () => (withStructure ? YEARS : []) };
     if (input.startsWith("/api/fee-structure")) return { ok: true, json: async () => STRUCTURES };
+    if (input.startsWith("/api/fee-bundles")) return { ok: true, status: 200, json: async () => BUNDLE_DATA };
     return { ok: true, json: async () => ({}) };
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -162,6 +181,7 @@ describe("FeesPage", () => {
         if (input.startsWith("/api/programs")) return { ok: true, json: async () => PROGRAMS };
         if (input.startsWith("/api/academic-years")) return { ok: true, json: async () => YEARS };
         if (input.startsWith("/api/fee-structure")) return { ok: true, json: async () => staleStructures };
+        if (input.startsWith("/api/fee-bundles")) return { ok: true, status: 200, json: async () => BUNDLE_DATA };
         return { ok: true, json: async () => ({}) };
       }),
     );
@@ -289,5 +309,97 @@ describe("FeesPage", () => {
       sortOrder: 3,
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Komponen biaya ditambahkan"));
+  });
+  // Cycle 2026-10-29-school-daycare-bundle-price (T4): the bundle section lives
+  // under the program fee table, owns its fetch, and shares the discard gate
+  // for the YEAR switch only.
+  it("Tarif per Program: shows the Harga paket section for the selected year, below the fee table", async () => {
+    const fetchMock = fixture();
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+
+    expect(await screen.findByRole("heading", { name: "Harga paket sekolah + daycare", level: 2 })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: BUNDLE_INPUT })).toHaveValue("");
+    expect(screen.getByText("Rp 1.500.000")).toBeInTheDocument(); // 500.000 + 1.000.000
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => url === "/api/fee-bundles?academicYearId=year-active")).toBe(true),
+    );
+  });
+
+  it("Tarif per Program: switching the YEAR with unsaved bundle edits asks to discard first — cancel keeps them, confirm drops them", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+    const bundleInput = await screen.findByRole("textbox", { name: BUNDLE_INPUT });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Tahun Ajaran" })).toHaveTextContent("2025/2026"));
+    // The program tarif itself is untouched: only the bundle section is dirty.
+    expect(screen.queryByText("Ada perubahan belum disimpan")).not.toBeInTheDocument();
+
+    await user.type(bundleInput, "1400000");
+
+    // --- Cancel: the year and the unsaved bundle price both stay. ---
+    await user.click(screen.getByRole("combobox", { name: "Tahun Ajaran" }));
+    await user.click(await screen.findByRole("option", { name: "2024/2025" }));
+    const cancelDialog = await screen.findByRole("alertdialog");
+    expect(within(cancelDialog).getByText("Buang perubahan tarif?")).toBeInTheDocument();
+    expect(within(cancelDialog).getByText(/harga paket yang belum disimpan akan hilang/)).toBeInTheDocument();
+    await user.click(within(cancelDialog).getByRole("button", { name: "Batal" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("combobox", { name: "Tahun Ajaran" })).toHaveTextContent("2025/2026");
+    expect(screen.getByRole("textbox", { name: BUNDLE_INPUT })).toHaveValue("1.400.000");
+
+    // --- Confirm: the year switches and the bundle edit is gone. ---
+    await user.click(screen.getByRole("combobox", { name: "Tahun Ajaran" }));
+    await user.click(await screen.findByRole("option", { name: "2024/2025" }));
+    const confirmDialog = await screen.findByRole("alertdialog");
+    await user.click(within(confirmDialog).getByRole("button", { name: "Buang perubahan" }));
+
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Tahun Ajaran" })).toHaveTextContent("2024/2025"));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: BUNDLE_INPUT })).toHaveValue(""));
+    expect(screen.queryByText("Ada perubahan belum disimpan")).not.toBeInTheDocument();
+
+    // And the gate is clear again: switching back needs no confirmation.
+    await user.click(screen.getByRole("combobox", { name: "Tahun Ajaran" }));
+    await user.click(await screen.findByRole("option", { name: "2025/2026" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Tahun Ajaran" })).toHaveTextContent("2025/2026"));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("Tarif per Program: switching the PROGRAM does not ask about, or touch, bundle edits", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+    await user.type(await screen.findByRole("textbox", { name: BUNDLE_INPUT }), "1400000");
+
+    await user.click(screen.getByRole("combobox", { name: "Program" }));
+    await user.click(await screen.findByRole("option", { name: "Program Lama" }));
+
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Program" })).toHaveTextContent("Program Lama"));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: BUNDLE_INPUT })).toHaveValue("1.400.000");
+  });
+
+  it("Tarif per Program: a successful Simpan Tarif refreshes the bundle section's saved fees", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+    await screen.findByRole("textbox", { name: BUNDLE_INPUT });
+    const bundleReads = () => fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/fee-bundles")).length;
+    const before = bundleReads();
+
+    const tarifInput = await screen.findByRole("textbox", { name: "Tarif SPP Bulanan" });
+    await user.clear(tarifInput);
+    await user.type(tarifInput, "600000");
+    await user.click(screen.getByRole("button", { name: "Simpan Tarif" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Struktur biaya disimpan"));
+    await waitFor(() => expect(bundleReads()).toBe(before + 1));
   });
 });

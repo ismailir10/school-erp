@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { formatMonthLabel } from "@/lib/format";
 import { BILLABLE_FEE_COMPONENT_WHERE } from "@/lib/finance/billable-fees";
+import { loadBundleFees } from "@/lib/finance/bundle-fees";
 import {
   buildBillingRunRows,
   type BuildEnrollment,
@@ -187,11 +188,13 @@ export async function loadSppPrepayContext(
   const programIds = [...new Set(enrollments.map((e) => e.classSection.programId))];
   const programNames = [...new Set(enrollments.map((e) => e.classSection.program.name))].sort();
 
-  const [feeStructures, adjustments, guardian, invoiceRows, labelRows] = await Promise.all([
+  const [feeStructures, bundleFees, adjustments, guardian, invoiceRows, labelRows] = await Promise.all([
     db.programFeeStructure.findMany({
       where: { programId: { in: programIds }, academicYearId: year.id, feeComponent: BILLABLE_FEE_COMPONENT_WHERE },
       include: { feeComponent: true },
     }),
+    // Harga paket sekolah + daycare: priced exactly as the Billing Run does (none when < 2 programs).
+    loadBundleFees(db, { tenantId, academicYearId: year.id, programIds }),
     db.studentFeeAdjustment.findMany({
       where: { tenantId, studentId, academicYearId: year.id, status: "ACTIVE" },
     }),
@@ -282,6 +285,7 @@ export async function loadSppPrepayContext(
       enrollments: buildEnrollments,
       scope: { classSectionIds: [], includeStudentIds: [studentId], excludeStudentIds: [] },
       feesByProgram,
+      bundleFees,
       adjustmentsByStudent: new Map([[studentId, adjustmentInputs]]),
       alreadyInvoicedStudentIds: new Set(),
       parentByStudent: new Map([[studentId, parentId]]),

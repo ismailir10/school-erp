@@ -29,6 +29,7 @@ vi.mock("@/lib/db", () => ({
     billingRunRow: { count: vi.fn(), findMany: vi.fn() },
     studentEnrollment: { findMany: vi.fn() },
     programFeeStructure: { findMany: vi.fn() },
+    programBundleFee: { findMany: vi.fn().mockResolvedValue([]) },
     invoice: { findMany: vi.fn() },
     studentGuardian: { findMany: vi.fn() },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
