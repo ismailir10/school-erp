@@ -233,4 +233,47 @@ runs on deploy), no change to the BillingRun tables.
 
 ## Verification
 
+**Verified locally — af4feb05** (code head; everything after it is cycle-doc evidence only)
+
+- Diff classified from `origin/staging...HEAD` (0 behind, 10 ahead, 54 files): **other code**. No auth, session, cookie,
+  proxy or dependency change (new routes reuse `getSession`/`hasPermission`), so no signed-in staging check is required.
+  One additive migration (`20261029000000_add_enrollment_leave`).
+- App: production build, demo auth + disposable local Postgres 16 (recreated empty, `prisma db push` + seed, localhost:54329).
+- Task/full gate, all re-run on this head:
+  - `npm run lint` exit 0 (it first failed on a gitignored `playwright-report/` that my own failed first Playwright launch had
+    generated; deleted, re-run clean).
+  - `npx tsc --noEmit` clean; `verify-rls-coverage.sh` 45/45; `verify-api-auth.sh` 224/224; `audit-docs.sh` 0 fail (1 pre-existing warn).
+  - `npx vitest run` (no DEMO_MODE): 722 files passed | 2 skipped, 8716 tests passed | 42 todo.
+  - `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build` exit 0.
+  - `npx playwright test` (whole suite, production build, workers 1): **262 passed**, 0 failed, 0 flaky, including the two new
+    `e2e/admin-student-leave.spec.ts` tests. The installed Chromium is build 1243 while the repo's Playwright asks for 1248, so
+    I ran the repo config through a wrapper kept outside the repo that only sets `executablePath` (`/opt/pw-browsers/chromium-1243`);
+    webServer, DB guard and workers are the repo's own.
+  - Soft-skip delta vs staging: baseline 26, current 26, delta 0.
+- Walked in a real browser (production-equivalent UI on the dev server, by the T5 worker; driver looked at the screenshots):
+  1280x900 and 390x844, no horizontal overflow, dialogs and the mobile bottom sheet render; recorded a leave on a Day Care
+  student with an open Oktober invoice, the follow-up listed it, cancelling it showed Dibatalkan and Tunggakan Rp 0, an
+  overlapping leave showed "Cuti ini tumpang tindih dengan cuti lain.", cancelling the leave worked. Highlight shots:
+  `cuti-desktop-3-followup.png`, `cuti-mobile-2-dialog.png`.
+- Verify flows: 1 (record → run reads Sedang cuti) and 4 (overlap refused, cancel → billed again) are covered by e2e;
+  2 (invoice follow-up + void) was walked in the browser, its draft half (draft parked as EXCLUDED, rebuild → Sedang cuti) by e2e;
+  3 (two placements, only one on leave) is covered by classifier unit tests only, **not walked in a browser** (the seed has no
+  student with two active placements).
+- Not covered: the review-step caption for a parked row was checked by a component test, not in the browser; the invoice
+  follow-up is not in the e2e (only the browser walk).
+- Opus 5.5 reviewed the plan before building and the whole diff before shipping; its two major findings (manual exclusion
+  overwritten by a leave; reason not shown on an excluded row) and one minor (draft scope) were fixed in `af4feb05`.
+
+
 ## Ship Notes
+
+- **Migration:** `20261029000000_add_enrollment_leave` — one new table `EnrollmentLeave`, additive, RLS policy, Restrict FKs.
+  Vercel's build runs `prisma migrate deploy`, so it applies on the staging deploy. Rollback: revert the PR; the empty table can
+  stay (nothing else references it), or drop it by hand.
+- **Env vars / config:** none. **Manual steps:** none.
+- **Permissions:** creating or cancelling a leave needs `students.edit` AND `invoices.create` (both already in SCHOOL_ADMIN); the
+  invoice list needs `invoices.view`; cancelling an invoice keeps `invoices.void`. No new permission codes.
+- **Post-merge:** Vercel staging deploy READY for the merge SHA (migration applied). Not auth-impacting, so no signed-in check is
+  required; a worthwhile manual look: a daycare student → Cuti → Catat cuti → the billing wizard for that month.
+- **Known limits (stated in the spec):** a cancelled invoice still counts as "already invoiced", so after cancelling a leave
+  the month's invoice must be created manually; SPP prepay ignores leave; leave never affects a non-single-month run label.
