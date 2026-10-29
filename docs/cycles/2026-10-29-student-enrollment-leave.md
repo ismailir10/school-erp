@@ -207,6 +207,8 @@ runs on deploy), no change to the BillingRun tables.
   Response notes for the UI: create's `affectedRuns` lists only drafts whose rows were actually excluded; cancel's lists every
   open DRAFT/COMMITTING run covering the months (it does not check the student has a row), so the copy there is "hitung ulang
   draf jika ada". `openInvoices` is null without `invoices.view`; an archived year answers 403 (existing year guard).
+- Dedupe: `loadSppPrepayContext` now takes its academic-year billing window from `lib/enrollment-leave/window.ts` (one rule, two
+  consumers); lib/finance, lib/enrollment-leave and app/api suites re-run green (218 files / 3185 tests), `tsc --noEmit` clean.
 
 ## Verification
 

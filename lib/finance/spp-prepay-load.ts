@@ -9,6 +9,7 @@ import {
 } from "@/lib/finance/build-billing-run";
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
 import { lastDayOfMonth, parsePeriodMonth } from "@/lib/finance/period-label";
+import { academicYearBillingWindow } from "@/lib/enrollment-leave/window";
 import {
   planSppPrepay,
   type MonthPrice,
@@ -88,11 +89,6 @@ export function formatYearMonth(ym: YearMonth): string {
 
 const monthIndex = (ym: YearMonth) => ym.year * 12 + (ym.month - 1);
 
-/** "2026-07-01" -> { year: 2026, month: 7 }. */
-function monthOfDate(ymd: string): YearMonth | null {
-  return parseYearMonth(ymd.slice(0, 7));
-}
-
 /** What an invoice still owes. */
 export function remainingOfInvoice(inv: Pick<PlanInvoice, "totalDue" | "totalPaid">): Prisma.Decimal {
   return new Prisma.Decimal(inv.totalDue).sub(new Prisma.Decimal(inv.totalPaid));
@@ -119,16 +115,15 @@ export async function loadSppPrepayContext(
     orderBy: { startDate: "desc" },
     select: { id: true, name: true, startDate: true, endDate: true },
   });
-  const yearFrom = year ? monthOfDate(year.startDate) : null;
-  const yearEnd = year ? monthOfDate(year.endDate) : null;
-  if (!year || !yearFrom || !yearEnd || monthIndex(yearFrom) > monthIndex(yearEnd)) {
+  // The year's billing window (first month through eleven months later at most) is shared with
+  // the student-leave rules: lib/enrollment-leave/window.ts. A second Juli of a 13-month year
+  // belongs to the next year (a Juli 2027 invoice made at this year's price would make next
+  // year's Billing Run skip it).
+  const window = year ? academicYearBillingWindow(year) : null;
+  if (!year || !window) {
     return fail("NO_ACADEMIC_YEAR", "Belum ada tahun ajaran aktif. Aktifkan tahun ajaran lebih dulu.");
   }
-  // A year that runs 13 Juli to 11 Juli touches 13 calendar months, but only twelve are its own:
-  // the second Juli belongs to the next year (a Juli 2027 invoice made at this year's price would
-  // make next year's Billing Run skip it). The billing window therefore ends 11 months after the start.
-  const lastIdx = Math.min(monthIndex(yearEnd), monthIndex(yearFrom) + 11);
-  const yearTo: YearMonth = { year: Math.floor(lastIdx / 12), month: (lastIdx % 12) + 1 };
+  const { from: yearFrom, to: yearTo } = window;
 
   const from = input.from ? parseYearMonth(input.from) : yearFrom;
   const to = input.to ? parseYearMonth(input.to) : yearTo;
