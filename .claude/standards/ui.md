@@ -4,33 +4,40 @@
 
 ## Canonical Reference
 
-**Every frontend change MUST be cross-checked against `.claude/standards/design-system.html`** before it lands. The file is a 4000-line HTML reference covering brand, colors, typography, spacing, icons, buttons, forms, status badges, DataTable, empty/loading/error states, stat cards, portal shells, overlays (Dialog / Sheet / AlertDialog / Toast), student journal, attendance flows, and voice & tone. It is the single source of truth when tokens, recipes, or copy disagree across this repo.
+**Cross-check every frontend change against `.claude/standards/design-system.html`** (brand, tokens, type, components, states, overlays, portal shells, voice). Scan the sections relevant to the change before editing; the cycle doc Verification must cite `design-system` (frontend gate, pre-commit Rule 4). Where tokens, recipes or copy disagree, `app/globals.css` wins for values and this file wins for usage.
 
-When `/build` touches frontend (`app/**/*.tsx`, `components/**/*.tsx`, `app/globals.css`), open the HTML file and scan the sections relevant to the change before editing. Follow the **frontend gate** (pre-commit Rule 4) — the cycle doc Verification section MUST cite the `design-system` reference.
+## Design tokens
 
-## Design Tokens — Spacing & Typography
+Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, and `bg-<semantic>/10` tints outside `components/ui`.
 
-Canonical scale lives in `app/globals.css`. Use the Tailwind utilities below; never hand-write `p-4` / `text-lg` for page chrome.
+| Family | Utilities | Notes |
+|---|---|---|
+| Spacing | `px-page-x` 1.5rem, `py-page-y` 2rem, `gap-section` 2rem, `p-card` 1.5rem, `gap-field` / `space-y-field` 1rem | Page padding, section gap, card padding, form row gap |
+| Type | `text-display` 2rem/1.15 bold, `text-h1` 1.5rem/1.25 semibold, `text-h2` 1.125rem/1.35 semibold, `text-body` 0.875rem/1.5, `text-small` 0.75rem/1.4, `text-caption` 0.6875rem/1.35 | Display, h1 and h2 carry their own line-height **and weight**: never add `font-semibold` / `leading-*` to them |
+| Radius | `rounded-sm` … `rounded-4xl`, all derived from `--radius` (0.625rem) | `rounded-lg` = `--radius`; cards `rounded-xl` |
+| Elevation | `shadow-resting` (also `shadow-card-resting`), `shadow-raised`, `shadow-overlay`, `shadow-sticky-edge`, `shadow-card-elevated` | Resting card, hover-lifted card or sticky bar, popover/menu/dialog, sticky trailing column edge |
+| Motion | `ease-standard`, `ease-emphasized`, `duration-fast` 120ms, `duration-base` 200ms, `duration-slow` 320ms | framer-motion: `EASE_STANDARD`, `EASE_EMPHASIZED`, `DURATION` (seconds) from `lib/motion.ts`. Wrap decorative motion in `motion-safe:` |
+| Z-index | `z-base` 0, `z-sticky` 10, `z-header` 20, `z-nav` 30, `z-dropdown` 40, `z-overlay` 50, `z-toast` 60 | Shadcn primitives keep `z-50`, which equals `z-overlay`; don't rewrite them |
+| Colour | see [colors.md](./colors.md) | Light-only; semantic triads `success` / `warning` / `info` / `destructive` |
 
-| Token | Utility | Value | When |
-|---|---|---|---|
-| `--space-page-x` | `p-page-x` / `px-page-x` | 1.5rem | Page horizontal padding |
-| `--space-page-y` | `py-page-y` | 2rem | Page vertical padding |
-| `--space-section` | `gap-section` / `mt-section` | 2rem | Between sections on a page |
-| `--space-card` | `p-card` | 1.5rem | Card internal padding |
-| `--space-field` | `space-y-field` / `gap-field` | 1rem | Form row gap |
-| `--text-display` | `text-display` | 2rem | Dashboard hero numbers, stat-card primary |
-| `--text-h1` | `text-h1` | 1.5rem | Page title |
-| `--text-h2` | `text-h2` | 1.125rem | Section / card title |
-| `--text-body` | `text-body` | 0.875rem | Default body text |
-| `--text-small` | `text-small` | 0.75rem | Secondary labels |
-| `--text-caption` | `text-caption` | 0.6875rem | Table meta, badges, captions |
+## Reach for
 
-Retrofitting existing pages against this scale is a follow-up cycle — new pages and new sections MUST start on the scale.
+| Need | Use | Not |
+|---|---|---|
+| Status from a domain enum | `<StatusBadge>` (`components/ui/status-badge.tsx`; owns every status tone as a named key, incl. class health `Sehat` / `Perhatian` / `Kritis` / `Libur`) | A page-local tone map |
+| Count or state pill | `<Badge variant="success\|warning\|info\|danger\|neutral">` | `<Badge className="bg-status-…">`, hand-rolled `<span rounded-full …>` |
+| Bordered section block (detail pages, portal sections) | `<SectionCard title description? action? footer? className contentClassName>` (`components/ui/section-card.tsx`) | `rounded-xl border bg-card p-4` divs. Plain `Card` only for custom structure |
+| Loading | `<Spinner>` (`components/ui/spinner.tsx`; `aria-hidden` beside visible text) for actions, `<Skeleton>` for layout | `Loader2` / `animate-spin` / `animate-pulse` divs |
+| Route or fetch error | `<ErrorState title onRetry>` (`components/ui/error-state.tsx`) | A hand-written error block per `error.tsx` |
+| Person | `<UserAvatar>` (`components/ui/user-avatar.tsx`) | A hand-rolled initials circle |
+| Back navigation | `<BackLink>` (`components/portal/back-link.tsx`) | A hand-rolled `ArrowLeft` link |
+| Confirm, destructive or not | `<ConfirmDialog>` (`destructive` for delete/void/cancel) | Raw `<AlertDialog>`, `window.confirm()` |
+| Page title | `PageHeader` (`components/admin/page-header.tsx`, `components/portal/page-header.tsx`) | A hand-rolled `<h1>` |
+| Money | `formatRupiah()` + `font-currency` (admin, mono) or `font-amount` (parent, sans) | Inline formatting |
 
 ## Rule: Shadcn FIRST. Never build custom when Shadcn has it.
 
-**All 62 Shadcn components are installed.** Use them. Do not build custom.
+Use the installed Shadcn component; do not build custom. (Talib primitives are in "Reach for" above.)
 
 | Need | Use | NEVER |
 |------|-----|-------|
@@ -42,30 +49,23 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Data list | `<DataTable>` | Custom card loops |
 | Wide matrix / grid (not a sortable/paginated entity list) | ui/table primitives (`<Table>`, `<TableHeader>`, `<TableBody>`, ...) | raw `<table>` |
 | Admin tabs (panels within one page) | `<AdminTabs>` | raw `<Tabs>` import in `app/admin/**` |
-| Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
 | Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
-| Empty list | `<EmptyState>` | Plain `<p>` |
 | Small "label above a number" tile (dashboard, detail rail, trend strip) | `<StatTile>` (`components/ui/stat-tile.tsx`; `StatCard` stays the icon + count-up KPI card on list pages) | Hand-rolled `rounded-lg border` tile with `text-[10px]` |
 | Previous / label / next stepper for a month or week | `<PeriodStepper>` (`components/ui/period-stepper.tsx`; URL-driven week navigation with a "today" shortcut is the portal `WeekNavigator`) | `<button className="p-2">` with a chevron |
 | Icon-only button | `<Button size="icon">` / `"icon-sm"` | `size="sm" className="h-8 w-8 p-0 …"` |
-| Confirm, destructive or not | `<ConfirmDialog>` (`destructive` prop for delete/void/cancel) | raw `<AlertDialog>` import, `window.confirm()` |
 | Form field | `<FormField>` (`components/ui/form.tsx`, binds react-hook-form onto `Field` / `FieldLabel` / `FieldDescription` / `FieldError`) | Raw `<Label>` + `<Input>`, hand-wired `htmlFor`/`aria-invalid`, a `useState` form object |
-| Loading | `<Skeleton>` | `animate-pulse` divs |
 | Progress | `<Progress>` | Custom progress bars |
 | Accordion | `<Accordion>` | Custom expand/collapse |
 | Scroll area | `<ScrollArea>` | Custom overflow divs |
-| Currency | `formatRupiah()` | Inline formatting |
 | Date | `formatDate()` / `formatDateShort()` | Inline `.toLocaleDateString()` |
 | Desktop form / create-edit | `<ResponsiveFormDialog>` (Dialog) | Route-level form pages |
 | Mobile form / create-edit | `<ResponsiveFormDialog>` (Sheet) | Dialog stuffed into narrow viewport |
 | Action dialog (approve, void, override, record payment, ...) | `<ResponsiveFormDialog>` | hand-rolled `useIsMobile` + `<Dialog>`/`<Sheet>` |
 | Transient feedback | `toast.*()` (sonner) | `alert()`, inline banner for success |
 
-`<StatusBadge>` (`components/ui/status-badge.tsx`) owns every status tone as a named key — never a page-local tone map. Class health ("Kondisi" on the classes list) uses the `Sehat` / `Perhatian` / `Kritis` / `Libur` keys.
-
 ## Touch targets (phones)
 
-Every control is at least **44px** tall on a touch device (`(pointer: coarse)`), and looks exactly as before on a mouse. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after` so the layout doesn't change. A new control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
+Every control is at least **44px** tall on a touch device (`(pointer: coarse)`), and looks exactly as before on a mouse. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after`. A control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
 
 `e2e/mobile-layout.spec.ts` walks the admin, teacher and parent routes at 390px and fails on sideways page scroll, a control under 44px, a data table that needs a sideways scroll (only the month × employee matrix is exempt), and a text field under 16px. Add a new route to its list when you add a screen.
 
@@ -78,10 +78,10 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
 
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
-- **Confirms go through `<ConfirmDialog>`, always.** Delete, void, cancel, hard-deactivate, restore, approve — all through `<ConfirmDialog>` (it wraps `<AlertDialog>`; pass `destructive` for the irreversible ones). Never import `<AlertDialog>` directly outside `confirm-dialog.tsx`. A "which one?" question that has only two answers is still a two-way `<ConfirmDialog>` (e.g. the convert flow's possible-duplicate-student and wali-name-mismatch questions: confirm or Batal, one open at a time, focus on Batal). Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
+- **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; `destructive` for the irreversible ones). Never import `<AlertDialog>` outside `confirm-dialog.tsx`. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), destructive-right (`variant="destructive"`).
 - **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
-- **Toasts stack, overlays don't.** Multiple toasts allowed; they auto-dismiss. Sonner's default 3–5s timing is correct for success; errors should stay longer (or be persistent via `toast.error(..., { duration: Infinity })` for critical failures).
-- **Body copy states the consequence.** "Data akan hilang selamanya" for hard delete; "Bisa diaktifkan kembali kapan saja" for soft delete. See `voice.md` for audience-matched copy.
+- **Toasts stack, overlays don't.** Sonner's default 3–5s suits success; errors stay longer (`toast.error(..., { duration: Infinity })` for critical failures).
+- **Body copy states the consequence** ("Data akan hilang selamanya" for hard delete, "Bisa diaktifkan kembali kapan saja" for soft delete); see `voice.md`.
 
 **Named exceptions** (raw overlay outside `confirm-dialog.tsx` / `ResponsiveFormDialog`, deliberately not "fixed"):
 - **Payroll payslip Sheet** — read-only detail view, not a form.
@@ -99,7 +99,7 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 
 ## Dialog & Sheet button labels (canonical)
 
-The submit and cancel slots of every admin form Dialog / Sheet use the labels in this table. Cross-link from `crud.md` Edit Dialog Standard. Voice rules (`voice.md`) for body copy still apply — the table only fixes the *button strings*.
+Every admin form Dialog / Sheet uses these button strings (linked from `crud.md` Edit Dialog Standard); `voice.md` still governs body copy.
 
 | Action type | Submit label | Loading | Cancel | Cancel variant |
 |---|---|---|---|---|
@@ -112,7 +112,7 @@ The submit and cancel slots of every admin form Dialog / Sheet use the labels in
 
 For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
 
-`<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the reusable default for create/edit forms. It owns the bounded shadcn `ScrollArea`, dynamic viewport-height limit, internal focus-ring padding, and docked header/footer in both modes. Supply fields as children, actions through `footer`, and width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. Migrate legacy inline forms when changing their layout. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute. Pass `footer={null}` (not omitted) for a multi-step wizard that owns its own per-step buttons — the shell then renders no docked footer bar instead of an empty one.
+`<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the default for create/edit forms. It owns the bounded `ScrollArea`, viewport-height limit, focus-ring padding and docked header/footer in both modes. Supply fields as children, actions through `footer`, width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute. Pass `footer={null}` (not omitted) for a multi-step wizard that owns its own per-step buttons — the shell then renders no docked footer bar instead of an empty one.
 
 ## Forms — react-hook-form + zod
 
@@ -121,7 +121,7 @@ Every admin create/edit form is built the same way (cycle `2026-09-27-admin-form
 - `const form = useZodForm(schema, { defaultValues })` (`lib/forms/use-zod-form.ts`) — validates `onTouched`, focuses the first invalid field on submit.
 - `schema` is the API route's own schema from `lib/validations/**`, or a form schema **derived** from it in the same file (`.extend` / `.pick` / `.omit` / `.superRefine`). Never a divergent copy. Messages are Indonesian; a required string fails with "… wajib diisi" before any format rule.
 - Each control is a `<FormField control name label required render={({ field, controlProps }) => …} />`. Spread `field` + `controlProps` on `Input`/`Textarea`; map `value`/`onChange` for `Select`, `Checkbox`, `DatePicker`, `RupiahInput`, pickers. Never pass a `ref` — `FormField` registers its own focus target.
-- Submit: `form.handleSubmit(async (values) => { try { await sendJson(url, { method, body }, fallback); … } catch (err) { applyServerErrors(form, err, fallback) } })` — `sendJson` in `lib/api/send-json.ts`, `applyServerErrors` in `lib/forms/server-errors.ts` maps a `validateBody` 400 onto fields and anything else to `<FormRootError>` + toast.
+- Submit: `form.handleSubmit(async (values) => { try { await sendJson(url, { method, body }, fallback); … } catch (err) { applyServerErrors(form, err, fallback) } })` — `sendJson` (`lib/api/send-json.ts`); `applyServerErrors` (`lib/forms/server-errors.ts`) maps a `validateBody` 400 onto fields, anything else to `<FormRootError>` + toast.
 - Dialog: `<form id={formId} onSubmit={…} noValidate>` with `<FormRootError formState={form.formState} />` first, and `footer={<FormDialogFooter formId pending={form.formState.isSubmitting} onCancel submitLabel />}`. Page-level forms add `useUnsavedChangesGuard(form.formState.isDirty)` and `form.reset(saved)` after saving.
 
 **Four rules learned the hard way:**
@@ -189,18 +189,18 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 
 - Mark secondary columns (created/updated-at, ids, anything not needed to identify or act on the row) `meta: { priority: "low" }` — hidden below `md`, back on `md+`.
 - The action column (`id: "actions"`, from `DataTableRowActions`) is automatically sticky-right below `md` with a left shadow and opaque background; a column can opt in explicitly with `meta: { sticky: "right" }` if a page names its actions column differently.
-- Repeat the few facts a phone user needs (class, status, date) under the name with `<DataTableMobileMeta>` (`components/ui/data-table-mobile-meta.tsx`, `md:hidden`, wraps) — pass it as `description` of the identity `DataTableLinkCell`. Every `whitespace-nowrap` cell adds to the table's minimum width, so a wide identity cell has to be wrappable (`whitespace-normal`) or the table overflows and the amount/status columns end up under the sticky actions column (CORE-7, FIN-21, ACAD-10).
+- Repeat the few facts a phone user needs (class, status, date) under the name with `<DataTableMobileMeta>` (`components/ui/data-table-mobile-meta.tsx`, `md:hidden`, wraps) — pass it as `description` of the identity `DataTableLinkCell`. Every `whitespace-nowrap` cell adds to the table's minimum width, so a wide identity cell has to be wrappable (`whitespace-normal`) or the table overflows and the amount/status columns end up under the sticky actions column.
 - Pass `isFiltered` to `<DataTable>` while a search or filter is active: an empty result then reads "Tidak ada hasil yang cocok" instead of the first-run copy and CTA.
 - Aim for **≤3 visible data columns + actions at 390px** — everything else is `priority: "low"`.
-- **Define `columns` so cell identity is stable** — module-level, or `useMemo` with a tight dependency array, and declared above any early-return (a page that returns a loading skeleton before its own `columns` definition rebuilds it on every render once past that guard). Row-action handlers passed into `columns` go through `useCallback`. TanStack `flexRender` mounts each `cell` function as its own component; a `columns` array rebuilt on every render remounts every cell, which loses focus in an inline input and closes an open row-actions menu — this was the root cause of a flaky attendance-override test's click-retry loop, since removed. For an inline-edit cell (e.g. a per-row `RupiahInput`), pass the live value/setter through React context or table `meta` instead of closing over page state in the column definition — see `app/admin/fees/page.tsx`'s `STRUCTURE_COLUMNS` + `TarifContext` for the pattern.
+- **Define `columns` so cell identity is stable** — module-level, or `useMemo` with a tight dependency array, and declared above any early-return (a page that returns a loading skeleton before its own `columns` definition rebuilds it on every render once past that guard). Row-action handlers passed into `columns` go through `useCallback`. TanStack `flexRender` mounts each `cell` function as its own component; a `columns` array rebuilt on every render remounts every cell, which loses focus in an inline input and closes an open row-actions menu. For an inline-edit cell (e.g. a per-row `RupiahInput`), pass the live value/setter through React context or table `meta` instead of closing over page state in the column definition — see `app/admin/fees/page.tsx`'s `STRUCTURE_COLUMNS` + `TarifContext` for the pattern.
 
 ### Name is the link
 
-The row's identity cell (name, title, code — whatever a person scans for) is a `DataTableLinkCell` (`href` for a detail route, `onClick` for an overlay view) instead of plain text. There is no separate "Lihat" row action — the name already goes there, with a bigger, more obvious tap target. The `⋯` menu keeps Edit and the terminal action (Deactivate/Cancel/Void). `DataTableRowActions` still accepts `onView` for the rare row with no link target at all (e.g. a read-only Sheet reached only from `extraActions`) — do not pass it alongside a link cell that already opens the same view.
+The row's identity cell (name, title, code) is a `DataTableLinkCell` (`href` for a detail route, `onClick` for an overlay view), not plain text. There is no separate "Lihat" action; the `⋯` menu keeps Edit and the terminal action. Pass `onView` only for a row with no link target of its own, never alongside a link cell that opens the same view.
 
 ### Column header casing — title case
 
-All admin-table column headers render in **title case**, never ALL CAPS or lowercase. This applies to the *display* string — pass `"Kampus"`, `"Status Akun"`, etc. as the literal title, and the table will render exactly that. `DataTable` itself no longer applies CSS `uppercase` (removed 2026-05-12 cycle `uat-may12-fixes`); the source string is the source of truth.
+All admin-table column headers are **title case**, never ALL CAPS or lowercase. Pass the literal display string (`"Status Akun"`); `DataTable` applies no CSS `uppercase`.
 
 Rules:
 - One word → initial capital: `Kampus`, `Status`, `Peran`, `Kelas`, `Rekening`, `Pulang`.
@@ -209,7 +209,7 @@ Rules:
 - Brand/loanwords keep their canonical casing: `Xendit`, `PDF`, `BCA`.
 - Cell content uses the same convention via a `formatXxx()` helper (`formatRupiah`, `getRoleLabel`, `formatDate`, etc.) — never render raw database enums directly.
 
-If a future page needs an emphasised section heading inside a card (not a table column), use `SectionHeading` (which intentionally keeps `uppercase` for that distinct visual role).
+An emphasised heading inside a card (not a table column) uses `SectionHeading`, which keeps `uppercase` on purpose.
 
 ## DataTable Action Column Standard
 
@@ -222,7 +222,6 @@ Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx
 | B — State-machine (Invoice) | `onVoid` | Batalkan |
 | C — Event-log (StudentAttendance) | `onVoid` | Batalkan |
 
-- **Primary:** the identity cell is the link (`DataTableLinkCell`, see above) — do not also pass `onView` for the same destination. Reserve `onView` for a row with no link target of its own.
 - **Dropdown (⋮):** `onEdit` + one terminal prop (`onDeactivate` | `onCancel` | `onVoid`).
 - Never hard delete. Never use `extraActions` for "Batalkan" / "Nonaktifkan" — use the dedicated prop so menu labels and icons stay consistent.
 - `extraActions` is reserved for **domain-specific** actions (e.g. "Setujui" / "Tolak" on the LeaveRequest approval queue; "Terima & Jadikan Siswa" is the formulir detail's primary action, not an `extraActions` entry).

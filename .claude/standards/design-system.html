@@ -18,6 +18,9 @@
 
     --primary: #5DB4B8;
     --primary-foreground: #173536;
+    /* Readable teal for text/glyphs on light or tinted surfaces (5.00:1 on white) */
+    --primary-text: #2F7A7D;
+    /* Doc-only: the Hover demo swatch and the accent-hue playground use it; globals.css has no --primary-hover */
     --primary-hover: #4A9DA1;
 
     --secondary: #E8F5F6;
@@ -29,7 +32,8 @@
     --accent: #E8F5F6;
     --accent-foreground: #1C1917;
 
-    --destructive: #E63946;
+    /* AA-darkened error red (4.83:1 on white). #FF3B3B survives only as --status-absent, the attendance dot/bar */
+    --destructive: #DC2626;
     --border: #E5E2DE;
     --input: #E5E2DE;
     --ring: #5DB4B8;
@@ -40,6 +44,8 @@
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) * 1.4);
     --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
 
     --sidebar: #1A2E2F;
     --sidebar-foreground: #8AACAD;
@@ -48,13 +54,14 @@
     --sidebar-accent: #2A4344;
     --sidebar-accent-foreground: #FFFFFF;
     --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #5DB4B8;
 
     --status-present: #00B37E;
     --status-present-subtle: #E6F9F1;
     --status-present-text: #00704A;
     --status-late: #FF8C00;
     --status-late-subtle: #FFF4E6;
-    --status-late-text: #B35C00;
+    --status-late-text: #A35000;
     --status-absent: #FF3B3B;
     --status-absent-subtle: #FFE6E6;
     --status-absent-text: #CC0000;
@@ -66,21 +73,49 @@
     --status-holiday-text: #6B21A8;
     --status-no-checkout: #FFB020;
     --status-no-checkout-subtle: #FFF7E6;
+    --status-no-checkout-text: #A35000;
 
-    --warning: #FF8C00;
+    /* Semantic triads: base / -subtle (tint surface) / -text (AA ink on the tint). Alias the status tiers. */
     --success: #00B37E;
+    --success-subtle: var(--status-present-subtle);
+    --success-text: var(--status-present-text);
+    --warning: #FF8C00;
+    --warning-subtle: var(--status-late-subtle);
+    --warning-text: var(--status-late-text);
     --info: #0EA5E9;
+    --info-subtle: var(--status-leave-subtle);
+    --info-text: var(--status-leave-text);
+    --destructive-subtle: var(--status-absent-subtle);
+    --destructive-text: var(--status-absent-text);
 
-    /* Proposed additions (Section: Spacing & Type Scale) */
+    /* Celebration tone: rapor published, all lunas, courtesy moments */
+    --celebration-gold: #D4A017;
+    --celebration-gold-subtle: #FFF8E1;
+    --celebration-gold-text: #8A6B00;
+
+    /* Elevation, motion, stacking (utilities: shadow-*, ease-*, duration-*, z-*) */
+    --elevation-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --elevation-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+    --elevation-raised: 0 4px 12px -2px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --elevation-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.18), 0 4px 8px -4px rgb(0 0 0 / 0.08);
+    --shadow-sticky-edge: -8px 0 8px -8px rgb(0 0 0 / 0.12);
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+    --transition-duration-fast: 120ms;
+    --transition-duration-base: 200ms;
+    --transition-duration-slow: 320ms;
+    --z-index-base: 0; --z-index-sticky: 10; --z-index-header: 20; --z-index-nav: 30; --z-index-dropdown: 40; --z-index-overlay: 50; --z-index-toast: 60;
+
+    /* Spacing & type scale (utilities: px-page-x, gap-section, text-h1 …) */
     --space-page-x: 1.5rem;
     --space-page-y: 2rem;
     --space-section: 2rem;
     --space-card: 1.5rem;
     --space-field: 1rem;
 
-    --text-display: 2rem;
-    --text-h1: 1.5rem;
-    --text-h2: 1.125rem;
+    --text-display: 2rem;    /* 1.15 leading, bold */
+    --text-h1: 1.5rem;       /* 1.25 leading, semibold */
+    --text-h2: 1.125rem;     /* 1.35 leading, semibold */
     --text-body: 0.875rem;
     --text-small: 0.75rem;
     --text-caption: 0.6875rem;
@@ -267,7 +302,7 @@
   .badge-absent { background: var(--status-absent-subtle); color: var(--status-absent-text); }
   .badge-leave { background: var(--status-leave-subtle); color: var(--status-leave-text); }
   .badge-holiday { background: var(--status-holiday-subtle); color: var(--status-holiday-text); }
-  .badge-no-checkout { background: var(--status-no-checkout-subtle); color: var(--status-late-text); }
+  .badge-no-checkout { background: var(--status-no-checkout-subtle); color: var(--status-no-checkout-text); }
   .badge-muted { background: var(--muted); color: var(--muted-foreground); }
   .badge-primary { background: color-mix(in oklab, var(--primary) 10%, transparent); color: var(--primary); }
 
@@ -1239,7 +1274,7 @@
           </div>
           <div class="swatch">
             <div class="swatch-preview" style="background: var(--destructive);"></div>
-            <div class="swatch-body"><div class="swatch-name">Destructive</div><div class="swatch-var">--destructive</div><div class="swatch-hex">#E63946</div></div>
+            <div class="swatch-body"><div class="swatch-name">Destructive</div><div class="swatch-var">--destructive</div><div class="swatch-hex">#DC2626</div></div>
           </div>
           <div class="swatch">
             <div class="swatch-preview" style="background: var(--secondary);"></div>
@@ -1299,10 +1334,55 @@
             <div style="display: flex; gap: 0.375rem; height: 36px; margin-bottom: 0.75rem;">
               <div style="flex: 1; background: var(--status-no-checkout); border-radius: 6px;"></div>
               <div style="flex: 1; background: var(--status-no-checkout-subtle); border-radius: 6px;"></div>
-              <div style="flex: 1; background: var(--status-late-text); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--status-no-checkout-text); border-radius: 6px;"></div>
             </div>
             <div style="font-weight: 600; font-size: 0.8125rem;">No Checkout</div>
             <div class="mono text-muted" style="font-size: 0.6875rem; margin-top: 0.125rem;">--status-no-checkout*</div>
+          </div>
+        </div>
+
+        <h3 class="card-title" style="margin: 2rem 0 0.25rem;">Semantic triads <span class="text-muted mono" style="font-weight: 400; font-size: 0.6875rem;">· base / subtle / text</span></h3>
+        <p class="card-hint">Base is a fill (dot, bar, border). Subtle is an opaque tint surface. Text is the AA ink on that tint. Never <code class="mono" style="font-size: 0.6875rem;">bg-success/10</code>-style opacity tints. Light-only: there is no dark theme.</p>
+        <div class="grid-4" style="gap: 0.75rem;">
+          <div class="card" style="padding: 1rem;">
+            <div style="display: flex; gap: 0.375rem; height: 36px; margin-bottom: 0.75rem;">
+              <div style="flex: 1; background: var(--success); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--success-subtle); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--success-text); border-radius: 6px;"></div>
+            </div>
+            <div style="font-weight: 600; font-size: 0.8125rem;">Success</div>
+            <div class="mono text-muted" style="font-size: 0.6875rem; margin-top: 0.125rem;">--success · -subtle · -text</div>
+            <div class="text-muted" style="font-size: 0.6875rem; margin-top: 0.25rem;">Done, paid, present</div>
+          </div>
+          <div class="card" style="padding: 1rem;">
+            <div style="display: flex; gap: 0.375rem; height: 36px; margin-bottom: 0.75rem;">
+              <div style="flex: 1; background: var(--warning); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--warning-subtle); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--warning-text); border-radius: 6px;"></div>
+            </div>
+            <div style="font-weight: 600; font-size: 0.8125rem;">Warning</div>
+            <div class="mono text-muted" style="font-size: 0.6875rem; margin-top: 0.125rem;">--warning · -subtle · -text</div>
+            <div class="text-muted" style="font-size: 0.6875rem; margin-top: 0.25rem;">Needs attention, pending</div>
+          </div>
+          <div class="card" style="padding: 1rem;">
+            <div style="display: flex; gap: 0.375rem; height: 36px; margin-bottom: 0.75rem;">
+              <div style="flex: 1; background: var(--info); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--info-subtle); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--info-text); border-radius: 6px;"></div>
+            </div>
+            <div style="font-weight: 600; font-size: 0.8125rem;">Info</div>
+            <div class="mono text-muted" style="font-size: 0.6875rem; margin-top: 0.125rem;">--info · -subtle · -text</div>
+            <div class="text-muted" style="font-size: 0.6875rem; margin-top: 0.25rem;">Informational, leave</div>
+          </div>
+          <div class="card" style="padding: 1rem;">
+            <div style="display: flex; gap: 0.375rem; height: 36px; margin-bottom: 0.75rem;">
+              <div style="flex: 1; background: var(--destructive); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--destructive-subtle); border-radius: 6px;"></div>
+              <div style="flex: 1; background: var(--destructive-text); border-radius: 6px;"></div>
+            </div>
+            <div style="font-weight: 600; font-size: 0.8125rem;">Destructive</div>
+            <div class="mono text-muted" style="font-size: 0.6875rem; margin-top: 0.125rem;">--destructive · -subtle · -text</div>
+            <div class="text-muted" style="font-size: 0.6875rem; margin-top: 0.25rem;">Errors, delete, overdue</div>
           </div>
         </div>
       </section>
@@ -1381,12 +1461,48 @@
           <div class="card">
             <div class="card-title">Radius ramp</div>
             <div class="card-hint">Anchored to <code class="mono" style="font-size: 0.6875rem;">--radius: 0.625rem</code>. Derived values compose automatically.</div>
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem;">
               <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-sm);"></div><div class="radius-label">sm · 6px</div></div>
               <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-md);"></div><div class="radius-label">md · 8px</div></div>
               <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-lg);"></div><div class="radius-label">lg · 10px</div></div>
               <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-xl);"></div><div class="radius-label">xl · 14px</div></div>
               <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-2xl);"></div><div class="radius-label">2xl · 18px</div></div>
+              <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-3xl);"></div><div class="radius-label">3xl · 22px</div></div>
+              <div class="radius-chip"><div class="radius-box" style="border-radius: var(--radius-4xl);"></div><div class="radius-label">4xl · 26px</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="align-items: start; margin-top: 1rem;">
+          <div class="card">
+            <div class="card-title">Elevation</div>
+            <div class="card-hint">Utilities <code class="mono" style="font-size: 0.6875rem;">shadow-*</code>.</div>
+            <div style="display: grid; gap: 0.75rem;">
+              <div style="padding: 0.625rem 0.75rem; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--elevation-resting);"><span class="mono" style="font-size: 0.6875rem;">shadow-resting</span> <span class="text-muted" style="font-size: 0.6875rem;">· cards</span></div>
+              <div style="padding: 0.625rem 0.75rem; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--elevation-raised);"><span class="mono" style="font-size: 0.6875rem;">shadow-raised</span> <span class="text-muted" style="font-size: 0.6875rem;">· hover lift, sticky bar</span></div>
+              <div style="padding: 0.625rem 0.75rem; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--elevation-overlay);"><span class="mono" style="font-size: 0.6875rem;">shadow-overlay</span> <span class="text-muted" style="font-size: 0.6875rem;">· menus, dialogs</span></div>
+              <div style="padding: 0.625rem 0.75rem; border-radius: var(--radius-lg); background: var(--card); box-shadow: var(--shadow-sticky-edge);"><span class="mono" style="font-size: 0.6875rem;">shadow-sticky-edge</span> <span class="text-muted" style="font-size: 0.6875rem;">· sticky trailing column</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Motion</div>
+            <div class="card-hint">Utilities <code class="mono" style="font-size: 0.6875rem;">ease-*</code>, <code class="mono" style="font-size: 0.6875rem;">duration-*</code>. JS: <code class="mono" style="font-size: 0.6875rem;">lib/motion.ts</code>.</div>
+            <div class="mono" style="font-size: 0.6875rem; line-height: 1.9;">
+              ease-standard<br><span class="text-muted">cubic-bezier(0.2, 0, 0, 1)</span><br>
+              ease-emphasized<br><span class="text-muted">cubic-bezier(0.22, 1, 0.36, 1)</span><br>
+              duration-fast <span class="text-muted">120ms</span><br>
+              duration-base <span class="text-muted">200ms</span><br>
+              duration-slow <span class="text-muted">320ms</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Z-index</div>
+            <div class="card-hint">Utilities <code class="mono" style="font-size: 0.6875rem;">z-*</code>. Shadcn <code class="mono" style="font-size: 0.6875rem;">z-50</code> = <code class="mono" style="font-size: 0.6875rem;">z-overlay</code>.</div>
+            <div class="mono" style="font-size: 0.6875rem; line-height: 1.9;">
+              z-base <span class="text-muted">0</span> · z-sticky <span class="text-muted">10</span><br>
+              z-header <span class="text-muted">20</span> · z-nav <span class="text-muted">30</span><br>
+              z-dropdown <span class="text-muted">40</span><br>
+              z-overlay <span class="text-muted">50</span> · z-toast <span class="text-muted">60</span>
             </div>
           </div>
         </div>
@@ -1635,6 +1751,19 @@
             </div>
           </div>
         </div>
+
+        <div class="card" style="margin-top: 1rem;">
+          <div class="card-title">Badge tones <span class="text-muted mono" style="font-weight: 400; font-size: 0.6875rem;">· <code>&lt;Badge variant&gt;</code></span></div>
+          <div class="card-hint">The visual primitive for count and state pills. <code class="mono" style="font-size: 0.6875rem;">StatusBadge</code> maps a domain enum to a label and one of these tones. Never <code class="mono" style="font-size: 0.6875rem;">&lt;Badge className="bg-status-…"&gt;</code> overrides or hand-rolled <code class="mono" style="font-size: 0.6875rem;">&lt;span rounded-full&gt;</code> pills.</div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span class="badge badge-present">success</span>
+            <span class="badge badge-late">warning</span>
+            <span class="badge badge-leave">info</span>
+            <span class="badge badge-absent">danger</span>
+            <span class="badge badge-muted">neutral</span>
+          </div>
+          <div class="mono text-muted" style="font-size: 0.625rem; margin-top: 0.75rem;">subtle tint background + AA <code>-text</code> ink · neutral = bg-muted text-muted-foreground</div>
+        </div>
       </section>
 
       <!-- ────────── 09 DATATABLE ────────── -->
@@ -1794,6 +1923,18 @@
             <p class="state-desc">Koneksi ke server terputus. Periksa jaringan dan coba lagi dalam beberapa detik.</p>
             <button class="btn btn-outline btn-sm"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Coba lagi</button>
             <div class="mono text-muted" style="font-size: 0.625rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); width: 100%;">fetch error contract</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 1rem;">
+          <div class="card-title">Shared primitives</div>
+          <div class="card-hint">Reach for these before hand-rolling. A guard test (<code class="mono" style="font-size: 0.6875rem;">design-token-guard.test.ts</code>) fails on raw palette colours, arbitrary hex, <code class="mono" style="font-size: 0.6875rem;">Loader2</code>/<code class="mono" style="font-size: 0.6875rem;">animate-spin</code> outside Spinner and <code class="mono" style="font-size: 0.6875rem;">bg-&lt;semantic&gt;/10</code> tints.</div>
+          <div class="mono" style="font-size: 0.6875rem; line-height: 2;">
+            <b>&lt;SectionCard title description? action? footer?&gt;</b> <span class="text-muted">· bordered section block for detail pages and portal sections (not <code>rounded-xl border bg-card p-4</code> divs)</span><br>
+            <b>&lt;Spinner /&gt;</b> <span class="text-muted">· the one loading indicator; <code>aria-hidden</code> beside visible text; respects reduced motion</span><br>
+            <b>&lt;ErrorState title onRetry&gt;</b> <span class="text-muted">· route <code>error.tsx</code> and failed fetches; "Coba lagi"</span><br>
+            <b>&lt;UserAvatar size="sm|md|lg"&gt;</b> <span class="text-muted">· photo or initials</span><br>
+            <b>&lt;BackLink href&gt;</b> <span class="text-muted">· portal "up one level" link</span>
           </div>
         </div>
       </section>
@@ -3736,7 +3877,7 @@
   .tweak-slider { width: 100%; accent-color: var(--primary); }
   .tweak-hue-preview {
     height: 8px; border-radius: 4px;
-    background: linear-gradient(90deg, #5DB4B8, #8B5CF6, #E63946, #FF8C00, #00B37E, #5DB4B8);
+    background: linear-gradient(90deg, #5DB4B8, #8B5CF6, #DC2626, #FF8C00, #00B37E, #5DB4B8);
   }
   .tweak-fab {
     position: fixed; right: 1rem; bottom: 1rem;
