@@ -161,16 +161,18 @@ test.describe("Admin — money already taken", () => {
     await page.getByPlaceholder("Cari nama siswa...").fill(target!.name);
     await pickStudent(page, target!);
 
-    // The message the admin already knew, plus the invoice itself under it.
+    // The message the admin already knew, plus the invoice itself under it. Earlier specs may have left
+    // other unreadable-label invoices for this student, so look at the caution about THIS invoice only.
     const caution = dialog.getByRole("status").filter({ hasText: "Perlu diperiksa" });
     await expect(caution).toBeVisible();
-    await expect(caution.getByText(new RegExp(`Tagihan lunas dengan label "${label}"`))).toBeVisible();
-    await expect(caution.getByText(invoice.invoiceNumber, { exact: false })).toBeVisible();
-    await expect(caution.getByText(/Rp\s?1\.500\.000/).first()).toBeVisible();
-    await expect(caution.getByText(/SPP di dalamnya/)).toBeVisible();
+    const item = caution.getByRole("listitem").filter({ hasText: label });
+    await expect(item.getByText(new RegExp(`Tagihan lunas dengan label "${label}"`))).toBeVisible();
+    await expect(item.getByText(invoice.invoiceNumber, { exact: false })).toBeVisible();
+    await expect(item.getByText(/Rp\s?1\.500\.000/).first()).toBeVisible();
+    await expect(item.getByText(/SPP di dalamnya/)).toBeVisible();
 
     // "Buka tagihan" opens that invoice in a new tab; the dialog (and what the admin typed) stays.
-    const link = caution.getByRole("link", { name: new RegExp(`Buka tagihan ${invoice.invoiceNumber}`) });
+    const link = item.getByRole("link", { name: new RegExp(`Buka tagihan ${invoice.invoiceNumber}`) });
     await expect(link).toHaveAttribute("target", "_blank");
     const [popup] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
     await expect(popup).toHaveURL(new RegExp(`/admin/invoices/${invoice.id}$`));

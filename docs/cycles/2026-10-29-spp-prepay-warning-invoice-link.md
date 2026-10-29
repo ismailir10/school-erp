@@ -93,6 +93,10 @@ untouched; it already returns the issues).
 - T2 e2e: e2e/admin-paid-invoice-spp-prepay.spec.ts gains a test that creates a paid invoice labelled without a month (through the API), opens
   "Catat SPP di muka", and asserts the caution names the invoice, shows its total and SPP amount, and that "Buka tagihan" opens it in a
   new tab while the dialog stays open and still confirmable.
+- Test robustness (found by the full local suite on a database earlier specs had already used): the SPP prepay spec settles every month
+  of one student's year, and the student-leave spec (previous cycle) bills the last month of the year, so on a shared DB the leave
+  fixture could land on a student whose invoice for that month already exists (draft row read SKIPPED_ALREADY_INVOICED). The leave spec now
+  skips students already invoiced for its month; the new caution test looks only at the caution about its own invoice.
 
 ## Verification
 
