@@ -196,4 +196,37 @@ existing permissions), no production write by the agent.
 
 ## Verification
 
+**Verified locally — 8109e238** (the tree after merging `origin/staging` #701; later commits, if any, are cycle-doc evidence only)
+
+- Diff classified from `origin/staging...HEAD` (0 behind): **other code**. No auth, session, cookie, proxy or dependency change (a new route on the existing `fees.view`/`fees.edit`
+  permissions). One additive migration (`20261029010000_add_program_bundle_fee`). No signed-in staging check required. A deliberate behaviour change to the Billing Run's scope
+  (Decision 4) is called out in the PR.
+- App: production build, demo auth + disposable local Postgres 16 (localhost:54329, recreated empty, `prisma db push` + seed).
+- Full gate on this head: `npm run lint` exit 0 · `tsc --noEmit` clean · `verify-rls-coverage.sh` 46/46 · `verify-api-auth.sh` 225/225 · `audit-docs.sh` 0 fail (1 pre-existing warn) ·
+  `npx vitest run` 734 files passed | 2 skipped, **8913 tests passed** · `DEMO_MODE=true npm run build` exit 0 · `npx playwright test` whole suite **263 passed, 1 skipped (pre-existing),
+  0 failed, no retries** on a freshly recreated database; the same suite also passed twice (fresh, then the same used DB) one merge earlier, and the new spec passed twice in a row on its own.
+  Soft-skip delta vs staging: baseline 26, current 26.
+- Playwright note: the installed Chromium is build 1243 and the repo's Playwright asks for 1248, so the repo config was run through a wrapper kept outside the repo that only sets
+  `executablePath`; webServer, DB guard and workers are the repo's own.
+- Looked at (production build): "Harga paket sekolah + daycare" at 1280x1000 (header and table) and at 390x844 (found a real problem there: the "Harga paket" input was off-screen
+  behind a sideways scroll; fixed by stacking rows below `sm` and re-checked: each row shows program, component, "Jumlah biasa" and a full-width price input, no horizontal overflow, no
+  console errors). design-system respected throughout. Shots: `bundle-desktop2.png`, `bundle-mobile.png`.
+- Verify flows: 1 (set and bill, either class ticked), 2 (fallback after clearing) and the per-student scope are covered by the new e2e test on the production build; 3 (a second school
+  program uses its own price, leave drops the daycare) and the third-program and ambiguity cases by builder unit tests; 4 (zero amount, no fee-edit rights) by API and component tests;
+  5 (SPP di muka prices the bundle) by the prepay loader tests. **Not walked in a browser:** SPP di muka with a bundle, a user without `fees.edit` seeing the section read-only, and
+  the cuti + bundle combination (unit tests only).
+- Opus 5.5 reviewed the plan before building (approve with changes; its blocking finding, the class-scoped Billing Run, is Decision 4/T2a). The T2a/T2 diff and the fee-bundles
+  route were read line by line by the driver; the full-branch diff was not given a second Opus pass this cycle.
+
+
 ## Ship Notes
+
+- **Migration:** `20261029010000_add_program_bundle_fee` — one new table `ProgramBundleFee`, additive, RLS policy, Restrict FKs, explicit short unique index name. Vercel's build runs
+  `prisma migrate deploy`, so it applies on the staging deploy. Rollback: revert the PR; the empty table can stay (nothing else references it).
+- **Behaviour change to know about:** a Billing Run now prices a student for ALL their active placements in the year when any one of them is in a ticked class (before, only the ticked
+  classes' placements). For a child in school + daycare this means one complete invoice from either class; the review row's program label lists every program. Students with a single
+  placement are unaffected. No bundle price set → the sum, exactly as before.
+- **Env / config / manual steps:** none. **After deploy:** the admin enters the bundle prices on Tarif per Program (TK A SPP 1.560.000, TK B 1.500.000 in her example), registers the
+  daycare children in the daycare class, and rebuilds any open draft ("Hitung ulang"). Invoices already created, and runs already committing, are not re-priced.
+- **Permissions:** `fees.view` to read, `fees.edit` to change (both already in the default admin roles); no new permission codes.
+- **Post-merge:** Vercel staging deploy READY for the merge SHA. Not auth-impacting, so no signed-in check is required.
