@@ -88,6 +88,8 @@ untouched; it already returns the issues).
 - T2: components/admin/invoices/spp-prepay-dialog.tsx + test — under those cautions a muted line "no · label · status · total (SPP di
   dalamnya …)" and a "Buka tagihan" link that opens the invoice in a new tab (dialog stays open). Checked against design-system
   (existing Alert/list/link styles, text-small, 44px touch floor on coarse pointers).
+  The link is an `aria-label`led `next/link` with `rel="noopener noreferrer"`; a caution without an invoice reference renders as the
+  plain message it was (component-tested), blocking cautions are untouched.
 
 ## Verification
 

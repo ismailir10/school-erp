@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { CircleAlert, TriangleAlert } from "lucide-react";
+import { CircleAlert, ExternalLink, TriangleAlert } from "lucide-react";
 
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -30,6 +30,7 @@ import { sendJson } from "@/lib/api/send-json";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatDateTime, formatMonthLabel, formatRupiah } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { invoiceStatusLabel } from "@/lib/constants/invoice-status";
 import {
   SPP_PREPAY_METHODS,
   SPP_PREPAY_RANGE_ORDER_MESSAGE,
@@ -56,6 +57,16 @@ type PreviewRow = {
   beforeFirstBilling: boolean;
 };
 
+/** The one invoice a caution points at (PlanInvoiceRef from lib/finance/spp-prepay-plan.ts). */
+type PreviewInvoiceRef = {
+  id: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  status: string;
+  totalDue: number;
+  monthlyAmount: number;
+};
+
 type PreviewIssue = {
   code: string;
   blocking: boolean;
@@ -63,6 +74,7 @@ type PreviewIssue = {
   year?: number;
   month?: number;
   invoiceId?: string;
+  invoice?: PreviewInvoiceRef;
 };
 
 type Preview = {
@@ -137,6 +149,28 @@ function monthOptions(from: string, to: string): { value: string; label: string 
     }
   }
   return out;
+}
+
+/** Under a caution that points at one invoice: what it is, and a way to open it without leaving the dialog. */
+function IssueInvoice({ invoice }: { invoice: PreviewInvoiceRef }) {
+  return (
+    <div className="mt-1 flex flex-col items-start gap-x-3 gap-y-0.5 sm:flex-row sm:flex-wrap sm:items-center">
+      <p className="text-small text-muted-foreground">
+        {invoice.invoiceNumber} · {invoice.periodLabel} · {invoiceStatusLabel(invoice.status)} ·{" "}
+        {formatRupiah(invoice.totalDue)} (SPP di dalamnya {formatRupiah(invoice.monthlyAmount)})
+      </p>
+      <Link
+        href={`/admin/invoices/${invoice.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Buka tagihan ${invoice.invoiceNumber} di tab baru`}
+        className="inline-flex items-center gap-1 text-small text-primary-text underline underline-offset-3 hover:no-underline [@media(pointer:coarse)]:min-h-11"
+      >
+        Buka tagihan
+        <ExternalLink aria-hidden="true" className="size-3.5" />
+      </Link>
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------
@@ -587,7 +621,10 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
                   <AlertDescription>
                     <ul className="list-disc space-y-1 pl-4">
                       {warningIssues.map((issue, i) => (
-                        <li key={`${issue.code}-${i}`}>{issue.message}</li>
+                        <li key={`${issue.code}-${i}`}>
+                          {issue.message}
+                          {issue.invoice && <IssueInvoice invoice={issue.invoice} />}
+                        </li>
                       ))}
                     </ul>
                   </AlertDescription>
