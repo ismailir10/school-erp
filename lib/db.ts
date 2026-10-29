@@ -1,7 +1,6 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-10-21-dashboard-analytics — the seed now adds ~5 weeks of sessionless
-// student attendance and buku penghubung history; both sides still construct PrismaPg from
-// DATABASE_URL, adapter unchanged.
+// Last verified: 2026-10-29-student-enrollment-leave — the seed only clears the new EnrollmentLeave
+// table; both sides still construct PrismaPg from DATABASE_URL, adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 

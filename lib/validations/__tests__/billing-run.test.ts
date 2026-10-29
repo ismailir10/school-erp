@@ -89,7 +89,7 @@ describe("updateBillingRunRowSchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it.each(["SKIPPED_ALREADY_INVOICED", "SKIPPED_NO_FEE_STRUCTURE", "COMMITTED", "FAILED", "BOGUS"])(
+  it.each(["SKIPPED_ALREADY_INVOICED", "SKIPPED_NO_FEE_STRUCTURE", "SKIPPED_ON_LEAVE", "COMMITTED", "FAILED", "BOGUS"])(
     "rejects a status not permitted this cycle: %s",
     (status) => {
       const r = updateBillingRunRowSchema.safeParse({ status });

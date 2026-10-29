@@ -84,6 +84,7 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Alpa (attendance absent) | Absent, Tidak Hadir |
 | Sakit | Sick, Ill |
 | Izin | Permission, Excused |
+| Cuti (a *student's* billing pause on one placement — "Catat cuti", "Sedang cuti"; staff leave is also Cuti but lives in HR, and a day's absence is **Izin**) | Leave, Libur, Nonaktif |
 | Tagihan | Invoice, Bill (use Tagihan for parent; Invoice ok in admin) |
 | Kehadiran (the attendance *record* — history, recap, a parent's view) | Attendance |
 | Absensi (the *act* of taking roll — a teacher's task surface) | — (this is a real distinction, not drift: "Absensi Kelas" is the screen where a teacher marks; "Kehadiran" is what the marking produced. Do not collapse them into one word.) |

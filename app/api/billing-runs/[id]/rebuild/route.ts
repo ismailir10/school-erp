@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { rebuildBillingRunSchema } from "@/lib/validations/billing-run";
+import { LEAVE_RECORDED_AFTER_DRAFT_REASON } from "@/lib/finance/leave-exclusion";
 import {
   materializeBillingRun,
   type MaterializeBillingRunScope,
@@ -112,9 +113,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // of the rebuild and is separately confirmed for in the UI.
   const excludedRows = await prisma.billingRunRow.findMany({
     where: { billingRunId: id, status: "EXCLUDED" },
-    select: { studentId: true },
+    select: { studentId: true, error: true },
   });
-  const excludedStudentIds = new Set(excludedRows.map((r) => r.studentId));
+  // An exclusion made only because a leave was recorded after the draft was
+  // built is not carried over: the rebuilt row applies the leave rules itself
+  // (it reads "Sedang cuti", or keeps the remaining enrollments' fees).
+  const excludedStudentIds = new Set(
+    excludedRows
+      .filter((r) => r.error !== LEAVE_RECORDED_AFTER_DRAFT_REASON)
+      .map((r) => r.studentId),
+  );
 
   // Reads happen outside the transaction — same reasoning as
   // app/api/billing-runs/route.ts: materializeBillingRun issues five queries
@@ -133,7 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const rowsWithIds = rows.map((r) => {
     // Re-apply EXCLUDED by studentId: only a freshly-built PENDING row can
     // become EXCLUDED again. A row that is now SKIPPED_* stays SKIPPED_* —
-    // the skip reason (already invoiced / no fee structure) is the stronger
+    // the skip reason (already invoiced / on leave / no fee structure) is the stronger
     // fact and is not overridden by a stale exclusion.
     if (r.status === "PENDING" && excludedStudentIds.has(r.studentId)) {
       reappliedExclusions++;

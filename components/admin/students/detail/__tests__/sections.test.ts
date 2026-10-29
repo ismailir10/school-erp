@@ -4,6 +4,7 @@ import { GROUPS, LAZY_SECTIONS, defaultOpenSections, groupOf, isKnownTarget } fr
 const ALL_OLD_IDS = [
   "data-anak", "kesehatan", "keluarga", "riwayat-kelas", "kehadiran", "keuangan", "keringanan",
   "buku-penghubung", "akademik", "pendaftaran", "dokumen", "riwayat-status", "informasi-tambahan",
+  "cuti",
 ];
 
 describe("dossier sections", () => {
@@ -24,11 +25,14 @@ describe("dossier sections", () => {
     expect(groupOf("dokumen")).toBe("group-keluarga");
     expect(groupOf("riwayat-status")).toBe("group-kelas");
     expect(groupOf("keringanan")).toBe("group-keuangan");
+    expect(groupOf("cuti")).toBe("group-keuangan");
     expect(groupOf("buku-penghubung")).toBe("group-catatan");
   });
 
-  it("knows the five lazy rows", () => {
-    expect([...LAZY_SECTIONS].sort()).toEqual(["akademik", "buku-penghubung", "kehadiran", "keringanan", "pendaftaran"]);
+  it("knows the six lazy rows", () => {
+    expect([...LAZY_SECTIONS].sort()).toEqual([
+      "akademik", "buku-penghubung", "cuti", "kehadiran", "keringanan", "pendaftaran",
+    ]);
   });
 
   describe("isKnownTarget", () => {

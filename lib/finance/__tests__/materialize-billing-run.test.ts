@@ -16,8 +16,13 @@ const ENROLLMENTS: Enrollment[] = [
   { studentId: "s-inactive-extra", classSectionId: "cls-9", studentStatus: "INACTIVE" },
 ];
 
-/** Minimal Prisma stand-in: honours the `student.status` filter the way the DB would. */
-function fakeDb(invoices: { studentId: string; periodLabel: string }[] = []) {
+type FakeLeave = { enrollmentId: string; status: string; startMonth: string; endMonth: string; tenantId?: string };
+
+/**
+ * Minimal Prisma stand-in: honours the `student.status` filter the way the DB would, and the
+ * `enrollmentLeave` where-clause (tenant, enrollment ids, status, inclusive month range).
+ */
+function fakeDb(invoices: { studentId: string; periodLabel: string }[] = [], leaves: FakeLeave[] = []) {
   const enrollmentFindMany = vi.fn(async (args: { where: Record<string, unknown> }) => {
     const where = args.where as {
       student?: { status?: string };
@@ -31,6 +36,7 @@ function fakeDb(invoices: { studentId: string; periodLabel: string }[] = []) {
         return false;
       });
     }).map((e) => ({
+      id: `enr-${e.studentId}`,
       studentId: e.studentId,
       classSectionId: e.classSectionId,
       student: { id: e.studentId, name: e.studentId },
@@ -38,6 +44,29 @@ function fakeDb(invoices: { studentId: string; periodLabel: string }[] = []) {
     }));
   });
   const invoiceFindMany = vi.fn(async () => invoices);
+  const leaveFindMany = vi.fn(
+    async (args: {
+      where: {
+        tenantId: string;
+        enrollmentId: { in: string[] };
+        status: string;
+        startMonth: { lte: string };
+        endMonth: { gte: string };
+      };
+    }) => {
+      const w = args.where;
+      return leaves
+        .filter(
+          (l) =>
+            (l.tenantId ?? "tnt-1") === w.tenantId &&
+            w.enrollmentId.in.includes(l.enrollmentId) &&
+            l.status === w.status &&
+            l.startMonth <= w.startMonth.lte &&
+            l.endMonth >= w.endMonth.gte,
+        )
+        .map((l) => ({ enrollmentId: l.enrollmentId }));
+    },
+  );
   const db = {
     studentEnrollment: { findMany: enrollmentFindMany },
     programFeeStructure: {
@@ -53,8 +82,9 @@ function fakeDb(invoices: { studentId: string; periodLabel: string }[] = []) {
     invoice: { findMany: invoiceFindMany },
     studentGuardian: { findMany: vi.fn(async () => []) },
     studentFeeAdjustment: { findMany: vi.fn(async () => []) },
+    enrollmentLeave: { findMany: leaveFindMany },
   };
-  return { db: db as unknown as Prisma.TransactionClient, enrollmentFindMany, invoiceFindMany };
+  return { db: db as unknown as Prisma.TransactionClient, enrollmentFindMany, invoiceFindMany, leaveFindMany };
 }
 
 const base = {
@@ -126,6 +156,86 @@ describe("materializeBillingRun — period alias duplicate guard (FINX-6)", () =
     });
     const where = (invoiceFindMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
     expect(where.OR).toEqual([{ periodLabel: "okt 2026" }, { createdAt: { gte: expect.any(Date) } }]);
+  });
+});
+
+describe("materializeBillingRun — enrollment leave (cuti)", () => {
+  const scope = { classSectionIds: ["cls-1"], includeStudentIds: [], excludeStudentIds: [] };
+  const leave = (over: Partial<FakeLeave> = {}): FakeLeave => ({
+    enrollmentId: "enr-s-active",
+    status: "ACTIVE",
+    startMonth: "2026-10",
+    endMonth: "2026-10",
+    ...over,
+  });
+
+  it("loads active leaves for a monthly label and skips the student on leave", async () => {
+    const { db, leaveFindMany } = fakeDb([], [leave()]);
+    const { rows, summary } = await materializeBillingRun(db, { ...base, scope });
+    expect(rows).toEqual([expect.objectContaining({ studentId: "s-active", status: "SKIPPED_ON_LEAVE", lines: [] })]);
+    expect(summary.skippedOnLeave).toBe(1);
+    expect(leaveFindMany).toHaveBeenCalledTimes(1);
+    expect(leaveFindMany.mock.calls[0][0].where).toEqual({
+      tenantId: "tnt-1",
+      enrollmentId: { in: ["enr-s-active"] },
+      status: "ACTIVE",
+      startMonth: { lte: "2026-10" },
+      endMonth: { gte: "2026-10" },
+    });
+  });
+
+  it("zero-pads the month and matches an alias label (Okt 2026 -> 2026-10)", async () => {
+    const { db, leaveFindMany } = fakeDb([], [leave({ startMonth: "2026-09", endMonth: "2026-12" })]);
+    await materializeBillingRun(db, { ...base, periodLabel: "Okt 2026", scope });
+    expect(leaveFindMany.mock.calls[0][0].where).toMatchObject({
+      startMonth: { lte: "2026-10" },
+      endMonth: { gte: "2026-10" },
+    });
+    const { db: db2 } = fakeDb([], [leave({ startMonth: "2026-09", endMonth: "2026-12" })]);
+    const out = await materializeBillingRun(db2, { ...base, periodLabel: "Januari 2026", scope });
+    expect(out.rows[0].status).toBe("PENDING");
+  });
+
+  it.each([
+    ["a cancelled leave", leave({ status: "INACTIVE" })],
+    ["a leave that ended before the month", leave({ startMonth: "2026-08", endMonth: "2026-09" })],
+    ["a leave that starts after the month", leave({ startMonth: "2026-11", endMonth: "2026-12" })],
+    ["another tenant's leave", leave({ tenantId: "tnt-other" })],
+    ["a leave on another enrollment", leave({ enrollmentId: "enr-someone-else" })],
+  ])("does not apply %s", async (_name, l) => {
+    const { db } = fakeDb([], [l]);
+    const { rows, summary } = await materializeBillingRun(db, { ...base, scope });
+    expect(rows[0].status).toBe("PENDING");
+    expect(summary.skippedOnLeave).toBe(0);
+  });
+
+  it("applies a leave whose range spans the month inclusively (first and last month)", async () => {
+    for (const month of ["2026-10", "2026-12"] as const) {
+      const { db } = fakeDb([], [leave({ startMonth: "2026-10", endMonth: "2026-12" })]);
+      const label = month === "2026-10" ? "Oktober 2026" : "Desember 2026";
+      const { rows } = await materializeBillingRun(db, { ...base, periodLabel: label, scope });
+      expect(rows[0].status).toBe("SKIPPED_ON_LEAVE");
+    }
+  });
+
+  it.each(["Semester 1 2026/2027", "Okt - Des 2026", "Oktober"])(
+    "makes no leave query for the non-monthly label %j and never skips on leave",
+    async (periodLabel) => {
+      const { db, leaveFindMany } = fakeDb([], [leave({ startMonth: "2020-01", endMonth: "2030-12" })]);
+      const { rows } = await materializeBillingRun(db, { ...base, periodLabel, scope });
+      expect(leaveFindMany).not.toHaveBeenCalled();
+      expect(rows[0].status).toBe("PENDING");
+    },
+  );
+
+  it("makes no leave query when there are no enrollments", async () => {
+    const { db, leaveFindMany } = fakeDb([], [leave()]);
+    const { rows } = await materializeBillingRun(db, {
+      ...base,
+      scope: { classSectionIds: ["cls-none"], includeStudentIds: [], excludeStudentIds: [] },
+    });
+    expect(rows).toEqual([]);
+    expect(leaveFindMany).not.toHaveBeenCalled();
   });
 });
 

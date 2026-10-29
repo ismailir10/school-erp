@@ -115,6 +115,7 @@ async function main() {
   await prisma.billingRunRow.deleteMany();
   await prisma.billingRun.deleteMany();
   await prisma.studentFeeAdjustment.deleteMany();
+  await prisma.enrollmentLeave.deleteMany();
   await prisma.enrollmentApplication.deleteMany();
   await prisma.studentJournalNoteRead.deleteMany();
   await prisma.studentJournalAudit.deleteMany();

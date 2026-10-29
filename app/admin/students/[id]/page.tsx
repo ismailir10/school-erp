@@ -50,6 +50,7 @@ import { DokumenSection } from "@/components/admin/students/detail/dokumen-secti
 import { RiwayatStatusSection } from "@/components/admin/students/detail/riwayat-status-section";
 import { InformasiTambahanSection } from "@/components/admin/students/detail/informasi-tambahan-section";
 import { StudentLifecycleDialogs } from "@/components/admin/students/detail/lifecycle-dialogs";
+import { CutiSection } from "@/components/admin/students/detail/cuti-section";
 import { StudentRail } from "@/components/admin/students/detail/rail-content";
 import { buildRailTiles } from "@/components/admin/students/detail/rail-tiles";
 import {
@@ -78,6 +79,7 @@ import {
   GROUP_PROFIL,
   LAZY_SECTIONS,
   SECTION_AKADEMIK,
+  SECTION_CUTI,
   SECTION_JURNAL,
   SECTION_KEHADIRAN,
   SECTION_KELUARGA,
@@ -192,6 +194,8 @@ export default function StudentDetailPage() {
   // does not un-fetch, and re-opening does not re-request.
   const [keringananActive, setKeringananActive] = useState(false);
   const [keringananCount, setKeringananCount] = useState<number | null>(null);
+  const [cutiActive, setCutiActive] = useState(false);
+  const [cutiCount, setCutiCount] = useState<number | null>(null);
   const [jurnalActive, setJurnalActive] = useState(false);
 
   // --- Overview aggregate + lazy sections (increment 3) ---
@@ -301,6 +305,7 @@ export default function StudentDetailPage() {
       // Opening a lazy row is what pays for its fetch (a one-way latch).
       if (sectionId === SECTION_KEHADIRAN) setKehadiranActive(true);
       if (sectionId === SECTION_KERINGANAN) setKeringananActive(true);
+      if (sectionId === SECTION_CUTI) setCutiActive(true);
       if (sectionId === SECTION_JURNAL) setJurnalActive(true);
       if (sectionId === SECTION_AKADEMIK) setAkademikActive(true);
       if (sectionId === SECTION_PENDAFTARAN) setPendaftaranActive(true);
@@ -576,6 +581,7 @@ export default function StudentDetailPage() {
       error: invoicesError !== null,
       summary: invoiceSummary,
       keringananCount,
+      cutiCount,
     }),
     [GROUP_CATATAN]: catatanSummary({
       application: overview ? application : undefined,
@@ -870,6 +876,33 @@ export default function StudentDetailPage() {
                 studentId={id}
                 active={keringananActive}
                 onCountChange={setKeringananCount}
+              />
+            </DossierSubsection>
+
+            {/* Cuti (lazy): billing pauses per enrollment. Recording and
+                cancelling are in-page dialogs (students.edit here, plus
+                invoices.create on the API); the follow-up can cancel unpaid
+                invoices through the existing void route. */}
+            <DossierSubsection
+              id={SECTION_CUTI}
+              label="Cuti"
+              badge={
+                cutiCount != null && cutiCount > 0 ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {cutiCount}
+                  </span>
+                ) : undefined
+              }
+              open={openSections[SECTION_CUTI] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_CUTI, o)}
+              keepMounted
+            >
+              <CutiSection
+                studentId={id}
+                active={cutiActive}
+                canManage={canManage}
+                onCountChange={setCutiCount}
+                onInvoiceVoided={fetchInvoices}
               />
             </DossierSubsection>
           </DossierGroup>

@@ -25,6 +25,7 @@ vi.mock("@/lib/db", () => ({
     invoice: { findMany: vi.fn() },
     studentGuardian: { findMany: vi.fn() },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
+    enrollmentLeave: { findMany: vi.fn().mockResolvedValue([]) },
     billingRun: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -113,6 +114,7 @@ function wireSingleEligibleStudent() {
     vi.mocked(prisma.student.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
       {
+        id: "enr-1",
         studentId: "s-1",
         classSectionId: "cs-1",
         student: { id: "s-1", name: "Budi" },
@@ -396,6 +398,7 @@ describe("POST /api/billing-runs — happy path", () => {
       excluded: 0,
       skippedAlreadyInvoiced: 0,
       skippedNoFeeStructure: 0,
+      skippedOnLeave: 0,
       withAdjustments: 0,
     });
 
@@ -619,6 +622,26 @@ describe("PATCH /api/billing-runs/[id]/rows/[rowId] — exclude / re-include", (
     expect(res.status).toBe(409);
     expect(prisma.billingRunRow.update).not.toHaveBeenCalled();
   });
+
+  it.each(["SKIPPED_ON_LEAVE", "SKIPPED_ALREADY_INVOICED", "SKIPPED_NO_FEE_STRUCTURE", "FAILED"])(
+    "rejects toggling a %s row with 409, and never calls update",
+    async (sourceStatus) => {
+      await primeAdminSession();
+      const { prisma } = await import("@/lib/db");
+      vi.mocked(prisma.billingRun.findFirst).mockResolvedValue({ id: "run-1", status: "DRAFT" } as never);
+      vi.mocked(prisma.billingRunRow.findFirst).mockResolvedValue({ id: "row-1", status: sourceStatus } as never);
+
+      for (const target of ["PENDING", "EXCLUDED"]) {
+        const res = await patchRow(
+          makeReq("http://localhost/api/billing-runs/run-1/rows/row-1", { status: target }, "PATCH") as never,
+          makeRowParams("run-1", "row-1"),
+        );
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toBe("Baris ini dilewati dan tidak bisa diubah.");
+      }
+      expect(prisma.billingRunRow.update).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects when the parent run is not DRAFT, and never calls update", async () => {
     await primeAdminSession();

@@ -66,6 +66,7 @@ describe("student page — five groups", () => {
     for (const id of [
       "data-anak", "kesehatan", "keluarga", "riwayat-kelas", "kehadiran", "keuangan", "keringanan",
       "buku-penghubung", "akademik", "pendaftaran", "dokumen", "riwayat-status", "informasi-tambahan",
+      "cuti",
     ]) {
       expect(document.getElementById(id), id).not.toBeNull();
     }
@@ -116,7 +117,7 @@ describe("student page — five groups", () => {
   it("requests nothing lazy before a row is opened", async () => {
     const { calls } = await renderLoaded({ overview: OVERVIEW_WITH_FORM });
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
-    for (const needle of ["/attendance", "/academics", "/enrollment-application", "/api/student-fee-adjustments", "/api/student-journal/"]) {
+    for (const needle of ["/attendance", "/academics", "/enrollment-application", "/api/student-fee-adjustments", "/api/student-journal/", "/leaves"]) {
       expect(urlsMatching(calls, needle), needle).toHaveLength(0);
     }
   });

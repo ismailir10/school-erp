@@ -15,6 +15,7 @@ const DUE_DATE = "2026-04-10";
 
 function enrollment(overrides: Partial<BuildEnrollment> = {}): BuildEnrollment {
   return {
+    enrollmentId: "enr-1",
     studentId: "student-1",
     studentName: "Budi",
     classLabel: "TKIT A",
@@ -79,6 +80,7 @@ describe("buildBillingRunRows", () => {
       excluded: 0,
       skippedAlreadyInvoiced: 0,
       skippedNoFeeStructure: 0,
+      skippedOnLeave: 0,
       withAdjustments: 0,
     });
   });
@@ -563,5 +565,153 @@ describe("buildBillingRunRows", () => {
     expect(out.summary.skippedAlreadyInvoiced).toBe(1);
     expect(out.summary.skippedNoFeeStructure).toBe(2);
     expect(out.summary.pending).toBe(0);
+  });
+});
+
+describe("buildBillingRunRows — enrollment leave (cuti)", () => {
+  const SCOPE = { classSectionIds: ["class-a", "class-d"], includeStudentIds: [], excludeStudentIds: [] };
+  const school = (overrides: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-school", classSectionId: "class-a", ...overrides });
+  const daycare = (overrides: Partial<BuildEnrollment> = {}) =>
+    enrollment({
+      enrollmentId: "enr-daycare",
+      classSectionId: "class-d",
+      classLabel: "Daycare Pagi",
+      programId: "program-dcare",
+      programName: "Daycare",
+      ...overrides,
+    });
+  const fees = new Map([
+    ["program-tkit", [feeLine({ feeComponentId: "fc-spp-tkit", amount: D("500000") })]],
+    ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", amount: D("300000") })]],
+  ]);
+
+  it("skips a student whose only enrollment is on leave: no lines, zero total, counted in the summary", () => {
+    const out = build({
+      enrollments: [school()],
+      scope: SCOPE,
+      feesByProgram: fees,
+      onLeaveEnrollmentIds: new Set(["enr-school"]),
+    });
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]).toMatchObject({
+      studentId: "student-1",
+      status: "SKIPPED_ON_LEAVE",
+      lines: [],
+      classLabelSnapshot: "TKIT A",
+    });
+    expect(out.rows[0].totalDue.toString()).toBe("0");
+    expect(out.summary).toMatchObject({
+      total: 1,
+      pending: 0,
+      skippedOnLeave: 1,
+      skippedAlreadyInvoiced: 0,
+      skippedNoFeeStructure: 0,
+    });
+  });
+
+  it("full leave beats already-invoiced", () => {
+    const out = build({
+      enrollments: [school()],
+      scope: SCOPE,
+      feesByProgram: fees,
+      alreadyInvoicedStudentIds: new Set(["student-1"]),
+      onLeaveEnrollmentIds: new Set(["enr-school"]),
+    });
+    expect(out.rows[0].status).toBe("SKIPPED_ON_LEAVE");
+    expect(out.summary.skippedOnLeave).toBe(1);
+    expect(out.summary.skippedAlreadyInvoiced).toBe(0);
+  });
+
+  it("a partly-on-leave student is billed for the remaining enrollment only", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: SCOPE,
+      feesByProgram: fees,
+      onLeaveEnrollmentIds: new Set(["enr-daycare"]),
+    });
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].status).toBe("PENDING");
+    expect(out.rows[0].lines.map((l) => l.feeComponentId)).toEqual(["fc-spp-tkit"]);
+    // Single remaining program: labels are not disambiguated.
+    expect(out.rows[0].lines[0].labelSnapshot).toBe("SPP Bulanan");
+    expect(out.rows[0].totalDue.toString()).toBe("500000");
+    expect(out.summary).toMatchObject({ pending: 1, skippedOnLeave: 0 });
+  });
+
+  it("classLabelSnapshot lists only the billed (non-leave) classes", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: SCOPE,
+      feesByProgram: fees,
+      onLeaveEnrollmentIds: new Set(["enr-daycare"]),
+    });
+    expect(out.rows[0].classLabelSnapshot).toBe("TKIT A");
+  });
+
+  it("two enrollments in the SAME program, one on leave, bill that program once", () => {
+    const out = build({
+      enrollments: [
+        school({ enrollmentId: "enr-a1", classSectionId: "class-a", classLabel: "TKIT A" }),
+        school({ enrollmentId: "enr-a2", classSectionId: "class-a", classLabel: "TKIT B" }),
+      ],
+      scope: SCOPE,
+      feesByProgram: fees,
+      onLeaveEnrollmentIds: new Set(["enr-a2"]),
+    });
+    expect(out.rows[0].status).toBe("PENDING");
+    expect(out.rows[0].lines).toHaveLength(1);
+    expect(out.rows[0].totalDue.toString()).toBe("500000");
+    expect(out.rows[0].classLabelSnapshot).toBe("TKIT A");
+  });
+
+  it("a remaining enrollment with no fee structure is SKIPPED_NO_FEE_STRUCTURE, not on leave", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: SCOPE,
+      feesByProgram: new Map([["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare" })]]]),
+      onLeaveEnrollmentIds: new Set(["enr-daycare"]),
+    });
+    expect(out.rows[0]).toMatchObject({ status: "SKIPPED_NO_FEE_STRUCTURE", classLabelSnapshot: "TKIT A" });
+    expect(out.summary).toMatchObject({ skippedNoFeeStructure: 1, skippedOnLeave: 0 });
+  });
+
+  it("a remaining already-invoiced student stays SKIPPED_ALREADY_INVOICED", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: SCOPE,
+      feesByProgram: fees,
+      alreadyInvoicedStudentIds: new Set(["student-1"]),
+      onLeaveEnrollmentIds: new Set(["enr-daycare"]),
+    });
+    expect(out.rows[0].status).toBe("SKIPPED_ALREADY_INVOICED");
+    expect(out.summary.skippedOnLeave).toBe(0);
+  });
+
+  it("only the student on leave is skipped; other students bill normally", () => {
+    const out = build({
+      enrollments: [
+        school({ enrollmentId: "enr-1", studentId: "student-1" }),
+        school({ enrollmentId: "enr-2", studentId: "student-2" }),
+      ],
+      scope: SCOPE,
+      feesByProgram: fees,
+      onLeaveEnrollmentIds: new Set(["enr-2"]),
+    });
+    const byStudent = Object.fromEntries(out.rows.map((r) => [r.studentId, r.status]));
+    expect(byStudent).toEqual({ "student-1": "PENDING", "student-2": "SKIPPED_ON_LEAVE" });
+    expect(out.summary).toMatchObject({ total: 2, pending: 1, skippedOnLeave: 1 });
+  });
+
+  it("an empty or absent leave set changes nothing (byte-identical output)", () => {
+    const input = {
+      enrollments: [school(), daycare()],
+      scope: SCOPE,
+      feesByProgram: fees,
+    };
+    const baseline = build(input);
+    expect(build({ ...input, onLeaveEnrollmentIds: new Set() })).toEqual(baseline);
+    expect(build({ ...input, onLeaveEnrollmentIds: new Set(["enr-unrelated"]) })).toEqual(baseline);
+    expect(baseline.summary.skippedOnLeave).toBe(0);
   });
 });

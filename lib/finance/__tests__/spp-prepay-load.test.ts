@@ -23,6 +23,7 @@ type Overrides = {
 const YEAR = { id: "ay-1", name: "2026/2027", startDate: "2026-07-01", endDate: "2027-06-30" };
 
 const ENROLLMENT = {
+  id: "enr-1",
   studentId: "s-1",
   classSectionId: "cs-1",
   student: { id: "s-1", name: "Budi" },
@@ -39,6 +40,10 @@ function dbMock(over: Overrides = {}) {
     },
     academicYear: { findFirst: vi.fn().mockResolvedValue(has("year") ? over.year : YEAR) },
     studentEnrollment: { findMany: vi.fn().mockResolvedValue(over.enrollments ?? [ENROLLMENT]) },
+    // Prepay is deliberately leave-unaware: the loader must never read this.
+    enrollmentLeave: {
+      findMany: vi.fn().mockResolvedValue([{ enrollmentId: "enr-1", startMonth: "2026-07", endMonth: "2027-06" }]),
+    },
     programFeeStructure: { findMany: vi.fn().mockResolvedValue(over.fees ?? [SPP_FEE]) },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue(over.adjustments ?? []) },
     studentGuardian: { findFirst: vi.fn().mockResolvedValue({ parentId: "par-1" }) },
@@ -166,6 +171,17 @@ describe("loadSppPrepayContext", () => {
     expect(db.studentFeeAdjustment.findMany).toHaveBeenCalledWith({
       where: { tenantId: "t-1", studentId: "s-1", academicYearId: "ay-1", status: "ACTIVE" },
     });
+  });
+
+  it("is leave-unaware: an active leave neither blocks pricing nor changes the plan, and leaves are never read", async () => {
+    const db = dbMock();
+    const ctx = await loadOk(db);
+    expect(db.enrollmentLeave.findMany).not.toHaveBeenCalled();
+    // The October month is covered by the stubbed leave and is still priced at the full fee.
+    expect(ctx.priceFor({ year: 2026, month: 10 })?.total.toString()).toBe("500000");
+    const plan = planForContext(ctx);
+    expect(plan.blocked).toBe(false);
+    expect(plan.issues.some((i) => i.code === "NO_PRICE")).toBe(false);
   });
 
   describe("priceFor", () => {
