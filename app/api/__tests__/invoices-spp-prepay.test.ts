@@ -120,9 +120,11 @@ function priceOf(amount = 500000): MonthPrice {
 
 function inv(over: Partial<PlanInvoice> & { id: string; periodLabel: string }): PlanInvoice {
   return {
+    invoiceNumber: `INV-${over.id}`,
     status: "SENT",
     totalDue: D(500000),
     totalPaid: D(0),
+    monthlyAmount: D(500000),
     hasMonthlyLine: true,
     hasOtherLine: false,
     hasLink: false,

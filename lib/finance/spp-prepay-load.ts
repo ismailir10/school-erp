@@ -8,6 +8,7 @@ import {
   type FeeStructureLine,
 } from "@/lib/finance/build-billing-run";
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
+import { sumDecimals } from "@/lib/finance/invoice-numbers";
 import { lastDayOfMonth, parsePeriodMonth } from "@/lib/finance/period-label";
 import { academicYearBillingWindow } from "@/lib/enrollment-leave/window";
 import {
@@ -203,13 +204,14 @@ export async function loadSppPrepayContext(
       orderBy: { id: "asc" },
       select: {
         id: true,
+        invoiceNumber: true,
         periodLabel: true,
         status: true,
         totalDue: true,
         totalPaid: true,
         xenditPaymentUrl: true,
         paymentLinkExpiresAt: true,
-        lines: { select: { feeComponent: { select: { isRecurring: true } } } },
+        lines: { select: { finalAmount: true, feeComponent: { select: { isRecurring: true } } } },
       },
     }),
     // Distinct labels only: the earliest billed month needs no more than that.
@@ -249,11 +251,13 @@ export async function loadSppPrepayContext(
 
   const invoices: PlanInvoice[] = invoiceRows.map((inv) => ({
     id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
     periodLabel: inv.periodLabel,
     status: inv.status,
     totalDue: new Prisma.Decimal(inv.totalDue),
     totalPaid: new Prisma.Decimal(inv.totalPaid),
     hasMonthlyLine: inv.lines.some((l) => l.feeComponent.isRecurring),
+    monthlyAmount: sumDecimals(inv.lines.filter((l) => l.feeComponent.isRecurring).map((l) => new Prisma.Decimal(l.finalAmount))),
     hasOtherLine: inv.lines.some((l) => !l.feeComponent.isRecurring),
     hasLink: inv.xenditPaymentUrl !== null,
     paymentLinkExpiresAt: inv.paymentLinkExpiresAt,

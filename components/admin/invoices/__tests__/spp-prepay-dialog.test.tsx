@@ -240,6 +240,91 @@ describe("SppPrepayDialog", () => {
     expect(screen.getByRole("button", { name: "Catat Rp 2.800.000 lunas" })).toBeEnabled();
   });
 
+  it("names the invoice under a caution that points at one, with a link that opens it in a new tab", async () => {
+    const message =
+      'Tagihan lunas dengan label "SPMB Tahap 1" memuat SPP tetapi tidak menyebut satu bulan, jadi bulan-bulannya tidak terbaca. Pastikan SPP bulan-bulan itu belum dibayar sebelum mencatat.';
+    fixture({
+      previews: [
+        {
+          body: previewBody({
+            issues: [
+              {
+                code: "UNPARSABLE_LABEL",
+                blocking: false,
+                message,
+                invoiceId: "inv-uuid-1",
+                invoice: {
+                  id: "inv-uuid-1",
+                  invoiceNumber: "INV-2026-0123",
+                  periodLabel: "SPMB Tahap 1",
+                  status: "PAID",
+                  totalDue: 3000000,
+                  monthlyAmount: 1650000,
+                },
+              },
+              { code: "MULTIPLE_MONTHLY_INVOICES", blocking: false, message: "Ada 2 tagihan SPP untuk Oktober 2026." },
+            ],
+          }),
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+
+    const warning = (await screen.findByText(/Perlu diperiksa/)).closest("[data-slot=alert]") as HTMLElement;
+    const items = within(warning).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    // The message reads exactly as before; the details sit beneath it.
+    expect(within(items[0]).getByText(message)).toBeInTheDocument();
+    expect(items[0]).toHaveTextContent(
+      "INV-2026-0123 · SPMB Tahap 1 · Lunas · Rp 3.000.000 (SPP di dalamnya Rp 1.650.000)",
+    );
+    const link = within(items[0]).getByRole("link", { name: "Buka tagihan INV-2026-0123 di tab baru" });
+    expect(link).toHaveAttribute("href", "/admin/invoices/inv-uuid-1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    // A caution without an invoice is just its message.
+    expect(items[1]).toHaveTextContent(/^Ada 2 tagihan SPP untuk Oktober 2026\.$/);
+    expect(within(items[1]).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Catat Rp 2.800.000 lunas" })).toBeEnabled();
+  });
+
+  it("leaves blocking issues as plain messages even when they carry an invoice", async () => {
+    fixture({
+      previews: [
+        {
+          body: previewBody({
+            blocked: true,
+            issues: [
+              {
+                code: "NO_PRICE",
+                blocking: true,
+                message: "Mei 2027 belum punya tarif.",
+                invoice: {
+                  id: "inv-uuid-2",
+                  invoiceNumber: "INV-2026-0999",
+                  periodLabel: "Mei 2027",
+                  status: "SENT",
+                  totalDue: 500000,
+                  monthlyAmount: 500000,
+                },
+              },
+            ],
+          }),
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+
+    expect(await screen.findByText("Mei 2027 belum punya tarif.")).toBeInTheDocument();
+    expect(screen.queryByText(/INV-2026-0999/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Buka tagihan/ })).not.toBeInTheDocument();
+  });
+
   it("warns that a settled invoice's old payment link stays live until it expires", async () => {
     fixture();
     const user = userEvent.setup();

@@ -48,6 +48,15 @@ async function findFixture(request: APIRequestContext): Promise<Fixture> {
     const payload = (await res.json()) as LeavesPayload;
     for (const e of payload.enrollments) {
       if (!e.eligible || !e.window) continue;
+      // Other specs share this database (SPP prepay settles every month of a student's year). A student
+      // already invoiced for the leave month would read SKIPPED_ALREADY_INVOICED, not PENDING: pick another.
+      const invoicesRes = await request.get(`/api/invoices?studentId=${s.id}&pageSize=100`);
+      if (!invoicesRes.ok()) continue;
+      const label = monthLabel(e.window.to).toLowerCase();
+      const invoiced = ((await invoicesRes.json()).data as Array<{ periodLabel: string; status: string }>).some(
+        (inv) => inv.status !== "CANCELLED" && inv.periodLabel.toLowerCase().includes(label),
+      );
+      if (invoiced) continue;
       const fixture = { studentId: s.id, enrollmentId: e.id, academicYearId: e.academicYearId, ym: e.window.to };
       if (/day\s*care/i.test(e.programName)) return fixture;
       fallback ??= fixture;

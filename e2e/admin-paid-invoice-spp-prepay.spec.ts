@@ -115,6 +115,72 @@ test.describe("Admin — money already taken", () => {
     expect(body.payments?.[0].method).toBe("CASH");
   });
 
+  test("the Perlu diperiksa caution names the unreadable-label invoice and opens it in a new tab", async ({ page }) => {
+    // An already-paid invoice that carries SPP but whose label names no month ("SPMB Tahap 1"): the
+    // planner cannot tell which months it covers, so it asks the admin to check it.
+    const studentsResponse = await page.request.get("/api/students?status=ACTIVE&pageSize=50");
+    expect(studentsResponse.ok()).toBeTruthy();
+    const candidates = (await studentsResponse.json()).data as { id: string; name: string; nis: string | null }[];
+    let target: { id: string; name: string; nis: string | null } | null = null;
+    for (const candidate of candidates) {
+      const preview = await page.request.post("/api/invoices/spp-prepay/preview", { data: { studentId: candidate.id } });
+      if (!preview.ok()) continue;
+      const json = (await preview.json()) as { blocked: boolean; rows: { action: string }[] };
+      if (!json.blocked && json.rows.some((row) => row.action === "CREATE")) {
+        target = candidate;
+        break;
+      }
+    }
+    expect(target, "CI seed must provide an enrolled student whose SPP can be priced").not.toBeNull();
+
+    const componentsResponse = await page.request.get("/api/fee-components");
+    expect(componentsResponse.ok()).toBeTruthy();
+    const components = (await componentsResponse.json()) as { id: string; label: string; isRecurring: boolean; isEnabled: boolean }[];
+    const spp = components.find((component) => component.isRecurring && component.isEnabled);
+    expect(spp, "the seed must provide an enabled recurring (SPP) fee component").toBeDefined();
+
+    const label = `E2E SPMB Tahap 1 ${Date.now()}`;
+    const created = await page.request.post("/api/invoices", {
+      data: {
+        studentId: target!.id,
+        periodLabel: label,
+        dueDate: "2027-07-31",
+        lines: [{ feeComponentId: spp!.id, amount: 1500000 }],
+        payment: { idempotencyKey: crypto.randomUUID(), method: "CASH", paidAt: new Date().toISOString().slice(0, 10) },
+      },
+    });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const invoice = (await created.json()) as { id: string; invoiceNumber: string };
+
+    await page.goto("/admin/invoices");
+    await page.getByRole("button", { name: "Catat SPP di muka", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: /Catat SPP di Muka/i });
+    await expect(dialog).toBeVisible();
+    const studentPicker = dialog.getByRole("combobox").first();
+    await studentPicker.click();
+    await page.getByPlaceholder("Cari nama siswa...").fill(target!.name);
+    await pickStudent(page, target!);
+
+    // The message the admin already knew, plus the invoice itself under it. Earlier specs may have left
+    // other unreadable-label invoices for this student, so look at the caution about THIS invoice only.
+    const caution = dialog.getByRole("status").filter({ hasText: "Perlu diperiksa" });
+    await expect(caution).toBeVisible();
+    const item = caution.getByRole("listitem").filter({ hasText: label });
+    await expect(item.getByText(new RegExp(`Tagihan lunas dengan label "${label}"`))).toBeVisible();
+    await expect(item.getByText(invoice.invoiceNumber, { exact: false })).toBeVisible();
+    await expect(item.getByText(/Rp\s?1\.500\.000/).first()).toBeVisible();
+    await expect(item.getByText(/SPP di dalamnya/)).toBeVisible();
+
+    // "Buka tagihan" opens that invoice in a new tab; the dialog (and what the admin typed) stays.
+    const link = item.getByRole("link", { name: new RegExp(`Buka tagihan ${invoice.invoiceNumber}`) });
+    await expect(link).toHaveAttribute("target", "_blank");
+    const [popup] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+    await expect(popup).toHaveURL(new RegExp(`/admin/invoices/${invoice.id}$`));
+    await popup.close();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /^Catat Rp .* lunas$/ })).toBeEnabled();
+  });
+
   test("Catat SPP di muka previews the year and settles every month without a link", async ({ page }) => {
     // Find an active student the preview can price (enrolled this year, fee structure present).
     const studentsResponse = await page.request.get("/api/students?status=ACTIVE&pageSize=50");

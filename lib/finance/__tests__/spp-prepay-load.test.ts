@@ -68,13 +68,14 @@ async function loadOk(db: ReturnType<typeof dbMock>, extra: { from?: string; to?
 function invoiceRow(over: Record<string, unknown> = {}) {
   return {
     id: "i-1",
+    invoiceNumber: "INV-2026-0001",
     periodLabel: "Oktober 2026",
     status: "SENT",
     totalDue: D(500000),
     totalPaid: D(0),
     xenditPaymentUrl: null,
     paymentLinkExpiresAt: null,
-    lines: [{ feeComponent: { isRecurring: true } }],
+    lines: [{ finalAmount: D(500000), feeComponent: { isRecurring: true } }],
     ...over,
   };
 }
@@ -246,7 +247,10 @@ describe("loadSppPrepayContext", () => {
             invoiceRow({
               id: "i-2",
               periodLabel: "Biaya Sekolah Tahap 1 TA 2027/2028",
-              lines: [{ feeComponent: { isRecurring: false } }, { feeComponent: { isRecurring: false } }],
+              lines: [
+                { finalAmount: D(1000000), feeComponent: { isRecurring: false } },
+                { finalAmount: D(250000), feeComponent: { isRecurring: false } },
+              ],
             }),
             invoiceRow({ id: "i-3", periodLabel: "November 2026", lines: [] }),
           ],
@@ -259,6 +263,33 @@ describe("loadSppPrepayContext", () => {
       ]);
       expect(ctx.invoices[0].paymentLinkExpiresAt).toEqual(new Date("2026-11-05T00:00:00Z"));
       expect(ctx.invoices[0].totalDue.toString()).toBe("500000");
+      expect(ctx.invoices[0].invoiceNumber).toBe("INV-2026-0001");
+    });
+
+    it("monthlyAmount sums only the recurring lines of a mixed invoice", async () => {
+      const ctx = await loadOk(
+        dbMock({
+          invoices: [
+            invoiceRow({
+              id: "i-mix",
+              lines: [
+                { finalAmount: D(1650000), feeComponent: { isRecurring: true } },
+                { finalAmount: D(1350000), feeComponent: { isRecurring: false } },
+              ],
+            }),
+            invoiceRow({
+              id: "i-one",
+              lines: [{ finalAmount: D(900000), feeComponent: { isRecurring: false } }],
+            }),
+            invoiceRow({ id: "i-none", lines: [] }),
+          ],
+        }),
+      );
+      expect(ctx.invoices.map((i) => [i.id, i.monthlyAmount.toString()])).toEqual([
+        ["i-mix", "1650000"],
+        ["i-one", "0"],
+        ["i-none", "0"],
+      ]);
     });
 
     it("reads the student's invoices ascending by id and the labels tenant-wide, non-cancelled, recurring, distinct", async () => {
