@@ -130,7 +130,12 @@ None.
 
 - design-system cross-check: §11 Stat Cards (`.stat-label` uppercase caption on top, `.stat-value` 1.75rem bold tabular-nums below, currency in the mono face). T1's label row + full-width figure follows that structure; the fluid cap stays at `--text-display`. §14 Admin List recipe ("page header → primary action → …"): T2 keeps one visible primary action on a phone.
 
-### Verified locally — 757db78f, 2026-10-30
+### Verified locally — bb8cb43c, 2026-10-30
+- Re-verified after the CI-round fix (`StatTile` narrow label → 10px):
+  - On bb8cb43c: lint, `npx vitest run` and guards exit 0, and the `DEMO_MODE` build exits 0.
+  - `npx playwright test` → `268 passed (7.1m)`, 1 skipped, with all 5 `mobile-stress` passes ✓.
+  - The first Playwright attempt died when the container's Docker daemon (and the disposable DB) went down mid-run (P1001); I restored the DB, reseeded, and re-ran it clean.
+- The evidence below was first recorded on 757db78f and still applies.
 - Route: other code (no auth, session or guard paths). Compared `origin/staging` f7822dda...757db78f: 25 files across `components/admin/{stat-card,stats-cards-row,detail-rail,guardians,dashboard/attendance-trend-chart}`, `components/ui/stat-tile`, `components/portal/{portal-bottom-nav,task-list}`, `app/admin/invoices/{invoices-client,[id]/page}`, `app/teacher/class-attendance`, `app/parent/{page,invoices/client}`, `lib/fluid-figure.ts`, tests, `e2e/{mobile-stress,admin-manual-invoice-layout}.spec.ts`.
 - Gate (disposable Postgres):
   - `npm run lint` → exit 0.
