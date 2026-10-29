@@ -18,6 +18,7 @@ import {
 import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
+import { SectionCard } from "@/components/ui/section-card";
 import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -267,7 +268,7 @@ export function InvoiceDetailSheet({
 
         <div className="px-card pb-card pt-4 space-y-6">
           {/* Focal amount card */}
-          <div className="rounded-xl border border-border bg-card p-4 md:p-6">
+          <SectionCard as="div">
             {/* PAR-8: name what the big number is. */}
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               {isPaid || isCancelled ? "Total tagihan" : "Sisa tagihan"}
@@ -319,7 +320,7 @@ export function InvoiceDetailSheet({
                 </>
               )}
             </div>
-          </div>
+          </SectionCard>
 
           {/* Rincian */}
           <section>
@@ -370,7 +371,7 @@ export function InvoiceDetailSheet({
           {isPayable && hasPaymentLink && !paymentPending ? (
             <section>
               <SectionLabel>Cara bayar</SectionLabel>
-              <div className="rounded-xl border border-border bg-card p-4">
+              <SectionCard as="div">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
                     <Building2 size={18} />
@@ -382,7 +383,7 @@ export function InvoiceDetailSheet({
                     </p>
                   </div>
                 </div>
-              </div>
+              </SectionCard>
             </section>
           ) : null}
 

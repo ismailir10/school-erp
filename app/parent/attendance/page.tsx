@@ -14,6 +14,7 @@ import { attendanceBannerState } from "@/lib/parent-attendance-banner";
 import { parentAttendanceWeek } from "@/lib/parent/attendance-week";
 import { parentHref } from "@/lib/parent/navigation";
 import { ContextStrip } from "@/components/portal/context-strip";
+import { SectionCard } from "@/components/ui/section-card";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 
@@ -105,16 +106,14 @@ export default async function ParentAttendancePage({
 
       <PageHeader title="Kehadiran" subtitle="Pantau kehadiran harian anak" />
 
-      {mixedDays.length > 0 ? <section className="rounded-xl border border-border bg-card p-4" aria-label="Catatan berbeda antar kelas">
-        <h2 className="text-sm font-semibold">Catatan berbeda</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Ada perbedaan catatan antar kelas. Lihat rincian di bawah; hubungi sekolah jika perlu diperiksa.</p>
-        <ul className="mt-3 space-y-3">
+      {mixedDays.length > 0 ? <SectionCard title="Catatan berbeda" description="Ada perbedaan catatan antar kelas. Lihat rincian di bawah; hubungi sekolah jika perlu diperiksa.">
+        <ul className="space-y-3">
           {mixedDays.map(date => <li key={date}>
             <p className="text-sm font-medium">{formatDate(date, {weekday:"long",day:"numeric",month:"long"})}</p>
             <ul className="mt-1 space-y-1 text-sm text-muted-foreground">{dayRecords.get(date)!.classes.map(record => <li key={record.id}>{record.name}: {PARENT_ATTENDANCE_LABELS[record.status]}</li>)}</ul>
           </li>)}
         </ul>
-      </section> : null}
+      </SectionCard> : null}
 
       {/* Summary card — varies by week state */}
       {bannerState?.kind === "all-present" ? (

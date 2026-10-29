@@ -6,6 +6,7 @@ import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy"
 import { CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { SectionCard } from "@/components/ui/section-card";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -249,17 +250,12 @@ export default function ClassWeekPage({
       />
 
       {rollUp ? (
-        <section
-          aria-labelledby="day-marks-heading"
-          className="mb-4 rounded-xl border border-border bg-card p-card"
+        <SectionCard
+          title="Hari tanpa buku penghubung"
+          description="Tandai hari ketika kelas tidak memakai buku (misal renang). Wali melihat keterangannya di Jurnal."
+          className="mb-4"
           data-testid="day-marks-section"
         >
-          <h2 id="day-marks-heading" className="text-h2">
-            Hari tanpa buku penghubung
-          </h2>
-          <p className="mb-3 mt-1 text-xs text-muted-foreground">
-            Tandai hari ketika kelas tidak memakai buku (misal renang). Wali melihat keterangannya di Jurnal.
-          </p>
           <ul className="divide-y divide-border/60">
             {rollUp.dates.map((d) => {
               const reason = rollUp.dayMarks?.[d];
@@ -291,7 +287,7 @@ export default function ClassWeekPage({
               );
             })}
           </ul>
-        </section>
+        </SectionCard>
       ) : null}
 
       <DayMarkDialog

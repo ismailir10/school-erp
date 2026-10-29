@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import {
   AGAMA_OPTIONS,
   KEWARGANEGARAAN_OPTIONS,
@@ -15,6 +14,7 @@ import {
 } from "@/lib/enrollment/constants";
 import { formatDateShort } from "@/lib/format";
 import { formatAddress } from "@/lib/enrollment/address";
+import { SectionCard } from "@/components/ui/section-card";
 
 /**
  * Read-only rendering of a submitted pendaftaran form.
@@ -83,16 +83,8 @@ export function ApplicationSection({
   title: string;
   children: React.ReactNode;
 }) {
-  const headingId = useId();
-  return (
-    // Named region: Anak / Ayah / Ibu can be told apart by a screen reader (and by a test).
-    <section aria-labelledby={headingId} className="rounded-xl border bg-card p-4">
-      <h3 id={headingId} className="mb-2 text-sm font-semibold">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
+  // Named region: Anak / Ayah / Ibu can be told apart by a screen reader (and by a test).
+  return <SectionCard title={title}>{children}</SectionCard>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
