@@ -166,7 +166,7 @@ runs on deploy), no change to the BillingRun tables.
       enrollment+status, student), RLS migration, schema status comments, seed `deleteMany` before enrollments
       (+ one daycare leave in the seed), enum-conformance rows — accept: `prisma db push` + seed clean,
       `verify-rls-coverage.sh` green (reuse: StudentFeeAdjustment migration)
-- [ ] T2 Domain helpers + validation (`lib/enrollment-leave/`, `lib/validations/enrollment-leave.ts`): month
+- [x] T2 Domain helpers + validation (`lib/enrollment-leave/`, `lib/validations/enrollment-leave.ts`): month
       parse/compare, inclusive overlap, academic-year billing window (extract from spp-prepay-load), create/cancel
       schemas — accept: unit tests (deps: T1; reuse: `parsePeriodMonth`, spp-prepay window)
 - [x] T3 Billing run: optional `onLeaveEnrollmentIds` + `enrollmentId` on `BuildEnrollment`, classifier rules, load
@@ -174,7 +174,7 @@ runs on deploy), no change to the BillingRun tables.
       filter/wizard label/footer, rebuild skips leave-reason exclusions, row PATCH only from PENDING/EXCLUDED,
       spp-prepay-load passes the enrollment id — accept: classifier, materialize, route, wizard and prepay tests
       (deps: T2)
-- [ ] T4 API under `app/api/students/[id]/leaves/`: list, create (advisory lock, window/active/tenant checks,
+- [x] T4 API under `app/api/students/[id]/leaves/`: list, create (advisory lock, window/active/tenant checks,
       draft/committing exclusion, returns open invoices), cancel, open-invoices — accept: route tests (deps: T2, T3;
       reuse: enroll route pattern, `ensureYearWritableById`, `VOIDABLE_INVOICE_STATUSES`)
 - [ ] T5 Student page "Cuti" section, create/cancel dialogs, invoice follow-up dialog — accept: component tests
@@ -196,6 +196,14 @@ runs on deploy), no change to the BillingRun tables.
   loads ACTIVE leaves only for a single-month label, rebuild does not re-apply a leave-reason exclusion, row PATCH only
   from PENDING/EXCLUDED, prepay unchanged. Worker reported 679 tests green; re-run by the driver: 42 files / 656 tests
   pass (lib/finance, billing-runs routes, wizard components, validations).
+- T2: lib/enrollment-leave/{months,window,eligibility}.ts, lib/validations/enrollment-leave.ts + tests — month parse/compare/
+  overlap/range label, academic-year billing window (standalone copy of the SPP-prepay rule), create/cancel schemas.
+- T4: app/api/students/[id]/leaves/{route,[leaveId]/route,[leaveId]/open-invoices/route}.ts, lib/enrollment-leave/
+  {billing-runs,open-invoices}.ts + tests — list (with per-enrollment eligibility), create (students.edit + invoices.create,
+  tenant/student/enrollment/year-window checks, per-enrollment advisory lock, overlap check, uncommitted rows of open
+  DRAFT/COMMITTING runs → EXCLUDED with the leave reason, audit, open-invoice follow-up gated on invoices.view), cancel
+  (PUT INACTIVE, audited), re-openable open-invoices GET. Worker reported 103 tests; re-run by the driver: 5 files / 103 tests
+  pass, `tsc --noEmit` clean, `verify-api-auth.sh` 224/224.
 
 ## Verification
 
