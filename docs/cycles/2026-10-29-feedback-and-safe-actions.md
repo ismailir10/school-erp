@@ -123,11 +123,14 @@ None: no schema, dependency, auth or PII change.
       tests. (parallel; uses T1's API as specified)
 - [ ] T3 Safety and hit areas + empty states: `ConfirmDialog` on "Hapus semua", week-grid badge hit area, 7 empty
       states → `EmptyState` — accept: tests, screenshots. (parallel)
-- [ ] T4 `formatNumber` + migrate number formats + `chart.tsx`; guard rule for `toLocaleString(` — accept: tests.
+- [x] T4 `formatNumber` + migrate number formats + `chart.tsx`; guard rule for `toLocaleString(` — accept: tests.
       (parallel)
 - [ ] T5 Docs: `ui.md` feedback pattern; `voice.md` points to the catalog — accept: audit-docs green. (after T1–T4)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (all four slices, plus the three audits that fed the spec) + claude-haiku (consistency sweep). T1–T4 run in parallel on disjoint file sets; T5 (docs) runs after them. The driver wrote `lib/feedback.ts` up front because it is the API contract T1 and T2 build against.
+- T4: `formatNumber` (id-ID, a cached formatter per fraction-digit setting) in `lib/format.ts`; `formatRupiah`/`formatRupiahParts` now build on it, with identical output. The three dashboard analytics cards, `chart.tsx` (a bare `toLocaleString()` → system locale) and `fee-admin-view`/`raport/build` are migrated, with identical strings. Guard rule G fails on `.toLocaleString(` in `app/` and `components/`. The one allowlisted line is the vendored `ui/calendar.tsx` month-name formatter (a Date, not a number).
 
 ## Verification
 

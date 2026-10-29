@@ -1,7 +1,7 @@
 import { CircleCheckBig } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { AgingKey, AnalyticsSource, FinanceAnalytics } from "@/lib/dashboard/analytics";
-import { formatRupiah } from "@/lib/format";
+import { formatNumber, formatRupiah } from "@/lib/format";
 import { AnalyticsCard, AnalyticsUnavailable } from "./analytics-card";
 
 const TESTID = "analytics-aging";
@@ -88,7 +88,7 @@ export function AgingCard({
                   <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKETS[bucket.key].bar}`} />
                   <span className="min-w-0">
                     <span className="block text-body font-medium">{BUCKETS[bucket.key].label}</span>
-                    <span className="block text-small text-muted-foreground">{bucket.count.toLocaleString("id-ID")} tagihan</span>
+                    <span className="block text-small text-muted-foreground">{formatNumber(bucket.count)} tagihan</span>
                   </span>
                 </span>
                 <span className="ms-auto shrink-0 whitespace-nowrap text-small font-medium tabular-nums font-currency">{formatRupiah(bucket.amount)}</span>

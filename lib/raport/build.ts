@@ -16,6 +16,7 @@ import {
 } from "@/lib/raport/labels";
 import type { ReportCardData, ReportCardSection } from "@/lib/pdf/report-card";
 import type { Level } from "@/lib/curriculum/level-presentation";
+import { formatNumber } from "@/lib/format";
 
 /** Narrow an unknown JSON column to a plain string-keyed object. */
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -85,7 +86,7 @@ export function formatMeasurement(v: unknown): string | null {
   if (v == null || v === "") return null;
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
-  return n.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+  return formatNumber(n, { maximumFractionDigits: 2 });
 }
 
 /**
