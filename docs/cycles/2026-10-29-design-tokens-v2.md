@@ -145,7 +145,7 @@ None: no schema, no dependency, no auth/PII, no production write.
       the back links migrated. (deps: none, parallel)
 - [ ] T5 SectionCard and card migration — accept: SectionCard test; parent and admin hand-rolled cards migrated.
       (deps: T1)
-- [ ] T6 Design-token guard test — accept: it fails on a planted violation and passes on the tree. (deps: T1–T5)
+- [x] T6 Design-token guard test — accept: it fails on a planted violation and passes on the tree. (deps: T1–T5)
 - [x] T7 Docs: `colors.md`, `ui.md`, `design-system.html` reconciled and refined — accept: the tables match
       `globals.css` and the new primitives are documented. (deps: T1–T5)
 
@@ -156,6 +156,7 @@ None: no schema, no dependency, no auth/PII, no production write.
 - T3: `components/ui/spinner.tsx` (role=status + "Memuat" label, `aria-hidden` mode next to visible text, `motion-reduce:animate-none`) + 4 tests; 15 call sites migrated off hand-rolled `Loader2`/`RefreshCw animate-spin`. No `animate-spin` remains outside the primitive.
 - T4: new `ErrorState` (role=alert, "Coba lagi" retry) in all six `error.tsx` boundaries; new `UserAvatar` + `getInitials` replacing eight hand-rolled initials circles and two local helpers (photos keep `loading="lazy"`); three admin semester pages moved to `BackLink`. Left: `class-day-grid` (state-swapping circle), `portal-header` (`size-7`), `raport-editor` BackBar (callback, not a link), `detail-page-header` (unsaved-changes guard). Retry label unified to "Coba lagi" per `voice.md`.
 - T7: `colors.md` rewritten against `globals.css` (one destructive red `#DC2626`, semantic-triad table with AA ratios, light-only stated, stale line refs gone); `ui.md` audited, 255 → 254 lines, with a complete Design tokens table (spacing, type pairings, radius, elevation, motion, z-index) and a "Reach for" primitives table replacing scattered rows and stale claims; `design-system.html` `:root` synced to `globals.css` plus triad, elevation/motion/z-index, Badge-tone and shared-primitive cards. `--primary-hover` kept as doc-only (the HTML's hover demo uses it).
+- T6: `lib/__tests__/design-token-guard.test.ts` — static scan of `app/` and `components/` for six rules (raw palette, arbitrary colour, `hsl(var(--`, stray spinner, semantic opacity tint outside `components/ui`, duplicated easing literal), each with a planted-violation self-test; the allowlist is empty and fails if an entry goes stale. Its first run caught three `ease-[cubic-bezier(0.22,1,0.36,1)]` in `navigation-menu.tsx`, now `ease-emphasized`.
 
 ## Verification
 
