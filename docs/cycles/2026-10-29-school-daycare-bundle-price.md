@@ -182,6 +182,10 @@ existing permissions), no production write by the agent.
   and one atomic PUT per year (`fees.edit`, rate limit, advisory lock, whole-rupiah > 0, school SEMESTER + daycare YEAR_ROUND, enabled recurring component both programs
   price, clearing always allowed and a soft delete, no write/audit when unchanged, `recordAudit` in the transaction). No `revalidate`. Re-run by the driver: 46 files / 945 tests,
   `tsc`, eslint, `verify-api-auth.sh` 225/225.
+- T4: components/admin/fees/bundle-fees-section.tsx, app/admin/fees/page.tsx (+ tests) — "Harga paket sekolah + daycare" section on Tarif per Program: one block per daycare program,
+  rows = school program × component both programs price (or already bundled), "Jumlah biasa" from saved fees, own save sending only changed cells, read-only without `fees.edit`,
+  year-switch discard gate now covers bundle edits, hints refetch after "Simpan Tarif". Checked against design-system (existing Table, RupiahInput, SectionCard). Re-run by the driver:
+  46 files / 945 tests pass.
 
 ## Verification
 
