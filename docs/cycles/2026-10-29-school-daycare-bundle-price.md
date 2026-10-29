@@ -155,9 +155,9 @@ existing permissions), no production write by the agent.
 - [x] T2 Bundle pricing: `lib/finance/bundle-fees.ts` (`loadBundleFees`), optional `bundleFees` into `buildBillingRunRows`
       (contains-the-pair rule, exactly one match, both-program component only), both loaders call it, mocks updated — accept:
       builder, bundle-fees, materialize, prepay-load tests (deps: T1, T2a)
-- [ ] T3 API `app/api/fee-bundles` (GET year + saved program fees + `canEdit`, one atomic PUT, validation, `fees.view`/`fees.edit`,
+- [x] T3 API `app/api/fee-bundles` (GET year + saved program fees + `canEdit`, one atomic PUT, validation, `fees.view`/`fees.edit`,
       rate limit, audit, no caching) — accept: route tests (deps: T1; parallel with T2a/T2)
-- [ ] T4 UI: `components/admin/fees/bundle-fees-section.tsx` on Tarif per Program, shared dirty gate, read-only without edit —
+- [x] T4 UI: `components/admin/fees/bundle-fees-section.tsx` on Tarif per Program, shared dirty gate, read-only without edit —
       accept: component tests, fees page test mock (deps: T3)
 - [ ] T5 e2e + docs: e2e spec, README, UAT job, glossary row "Harga paket", counts, full local gate, PR (deps: T2–T4)
 
@@ -178,6 +178,10 @@ existing permissions), no production write by the agent.
   both program types re-checked, billable component, no query for <2 programs) feeds an optional `bundleFees` into the builder: when a component's merged
   line comes from both programs of exactly one bundle, amount = bundle + any other program's amount; else the sum. Both loaders pass it; prepay stays
   leave-unaware. Worker reported 704 tests; re-run by the driver after the label fix: 43 files / 704 tests pass, `tsc` and eslint clean.
+- T3: app/api/fee-bundles/route.ts, lib/validations/fee-bundle.ts + tests — GET (`fees.view`; programs, billable components, saved program fees, bundles incl. INACTIVE, `canEdit`)
+  and one atomic PUT per year (`fees.edit`, rate limit, advisory lock, whole-rupiah > 0, school SEMESTER + daycare YEAR_ROUND, enabled recurring component both programs
+  price, clearing always allowed and a soft delete, no write/audit when unchanged, `recordAudit` in the transaction). No `revalidate`. Re-run by the driver: 46 files / 945 tests,
+  `tsc`, eslint, `verify-api-auth.sh` 225/225.
 
 ## Verification
 
