@@ -148,11 +148,11 @@ existing permissions), no production write by the agent.
       amount, status ACTIVE|INACTIVE, createdAt, updatedAt; unique on the four ids; index tenant+year+status; named relations;
       back-relations), RLS migration `20261029010000_add_program_bundle_fee`, seed `deleteMany` before fee structures, `lib/db.ts`
       parity note — accept: `db push` + seed clean, `verify-rls-coverage.sh` green (reuse: EnrollmentLeave migration)
-- [ ] T2a Per-student run scope: builder admits a student when any enrollment is ticked or the student is included (exclude
+- [x] T2a Per-student run scope: builder admits a student when any enrollment is ticked or the student is included (exclude
       wins) and groups all of that student's enrollments; the materializer fetches all of an admitted student's active
       enrollments that year — accept: builder + materializer tests, existing rule tests green (deps: T1 not needed; sequence
       before T2)
-- [ ] T2 Bundle pricing: `lib/finance/bundle-fees.ts` (`loadBundleFees`), optional `bundleFees` into `buildBillingRunRows`
+- [x] T2 Bundle pricing: `lib/finance/bundle-fees.ts` (`loadBundleFees`), optional `bundleFees` into `buildBillingRunRows`
       (contains-the-pair rule, exactly one match, both-program component only), both loaders call it, mocks updated — accept:
       builder, bundle-fees, materialize, prepay-load tests (deps: T1, T2a)
 - [ ] T3 API `app/api/fee-bundles` (GET year + saved program fees + `canEdit`, one atomic PUT, validation, `fees.view`/`fees.edit`,
@@ -169,6 +169,15 @@ existing permissions), no production write by the agent.
 - T1: prisma/schema.prisma, prisma/migrations/20261029010000_add_program_bundle_fee/migration.sql, prisma/seed.ts, lib/db.ts note — `ProgramBundleFee` (additive,
   RLS, Restrict FKs, named relations, soft-delete `status`), explicit short unique index name (the generated one exceeds Postgres' 63 chars). `verify-rls-coverage.sh`
   46/46; `db push` + seed clean on a freshly created database.
+- T2a: lib/finance/build-billing-run.ts, lib/finance/materialize-billing-run.ts, app/api/billing-runs/[id]/route.ts (+ tests) — the run is now scoped per
+  student: a student is in when any active placement is in a ticked class (or they are included; exclusions win) and is priced for ALL their active
+  placements that year; the review row's program label lists them all. A deliberate change of an existing behaviour (before, a run for one class
+  priced only that placement, so a school+daycare child ticked on one class lost the other fee and a later run skipped them as already invoiced).
+  No existing builder rule test needed changing; the materialize `fakeDb` and one label test (which encoded the old rule) were updated.
+- T2: lib/finance/bundle-fees.ts (new), build-billing-run.ts, materialize-billing-run.ts, spp-prepay-load.ts (+ tests) — `loadBundleFees` (active rows, tenant,
+  both program types re-checked, billable component, no query for <2 programs) feeds an optional `bundleFees` into the builder: when a component's merged
+  line comes from both programs of exactly one bundle, amount = bundle + any other program's amount; else the sum. Both loaders pass it; prepay stays
+  leave-unaware. Worker reported 704 tests; re-run by the driver after the label fix: 43 files / 704 tests pass, `tsc` and eslint clean.
 
 ## Verification
 
