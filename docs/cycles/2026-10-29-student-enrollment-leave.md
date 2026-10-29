@@ -204,6 +204,9 @@ runs on deploy), no change to the BillingRun tables.
   DRAFT/COMMITTING runs → EXCLUDED with the leave reason, audit, open-invoice follow-up gated on invoices.view), cancel
   (PUT INACTIVE, audited), re-openable open-invoices GET. Worker reported 103 tests; re-run by the driver: 5 files / 103 tests
   pass, `tsc --noEmit` clean, `verify-api-auth.sh` 224/224.
+  Response notes for the UI: create's `affectedRuns` lists only drafts whose rows were actually excluded; cancel's lists every
+  open DRAFT/COMMITTING run covering the months (it does not check the student has a row), so the copy there is "hitung ulang
+  draf jika ada". `openInvoices` is null without `invoices.view`; an archived year answers 403 (existing year guard).
 
 ## Verification
 
