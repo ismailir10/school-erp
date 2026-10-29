@@ -141,7 +141,7 @@ None: no schema, no dependency, no auth/PII, no production write.
       migrated. (deps: T1)
 - [x] T3 Spinner everywhere — accept: Spinner a11y/reduced-motion test; no `Loader2 animate-spin` outside Spinner.
       (deps: none, parallel)
-- [ ] T4 ErrorState, UserAvatar, BackLink consolidation — accept: component tests; six boundaries, eight avatars and
+- [x] T4 ErrorState, UserAvatar, BackLink consolidation — accept: component tests; six boundaries, eight avatars and
       the back links migrated. (deps: none, parallel)
 - [ ] T5 SectionCard and card migration — accept: SectionCard test; parent and admin hand-rolled cards migrated.
       (deps: T1)
@@ -154,6 +154,7 @@ None: no schema, no dependency, no auth/PII, no production write.
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (implementation, docs) + claude-haiku (sweeps); T1, T3, T4 parallel (wave 1); T7 parallel with the wave-1 gate (docs only); T2, T5 parallel (wave 2, need T1 tokens); T6 last (guards the finished tree). Workers share one worktree on disjoint file sets; a file touched by two workers is committed with the earlier task.
 - T1: `app/globals.css`, `lib/motion.ts`, the sidebar/status-badge/data-table primitives, stat card, portal chrome, reactbits motion, and the heading call sites. Adds the semantic triads, motion/z-index/elevation tokens and type line-height/weight pairings. Driver fixes on review: elevation values moved to `--elevation-*` because the `@theme` alias `--shadow-resting: var(--shadow-resting)` referenced itself, and the amber ink was darkened to `#A35000` for `status-late-text` and `status-no-checkout-text` too (`#B35C00` was 4.35:1 on its tint, under AA).
 - T3: `components/ui/spinner.tsx` (role=status + "Memuat" label, `aria-hidden` mode next to visible text, `motion-reduce:animate-none`) + 4 tests; 15 call sites migrated off hand-rolled `Loader2`/`RefreshCw animate-spin`. No `animate-spin` remains outside the primitive.
+- T4: new `ErrorState` (role=alert, "Coba lagi" retry) in all six `error.tsx` boundaries; new `UserAvatar` + `getInitials` replacing eight hand-rolled initials circles and two local helpers (photos keep `loading="lazy"`); three admin semester pages moved to `BackLink`. Left: `class-day-grid` (state-swapping circle), `portal-header` (`size-7`), `raport-editor` BackBar (callback, not a link), `detail-page-header` (unsaved-changes guard). Retry label unified to "Coba lagi" per `voice.md`.
 
 ## Verification
 

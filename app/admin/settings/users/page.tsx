@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -77,11 +78,7 @@ function buildColumns(
         const u = row.original;
         return (
           <div className="flex items-center gap-3 whitespace-normal">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <span className="text-primary text-xs font-bold">
-                {(u.name ?? u.email)[0].toUpperCase()}
-              </span>
-            </div>
+            <UserAvatar name={u.name ?? u.email} size="sm" className="shrink-0" />
             <div className="min-w-0">
               <span className="text-sm font-medium">{u.name ?? "—"}</span>
               <p className="text-xs text-muted-foreground break-all">{u.email}</p>

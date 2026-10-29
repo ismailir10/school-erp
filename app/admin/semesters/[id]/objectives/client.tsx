@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { BackLink } from "@/components/portal/back-link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/accordion";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { ArrowLeft, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Pencil, Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -193,12 +193,7 @@ export function ObjectivesClient({
   return (
     <div className="space-y-section">
       <div>
-        <Link
-          href="/admin/semesters"
-          className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Kembali ke daftar semester
-        </Link>
+        <BackLink href="/admin/semesters" label="Kembali ke daftar semester" />
       </div>
 
       <PageHeader

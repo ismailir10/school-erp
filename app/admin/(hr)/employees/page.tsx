@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Control } from "react-hook-form";
@@ -75,9 +76,7 @@ const columns: ColumnDef<Employee>[] = [
       const e = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
-          </div>
+          <UserAvatar name={e.nama} size="sm" className="shrink-0" />
           <DataTableLinkCell
             href={`/admin/employees/${e.id}`}
             className="min-w-0 whitespace-normal"

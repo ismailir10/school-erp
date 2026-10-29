@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { DossierSubsection } from "@/components/admin/dossier-section";
@@ -157,19 +158,12 @@ export function DataAnakSection({
     >
       {/* Photo — auth-proxied; src never references a public filesystem path */}
       <div className="mb-4 flex items-center gap-4">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-muted">
-          {student.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- same-origin, cookie-authenticated URL; next/image's server-side optimizer cannot send the session cookie
-            <img
-              src={`/api/students/${student.id}/photo?v=${photoVersion}`}
-              alt={`Foto ${student.name}`}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <span className="text-xl font-bold text-primary">{student.name[0]}</span>
-          )}
-        </div>
+        <UserAvatar
+          name={student.name}
+          size="lg"
+          src={student.photoUrl ? `/api/students/${student.id}/photo?v=${photoVersion}` : null}
+          className="size-20 shrink-0"
+        />
         {student.canEdit === true && <div className="flex gap-2">
           <input
             ref={photoInputRef}
