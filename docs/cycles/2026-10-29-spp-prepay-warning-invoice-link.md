@@ -72,13 +72,22 @@ untouched; it already returns the issues).
 
 ## Tasks
 
-- [ ] T1 Planner + loader: `PlanInvoice` gains `invoiceNumber` and `monthlyAmount`; the two invoice-pointing issues carry an
+- [x] T1 Planner + loader: `PlanInvoice` gains `invoiceNumber` and `monthlyAmount`; the two invoice-pointing issues carry an
       `invoice` reference — accept: planner and loader unit tests
-- [ ] T2 Dialog: render the reference under each caution with a new-tab link — accept: dialog component test, then walk it in
+- [x] T2 Dialog: render the reference under each caution with a new-tab link — accept: dialog component test, then walk it in
       the browser
 - [ ] T3 README/docs touch, local gate, PR (deps: T1, T2)
 
 ## Implementation
+
+- Plan: driver=claude-sonnet-5-5, workers=sonnet; T1+T2 in one worker (two small slices that share one type, the dialog reads what the
+  planner emits), T3 inline (docs, local gate, browser walk, PR). No Opus consult this cycle: no schema, auth or money-flow change.
+- T1: lib/finance/spp-prepay-plan.ts, lib/finance/spp-prepay-load.ts + tests — `PlanInvoice` gains `invoiceNumber` and
+  `monthlyAmount` (sum of the recurring lines' finalAmount); the two cautions that point at one invoice (unreadable label in both
+  variants, "also carries one-time fees") carry a plain-number `invoice` reference. Messages and blocking behaviour unchanged.
+- T2: components/admin/invoices/spp-prepay-dialog.tsx + test — under those cautions a muted line "no · label · status · total (SPP di
+  dalamnya …)" and a "Buka tagihan" link that opens the invoice in a new tab (dialog stays open). Checked against design-system
+  (existing Alert/list/link styles, text-small, 44px touch floor on coarse pointers).
 
 ## Verification
 

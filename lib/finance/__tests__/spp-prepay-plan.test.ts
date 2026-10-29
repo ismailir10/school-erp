@@ -7,9 +7,11 @@ const D = (v: string | number) => new Prisma.Decimal(v);
 
 function inv(over: Partial<PlanInvoice> & { id: string; periodLabel: string }): PlanInvoice {
   return {
+    invoiceNumber: `INV-${over.id}`,
     status: "SENT",
     totalDue: D(500000),
     totalPaid: D(0),
+    monthlyAmount: D(500000),
     hasMonthlyLine: true,
     hasOtherLine: false,
     hasLink: false,
@@ -170,6 +172,94 @@ describe("planSppPrepay", () => {
     expect(warn[0].message).toMatch(/sekali bayar/);
     expect(plan.rows.map((r) => r.action)).toEqual(["SETTLE", "SETTLE"]);
     expect(plan.blocked).toBe(false);
+  });
+
+  it("hands the owing and the fully paid unreadable-label cautions the invoice they point at", () => {
+    const plan = planSppPrepay({
+      range: { from: { year: 2026, month: 10 }, to: { year: 2026, month: 10 } },
+      invoices: [
+        inv({
+          id: "sem",
+          invoiceNumber: "INV-2026-0100",
+          periodLabel: "Semester 1 2026/2027",
+          totalDue: D(3000000),
+          monthlyAmount: D(1650000),
+        }),
+        inv({
+          id: "spmb",
+          invoiceNumber: "INV-2026-0123",
+          periodLabel: "SPMB Tahap 1",
+          status: "PAID",
+          totalDue: D(3000000),
+          totalPaid: D(3000000),
+          monthlyAmount: D(1650000),
+        }),
+      ],
+      priceFor: flat(500000),
+      firstInvoicedMonth: null,
+    });
+    expect(plan.issues.find((i) => i.invoiceId === "sem")?.invoice).toEqual({
+      id: "sem",
+      invoiceNumber: "INV-2026-0100",
+      periodLabel: "Semester 1 2026/2027",
+      status: "SENT",
+      totalDue: 3000000,
+      monthlyAmount: 1650000,
+    });
+    expect(plan.issues.find((i) => i.invoiceId === "spmb")?.invoice).toEqual({
+      id: "spmb",
+      invoiceNumber: "INV-2026-0123",
+      periodLabel: "SPMB Tahap 1",
+      status: "PAID",
+      totalDue: 3000000,
+      monthlyAmount: 1650000,
+    });
+  });
+
+  it("hands the one-time-fees caution its invoice, and leaves other cautions without one", () => {
+    const plan = planSppPrepay({
+      range: { from: { year: 2026, month: 10 }, to: { year: 2026, month: 12 } },
+      invoices: [
+        inv({
+          id: "okt",
+          invoiceNumber: "INV-2026-0200",
+          periodLabel: "Oktober 2026",
+          totalDue: D(1500000),
+          monthlyAmount: D(500000),
+          hasOtherLine: true,
+        }),
+        inv({ id: "dup-1", periodLabel: "November 2026" }),
+        inv({ id: "dup-2", periodLabel: "November 2026" }),
+      ],
+      priceFor: (ym) => (ym.month === 12 ? null : priceOf(500000)),
+      firstInvoicedMonth: null,
+    });
+    const other = plan.issues.find((i) => i.code === "SETTLES_OTHER_LINES");
+    expect(other?.invoice).toEqual({
+      id: "okt",
+      invoiceNumber: "INV-2026-0200",
+      periodLabel: "Oktober 2026",
+      status: "SENT",
+      totalDue: 1500000,
+      monthlyAmount: 500000,
+    });
+    const codes = plan.issues.map((i) => i.code).sort();
+    expect(codes).toEqual(["MULTIPLE_MONTHLY_INVOICES", "NO_PRICE", "SETTLES_OTHER_LINES"]);
+    for (const issue of plan.issues) {
+      if (issue.code !== "SETTLES_OTHER_LINES") expect(issue.invoice).toBeUndefined();
+    }
+    expect(plan.issues.find((i) => i.code === "RANGE_INVALID")).toBeUndefined();
+  });
+
+  it("gives RANGE_INVALID no invoice either", () => {
+    const plan = planSppPrepay({
+      range: { from: { year: 2026, month: 12 }, to: { year: 2026, month: 10 } },
+      invoices: [],
+      priceFor: flat(500000),
+      firstInvoicedMonth: null,
+    });
+    expect(plan.issues[0].code).toBe("RANGE_INVALID");
+    expect(plan.issues[0].invoice).toBeUndefined();
   });
 
   it("blocks with NO_PRICE when a created month cannot be priced", () => {

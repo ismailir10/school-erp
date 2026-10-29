@@ -15,11 +15,13 @@ export type YearMonth = { year: number; month: number }; // month 1-12
 /** An existing invoice of the student, already loaded by the caller. */
 export type PlanInvoice = {
   id: string;
+  invoiceNumber: string;
   periodLabel: string;
   status: string; // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED | PENDING_PAYMENT_LINK
   totalDue: Prisma.Decimal;
   totalPaid: Prisma.Decimal;
   hasMonthlyLine: boolean; // true when the invoice has a line for a billable recurring fee component (SPP)
+  monthlyAmount: Prisma.Decimal; // sum of finalAmount over its recurring (SPP) lines
   hasOtherLine: boolean; // true when it also carries a one-time fee line (uang pangkal, seragam, ...)
   hasLink: boolean; // xenditPaymentUrl != null
   paymentLinkExpiresAt: Date | null;
@@ -43,6 +45,15 @@ export type PlanRow = {
   beforeFirstBilling: boolean; // month is earlier than firstInvoicedMonth
 };
 export type PlanIssueCode = "NO_PRICE" | "UNPARSABLE_LABEL" | "MULTIPLE_MONTHLY_INVOICES" | "SETTLES_OTHER_LINES" | "RANGE_INVALID";
+/** The one invoice a caution points at, so the admin can find it (plain numbers: it goes into the preview JSON). */
+export type PlanInvoiceRef = {
+  id: string;
+  invoiceNumber: string;
+  periodLabel: string;
+  status: string;
+  totalDue: number;
+  monthlyAmount: number;
+};
 export type PlanIssue = {
   code: PlanIssueCode;
   blocking: boolean;
@@ -50,6 +61,7 @@ export type PlanIssue = {
   year?: number;
   month?: number;
   invoiceId?: string;
+  invoice?: PlanInvoiceRef;
 };
 
 const MAX_MONTHS = 12;
@@ -58,6 +70,17 @@ const monthIndex = (ym: YearMonth) => ym.year * 12 + (ym.month - 1);
 
 function isValidYearMonth(ym: YearMonth): boolean {
   return Number.isInteger(ym.year) && Number.isInteger(ym.month) && ym.month >= 1 && ym.month <= 12;
+}
+
+function refOf(inv: PlanInvoice): PlanInvoiceRef {
+  return {
+    id: inv.id,
+    invoiceNumber: inv.invoiceNumber,
+    periodLabel: inv.periodLabel,
+    status: inv.status,
+    totalDue: Number(inv.totalDue),
+    monthlyAmount: Number(inv.monthlyAmount),
+  };
 }
 
 function remainingOf(inv: PlanInvoice): Prisma.Decimal {
@@ -113,6 +136,7 @@ export function planSppPrepay(args: {
           ? `Tagihan dengan label "${inv.periodLabel}" memuat SPP tetapi tidak menyebut satu bulan; tidak ikut dihitung.`
           : `Tagihan lunas dengan label "${inv.periodLabel}" memuat SPP tetapi tidak menyebut satu bulan, jadi bulan-bulannya tidak terbaca. Pastikan SPP bulan-bulan itu belum dibayar sebelum mencatat.`,
         invoiceId: inv.id,
+        invoice: refOf(inv),
       });
       continue;
     }
@@ -192,6 +216,7 @@ export function planSppPrepay(args: {
           year: ym.year,
           month: ym.month,
           invoiceId: inv.id,
+          invoice: refOf(inv),
         });
       }
     }
