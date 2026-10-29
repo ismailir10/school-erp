@@ -100,4 +100,34 @@ untouched; it already returns the issues).
 
 ## Verification
 
+**Verified locally — e45e317e** (later commits, if any, are cycle-doc evidence only)
+
+- Diff classified from `origin/staging...HEAD` (0 behind, 6 ahead, 12 files): **other code**. No schema, auth, session, proxy or
+  dependency change; the preview route and its permission are untouched. No signed-in staging check required.
+- App: production build, demo auth + disposable local Postgres 16 (localhost:54329).
+- Full gate on this head: `npm run lint` exit 0 · `npx tsc --noEmit` clean · `verify-rls-coverage.sh` 45/45 · `verify-api-auth.sh`
+  224/224 · `audit-docs.sh` 0 fail (1 pre-existing warn) · `npx vitest run` 722 files passed | 2 skipped, **8722 tests passed** ·
+  `DEMO_MODE=true npm run build` exit 0 · `npx playwright test` whole suite **263 passed, 0 failed, no retries**, twice: once on a
+  freshly recreated database (what CI does) and once more on the same, now dirty, database.
+- Playwright note: the installed Chromium is build 1243 and the repo's Playwright asks for 1248, so the repo config was run through a
+  wrapper kept outside the repo that only sets `executablePath`; webServer, DB guard and workers are the repo's own.
+- Looked at (desktop 1280x900 and mobile 390x844, production build): "Catat SPP di muka" for a student with a paid "SPMB Tahap 1"
+  invoice — the caution keeps its original message and shows "INV-2026-2014 · SPMB Tahap 1 · Lunas · Rp 3.000.000 (SPP di dalamnya
+  Rp 1.650.000)" with a "Buka tagihan" link; no horizontal overflow; the only console errors are the Vercel analytics script 404 that
+  any non-Vercel production build shows. Design-system styles reused (Alert list, text-small, link). Shots: `prepay-caution-desktop.png`,
+  `prepay-caution-mobile.png`.
+- Verify flows: 1 (paid unreadable-label invoice → details + new-tab link, dialog stays open and confirmable) is covered by the new e2e
+  test and the browser walk; 3 (no caution box for a normal student) by the existing prepay e2e test, which still passes. Flow 2 (an
+  unpaid invoice with an unreadable label) is covered by the planner unit test only, not walked in a browser.
+- The first full run on a used database failed two tests through shared state (see Implementation, "Test robustness"); both specs were
+  fixed and the two passes above are the proof.
+
+
 ## Ship Notes
+
+- No migration, env var, config or manual step. Rollback: revert the PR (no data involved; the preview JSON gains an optional `invoice`
+  field on two cautions, which older clients ignore).
+- Post-merge: Vercel staging deploy READY for the merge SHA. Not auth-impacting, so no signed-in check is required; a quick manual look:
+  "Catat SPP di muka" for a student with a paid invoice whose label names no month (for example "SPMB Tahap 1").
+- Known limit: for an unpaid invoice with an unreadable label the caution still says it is not counted; the new details only help the
+  admin find it.
