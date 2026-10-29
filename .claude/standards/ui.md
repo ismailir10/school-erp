@@ -4,7 +4,7 @@
 
 ## Canonical Reference
 
-**Cross-check every frontend change against `.claude/standards/design-system.html`** (brand, tokens, type, components, states, overlays, portal shells, voice). Scan the sections relevant to the change before editing; the cycle doc Verification must cite `design-system` (frontend gate, pre-commit Rule 4). Where tokens, recipes or copy disagree, `app/globals.css` wins for values and this file wins for usage.
+**Cross-check every frontend change against `.claude/standards/design-system.html`** (brand, tokens, type, components, states, overlays, portal shells, voice). Scan the sections relevant to the change before editing; the cycle doc Verification must cite `design-system` (frontend gate, pre-commit Rule 4). Where tokens, recipes or copy disagree, `app/globals.css` wins for values and this file wins for usage. `/admin/design-system` serves a byte-identical copy at `public/admin/design-system-reference.html`: edit the canonical file, then `cp` it over (the guard test fails on drift).
 
 ## Design tokens
 

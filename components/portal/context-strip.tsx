@@ -18,7 +18,7 @@ export function ContextStrip({ name, detail, avatar, className }: ContextStripPr
     >
       {avatar ? <ItemMedia aria-hidden="true" className="shrink-0">{avatar}</ItemMedia> : null}
       <ItemContent className="min-w-0 gap-0">
-        <ItemTitle className="w-auto text-small font-semibold text-primary-text">{name}</ItemTitle>
+        <ItemTitle className="w-auto font-semibold text-primary-text">{name}</ItemTitle>
         {detail ? <ItemDescription className="text-small">{detail}</ItemDescription> : null}
       </ItemContent>
     </Item>

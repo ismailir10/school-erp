@@ -253,7 +253,7 @@ export function ObjectivesClient({
         </div>
       ) : objectives.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-small text-muted-foreground">
+          <CardContent className="py-8 text-center text-muted-foreground">
             Belum ada tujuan pembelajaran untuk filter ini. Import PROMES via
             tombol di halaman semester untuk mengisi data.
           </CardContent>

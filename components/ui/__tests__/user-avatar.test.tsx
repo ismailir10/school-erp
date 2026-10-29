@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { UserAvatar, getInitials } from "../user-avatar";
 
 describe("getInitials", () => {
-  it("takes the first letters of the first two words, uppercased", () => {
-    expect(getInitials("abdullah faris siregar")).toBe("AF");
+  it("takes the first letters of the first and last words, uppercased", () => {
+    expect(getInitials("abdullah faris siregar")).toBe("AS");
     expect(getInitials("Siti Aisyah")).toBe("SA");
   });
 

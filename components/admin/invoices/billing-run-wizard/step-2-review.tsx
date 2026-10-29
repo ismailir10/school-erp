@@ -212,7 +212,7 @@ function RunRow({
         ) : (
           <span
             className={cn(
-              "font-currency shrink-0 text-body font-medium tabular-nums",
+              "font-currency shrink-0 font-medium tabular-nums",
               excluded ? "text-muted-foreground line-through" : "text-foreground",
             )}
           >

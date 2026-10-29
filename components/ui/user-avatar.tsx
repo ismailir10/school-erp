@@ -6,7 +6,7 @@
  *
  * Props:
  *   name    The person's full name. Initials are the first letters of the
- *           first two words, uppercased ("Abdullah Faris Siregar" -> "AF").
+ *           first and last words, uppercased ("Abdullah Faris Siregar" -> "AS").
  *           A single word gives one letter; empty gives "?".
  *   src?    Optional photo URL. Falls back to initials until/unless it loads.
  *   size?   sm (size-8) | md (size-10, default) | lg (size-16). Override a
@@ -18,12 +18,12 @@ import { cn } from "@/lib/utils";
 
 export type UserAvatarSize = "sm" | "md" | "lg";
 
-/** "Abdullah Faris Siregar" -> "AF"; "Faris" -> "F"; "" -> "?". */
+/** "Abdullah Faris Siregar" -> "AS"; "Faris" -> "F"; "" -> "?". */
 export function getInitials(name: string | null | undefined): string {
   const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";
-  return words
-    .slice(0, 2)
+  const ends = words.length === 1 ? words : [words[0], words[words.length - 1]];
+  return ends
     .map((w) => Array.from(w)[0] ?? "")
     .join("")
     .toUpperCase();

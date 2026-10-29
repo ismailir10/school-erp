@@ -116,7 +116,7 @@ function StatusPill({ status }: { status: string }) {
     return (
       <Badge
         variant="outline"
-        className="text-caption bg-status-present-subtle text-status-present-text border-transparent"
+        className="bg-status-present-subtle text-status-present-text border-transparent"
       >
         {WEBHOOK_STATUS_LABELS.PROCESSED}
       </Badge>
@@ -126,14 +126,14 @@ function StatusPill({ status }: { status: string }) {
     return (
       <Badge
         variant="outline"
-        className="text-caption bg-status-absent-subtle text-status-absent-text border-transparent"
+        className="bg-status-absent-subtle text-status-absent-text border-transparent"
       >
         {WEBHOOK_STATUS_LABELS.ERROR}
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="text-caption text-muted-foreground">
+    <Badge variant="outline" className="text-muted-foreground">
       {WEBHOOK_STATUS_LABELS[status] ?? "Tidak diproses"}
     </Badge>
   );

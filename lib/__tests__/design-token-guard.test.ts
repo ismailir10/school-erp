@@ -117,3 +117,12 @@ describe("design-token guard: matcher self-tests", () => {
     expect(hit("F", `ease: EASE_OUT`)).toBe(false);
   });
 });
+
+describe("design-system reference copy", () => {
+  // /admin/design-system iframes the public copy; it had silently fallen a version behind the canonical file.
+  it("public/admin/design-system-reference.html is identical to .claude/standards/design-system.html", () => {
+    const canonical = readFileSync(join(root, ".claude/standards/design-system.html"), "utf8");
+    const served = readFileSync(join(root, "public/admin/design-system-reference.html"), "utf8");
+    expect(served === canonical, "run: cp .claude/standards/design-system.html public/admin/design-system-reference.html").toBe(true);
+  });
+});

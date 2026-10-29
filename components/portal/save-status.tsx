@@ -22,7 +22,7 @@ export function SaveStatus({ state, message, className }: SaveStatusProps) {
       role={state === "error" ? "alert" : "status"}
       aria-live={state === "error" ? "assertive" : "polite"}
       className={cn(
-        "inline-flex min-h-6 items-center gap-1.5 text-small text-muted-foreground",
+        "inline-flex min-h-6 items-center gap-1.5 text-muted-foreground",
         state === "saved" && "text-status-present-text",
         state === "error" && "text-destructive",
         className,
