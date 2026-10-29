@@ -177,4 +177,17 @@ describe("step 2 — program on each row", () => {
     await screen.findByText("Abrina");
     expect(screen.getAllByText("TKA 4")).toHaveLength(2);
   });
+
+  it("labels a student on leave 'Sedang cuti' and offers no include/exclude switch for it", async () => {
+    stubRun([
+      reviewRow("r1", "Abrina", { status: "SKIPPED_ON_LEAVE", totalDue: 0 }),
+      reviewRow("r2", "Aluna"),
+    ]);
+    render(<ReviewStep runId="run-1" onAdvance={vi.fn()} onClose={vi.fn()} />);
+
+    await screen.findByText("Abrina");
+    expect(screen.getByText("Sedang cuti")).toBeInTheDocument();
+    // Only the billable row (Aluna) carries a switch.
+    expect(screen.getAllByRole("switch")).toHaveLength(1);
+  });
 });

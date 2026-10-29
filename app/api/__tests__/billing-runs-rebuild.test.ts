@@ -32,6 +32,7 @@ vi.mock("@/lib/db", () => ({
     invoice: { findMany: vi.fn() },
     studentGuardian: { findMany: vi.fn() },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
+    enrollmentLeave: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (fn: (tx: typeof txMock) => unknown) => fn(txMock)),
   },
 }));
@@ -47,6 +48,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 import { POST as rebuildRun } from "../billing-runs/[id]/rebuild/route";
+import { LEAVE_RECORDED_AFTER_DRAFT_REASON } from "@/lib/finance/leave-exclusion";
 
 function makeReq(url: string, body?: unknown) {
   return new Request(url, {
@@ -103,6 +105,7 @@ function wireEligibleStudents(
     const { prisma } = await import("@/lib/db");
     vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue(
       students.map((s) => ({
+        id: `enr-${s.id}`,
         studentId: s.id,
         classSectionId: "cs-1",
         student: { id: s.id, name: s.name },
@@ -141,12 +144,16 @@ beforeEach(() => {
   txMock.billingRunLine.createMany.mockResolvedValue({ count: 1 });
 });
 
-async function wireRun(run: typeof draftRun, committedRowCount = 0, excludedStudentIds: string[] = []) {
+type OldExcludedRow = string | { studentId: string; error: string | null };
+
+async function wireRun(run: typeof draftRun, committedRowCount = 0, excludedStudentIds: OldExcludedRow[] = []) {
   const { prisma } = await import("@/lib/db");
   vi.mocked(prisma.billingRun.findFirst).mockResolvedValue(run as never);
   vi.mocked(prisma.billingRunRow.count).mockResolvedValue(committedRowCount as never);
   vi.mocked(prisma.billingRunRow.findMany).mockResolvedValue(
-    excludedStudentIds.map((studentId) => ({ studentId })) as never,
+    excludedStudentIds.map((r) =>
+      typeof r === "string" ? { studentId: r, error: null } : r,
+    ) as never,
   );
 }
 
@@ -401,6 +408,52 @@ describe("POST /api/billing-runs/[id]/rebuild — happy path", () => {
     const s2Row = rowArgs.data.find((r: { studentId: string }) => r.studentId === "s-2");
     expect(s1Row.status).toBe("EXCLUDED");
     expect(s2Row.status).toBe("PENDING");
+  });
+
+  it("does NOT re-apply an exclusion that was made because a leave was recorded after the draft", async () => {
+    await primeAdminSession();
+    await wireRun(draftRun, 0, [
+      { studentId: "s-1", error: LEAVE_RECORDED_AFTER_DRAFT_REASON },
+      { studentId: "s-2", error: null },
+    ]);
+    await wireEligibleStudents([
+      { id: "s-1", name: "Budi" },
+      { id: "s-2", name: "Sari" },
+    ])();
+
+    const res = await rebuildRun(
+      makeReq("http://localhost/api/billing-runs/run-1/rebuild", { confirm: true }) as never,
+      makeParams("run-1"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Only the ordinary exclusion (s-2) is carried over; s-1 follows the new rules (PENDING here).
+    expect(body.reappliedExclusions).toBe(1);
+    const rowArgs = txMock.billingRunRow.createMany.mock.calls[0][0];
+    const byStudent = Object.fromEntries(
+      rowArgs.data.map((r: { studentId: string; status: string }) => [r.studentId, r.status]),
+    );
+    expect(byStudent).toEqual({ "s-1": "PENDING", "s-2": "EXCLUDED" });
+  });
+
+  it("rebuilds a leave-excluded student as SKIPPED_ON_LEAVE once the leave is in effect", async () => {
+    await primeAdminSession();
+    await wireRun(draftRun, 0, [{ studentId: "s-1", error: LEAVE_RECORDED_AFTER_DRAFT_REASON }]);
+    await wireEligibleStudents([{ id: "s-1", name: "Budi" }])();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.enrollmentLeave.findMany).mockResolvedValueOnce([{ enrollmentId: "enr-s-1" }] as never);
+
+    const res = await rebuildRun(
+      makeReq("http://localhost/api/billing-runs/run-1/rebuild", { confirm: true }) as never,
+      makeParams("run-1"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.reappliedExclusions).toBe(0);
+    expect(body.summary.skippedOnLeave).toBe(1);
+    expect(body.summary.excluded).toBe(0);
+    const rowArgs = txMock.billingRunRow.createMany.mock.calls[0][0];
+    expect(rowArgs.data[0]).toMatchObject({ studentId: "s-1", status: "SKIPPED_ON_LEAVE" });
   });
 
   it("does not reapply EXCLUDED onto a row that is now SKIPPED_ALREADY_INVOICED", async () => {

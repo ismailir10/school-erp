@@ -25,6 +25,7 @@ export type CreateBillingRunResponse = {
     excluded: number;
     skippedAlreadyInvoiced: number;
     skippedNoFeeStructure: number;
+    skippedOnLeave: number;
     withAdjustments: number;
   };
 };
@@ -60,6 +61,7 @@ export type BillingRunRowStatus =
   | "EXCLUDED"
   | "SKIPPED_ALREADY_INVOICED"
   | "SKIPPED_NO_FEE_STRUCTURE"
+  | "SKIPPED_ON_LEAVE"
   | "COMMITTED"
   | "FAILED";
 

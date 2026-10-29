@@ -169,7 +169,7 @@ runs on deploy), no change to the BillingRun tables.
 - [ ] T2 Domain helpers + validation (`lib/enrollment-leave/`, `lib/validations/enrollment-leave.ts`): month
       parse/compare, inclusive overlap, academic-year billing window (extract from spp-prepay-load), create/cancel
       schemas — accept: unit tests (deps: T1; reuse: `parsePeriodMonth`, spp-prepay window)
-- [ ] T3 Billing run: optional `onLeaveEnrollmentIds` + `enrollmentId` on `BuildEnrollment`, classifier rules, load
+- [x] T3 Billing run: optional `onLeaveEnrollmentIds` + `enrollmentId` on `BuildEnrollment`, classifier rules, load
       leaves in materialize (only for a single-month label), `SKIPPED_ON_LEAVE` through summary/types/status
       filter/wizard label/footer, rebuild skips leave-reason exclusions, row PATCH only from PENDING/EXCLUDED,
       spp-prepay-load passes the enrollment id — accept: classifier, materialize, route, wizard and prepay tests
@@ -190,6 +190,12 @@ runs on deploy), no change to the BillingRun tables.
 - T1: prisma/schema.prisma, prisma/migrations/20261029000000_add_enrollment_leave/migration.sql, prisma/seed.ts — new
   `EnrollmentLeave` table (additive, RLS, Restrict FKs), `SKIPPED_ON_LEAVE` in the BillingRunRow status comment, seed
   clears leaves before enrollments. `verify-rls-coverage.sh` 45/45; `db push` + seed clean on the disposable DB.
+- T3: lib/finance/{build-billing-run,materialize-billing-run,spp-prepay-load,leave-exclusion}.ts, app/api/billing-runs/**
+  (list filter, rebuild, row PATCH), wizard types/step-2/step-3 + tests — `SKIPPED_ON_LEAVE` end to end: classifier drops
+  on-leave enrollments before the program dedupe and skips only an emptied group (before already-invoiced), materialize
+  loads ACTIVE leaves only for a single-month label, rebuild does not re-apply a leave-reason exclusion, row PATCH only
+  from PENDING/EXCLUDED, prepay unchanged. Worker reported 679 tests green; re-run by the driver: 42 files / 656 tests
+  pass (lib/finance, billing-runs routes, wizard components, validations).
 
 ## Verification
 

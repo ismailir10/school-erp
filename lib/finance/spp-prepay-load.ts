@@ -159,6 +159,7 @@ export async function loadSppPrepayContext(
       classSection: { tenantId, academicYearId: year.id },
     },
     select: {
+      id: true,
       studentId: true,
       classSectionId: true,
       student: { select: { id: true, name: true } },
@@ -179,6 +180,7 @@ export async function loadSppPrepayContext(
   }
 
   const buildEnrollments: BuildEnrollment[] = enrollments.map((e) => ({
+    enrollmentId: e.id,
     studentId: e.studentId,
     studentName: e.student.name,
     classLabel: e.classSection.name,

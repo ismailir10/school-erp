@@ -50,6 +50,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const SKIP_REASON_LABEL: Partial<Record<BillingRunRowData["status"], string>> = {
   SKIPPED_ALREADY_INVOICED: "Sudah pernah ditagih periode ini",
   SKIPPED_NO_FEE_STRUCTURE: "Tidak ada struktur biaya berlaku",
+  SKIPPED_ON_LEAVE: "Sedang cuti",
 };
 
 // Shared with step 3's "Dengan keringanan" count via

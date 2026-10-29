@@ -65,6 +65,16 @@ export async function PATCH(
     );
   }
 
+  // Only an admin-togglable row may flip: PENDING <-> EXCLUDED. A SKIPPED_*
+  // row (already invoiced, no fee structure, on leave) has no lines and is not
+  // billable, and a FAILED row is the commit's to retry.
+  if (row.status !== "PENDING" && row.status !== "EXCLUDED") {
+    return NextResponse.json(
+      { error: "Baris ini dilewati dan tidak bisa diubah." },
+      { status: 409 },
+    );
+  }
+
   const updated = await prisma.billingRunRow.update({
     where: { id: rowId },
     // Clear any parked reason (e.g. "Rp 0 — tidak ditagih" from a commit

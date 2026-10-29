@@ -20,6 +20,7 @@ import { applyAdjustments, type AdjustmentInput } from "./apply-adjustments";
  */
 
 export type BuildEnrollment = {
+  enrollmentId: string;
   studentId: string;
   studentName: string;
   classLabel: string | null;
@@ -46,6 +47,12 @@ export type BuildInput = {
   feesByProgram: Map<string, FeeStructureLine[]>;
   adjustmentsByStudent: Map<string, AdjustmentInput[]>;
   alreadyInvoicedStudentIds: Set<string>;
+  /**
+   * Enrollments on leave (cuti) for the run's month. Optional: absent or empty
+   * leaves behaviour untouched. Leave is per enrollment, so a student is
+   * skipped only when EVERY in-scope enrollment is on leave.
+   */
+  onLeaveEnrollmentIds?: ReadonlySet<string>;
   parentByStudent: Map<string, string | null>;
   academicYearId: string;
   dueDate: string; // YYYY-MM-DD
@@ -55,7 +62,8 @@ export type BuiltRowStatus =
   | "PENDING"
   | "EXCLUDED"
   | "SKIPPED_ALREADY_INVOICED"
-  | "SKIPPED_NO_FEE_STRUCTURE";
+  | "SKIPPED_NO_FEE_STRUCTURE"
+  | "SKIPPED_ON_LEAVE";
 
 export type BuiltLine = {
   feeComponentId: string;
@@ -83,6 +91,7 @@ export type BuildSummary = {
   excluded: number;
   skippedAlreadyInvoiced: number;
   skippedNoFeeStructure: number;
+  skippedOnLeave: number;
   withAdjustments: number;
 };
 
@@ -96,6 +105,7 @@ export function buildBillingRunRows(input: BuildInput): {
     feesByProgram,
     adjustmentsByStudent,
     alreadyInvoicedStudentIds,
+    onLeaveEnrollmentIds,
     parentByStudent,
     academicYearId,
     dueDate,
@@ -127,16 +137,44 @@ export function buildBillingRunRows(input: BuildInput): {
   const excluded = 0; // never set here — draft-time exclusion happens post-creation (T5 PATCH), not at build time.
   let skippedAlreadyInvoiced = 0;
   let skippedNoFeeStructure = 0;
+  let skippedOnLeave = 0;
   let withAdjustments = 0;
 
-  for (const group of enrollmentsByStudent.values()) {
-    const { studentId, studentName } = group[0];
+  for (const fullGroup of enrollmentsByStudent.values()) {
+    const { studentId, studentName } = fullGroup[0];
     const parentId = parentByStudent.get(studentId) ?? null;
 
-    // Deterministic (sorted) join of every distinct in-scope class name.
-    // A single-enrollment student's group of one collapses to that same
-    // single label, so this is byte-identical to today's output when there
-    // is only one enrollment.
+    // Leave (cuti) is per enrollment: drop on-leave enrollments BEFORE the
+    // programId dedupe and fee-line building, so a student with two
+    // enrollments in the same program, one on leave, is still billed for that
+    // program once. With no leave set `group === fullGroup` (unchanged).
+    const group = onLeaveEnrollmentIds && onLeaveEnrollmentIds.size > 0
+      ? fullGroup.filter((e) => !onLeaveEnrollmentIds.has(e.enrollmentId))
+      : fullGroup;
+
+    // Full leave (nothing left to bill) is checked BEFORE already-invoiced, so
+    // a student whose invoice was cancelled for leave reads "Sedang cuti".
+    if (group.length === 0) {
+      skippedOnLeave++;
+      const leaveLabels = [
+        ...new Set(fullGroup.map((e) => e.classLabel).filter((l): l is string => l !== null)),
+      ].sort();
+      rows.push({
+        studentId,
+        studentNameSnapshot: studentName,
+        classLabelSnapshot: leaveLabels.length > 0 ? leaveLabels.join(", ") : null,
+        parentId,
+        status: "SKIPPED_ON_LEAVE",
+        totalDue: new Prisma.Decimal(0),
+        lines: [],
+      });
+      continue;
+    }
+
+    // Deterministic (sorted) join of every distinct in-scope class name of the
+    // BILLED (non-leave) enrollments. A single-enrollment student's group of
+    // one collapses to that same single label, so this is byte-identical to
+    // today's output when there is only one enrollment.
     const distinctClassLabels = [
       ...new Set(group.map((e) => e.classLabel).filter((l): l is string => l !== null)),
     ].sort();
@@ -275,6 +313,7 @@ export function buildBillingRunRows(input: BuildInput): {
       excluded,
       skippedAlreadyInvoiced,
       skippedNoFeeStructure,
+      skippedOnLeave,
       withAdjustments,
     },
   };

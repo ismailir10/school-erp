@@ -76,7 +76,10 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
   const pendingZero = pending.filter((r) => isZeroTotal(r.totalDue));
   const billable = pending.filter((r) => !isZeroTotal(r.totalDue));
   const skipped = rows.filter(
-    (r) => r.status === "SKIPPED_ALREADY_INVOICED" || r.status === "SKIPPED_NO_FEE_STRUCTURE",
+    (r) =>
+      r.status === "SKIPPED_ALREADY_INVOICED" ||
+      r.status === "SKIPPED_NO_FEE_STRUCTURE" ||
+      r.status === "SKIPPED_ON_LEAVE",
   );
   const alreadyCommitted = rows.filter((r) => r.status === "COMMITTED");
   // Same predicate as step 2's badge — shared so the two can never disagree
@@ -130,6 +133,7 @@ type RebuildResponse = {
     excluded: number;
     skippedAlreadyInvoiced: number;
     skippedNoFeeStructure: number;
+    skippedOnLeave: number;
     withAdjustments: number;
   };
   reappliedExclusions: number;
@@ -465,8 +469,8 @@ export function CommitStep({
         ) : null}
         {summary.skippedCount > 0 ? (
           <p className="mt-3 text-small text-muted-foreground">
-            {summary.skippedCount} siswa dilewati sejak draf dibuat (sudah pernah ditagih atau tidak
-            punya struktur biaya).
+            {summary.skippedCount} siswa dilewati sejak draf dibuat (sudah pernah ditagih, sedang cuti,
+            atau tidak punya struktur biaya).
           </p>
         ) : null}
         {/* Only reachable by reopening a resumable draft that already had a
