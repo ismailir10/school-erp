@@ -71,7 +71,7 @@ export function ProgramClassesUsage({
 
   return (
     <section aria-labelledby="program-usage-heading" className="mt-section space-y-field">
-      <h2 id="program-usage-heading" className="text-h2 font-semibold">
+      <h2 id="program-usage-heading" className="text-h2">
         Dipakai oleh
       </h2>
 

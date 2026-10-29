@@ -79,10 +79,17 @@
   --color-status-no-checkout-text: var(--status-no-checkout-text);
 
   /* Semantic colors */
-  --color-warning: var(--warning);
-  --color-warning-highlight: var(--warning-highlight);
   --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-text: var(--info-text);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-text: var(--destructive-text);
 
   /* Celebration tone — for rapor-published, all-lunas moments, Islamic-courtesy
    * warm acknowledgements. See design-system.html §14 empty/celebration patterns. */
@@ -96,19 +103,51 @@
 
   /* Elevation — paired shadow tokens for resting vs primary surfaces.
    * See design-system.html §13 Overlays / §14 Page Recipes elevation rules. */
-  --shadow-card-resting: var(--shadow-resting);
-  --shadow-card-elevated: var(--shadow-elevated);
+  --shadow-card-resting: var(--elevation-resting);
+  --shadow-card-elevated: var(--elevation-elevated);
+  --shadow-resting: var(--elevation-resting);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-overlay: var(--elevation-overlay);
+  /* Edge shadow for a sticky trailing column (monthly attendance grid, DataTable actions). */
+  --shadow-sticky-edge: -8px 0 8px -8px rgb(0 0 0 / 0.12);
+
+  /* Motion — one easing vocabulary and three durations (`ease-emphasized`, `duration-base`).
+   * JS callers (framer-motion) import the same values from lib/motion.ts. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 200ms;
+  --transition-duration-slow: 320ms;
+
+  /* Stacking scale (`z-sticky`, `z-overlay`). Shadcn overlay primitives keep their
+   * upstream `z-50`, which equals z-overlay; do not rewrite them. */
+  --z-index-base: 0;
+  --z-index-sticky: 10;
+  --z-index-header: 20;
+  --z-index-nav: 30;
+  --z-index-dropdown: 40;
+  --z-index-overlay: 50;
+  --z-index-toast: 60;
 
   /* Demo-mode login shell (dev + e2e only — the Google sign-in screen is light) */
   --color-login-card-bg: var(--login-card-bg);
 
   /* Typography scale — see .claude/standards/design-system.html §3 */
   --text-display: var(--type-display);
+  --text-display--line-height: 1.15;
+  --text-display--font-weight: 700;
   --text-h1: var(--type-h1);
+  --text-h1--line-height: 1.25;
+  --text-h1--font-weight: 600;
   --text-h2: var(--type-h2);
+  --text-h2--line-height: 1.35;
+  --text-h2--font-weight: 600;
   --text-body: var(--type-body);
+  --text-body--line-height: 1.5;
   --text-small: var(--type-small);
+  --text-small--line-height: 1.4;
   --text-caption: var(--type-caption);
+  --text-caption--line-height: 1.35;
 
   /* Spacing scale — see .claude/standards/design-system.html §4 */
   --spacing-page-x: var(--space-page-x);
@@ -118,7 +157,7 @@
   --spacing-field: var(--space-field);
 
   /* Per-word blur-to-sharp reveal — used by components/reactbits/blur-text.tsx (opt-in via motion-safe:animate-blur-in) */
-  --animate-blur-in: blur-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-blur-in: blur-in 700ms var(--ease-emphasized) both;
 
   @keyframes blur-in {
     from {
@@ -154,8 +193,8 @@
 
   /* Slide hand-off in the product tour (components/deck). Opacity + a short horizontal nudge, direction-aware.
    * Opt-in via motion-safe:animate-deck-in-*; reduced-motion users get the slide with no transition. */
-  --animate-deck-in-fwd: deck-in-fwd 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-deck-in-back: deck-in-back 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-deck-in-fwd: deck-in-fwd 420ms var(--ease-emphasized) both;
+  --animate-deck-in-back: deck-in-back 420ms var(--ease-emphasized) both;
 
   @keyframes deck-in-fwd {
     from { opacity: 0; transform: translate3d(24px, 0, 0); }
@@ -267,17 +306,33 @@
    * (status badges, attendance counts, parent chips) gains contrast too.
    */
   --status-present-text: #00704A;
-  --status-late-text: #B35C00;
+  --status-late-text: #A35000;
   --status-absent-text: #CC0000;
   --status-leave-text: #0369A1;
   --status-holiday-text: #6B21A8;
-  --status-no-checkout-text: #B35C00;
+  --status-no-checkout-text: #A35000;
 
   /* Semantic */
-  --warning: #FF8C00;
-  --warning-highlight: #F4D03F;
   --success: #00B37E;
+  --warning: #FF8C00;
   --info: #0EA5E9;
+
+  /*
+   * Semantic triads — base / -subtle (tint surface) / -text (AA ink on that
+   * tint). Alias the status tiers where the meaning matches, so one hue has one
+   * definition. destructive's base stays #DC2626 (AA on white); on the pink
+   * tint that is only 4.07:1, hence the darker -text (#CC0000, 4.97:1).
+   * The amber ink is #A35000 (5.22:1 on the amber tint); the old #B35C00
+   * measured 4.35:1, under AA, and was darkened here for every caller.
+   */
+  --success-subtle: var(--status-present-subtle);
+  --success-text: var(--status-present-text);
+  --warning-subtle: var(--status-late-subtle);
+  --warning-text: var(--status-late-text);
+  --info-subtle: var(--status-leave-subtle);
+  --info-text: var(--status-leave-text);
+  --destructive-subtle: var(--status-absent-subtle);
+  --destructive-text: var(--status-absent-text);
 
   /*
    * Celebration tone — soft gold for rapor-publish, lunas, Islamic courtesy
@@ -297,15 +352,11 @@
    * lands there first.
    * See .claude/standards/design-system.html §13 Overlays elevation rules.
    */
-  --shadow-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-  --shadow-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
-
-  /*
-   * Motif opacity — default opacity for subtle Islamic geometric accents on
-   * parent portal greeting surfaces. 3% reads as "there is something here"
-   * without competing with content. See design-system.html §18 tone.
-   */
-  --motif-opacity: 0.03;
+  --elevation-resting: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --elevation-elevated: 0 6px 16px -4px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  /* Raised = hover-lifted card / sticky bar; overlay = popovers, menus, dialogs. */
+  --elevation-raised: 0 4px 12px -2px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --elevation-overlay: 0 12px 32px -8px rgb(0 0 0 / 0.18), 0 4px 8px -4px rgb(0 0 0 / 0.08);
 
   /* Demo-mode login shell only. The real (Supabase) sign-in screen is light and
    * uses --background / --card / --secondary; see app/page.tsx#SignInPage. */

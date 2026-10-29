@@ -21,7 +21,7 @@ export default function NotFound() {
       <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-muted">
         <Compass className="text-muted-foreground" size={28} />
       </div>
-      <h1 className="text-h2 mb-2 font-semibold">Halaman tidak ditemukan</h1>
+      <h1 className="text-h2 mb-2">Halaman tidak ditemukan</h1>
       <p className="text-muted-foreground mb-6 text-sm">
         Tautannya mungkin sudah berubah atau salah ketik. Mari kembali ke
         beranda.

@@ -524,7 +524,7 @@ export function EnrollmentApplicationEditor({
     <>
       <form id={formId} onSubmit={save} noValidate className="space-y-section" aria-labelledby={`${formId}-title`}>
         <div>
-          <h2 id={`${formId}-title`} ref={headingRef} tabIndex={-1} className="text-h2 font-semibold outline-none">
+          <h2 id={`${formId}-title`} ref={headingRef} tabIndex={-1} className="text-h2 outline-none">
             Ubah data formulir
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -565,7 +565,7 @@ export function EnrollmentApplicationEditor({
         </div>
 
         {/* Sticky so Simpan stays reachable on a long form, thumb-height on a phone. */}
-        <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-end gap-2 border-t bg-background/95 px-1 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sticky bottom-0 z-sticky -mx-1 flex items-center justify-end gap-2 border-t bg-background/95 px-1 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Button type="button" variant="ghost" onClick={cancel} disabled={saving}>
             Batal
           </Button>

@@ -421,7 +421,7 @@ export function SessionRosterClient({
             })}
           </div>
 
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-sticky -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
             {/* Space is reserved so the line appearing never moves the button under a thumb. */}
             <div className="mb-2 min-h-6" data-testid="roster-save-state">
               {saving ? (

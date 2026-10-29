@@ -22,9 +22,9 @@ export function StatCard({
 }) {
   const colorMap = {
     primary: { bg: "bg-primary/10", text: "text-primary", icon: "text-primary" },
-    success: { bg: "bg-success/10", text: "text-success", icon: "text-success" },
-    warning: { bg: "bg-warning/10", text: "text-warning", icon: "text-warning" },
-    error: { bg: "bg-destructive/10", text: "text-destructive", icon: "text-destructive" },
+    success: { bg: "bg-success-subtle", text: "text-success-text", icon: "text-success-text" },
+    warning: { bg: "bg-warning-subtle", text: "text-warning-text", icon: "text-warning-text" },
+    error: { bg: "bg-destructive-subtle", text: "text-destructive-text", icon: "text-destructive-text" },
   };
 
   const c = colorMap[color];

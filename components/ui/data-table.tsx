@@ -66,7 +66,7 @@ function isLowPriority<TData extends RowData>(column: LegacyColumn<TData>) {
 // `bg-background`) so the sticky action column reads as one opaque strip
 // instead of the header seam showing through under it while scrolled.
 const STICKY_RIGHT_CLASS =
-  "sticky right-0 z-[1] shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)]";
+  "sticky right-0 z-[1] shadow-sticky-edge";
 
 /**
  * Tracks whether the table's horizontal scroll container overflows to the

@@ -254,7 +254,7 @@ export default function ClassWeekPage({
           className="mb-4 rounded-xl border border-border bg-card p-card"
           data-testid="day-marks-section"
         >
-          <h2 id="day-marks-heading" className="text-h2 font-semibold">
+          <h2 id="day-marks-heading" className="text-h2">
             Hari tanpa buku penghubung
           </h2>
           <p className="mb-3 mt-1 text-xs text-muted-foreground">

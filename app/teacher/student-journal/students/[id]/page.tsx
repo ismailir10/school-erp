@@ -188,7 +188,7 @@ export default function TeacherStudentWeekPage() {
   const notesSection = (
           <section id="catatan" className="my-6" aria-label="Catatan siswa">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-h2 font-semibold">Catatan</h2>
+              <h2 className="text-h2">Catatan</h2>
               <Button
                 size="sm"
                 variant="outline"
@@ -317,7 +317,7 @@ export default function TeacherStudentWeekPage() {
           */}
           {(data?.homeCategories?.length ?? 0) > 0 ? (
             <section className="mt-6" aria-label="Di rumah" data-testid="home-section">
-              <h2 className="text-h2 font-semibold">Di rumah</h2>
+              <h2 className="text-h2">Di rumah</h2>
               <p className="mb-3 mt-1 text-xs text-muted-foreground">
                 Diisi wali murid di rumah — hanya bisa dilihat di sini.
               </p>

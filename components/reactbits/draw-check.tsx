@@ -7,12 +7,13 @@
 import { motion } from "framer-motion";
 import { useState, useSyncExternalStore } from "react";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
+import { EASE_EMPHASIZED } from "@/lib/motion";
 
 const subscribeNoop = () => () => {};
 
 const CIRCLE = { cx: 12, cy: 12, r: 10 } as const;
 const TICK = "M7.5 12.5l3 3 6-6.5";
-const EASE = [0.22, 1, 0.36, 1] as const;
+const EASE = EASE_EMPHASIZED;
 
 /**
  * A circle with a check mark that draws itself in (circle ~0.45s, tick starting ~0.2s later).

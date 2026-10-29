@@ -516,7 +516,7 @@ export default function AdminLeavePage() {
         ]}
         actions={
           stats.pending > 0 ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-subtle px-3 py-1 text-xs font-medium text-warning-text">
               <Clock size={12} /> Menunggu: {stats.pending}
             </span>
           ) : undefined
@@ -563,7 +563,7 @@ export default function AdminLeavePage() {
                   <Button
                     variant="outline"
                     onClick={() => switchReviewAction("reject")}
-                    className="text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:bg-destructive-subtle"
                   >
                     Tolak
                   </Button>

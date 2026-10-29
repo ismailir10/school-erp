@@ -147,7 +147,7 @@ function ReportCardDetail({
           sections.map((sec) => (
             <div key={sec.label}>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-h2 font-semibold text-foreground">{sec.label}</h3>
+                <h3 className="text-h2 text-foreground">{sec.label}</h3>
                 {sec.level ? (
                   <Badge
                     variant="outline"
@@ -178,7 +178,7 @@ function ReportCardDetail({
 
         {/* Kehadiran */}
         <div>
-          <h3 className="text-h2 font-semibold text-foreground mb-3">Kehadiran</h3>
+          <h3 className="text-h2 text-foreground mb-3">Kehadiran</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <AttCell label="Sakit" value={card.attendance.sick} />
             <AttCell label="Izin" value={card.attendance.permitted} />
@@ -190,7 +190,7 @@ function ReportCardDetail({
         {/* Pertumbuhan */}
         {card.height || card.weight ? (
           <div>
-            <h3 className="text-h2 font-semibold text-foreground mb-3">Pertumbuhan</h3>
+            <h3 className="text-h2 text-foreground mb-3">Pertumbuhan</h3>
             <p className="text-sm text-foreground">
               {card.height ? `Tinggi: ${formatMeasurement(card.height)} cm` : ""}
               {card.height && card.weight ? "   ·   " : ""}
@@ -202,7 +202,7 @@ function ReportCardDetail({
         {/* Hafalan */}
         {card.hafalan && card.hafalan.trim() ? (
           <div>
-            <h3 className="text-h2 font-semibold text-foreground mb-3">Hafalan</h3>
+            <h3 className="text-h2 text-foreground mb-3">Hafalan</h3>
             <p className="text-sm text-foreground whitespace-pre-wrap">{card.hafalan}</p>
           </div>
         ) : null}

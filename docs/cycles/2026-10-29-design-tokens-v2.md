@@ -134,7 +134,7 @@ None: no schema, no dependency, no auth/PII, no production write.
 
 ## Tasks
 
-- [ ] T1 Token layer — accept: the new families, motion, z-index, elevation and type pairings exist in `globals.css`;
+- [x] T1 Token layer — accept: the new families, motion, z-index, elevation and type pairings exist in `globals.css`;
       dead tokens are handled; the sidebar bug is fixed; the stat card and sticky shadows are migrated; build is green.
       (deps: none)
 - [ ] T2 Badge semantic tones and pill migration — accept: Badge tone test; the audit's pills and overrides are
@@ -150,6 +150,9 @@ None: no schema, no dependency, no auth/PII, no production write.
       `globals.css` and the new primitives are documented. (deps: T1–T5)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (implementation, docs) + claude-haiku (sweeps); T1, T3, T4 parallel (wave 1); T7 parallel with the wave-1 gate (docs only); T2, T5 parallel (wave 2, need T1 tokens); T6 last (guards the finished tree). Workers share one worktree on disjoint file sets; a file touched by two workers is committed with the earlier task.
+- T1: `app/globals.css`, `lib/motion.ts`, the sidebar/status-badge/data-table primitives, stat card, portal chrome, reactbits motion, and the heading call sites. Adds the semantic triads, motion/z-index/elevation tokens and type line-height/weight pairings. Driver fixes on review: elevation values moved to `--elevation-*` because the `@theme` alias `--shadow-resting: var(--shadow-resting)` referenced itself, and the amber ink was darkened to `#A35000` for `status-late-text` and `status-no-checkout-text` too (`#B35C00` was 4.35:1 on its tint, under AA).
 
 ## Verification
 

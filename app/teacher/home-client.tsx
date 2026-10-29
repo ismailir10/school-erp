@@ -92,7 +92,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
     {/* First in both states so the control the teacher needs on arrival never moves after the tap (R2-T-1). */}
     {personalAttendance}
-    {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2 font-semibold">Keputusan cuti</h2><TaskList>
+    {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2">Keputusan cuti</h2><TaskList>
       {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
         return <TaskRow key={d.id} title={`${LEAVE_TYPE_LABEL[d.leaveType]??d.leaveType} ${approved?"disetujui":"ditolak"}`} description={`${range}${!approved&&d.reviewNote?` · Alasan: ${d.reviewNote}`:""}`} meta="Lihat" href="/teacher/attendance?cuti=1" icon={approved?<CheckCircle2 className="size-5"/>:<CalendarX className="size-5"/>} tone={approved?"teal":"warm"}/>;})}
     </TaskList></section>:null}
@@ -104,7 +104,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
       </Card>
     ):<EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas."/>}
     {classes.length > 0 ? <section aria-labelledby="class-tasks">
-      <h2 id="class-tasks" className="mb-3 text-h2 font-semibold">Yang perlu diselesaikan</h2>
+      <h2 id="class-tasks" className="mb-3 text-h2">Yang perlu diselesaikan</h2>
       <TaskList>
         {classes.filter(c => c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount).map(c =>
           <TaskRow key={`attendance-${c.id}`} title={`Absensi ${c.name}`} description={c.attendanceRecorded === null ? "Data belum tersedia · buka untuk mencoba lagi" : `${c.attendanceRecorded} dari ${c.rosterCount} siswa tercatat`} meta="Buka" href={classHref(c.id,"attendance")} icon={<CalendarDays className="size-5"/>}/>
@@ -124,11 +124,11 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
         </CollapsibleContent>
       </Collapsible> : null}
     </section> : null}
-    {replyRows.length>0 || classes.some(c=>c.replies===null)?<section aria-labelledby="guardian-replies"><h2 id="guardian-replies" className="mb-3 text-h2 font-semibold">Balasan dari wali</h2><TaskList>
+    {replyRows.length>0 || classes.some(c=>c.replies===null)?<section aria-labelledby="guardian-replies"><h2 id="guardian-replies" className="mb-3 text-h2">Balasan dari wali</h2><TaskList>
       {replyRows.map(r=><TaskRow key={r.studentId} title={`Balasan wali ${r.studentName}`} description={r.className} meta={`${r.count} baru`} href={`/teacher/student-journal/students/${encodeURIComponent(r.studentId)}?view=notes#catatan`} icon={<MessageCircle className="size-5"/>}/>)}
       {classes.some(c=>c.replies===null)?<TaskRow title="Balasan belum bisa dimuat" description="Coba muat ulang untuk melihat balasan terbaru." onClick={()=>router.refresh()} meta="Coba lagi"/>:null}
     </TaskList></section>:null}
-    <section aria-labelledby="pickup-sessions"><h2 id="pickup-sessions" className="mb-1 text-h2 font-semibold">Sesi & penjemputan</h2><p className="mb-3 text-small text-muted-foreground">Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.</p>
+    <section aria-labelledby="pickup-sessions"><h2 id="pickup-sessions" className="mb-1 text-h2">Sesi & penjemputan</h2><p className="mb-3 text-small text-muted-foreground">Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.</p>
       {sessionsUnavailable?<EmptyState title="Sesi belum bisa dimuat" actionLabel="Coba lagi" onAction={()=>router.refresh()}/>:todaySessions.length>0?<TaskList>{todaySessions.map(s=><TaskRow key={s.id} title={s.className} description={`${SLOT_LABEL[s.slot]??s.slot} · ${s.rosterCount} siswa`} meta="Buka sesi" href={`/teacher/sessions/${s.id}`} icon={<ClipboardList className="size-5"/>}/>)}</TaskList>:<EmptyState title="Belum ada sesi terjadwal hari ini" description={classes.length>0?"Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas.":"Sesi akan muncul di sini setelah admin menjadwalkannya untuk Anda."}/>}
     </section>
   </div>;

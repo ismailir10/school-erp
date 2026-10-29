@@ -202,7 +202,7 @@ export default async function ParentAttendancePage({
             <thead>
               <tr>
                 {/* Corner cell: the visible "Status" label belongs to the data row only. */}
-                <th scope="col" className="sticky left-0 z-10 w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
+                <th scope="col" className="sticky left-0 z-sticky w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
                   <span className="sr-only">Hari</span>
                 </th>
                 {days.map((d, i) => {
@@ -223,7 +223,7 @@ export default async function ParentAttendancePage({
             </thead>
             <tbody>
               <tr className="border-b border-border/40">
-                <th scope="row" className="sticky left-0 z-10 bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
+                <th scope="row" className="sticky left-0 z-sticky bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
                   Status
                 </th>
                 {days.map((d) => {
