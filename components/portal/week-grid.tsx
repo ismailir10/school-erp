@@ -377,7 +377,7 @@ export function WeekGrid({
                               render={
                                 <button
                                   type="button"
-                                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-status-late-subtle hover:bg-status-late-subtle/80 active:bg-status-late-subtle/60 flex items-center justify-center transition-colors"
+                                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full after:absolute after:-inset-3.5 after:content-[''] bg-status-late-subtle hover:bg-status-late-subtle/80 active:bg-status-late-subtle/60 flex items-center justify-center transition-colors"
                                   aria-label={`Entri ini diedit oleh admin pada ${adminEditDateLabel}`}
                                 >
                                   <Pencil size={12} className="text-status-late-text" strokeWidth={2.5} />
