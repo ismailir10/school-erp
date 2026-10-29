@@ -158,7 +158,7 @@ function SignInPage() {
           {authError && (
             <Alert
               variant="destructive"
-              className="mb-5 border-destructive/30 bg-destructive/5"
+              className="mb-5 border-destructive/30 bg-destructive-subtle"
             >
               <AlertDescription>{authError}</AlertDescription>
             </Alert>

@@ -8,7 +8,7 @@
 
 ## Design tokens
 
-Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, and `bg-<semantic>/10` tints outside `components/ui`.
+Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, and `bg-<semantic>/10` tints outside `components/ui`. A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
 
 | Family | Utilities | Notes |
 |---|---|---|

@@ -27,6 +27,7 @@ import {
   LEVEL_ORDER,
   type Level,
 } from "@/lib/curriculum/level-presentation";
+import { Badge } from "@/components/ui/badge";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
@@ -654,12 +655,13 @@ export function CenterSessionClient({
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
                     {student.name}
                     {student.className && (
-                      <span
-                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
+                      <Badge
+                        variant="neutral"
+                        className="font-normal"
                         data-testid={`center-class-${student.id}`}
                       >
                         {student.className}
-                      </span>
+                      </Badge>
                     )}
                   </p>
                   <ul className="space-y-2">

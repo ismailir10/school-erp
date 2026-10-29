@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 import { AddStudentDialog } from "./add-student-dialog";
 import { formatDate, SECTION_ROSTER, type ClassDetail } from "./types";
+import { Badge } from "@/components/ui/badge";
 
 type Enrollment = ClassDetail["enrollments"][number];
 
@@ -157,9 +158,9 @@ export function RosterSection({
         id={SECTION_ROSTER}
         label="Daftar Siswa"
         badge={
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <Badge variant="neutral">
             {enrolledCount} siswa
-          </span>
+          </Badge>
         }
         open={open}
         onOpenChange={onOpenChange}

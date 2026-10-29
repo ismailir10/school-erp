@@ -262,7 +262,7 @@ export default function PayrollListPage() {
       />
 
       {statsStatus === "error" && (
-        <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive-subtle p-4 text-sm">
           <span>Ringkasan penggajian tidak bisa dimuat.</span>
           <Button variant="outline" size="sm" onClick={() => void loadStats()}>Coba lagi</Button>
         </div>

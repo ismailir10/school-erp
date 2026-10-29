@@ -137,9 +137,9 @@ export function TeachersSection({
         id={SECTION_TEACHERS}
         label="Guru Pengajar"
         badge={
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <Badge variant="neutral">
             {teachingAssignments.length} guru
-          </span>
+          </Badge>
         }
         open={open}
         onOpenChange={onOpenChange}

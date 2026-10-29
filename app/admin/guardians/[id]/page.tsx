@@ -42,6 +42,7 @@ import { InvoicesList } from "@/components/admin/guardians/detail/invoices-list"
 import { DocumentsPanel } from "@/components/admin/guardians/detail/documents-section";
 import { GuardianRail } from "@/components/admin/guardians/detail/guardian-rail";
 import { LinkStudentDialog } from "@/components/admin/guardians/link-student-dialog";
+import { Badge } from "@/components/ui/badge";
 
 type ParentFormValues = z4.input<typeof parentFormSchema>;
 
@@ -402,9 +403,9 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             // The collapsed summary already says the count; the badge is for an open section's header.
             badge={
               (openSections[SECTION_CHILDREN] ?? true) ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <Badge variant="neutral">
                   {studentCount} anak
-                </span>
+                </Badge>
               ) : undefined
             }
             summary={childrenSummary(parent.guardians)}
@@ -437,9 +438,9 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             label="Tagihan"
             badge={
               (openSections[SECTION_INVOICES] ?? true) ? (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <Badge variant="neutral">
                   {summary.invoiceCount} tagihan
-                </span>
+                </Badge>
               ) : undefined
             }
             summary={invoicesSummary(summary)}

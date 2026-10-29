@@ -137,7 +137,7 @@ None: no schema, no dependency, no auth/PII, no production write.
 - [x] T1 Token layer — accept: the new families, motion, z-index, elevation and type pairings exist in `globals.css`;
       dead tokens are handled; the sidebar bug is fixed; the stat card and sticky shadows are migrated; build is green.
       (deps: none)
-- [ ] T2 Badge semantic tones and pill migration — accept: Badge tone test; the audit's pills and overrides are
+- [x] T2 Badge semantic tones and pill migration — accept: Badge tone test; the audit's pills and overrides are
       migrated. (deps: T1)
 - [x] T3 Spinner everywhere — accept: Spinner a11y/reduced-motion test; no `Loader2 animate-spin` outside Spinner.
       (deps: none, parallel)
@@ -158,6 +158,7 @@ None: no schema, no dependency, no auth/PII, no production write.
 - T7: `colors.md` rewritten against `globals.css` (one destructive red `#DC2626`, semantic-triad table with AA ratios, light-only stated, stale line refs gone); `ui.md` audited, 255 → 254 lines, with a complete Design tokens table (spacing, type pairings, radius, elevation, motion, z-index) and a "Reach for" primitives table replacing scattered rows and stale claims; `design-system.html` `:root` synced to `globals.css` plus triad, elevation/motion/z-index, Badge-tone and shared-primitive cards. `--primary-hover` kept as doc-only (the HTML's hover demo uses it).
 - T6: `lib/__tests__/design-token-guard.test.ts` — static scan of `app/` and `components/` for six rules (raw palette, arbitrary colour, `hsl(var(--`, stray spinner, semantic opacity tint outside `components/ui`, duplicated easing literal), each with a planted-violation self-test; the allowlist is empty and fails if an entry goes stale. Its first run caught three `ease-[cubic-bezier(0.22,1,0.36,1)]` in `navigation-menu.tsx`, now `ease-emphasized`.
 - T5: new `SectionCard` (`section` labelled by its `text-h2` title, description/action/footer slots, `p-4 md:p-card` matching the hand-rolled blocks) + 3 tests; 9 blocks migrated (parent attendance and invoices ×5, admin enrollment ×3, admin student-journal ×1). Skipped by design: celebration-tinted callouts, clickable/list cards, widgets, skeletons, stat tiles and the public `rounded-2xl` enrollment recipe.
+- T2: `Badge` gains `success`/`warning`/`info`/`danger`/`neutral` (and its `destructive` tint now uses the `-subtle` token) + tests; 22 hand-rolled pills and `Badge className="bg-status-…"` overrides migrated; `bg-*/5` semantic tints outside `components/ui` swapped to `-subtle`. The worker found that `cn()` (tailwind-merge) read `text-caption` as a colour and dropped `text-muted-foreground`. The driver fixed it at the source by registering the size, shadow and z-index tokens with `extendTailwindMerge` in `lib/utils.ts`, added `lib/__tests__/cn-tokens.test.ts`, and noted the rule in `ui.md`. StatusBadge is unchanged: its tests pin the `status-*` classes and it has tones that Badge lacks.
 
 ## Verification
 

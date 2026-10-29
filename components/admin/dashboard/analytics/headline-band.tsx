@@ -11,6 +11,7 @@ import type {
 } from "@/lib/dashboard/analytics";
 import { formatRupiahCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * The three numbers an admin reads first: attendance (30 days, with the change
@@ -168,23 +169,21 @@ function deltaSentence(delta: number | null): string {
 function DeltaChip({ delta }: { delta: number }) {
   if (delta === 0) {
     return (
-      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-caption font-semibold text-muted-foreground">
+      <Badge variant="neutral" className="text-caption font-semibold">
         Stabil
-      </span>
+      </Badge>
     );
   }
   const up = delta > 0;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-caption font-semibold",
-        up ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text",
-      )}
+    <Badge
+      variant={up ? "success" : "danger"}
+      className="gap-0.5 text-caption font-semibold"
     >
       <Icon aria-hidden="true" className="size-3" />
       {up ? "+" : "−"}
       {Math.abs(delta)} poin
-    </span>
+    </Badge>
   );
 }

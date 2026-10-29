@@ -33,6 +33,7 @@ import { useZodForm } from "@/lib/forms/use-zod-form";
 import { GuardianDetailCard } from "@/components/admin/guardian-detail-card";
 import { deriveSiblings } from "@/lib/parent/siblings";
 import type { Guardian, Student } from "./types";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * "Keluarga & Wali" — the guardian roster, Saudara (siblings sharing a
@@ -483,9 +484,9 @@ export function KeluargaSection({
         id="keluarga"
         label="Keluarga & Wali"
         badge={
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <Badge variant="neutral">
             {activeGuardians.length} wali{siblings.length > 0 ? ` · ${siblings.length} saudara` : ""}
-          </span>
+          </Badge>
         }
         actions={student.canEdit === true &&
           <Button size="sm" variant="ghost" onClick={openAddGuardian}>

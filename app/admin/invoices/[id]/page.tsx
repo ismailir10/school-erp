@@ -762,7 +762,7 @@ export default function InvoiceDetailPage() {
       </ConfirmDialog>
 
       {invoice.paymentLinkError && (
-        <Card className="border-warning/40 bg-warning/5 p-4 mb-4">
+        <Card className="border-warning/40 bg-warning-subtle p-4 mb-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
             <div className="flex-1">
