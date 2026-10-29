@@ -216,6 +216,7 @@ export default async function ParentDashboard() {
       }
       icon={<Receipt className="size-5" />}
       meta={<Amount value={bill.total} size="row" />}
+      stackMeta
       tone={bill.overdue > 0 ? "danger" : "warm"}
     />
   );

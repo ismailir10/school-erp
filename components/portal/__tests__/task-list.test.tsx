@@ -29,6 +29,28 @@ describe("portal task primitives", () => {
     expect(screen.queryByRole("button", { name: /Check-in/ })).not.toBeInTheDocument();
   });
 
+  it("lets a status line wrap to 3 lines instead of truncating it to one", () => {
+    render(
+      <TaskList>
+        <TaskRow title="Tagihan Ahmad" description="4 tagihan belum dibayar · 2 lewat tempo" meta="Rp 3.000.000" onClick={() => {}} />
+      </TaskList>,
+    );
+    const status = screen.getByText(/lewat tempo/);
+    expect(status.className).toContain("line-clamp-3");
+    expect(status.className).not.toContain("truncate");
+    expect(status.className).not.toContain("line-clamp-1");
+  });
+
+  it("stacks the meta under the text on a narrow row only when asked", () => {
+    const { rerender } = render(<TaskRow title="Tagihan" meta="Rp 1" onClick={() => {}} stackMeta />);
+    const meta = () => screen.getByText("Rp 1") as HTMLElement;
+    expect(meta().className).toContain("@max-[15rem]:w-full");
+    expect(meta().parentElement?.className).toContain("@max-[15rem]:flex-col");
+    expect(meta().parentElement?.parentElement?.className).toContain("@container");
+    rerender(<TaskRow title="Absensi" meta="Buka" onClick={() => {}} />);
+    expect(screen.getByText("Buka").className).not.toContain("@max-");
+  });
+
   it("exposes save feedback and a read-only child context", () => {
     const { rerender } = render(<SaveStatus state="saving" />);
     expect(screen.getByRole("status")).toHaveTextContent("Menyimpan…");

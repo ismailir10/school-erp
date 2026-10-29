@@ -102,12 +102,20 @@ None.
 - [x] T3 `e2e/mobile-stress.spec.ts` — accept: it passes after T1/T2 and fails with T1 reverted. (parallel, finalised
       after T1)
 
+- [x] T4 Small phones (320px), teacher and parent: class-attendance names never truncate, the nav labels fit, and the bill/invoice/progress status lines wrap instead of truncating — accept: tests; the 320 stress pass is clean. (added after the owner asked to check small phones)
+- [ ] T5 Stress spec: a 320px teacher/parent pass, a truncated-essentials rule, and precise wrapped-number detection — accept: it fails on the pre-fix build and passes after T4.
+
 ## Implementation
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5. T1, T2 and T3 run in parallel on disjoint files. The driver built and ran the 62-route stress probe that scoped the spec; T3 ports its rules into Playwright.
 - T3: `e2e/mobile-stress.spec.ts`. 360×780 with touch, one context per role, 15 pages (8 admin + invoice detail, 2 teacher, 3 parent). For each page: networkidle, then wait 1.8 s (CountUp runs 0.9 s and then swaps in plain text), inflate the figures, measure. Rules: (a) no page overflow; (b) no number taller than 1.6 line-heights; (c) no text past a bordered card's padded edge. `expect.soft` per page, about 46 s. Against the pre-fix build it fails on exactly the defects in Context: 6 admin list pages, the dashboard, invoice detail and employee attendance. Teacher and parent pass.
 - T2: `app/admin/invoices/invoices-client.tsx` defines the secondary actions once (`{key,label,icon,onSelect,disabled}`, gated as before). They render inline in a `hidden sm:contents` wrapper, and below `sm` in a "Lainnya" `DropdownMenu` with the same icons, labels, "(N)" counts, disabled states and handlers. No JS viewport detection. "Buat Tagihan" stays the visible primary. 9 tests cover the menu contents, role gating, its absence when there is nothing secondary, and each item triggering the same handler. `PendingLinkBreakdownPopover` ("Coba lagi link (N)", shown only when links failed) stays inline: it is a popover with its own fetch.
 - T1: `lib/fluid-figure.ts` (`fluidFigureClass(len, cap)` → `text-[length:clamp(0.75rem,Ncqi,cap)]`; buckets ≤4/≤6/≤10/longer → 38/24/15/9 cqi, sized at ~0.6em per mono character to stay under ~91% of the card). `StatCard` puts label and icon on one row and the figure full-width in an `@container`, `whitespace-nowrap tabular-nums`; the old `length>8 → text-h2` branch is gone. `StatsCardsRow` spans an odd last card on phones (`max-lg:[&>*:last-child:nth-child(odd)]:col-span-2`). `StatTile` mono figures get the same fluid treatment, which also fixes the dashboard finance tiles. `RailTile` gains `mono`. Invoice-detail amounts are nowrap/`shrink-0`. The compiled CSS was checked with `@tailwindcss/node`, and `cn()` keeps the clamp class next to a text colour (test added). The worker checked the fit arithmetically; the driver checks it in the browser during verify.
+- T4 (added on the owner's request to check small phones; the driver's 320/375 probe and contact sheet found it):
+  - **Class attendance:** the list is an `@container`. Below 20rem the row stacks: the full name (2-line clamp, no truncate) sits above a 4-column grid of 44px H/S/I/A radios.
+  - **`PortalBottomNav`:** labels are `whitespace-nowrap` with fluid `clamp(0.625rem,3.4vw,0.75rem)` and no truncate, so "Kehadiran" fits at 320.
+  - **Shared `TaskRow`:** an opt-in `stackMeta` drops the amount under the title in a body narrower than 15rem, and the description is now `line-clamp-3` instead of truncating. The parent bill row and invoice list opt in, so "2 lewat tempo" and due dates stay visible. Teacher home inherits the wrap.
+  - **Compiled:** `@max-[20rem]`/`@max-[15rem]` compile to `@container (width < …)`.
 
 ## Verification
 

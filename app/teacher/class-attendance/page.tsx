@@ -380,18 +380,23 @@ export default function ClassAttendancePage() {
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+          {/*
+            @container: each row adapts to the list's real width, not the viewport. Below 20rem (a 320-360px phone)
+            the name got ~80px beside four 44px buttons and read "Abdul Zahr…" / "Fatimah …" (two different
+            children, identical). There the row stacks: full name on top, H/S/I/A as a 4-column grid below.
+          */}
+          <ul className="@container divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
             {students.map((s) => {
               const status = statuses[s.student.id];
               const rowState = saveState[s.student.id];
               return (
                 <li key={s.student.id} data-testid="roster-row" className={cn("px-3 py-2 transition-colors", status && ROW_TINT[status])}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 @max-[20rem]:flex-col @max-[20rem]:items-stretch @max-[20rem]:gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 break-words text-sm font-medium">{s.student.name}</p>
                       {s.student.nickname && <p className="truncate text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
-                    <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1">
+                    <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1 @max-[20rem]:grid @max-[20rem]:grid-cols-4 @max-[20rem]:gap-2">
                       {OPTIONS.map((o) => {
                         const selected = status === o.status;
                         return (
@@ -403,7 +408,7 @@ export default function ClassAttendancePage() {
                             aria-label={o.label}
                             onClick={() => { if (!selected) persist([s.student.id], o.status); }}
                             className={cn(
-                              "size-11 rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                              "size-11 @max-[20rem]:w-full rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                               selected ? SELECTED[o.status] : "border-border bg-background text-muted-foreground hover:bg-muted",
                             )}
                           >

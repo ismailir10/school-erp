@@ -391,3 +391,26 @@ describe("class attendance failure copy (TCHX-4/15, TCH-10, TCH-11)", () => {
     expect(screen.getAllByRole("radio")[0].className).toContain("size-11");
   });
 });
+
+describe("ClassAttendancePage small-phone row", () => {
+  it("stacks the row against its own width and never single-line truncates the name", async () => {
+    navigation.params = new URLSearchParams();
+    const longRoster = [{ student: { id: "s9", name: "Fatimah Az-Zahra Abdurrahman", nickname: "Fatimah", gender: null }, attendance: null }];
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(ok(url.includes("teaching-assignments") ? assignment : longRoster))));
+    render(<ClassAttendancePage />);
+    const row = (await screen.findAllByTestId("roster-row"))[0]!;
+    expect(row.parentElement!.className).toContain("@container");
+    const name = within(row).getByText("Fatimah Az-Zahra Abdurrahman");
+    expect(name.className).not.toContain("truncate");
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.parentElement!.parentElement!.className).toContain("@max-[20rem]:flex-col");
+    const group = within(row).getByRole("radiogroup", { name: "Status Fatimah Az-Zahra Abdurrahman" });
+    expect(group.className).toContain("@max-[20rem]:grid-cols-4");
+    const radios = within(group).getAllByRole("radio");
+    expect(radios).toHaveLength(4);
+    for (const radio of radios) {
+      expect(radio.className).toContain("size-11");
+      expect(radio.className).toContain("@max-[20rem]:w-full");
+    }
+  });
+});
