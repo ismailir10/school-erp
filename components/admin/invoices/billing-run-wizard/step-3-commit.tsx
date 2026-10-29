@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -523,7 +524,7 @@ export function CommitStep({
       {phase !== "idle" && progress.total > 0 ? (
         <Card className="p-4" role="status" aria-live="polite">
           <div className="mb-2 flex items-center gap-3">
-            {isRunning ? <Loader2 size={16} className="animate-spin text-primary" aria-hidden /> : null}
+            {isRunning ? <Spinner className="text-primary" aria-hidden /> : null}
             {phase === "done" ? <CheckCircle2 size={16} className="text-success" aria-hidden /> : null}
             <span className="text-small font-medium">
               {phase === "running" && `Mengomit tagihan… ${progress.done}/${progress.total}`}

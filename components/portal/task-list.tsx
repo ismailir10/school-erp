@@ -70,7 +70,7 @@ export function TaskRow({
         {description ? <ItemDescription className="text-small">{description}</ItemDescription> : null}
       </ItemContent>
       {meta || interactive ? (
-        <ItemActions className="max-w-[42%] shrink-0 flex-wrap justify-end text-right text-small font-semibold text-muted-foreground">
+        <ItemActions className="max-w-[42%] shrink-0 flex-wrap justify-end text-right font-semibold text-muted-foreground">
           {meta}
           {interactive ? <ChevronRight aria-hidden="true" className="size-4" /> : null}
         </ItemActions>

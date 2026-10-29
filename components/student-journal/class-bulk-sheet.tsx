@@ -20,6 +20,7 @@ import {
   type BulkPlan,
 } from "@/lib/student-journal/bulk";
 import type { GridState } from "@/lib/student-journal/optimistic-save";
+import { Badge } from "@/components/ui/badge";
 
 type Student = { id: string; name: string; nickname: string | null };
 
@@ -220,12 +221,12 @@ export function ClassBulkSheet({
                   />
                   <span className="min-w-0 truncate">{student.name}</span>
                   {absences[student.id] ? (
-                    <span
-                      className="shrink-0 rounded-full bg-status-absent-subtle px-2 py-0.5 text-xs font-medium text-status-absent-text"
+                    <Badge
+                      variant="danger"
                       data-testid={`bulk-absence-${student.id}`}
                     >
                       {BULK_ABSENCE_LABELS[absences[student.id]]}
-                    </span>
+                    </Badge>
                   ) : null}
                 </label>
               </li>

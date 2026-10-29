@@ -684,12 +684,12 @@ export default function StudentDetailPage() {
             {/* Allergy and illness ride in the header, not three sections down:
                 they are the one fact a teacher or admin must not have to hunt for. */}
             {flags.allergy && (
-              <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">
+              <Badge variant="info">
                 Alergi: {flags.allergy}
               </Badge>
             )}
             {flags.illness && (
-              <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">
+              <Badge variant="info">
                 Riwayat: {flags.illness}
               </Badge>
             )}
@@ -805,9 +805,9 @@ export default function StudentDetailPage() {
               label="Akademik"
               badge={
                 raportTally && raportTally.total > 0 ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {raportTally.published}/{raportTally.total} terbit
-                  </span>
+                  </Badge>
                 ) : undefined
               }
               open={openSections[SECTION_AKADEMIK] ?? false}
@@ -840,7 +840,7 @@ export default function StudentDetailPage() {
               label="Tagihan"
               badge={
                 invoiceSummary.unpaidCount > 0 ? (
-                  <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">
+                  <Badge variant="danger">
                     {invoiceSummary.unpaidCount} belum lunas
                   </Badge>
                 ) : undefined
@@ -863,9 +863,9 @@ export default function StudentDetailPage() {
               label="Keringanan"
               badge={
                 keringananCount != null && keringananCount > 0 ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {keringananCount}
-                  </span>
+                  </Badge>
                 ) : undefined
               }
               open={openSections[SECTION_KERINGANAN] ?? false}
@@ -888,9 +888,9 @@ export default function StudentDetailPage() {
               label="Cuti"
               badge={
                 cutiCount != null && cutiCount > 0 ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {cutiCount}
-                  </span>
+                  </Badge>
                 ) : undefined
               }
               open={openSections[SECTION_CUTI] ?? false}
@@ -925,9 +925,9 @@ export default function StudentDetailPage() {
                 id={SECTION_PENDAFTARAN}
                 label="Formulir Pendaftaran"
                 badge={
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {application.submittedAt ? formatDateShort(application.submittedAt) : "Belum dikirim"}
-                  </span>
+                  </Badge>
                 }
                 open={openSections[SECTION_PENDAFTARAN] ?? false}
                 onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}

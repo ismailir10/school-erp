@@ -4,7 +4,7 @@ export const ANALYTICS_HEADING_ID = "dashboard-analytics-heading";
 export function AnalyticsHeading() {
   return (
     <div>
-      <h2 id={ANALYTICS_HEADING_ID} className="text-h2 font-semibold">
+      <h2 id={ANALYTICS_HEADING_ID} className="text-h2">
         Analitik
       </h2>
       <p className="text-body text-muted-foreground">Tren kehadiran siswa, buku penghubung, dan keuangan sekolah.</p>

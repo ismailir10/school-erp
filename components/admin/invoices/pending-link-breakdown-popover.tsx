@@ -27,7 +27,8 @@
 import { useState, useCallback } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import {
   PAYMENT_LINK_ERROR_PREFIXES,
   type PaymentLinkErrorPrefix,
@@ -105,7 +106,7 @@ export function PendingLinkBreakdownPopover({
             size="sm"
             variant="outline"
             disabled={retrying}
-            className="border-warning/40 text-warning hover:bg-warning/10 hover:text-warning"
+            className="border-warning/40 text-warning-text hover:bg-warning-subtle hover:text-warning-text"
           >
             <RefreshCw size={14} className="mr-1.5" />
             {retrying ? "Mencoba..." : `Coba Lagi Link (${count})`}
@@ -117,7 +118,7 @@ export function PendingLinkBreakdownPopover({
           <div className="text-sm font-medium">Rincian gagal</div>
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-3 animate-spin" /> Memuat...
+              <Spinner aria-hidden className="size-3" /> Memuat...
             </div>
           ) : error ? (
             <p className="text-xs text-destructive">
@@ -184,7 +185,7 @@ function BreakdownBody({
         ))}
       </ul>
       {authHeavy && (
-        <div className="rounded-md bg-warning/10 p-2 text-xs text-warning">
+        <div className="rounded-md bg-warning-subtle p-2 text-xs text-warning-text">
           Banyak gagal autentikasi. Periksa{" "}
           <code className="font-mono">{GATEWAY_SECRET_ENV_VAR[gatewayId]}</code>{" "}
           di Vercel.

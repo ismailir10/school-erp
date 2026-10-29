@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, Loader2, X } from "lucide-react"
+import { ChevronDown, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Popover,
   PopoverContent,
@@ -277,7 +278,7 @@ export function AsyncCombobox<T>({
               )}
               {state.kind === "loading" && (
                 <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Spinner aria-hidden />
                   <span>Memuat...</span>
                 </div>
               )}

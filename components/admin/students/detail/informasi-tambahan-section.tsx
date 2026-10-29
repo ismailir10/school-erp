@@ -134,7 +134,7 @@ export function InformasiTambahanSection({
                     disabled={!canEdit}
                     onClick={() => remove(index)}
                     aria-label={`Hapus field ${rows[index]?.key || "tanpa nama"}`}
-                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-text"
                   >
                     <Trash2 size={14} aria-hidden="true" />
                   </Button>

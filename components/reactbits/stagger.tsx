@@ -14,13 +14,14 @@ import {
   type ReactNode,
 } from "react";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
+import { EASE_EMPHASIZED } from "@/lib/motion";
 
 const subscribeNoop = () => () => {};
 
 /** Set by <Stagger>; a <StaggerItem> outside one (or in a static Stagger) renders a plain element. */
 const StaggerContext = createContext(false);
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+const EASE = EASE_EMPHASIZED;
 const MAX_TOTAL_S = 0.5;
 const MAX_STEP_S = 0.04;
 

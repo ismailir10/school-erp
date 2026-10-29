@@ -453,7 +453,7 @@ export function RaportEditor({
 
       {/* Narrative sections */}
       <Card className="p-4 sm:p-card mb-6 space-y-6">
-        <h2 className="text-h2 font-semibold">Narasi Perkembangan</h2>
+        <h2 className="text-h2">Narasi Perkembangan</h2>
         {BUCKETED_SECTIONS.map((s) => (
           <SectionField
             key={s}
@@ -486,7 +486,7 @@ export function RaportEditor({
 
       {/* Attendance + measurements + hafalan */}
       <Card className="p-4 sm:p-card mb-6">
-        <h2 className="text-h2 font-semibold mb-1">Kehadiran & Catatan</h2>
+        <h2 className="text-h2 mb-1">Kehadiran & Catatan</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Kehadiran terisi otomatis dari data presensi pada rentang triwulan — sunting bila perlu.
         </p>

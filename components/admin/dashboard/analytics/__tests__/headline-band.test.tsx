@@ -62,14 +62,14 @@ describe("HeadlineBand", () => {
     it("shows points gained in the positive tone", () => {
       renderWith(93, 91);
       const chip = screen.getByText("+2 poin");
-      expect(chip).toHaveClass("text-status-present-text");
+      expect(chip).toHaveClass("text-success-text");
       expect(screen.getByRole("link", { name: /naik 2 poin/ })).toBeVisible();
     });
 
     it("shows points lost in the critical tone, with a real minus sign", () => {
       renderWith(88, 91);
       const chip = screen.getByText("−3 poin");
-      expect(chip).toHaveClass("text-status-absent-text");
+      expect(chip).toHaveClass("text-destructive-text");
       expect(screen.getByRole("link", { name: /turun 3 poin/ })).toBeVisible();
     });
 

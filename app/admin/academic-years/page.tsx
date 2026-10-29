@@ -463,7 +463,7 @@ export default function AcademicPage() {
 
       {/* Programs Section */}
       <div className="mb-8">
-        <h2 className="mb-4 text-h2 font-semibold">Program</h2>
+        <h2 className="mb-4 text-h2">Program</h2>
         <DataTableToolbar
           value={programQuery}
           onValueChange={setProgramQuery}
@@ -501,7 +501,7 @@ export default function AcademicPage() {
 
       {/* Academic Years Section */}
       <div className="mb-8">
-        <h2 className="mb-4 text-h2 font-semibold">Tahun Ajaran</h2>
+        <h2 className="mb-4 text-h2">Tahun Ajaran</h2>
         <DataTableToolbar
           value={yearQuery}
           onValueChange={setYearQuery}

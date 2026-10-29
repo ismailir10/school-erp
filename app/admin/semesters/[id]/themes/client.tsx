@@ -1,5 +1,6 @@
 "use client";
 
+import { BackLink } from "@/components/portal/back-link";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 import { PageHeader } from "@/components/admin/page-header";
@@ -14,7 +15,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { ArrowLeft, ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
+import { ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -119,12 +120,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
   return (
     <div className="space-y-section">
       <div>
-        <Link
-          href="/admin/semesters"
-          className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Kembali ke daftar semester
-        </Link>
+        <BackLink href="/admin/semesters" label="Kembali ke daftar semester" />
       </div>
 
       <PageHeader

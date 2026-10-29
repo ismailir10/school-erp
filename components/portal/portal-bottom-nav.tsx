@@ -83,7 +83,7 @@ export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavP
   // matches the column it belongs to.
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom md:inset-x-auto md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-t-xl md:border-x"
+      className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-nav safe-area-bottom md:inset-x-auto md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-t-xl md:border-x"
       aria-label={ariaLabel}
     >
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">

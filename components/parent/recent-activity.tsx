@@ -30,7 +30,7 @@ const ICON_BY_KIND: Record<ParentActivityKind, LucideIcon> = {
 export function RecentActivity({ items }: { items: ParentActivityItem[] }) {
   return (
     <section>
-      <h2 className="text-h2 font-semibold mb-3">Aktivitas Terkini</h2>
+      <h2 className="text-h2 mb-3">Aktivitas Terkini</h2>
       {items.length === 0 ? (
         <EmptyState
           title="Belum ada aktivitas"

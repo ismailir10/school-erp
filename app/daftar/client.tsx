@@ -535,7 +535,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         <p
           role="alert"
           data-testid="daftar-global-error"
-          className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+          className="mt-5 rounded-lg border border-destructive/30 bg-destructive-subtle p-3 text-sm text-destructive-text"
         >
           {globalError}
         </p>

@@ -43,7 +43,7 @@ function VoidQuestion({
           onCancel();
         }
       }}
-      className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3"
+      className="space-y-2 rounded-md border border-destructive/30 bg-destructive-subtle p-3"
     >
       <p className="text-sm font-medium">Batalkan tagihan?</p>
       <p className="text-sm text-muted-foreground">Tagihan tidak bisa dibayar lagi. Riwayat tetap tersimpan.</p>

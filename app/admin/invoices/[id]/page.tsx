@@ -22,6 +22,7 @@ import { PaymentProblemsAlert, type PaymentProblemView } from "@/components/admi
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { stampReminder } from "@/lib/finance/stamp-reminder";
 import { userMessage } from "@/lib/api/client-errors";
@@ -624,12 +625,10 @@ export default function InvoiceDetailPage() {
             ? [
                 {
                   label: refreshingPayment ? "Memeriksa..." : "Cek status pembayaran",
-                  icon: (
-                    <RefreshCw
-                      size={14}
-                      aria-hidden="true"
-                      className={refreshingPayment ? "animate-spin" : ""}
-                    />
+                  icon: refreshingPayment ? (
+                    <Spinner aria-hidden className="size-3.5" />
+                  ) : (
+                    <RefreshCw size={14} aria-hidden="true" />
                   ),
                   onClick: handleRefreshPayment,
                   disabled: refreshingPayment,
@@ -763,7 +762,7 @@ export default function InvoiceDetailPage() {
       </ConfirmDialog>
 
       {invoice.paymentLinkError && (
-        <Card className="border-warning/40 bg-warning/5 p-4 mb-4">
+        <Card className="border-warning/40 bg-warning-subtle p-4 mb-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
             <div className="flex-1">

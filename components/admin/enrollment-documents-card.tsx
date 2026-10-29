@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SectionCard } from "@/components/ui/section-card";
 import {
   DOCUMENT_ITEMS,
   REQUIRED_DOCUMENT_COUNT,
@@ -83,15 +84,14 @@ export function EnrollmentDocumentsCard({
   }
 
   return (
-    <section className="rounded-xl border bg-card p-4" aria-labelledby="kelengkapan-berkas-title">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 id="kelengkapan-berkas-title" className="text-sm font-semibold">
-          Kelengkapan Berkas
-        </h3>
-        <p className="text-sm text-muted-foreground" aria-live="polite">
+    <SectionCard
+      title="Kelengkapan Berkas"
+      action={
+        <p className="text-sm font-normal text-muted-foreground" aria-live="polite">
           {done} / {REQUIRED_DOCUMENT_COUNT} berkas lengkap
         </p>
-      </div>
+      }
+    >
 
       <ul className="divide-y">
         {DOCUMENT_ITEMS.map((item) => {
@@ -150,6 +150,6 @@ export function EnrollmentDocumentsCard({
           );
         })}
       </ul>
-    </section>
+    </SectionCard>
   );
 }

@@ -217,7 +217,7 @@ export default function ReminderTemplatePage() {
 
           <Card className="space-y-3 p-card" data-testid="reminder-preview">
             <div>
-              <h2 className="text-h2 font-semibold">Pratinjau</h2>
+              <h2 className="text-h2">Pratinjau</h2>
               <p className="text-small text-muted-foreground">Begini pesan tampil di WhatsApp wali. Datanya contoh.</p>
             </div>
             <div className="rounded-xl bg-muted p-3 sm:p-4">

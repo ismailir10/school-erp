@@ -2,7 +2,8 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, NotebookPen, Save, Users } from "lucide-react";
+import { NotebookPen, Save, Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -26,6 +27,7 @@ import {
   LEVEL_ORDER,
   type Level,
 } from "@/lib/curriculum/level-presentation";
+import { Badge } from "@/components/ui/badge";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
@@ -653,12 +655,13 @@ export function CenterSessionClient({
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
                     {student.name}
                     {student.className && (
-                      <span
-                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
+                      <Badge
+                        variant="neutral"
+                        className="font-normal"
                         data-testid={`center-class-${student.id}`}
                       >
                         {student.className}
-                      </span>
+                      </Badge>
                     )}
                   </p>
                   <ul className="space-y-2">
@@ -775,7 +778,7 @@ export function CenterSessionClient({
         >
           {saving ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> Menyimpan…
+              <Spinner aria-hidden className="mr-2" /> Menyimpan…
             </>
           ) : (
             <>

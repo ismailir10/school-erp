@@ -923,7 +923,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       />
 
       {fetchError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 flex items-start gap-3">
+        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle p-6 flex items-start gap-3">
           <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" />
           <div className="flex-1 min-w-0 space-y-2">
             <p className="text-sm font-semibold text-foreground">Gagal memuat tagihan</p>

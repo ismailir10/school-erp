@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatRupiah, formatTime } from "@/lib/format";
@@ -200,7 +201,7 @@ export function PaymentPanel({
           >
             {busy ? (
               <>
-                <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+                <Spinner aria-hidden />
                 Menyiapkan pembayaran...
               </>
             ) : (
@@ -218,7 +219,7 @@ export function PaymentPanel({
             >
               {checking ? (
                 <>
-                  <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+                  <Spinner aria-hidden />
                   Memeriksa...
                 </>
               ) : (

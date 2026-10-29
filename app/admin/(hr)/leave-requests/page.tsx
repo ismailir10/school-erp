@@ -25,6 +25,7 @@ import { leaveReviewFormSchema } from "@/lib/validations/leave";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { Badge } from "@/components/ui/badge";
 
 // ------------------------------------------------------------------
 // Types
@@ -516,9 +517,9 @@ export default function AdminLeavePage() {
         ]}
         actions={
           stats.pending > 0 ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning">
+            <Badge variant="warning" className="gap-1.5">
               <Clock size={12} /> Menunggu: {stats.pending}
-            </span>
+            </Badge>
           ) : undefined
         }
       />
@@ -563,7 +564,7 @@ export default function AdminLeavePage() {
                   <Button
                     variant="outline"
                     onClick={() => switchReviewAction("reject")}
-                    className="text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:bg-destructive-subtle"
                   >
                     Tolak
                   </Button>

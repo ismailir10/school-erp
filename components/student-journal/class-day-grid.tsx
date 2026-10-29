@@ -6,6 +6,7 @@ import { Check, ChevronDown, ChevronRight, ChevronUp, MessageSquarePlus } from "
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SectionLabel } from "@/components/portal/section-label";
 import { BULK_ABSENCE_LABELS, type BulkAbsences } from "@/components/student-journal/class-bulk-sheet";
+import { Badge } from "@/components/ui/badge";
 
 type Indicator = {
   id: string;
@@ -152,12 +153,12 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                     )}
                   </div>
                   {absences?.[student.id] ? (
-                    <span
-                      className="shrink-0 rounded-full bg-status-absent-subtle px-2 py-0.5 text-xs font-medium text-status-absent-text"
+                    <Badge
+                      variant="danger"
                       data-testid={`absence-badge-${student.id}`}
                     >
                       {BULK_ABSENCE_LABELS[absences[student.id]]}
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

@@ -92,7 +92,7 @@ export const GuardianDetailCard = memo(function GuardianDetailCard({
               {REL_LABELS[guardian.relationship] ?? guardian.relationship}
             </Badge>
             {guardian.isPrimary && (
-              <Badge className="bg-status-present-subtle text-status-present-text text-xs">
+              <Badge variant="success">
                 Utama
               </Badge>
             )}
@@ -134,7 +134,7 @@ export const GuardianDetailCard = memo(function GuardianDetailCard({
               type="button"
               size="icon-sm"
               variant="ghost"
-              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-text"
               aria-label={`Nonaktifkan wali ${p.name}`}
               title="Nonaktifkan wali"
               onClick={() => onToggleStatus(guardian)}

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDateShort } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Akademik block of the student dossier — one row per triwulan: the raport's
@@ -170,9 +171,9 @@ export const StudentAcademicsBlock = memo(function StudentAcademicsBlock({
                 <p className="text-sm font-medium">
                   {row.label}
                   {row.term.id === data.currentTermId && (
-                    <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    <Badge variant="neutral" className="ml-2">
                       berjalan
-                    </span>
+                    </Badge>
                   )}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">

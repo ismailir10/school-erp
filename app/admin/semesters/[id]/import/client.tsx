@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { BackLink } from "@/components/portal/back-link";
 import { useRouter } from "next/navigation";
 import {
   useMemo,
@@ -9,7 +9,7 @@ import {
   type FormEvent,
 } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, FileUp, RefreshCcw } from "lucide-react";
+import { FileUp, RefreshCcw } from "lucide-react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -266,13 +266,10 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
   return (
     <div className="space-y-section">
       <div>
-        <Link
+        <BackLink
           href={`/admin/semesters/${semester.id}/themes`}
-          className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Kembali ke{" "}
-          {semester.academicYearName} · Semester {semester.number}
-        </Link>
+          label={`Kembali ke ${semester.academicYearName} · Semester ${semester.number}`}
+        />
       </div>
 
       <PageHeader
