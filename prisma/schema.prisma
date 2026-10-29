@@ -40,6 +40,7 @@ model Tenant {
   enrollmentFees         EnrollmentFee[]
   feeDefs                FeeComponentDef[]
   feeStructures          ProgramFeeStructure[]
+  bundleFees             ProgramBundleFee[]
   invoices               Invoice[]
   invoiceNumberSequences InvoiceNumberSequence[]
   studentFeeAdjustments  StudentFeeAdjustment[]
@@ -411,6 +412,7 @@ model AcademicYear {
   tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   classSections ClassSection[]
   feeStructures ProgramFeeStructure[]
+  bundleFees    ProgramBundleFee[]
   feeAdjustments StudentFeeAdjustment[]
   semesters     Semester[]
   billingRuns BillingRun[]
@@ -441,6 +443,8 @@ model Program {
   admissions          Admission[]
   enrollmentApplications EnrollmentApplication[]
   feeStructures       ProgramFeeStructure[]
+  bundleFeesAsSchool  ProgramBundleFee[] @relation("BundleSchoolProgram")
+  bundleFeesAsDaycare ProgramBundleFee[] @relation("BundleDaycareProgram")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -821,6 +825,7 @@ model FeeComponentDef {
 
   tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   feeStructures ProgramFeeStructure[]
+  bundleFees    ProgramBundleFee[]
   invoiceLines  InvoiceLine[]
   feeAdjustments StudentFeeAdjustment[]
   billingRunLines BillingRunLine[]
@@ -848,6 +853,35 @@ model ProgramFeeStructure {
 
   @@unique([programId, academicYearId, feeComponentId])
   @@index([tenantId, status])
+}
+
+// ── PROGRAM BUNDLE FEE (Harga paket sekolah + daycare) ───────
+// Cycle 2026-10-29-school-daycare-bundle-price. When a student's billed placements include
+// BOTH `schoolProgramId` (SEMESTER) and `daycareProgramId` (YEAR_ROUND), the merged line for
+// `feeComponentId` is `amount` (the whole bundle) instead of the sum of the two programs' fees.
+// lib/finance/bundle-fees.ts reads it (active rows only, types re-checked on read); the pure
+// builder applies it. Clearing a price sets status INACTIVE (Category A soft delete); setting it
+// again reactivates the same row. All FKs Restrict — pricing configuration, never silently dropped.
+model ProgramBundleFee {
+  id               String   @id @default(cuid())
+  tenantId         String
+  academicYearId   String
+  schoolProgramId  String
+  daycareProgramId String
+  feeComponentId   String
+  amount           Decimal  @db.Decimal(15, 2) // whole rupiah, > 0 (API-enforced)
+  status           String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  schoolProgram  Program         @relation("BundleSchoolProgram", fields: [schoolProgramId], references: [id], onDelete: Restrict)
+  daycareProgram Program         @relation("BundleDaycareProgram", fields: [daycareProgramId], references: [id], onDelete: Restrict)
+  feeComponent   FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolProgramId, daycareProgramId, academicYearId, feeComponentId], map: "ProgramBundleFee_pair_year_component_key")
+  @@index([tenantId, academicYearId, status])
 }
 
 // ── STUDENT FEE ADJUSTMENT (Keringanan) ──────────────────────
