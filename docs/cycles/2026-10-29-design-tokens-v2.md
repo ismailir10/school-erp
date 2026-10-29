@@ -192,7 +192,7 @@ None: no schema, no dependency, no auth/PII, no production write.
   - `text-h2` = `line-height:1.35; font-weight:600`;
   - `bg-warning-subtle`, `text-destructive-text` and `shadow-sticky-edge` all resolve.
 - Screenshots: before/after for the 12 pages, desktop + phone (local, not committed).
-- Highlight: `semantic-colour-triads.png`, `badge-tones.png` (from the synced design-system reference).
+- Highlight: `docs/cycles/screenshots/design-tokens-v2/{semantic-colour-triads,badge-tones}.png` (from the synced design-system reference) + `parent-invoices-before-after.png` (phone, staging vs head).
 - Rounds: 2.
   - Round 1 fixed initials (first two → first + last). It also fixed `cn()` mis-merging theme tokens (the 10 affected call sites now state the size users saw) and the stale served copy of the design-system reference.
   - Round 2 was clean.
