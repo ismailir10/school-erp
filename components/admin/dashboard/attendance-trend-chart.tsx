@@ -181,5 +181,5 @@ function TrendPill({
   value: number;
   className?: string;
 }) {
-  return <StatTile label={label} value={value} size="md" mono valueClassName={className} className="bg-muted/30 px-3 py-2" />;
+  return <StatTile label={label} value={value} size="md" mono valueClassName={className} className="bg-muted/30 px-2.5 py-2" />;
 }

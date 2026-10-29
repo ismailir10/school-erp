@@ -75,7 +75,7 @@ export function StatTile({
   const tileClass = cn(TILE_CLASS, containerClass, className);
   const body = (
     <>
-      <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground @max-[7rem]:tracking-normal">{label}</p>
       <p
         // A `mono` figure (money, counts) never wraps: it is sized from the tile's width
         // with container-query units (lib/fluid-figure.ts), so "Rp 10.000.000.000" in a

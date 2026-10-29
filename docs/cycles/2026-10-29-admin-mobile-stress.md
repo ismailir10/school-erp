@@ -120,6 +120,9 @@ None.
   - **Rule (b), wrapped numbers:** counts distinct line tops via `Range.getClientRects()` on the element's own text. That removes the false positive on square calendar cells.
   - **New rule (d), truncated essentials:** checked on seeded data before inflation. It covers bottom-nav labels (`nav[aria-label^="Navigasi utama"]`), roster names (`[data-testid=roster-row]`) and the item-description status lines.
   - **Against the pre-fix build:** all 5 passes fail, each on a real defect (about 63 s). Admin stat-card wraps, the employee-attendance "Terlambat" crossing, 7 truncated names at 360 and 19 at 320, the teacher progress line, the parent bill/invoice status lines and "Kehadiran" at 320. It also caught a truncated parent attendance status line, which T4's `line-clamp-3` covers.
+- Verify round 1 (full gate + stress spec on the new build):
+  - **My T2 change broke an existing spec.** `admin-manual-invoice-layout.spec.ts` failed at 390/320 because "Tagihan Manual" now lives in "Lainnya" on phones. The spec now opens through whichever control is visible and asserts focus returns to it ("Lainnya" on a phone). All 6 of its tests pass.
+  - **The stress spec found one remaining crossing:** "TERLAMBAT" in the employee-attendance trend card's 3-up `StatTile` row, +6px. `StatTile` labels drop their wide tracking when the tile is narrower than 7rem (`@max-[7rem]:tracking-normal`), and the trend tiles' padding goes `px-3` → `px-2.5`.
 
 ## Verification
 
