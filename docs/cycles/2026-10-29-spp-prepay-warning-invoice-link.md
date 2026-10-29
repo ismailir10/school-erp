@@ -90,6 +90,9 @@ untouched; it already returns the issues).
   (existing Alert/list/link styles, text-small, 44px touch floor on coarse pointers).
   The link is an `aria-label`led `next/link` with `rel="noopener noreferrer"`; a caution without an invoice reference renders as the
   plain message it was (component-tested), blocking cautions are untouched.
+- T2 e2e: e2e/admin-paid-invoice-spp-prepay.spec.ts gains a test that creates a paid invoice labelled without a month (through the API), opens
+  "Catat SPP di muka", and asserts the caution names the invoice, shows its total and SPP amount, and that "Buka tagihan" opens it in a
+  new tab while the dialog stays open and still confirmable.
 
 ## Verification
 
