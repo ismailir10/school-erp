@@ -190,4 +190,15 @@ describe("step 2 — program on each row", () => {
     // Only the billable row (Aluna) carries a switch.
     expect(screen.getAllByRole("switch")).toHaveLength(1);
   });
+
+  it("tells the admin why a row was excluded when it carries a reason, and says nothing for a manual exclusion", async () => {
+    stubRun([
+      reviewRow("r1", "Abrina", { status: "EXCLUDED", error: "Cuti dicatat setelah draf dibuat" }),
+      reviewRow("r2", "Aluna", { status: "EXCLUDED", error: null }),
+    ]);
+    render(<ReviewStep runId="run-1" onAdvance={vi.fn()} onClose={vi.fn()} />);
+
+    await screen.findByText("Abrina");
+    expect(screen.getAllByText("Cuti dicatat setelah draf dibuat")).toHaveLength(1);
+  });
 });

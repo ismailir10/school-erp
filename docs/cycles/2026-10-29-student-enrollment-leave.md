@@ -45,9 +45,11 @@ Taken on the product owner's behalf ("make your best judgement, then proceed"); 
    there. The full-leave check comes before "already invoiced", so a student whose invoice was cancelled for leave
    reads "Sedang cuti", not "Sudah ditagih".
 6. **Recording a leave handles the drafts and invoices it makes obsolete:**
-   - An open billing-run draft (or one mid-commit) for a covered month has this student's uncommitted rows set to
-     "Dikecualikan" with a stated reason, so committing it cannot bill the child. A row the commit already claimed is
-     left alone. Rebuilding the draft applies the leave properly (a partly-on-leave student keeps the other fees).
+   - An open billing-run draft (or one mid-commit) for a covered month, in the placement's academic year and
+     scoped to its class (or including the student), has this student's still-billable row set to "Dikecualikan"
+     with a stated reason (shown on the review row), so committing it cannot bill the child. A row the admin already
+     excluded, or the commit already claimed, is left alone. Rebuilding the draft applies the leave properly (a
+     partly-on-leave student keeps the other fees).
    - The admin is shown that student's unpaid, still-cancellable invoices for the covered months and can cancel each
      one with the existing cancel action. Nothing is cancelled automatically. The same list can be reopened from any
      active leave ("Cek tagihan"), because a commit in flight can create an invoice after the first list.
@@ -164,7 +166,7 @@ runs on deploy), no change to the BillingRun tables.
 - [x] T1 Schema + migration: `EnrollmentLeave` (tenantId, studentId, enrollmentId, startMonth, endMonth, reason,
       status ACTIVE|INACTIVE, createdBy, createdAt, cancelledBy, cancelledAt; indexes tenant+status,
       enrollment+status, student), RLS migration, schema status comments, seed `deleteMany` before enrollments
-      (+ one daycare leave in the seed), enum-conformance rows — accept: `prisma db push` + seed clean,
+      (no seeded leave: the e2e and the walk create their own), enum-conformance rows — accept: `prisma db push` + seed clean,
       `verify-rls-coverage.sh` green (reuse: StudentFeeAdjustment migration)
 - [x] T2 Domain helpers + validation (`lib/enrollment-leave/`, `lib/validations/enrollment-leave.ts`): month
       parse/compare, inclusive overlap, academic-year billing window (extract from spp-prepay-load), create/cancel
@@ -220,6 +222,12 @@ runs on deploy), no change to the BillingRun tables.
   SKIPPED_ON_LEAVE → cancel the leave from the page → the next run bills the student again; (2) a draft built before the
   leave is parked as EXCLUDED with the leave reason, an overlapping leave answers 409, rebuild turns the row into
   SKIPPED_ON_LEAVE. Runs set up billing runs through the API and cancel them (one DRAFT per tenant).
+- Review fixes (Opus 5.5 pass over the whole diff, each verified in the code before changing it): (1) recording a leave no
+  longer overwrites an admin's manual exclusion — only PENDING rows are parked, so a later rebuild cannot bill them;
+  (2) the wizard review shows an excluded row's reason; (3) draft exclusion and the cancel notice only consider open runs in the
+  placement's academic year whose scope covers its class or includes the student (a school-only draft is untouched);
+  (4) T1 wording corrected (no seeded leave). Opus also confirmed: tenant/permission checks, advisory lock vs commit claim,
+  classifier parity with no leave, open-invoice matching, window math, migration/RLS.
 - Dedupe: `loadSppPrepayContext` now takes its academic-year billing window from `lib/enrollment-leave/window.ts` (one rule, two
   consumers); lib/finance, lib/enrollment-leave and app/api suites re-run green (218 files / 3185 tests), `tsc --noEmit` clean.
 

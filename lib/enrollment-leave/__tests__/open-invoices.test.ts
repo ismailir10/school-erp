@@ -85,10 +85,10 @@ describe("findOpenInvoicesForLeave", () => {
 describe("findOpenRunsCoveredByLeave", () => {
   it("returns only DRAFT/COMMITTING runs with a single-month label inside the leave", async () => {
     const findMany = vi.fn().mockResolvedValue([
-      { id: "r1", periodLabel: "Desember 2026", status: "DRAFT" },
-      { id: "r2", periodLabel: "Januari 2027", status: "COMMITTING" },
-      { id: "r3", periodLabel: "Februari 2027", status: "DRAFT" },
-      { id: "r4", periodLabel: "Semester 1 2026/2027", status: "DRAFT" },
+      { id: "r1", periodLabel: "Desember 2026", status: "DRAFT", academicYearId: "ay-1", scope: {} },
+      { id: "r2", periodLabel: "Januari 2027", status: "COMMITTING", academicYearId: "ay-1", scope: {} },
+      { id: "r3", periodLabel: "Februari 2027", status: "DRAFT", academicYearId: "ay-1", scope: {} },
+      { id: "r4", periodLabel: "Semester 1 2026/2027", status: "DRAFT", academicYearId: "ay-1", scope: {} },
     ]);
     const runs = await findOpenRunsCoveredByLeave({ billingRun: { findMany } } as never, {
       tenantId: "tnt-1",

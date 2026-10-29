@@ -90,10 +90,23 @@ export async function PUT(
 
     let affectedRuns: Awaited<ReturnType<typeof findOpenRunsCoveredByLeave>> = [];
     try {
+      const enrollment = await prisma.studentEnrollment.findUnique({
+        where: { id: leave.enrollmentId },
+        select: { classSectionId: true, classSection: { select: { academicYearId: true } } },
+      });
       affectedRuns = await findOpenRunsCoveredByLeave(prisma, {
         tenantId,
         startMonth: leave.startMonth,
         endMonth: leave.endMonth,
+        ...(enrollment
+          ? {
+              placement: {
+                studentId: leave.studentId,
+                classSectionId: enrollment.classSectionId,
+                academicYearId: enrollment.classSection.academicYearId,
+              },
+            }
+          : {}),
       });
     } catch (err) {
       console.error("enrollment-leave cancel follow-up:", err);

@@ -15,7 +15,7 @@ import { LEAVE_RECORDED_AFTER_DRAFT_REASON } from "@/lib/finance/leave-exclusion
 
 const db = vi.hoisted(() => ({
   student: { findFirst: vi.fn() },
-  studentEnrollment: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  studentEnrollment: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   enrollmentLeave: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   billingRun: { findMany: vi.fn() },
   billingRunRow: { updateMany: vi.fn() },
@@ -76,6 +76,7 @@ function enrollmentRow(over: Record<string, unknown> = {}) {
     id: "enr-1",
     studentId: "stu-1",
     status: "ACTIVE",
+    classSectionId: "cs-1",
     classSection: {
       tenantId: "tnt-1",
       academicYearId: "ay-1",
@@ -84,6 +85,16 @@ function enrollmentRow(over: Record<string, unknown> = {}) {
     ...over,
   };
 }
+
+// An open billing run in year ay-1 whose scope covers class cs-1 (the placement under test).
+const runIn = (id: string, periodLabel: string, status: string, over: Record<string, unknown> = {}) => ({
+  id,
+  periodLabel,
+  status,
+  academicYearId: "ay-1",
+  scope: { classSectionIds: ["cs-1"], includeStudentIds: [] },
+  ...over,
+});
 
 const createdLeave = {
   id: "lv-1",
@@ -327,12 +338,14 @@ describe("POST /api/students/[id]/leaves", () => {
     expect(res.status).toBe(500);
   });
 
-  it("excludes only the student's unclaimed PENDING/EXCLUDED rows in open covering runs", async () => {
+  it("parks only the student's unclaimed PENDING rows in open covering runs that bill this placement", async () => {
     db.billingRun.findMany.mockResolvedValue([
-      { id: "run-dec", periodLabel: "Desember 2026", status: "DRAFT" },
-      { id: "run-jan", periodLabel: "Januari 2027", status: "COMMITTING" },
-      { id: "run-feb", periodLabel: "Februari 2027", status: "DRAFT" }, // outside the leave
-      { id: "run-sem", periodLabel: "Semester 1 2026/2027", status: "DRAFT" }, // not a single month
+      runIn("run-dec", "Desember 2026", "DRAFT"),
+      runIn("run-jan", "Januari 2027", "COMMITTING", { scope: { classSectionIds: [], includeStudentIds: ["stu-1"] } }),
+      runIn("run-feb", "Februari 2027", "DRAFT"), // outside the leave
+      runIn("run-sem", "Semester 1 2026/2027", "DRAFT"), // not a single month
+      runIn("run-school", "Desember 2026", "DRAFT", { scope: { classSectionIds: ["cs-school"], includeStudentIds: [] } }), // another class: never billed this placement
+      runIn("run-old-year", "Desember 2026", "DRAFT", { academicYearId: "ay-0" }), // another academic year
     ]);
     db.billingRunRow.updateMany.mockResolvedValue({ count: 1 });
 
@@ -350,7 +363,7 @@ describe("POST /api/students/[id]/leaves", () => {
         where: {
           billingRunId: runId,
           studentId: "stu-1",
-          status: { in: ["PENDING", "EXCLUDED"] },
+          status: "PENDING",
           invoiceId: null,
         },
         data: { status: "EXCLUDED", error: LEAVE_RECORDED_AFTER_DRAFT_REASON },
@@ -365,7 +378,7 @@ describe("POST /api/students/[id]/leaves", () => {
   });
 
   it("does not report a run in affectedRuns when the student had no uncommitted row there", async () => {
-    db.billingRun.findMany.mockResolvedValue([{ id: "run-dec", periodLabel: "Desember 2026", status: "DRAFT" }]);
+    db.billingRun.findMany.mockResolvedValue([runIn("run-dec", "Desember 2026", "DRAFT")]);
     db.billingRunRow.updateMany.mockResolvedValue({ count: 0 }); // COMMITTED / claimed / not in scope
     const body = await (await POST(json(validBody), params)).json();
     expect(body.affectedRuns).toEqual([]);
@@ -593,9 +606,11 @@ describe("PUT /api/students/[id]/leaves/[leaveId] (cancel)", () => {
   });
 
   it("reports open runs covering the leave but never mutates runs or invoices", async () => {
+    db.studentEnrollment.findUnique.mockResolvedValue({ classSectionId: "cs-1", classSection: { academicYearId: "ay-1" } });
     db.billingRun.findMany.mockResolvedValue([
-      { id: "run-dec", periodLabel: "Desember 2026", status: "DRAFT" },
-      { id: "run-mar", periodLabel: "Maret 2027", status: "DRAFT" },
+      runIn("run-dec", "Desember 2026", "DRAFT"),
+      runIn("run-mar", "Maret 2027", "DRAFT"),
+      runIn("run-school", "Desember 2026", "DRAFT", { scope: { classSectionIds: ["cs-school"], includeStudentIds: [] } }),
     ]);
     const body = await (await PUT(put(), leaveParams)).json();
     expect(body.affectedRuns).toEqual([{ id: "run-dec", periodLabel: "Desember 2026", status: "DRAFT" }]);

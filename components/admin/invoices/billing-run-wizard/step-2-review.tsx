@@ -234,6 +234,13 @@ function RunRow({
         ) : null}
       </div>
 
+      {/* Why a row is excluded: a leave recorded after the draft was built parks the row with its
+          reason. Without it the row looks like the admin's own exclusion and invites switching it
+          back on, which would bill the child again. A manual exclusion carries no reason. */}
+      {excluded && row.error ? (
+        <p className="mt-1 pl-9 text-small text-muted-foreground">{row.error}</p>
+      ) : null}
+
       {expanded && canExpand ? (
         <div id={`billing-run-row-${row.id}-lines`}>
           {editable ? (

@@ -165,6 +165,7 @@ export async function POST(
       id: true,
       studentId: true,
       status: true,
+      classSectionId: true,
       classSection: {
         select: {
           tenantId: true,
@@ -251,16 +252,27 @@ export async function POST(
       });
 
       // A draft built before this leave would still bill the child on commit.
-      // Park the student's uncommitted rows as EXCLUDED; a row the commit has
-      // already claimed (invoiceId set, or status past PENDING) is left alone.
-      const openRuns = await findOpenRunsCoveredByLeave(tx, { tenantId, startMonth, endMonth });
+      // Park the student's PENDING rows as EXCLUDED; a row the commit has already
+      // claimed (invoiceId set, or status past PENDING) is left alone. An EXCLUDED
+      // row stays as it is: it is already not billable and keeps the admin's own
+      // choice (or its Rp 0 reason), so a rebuild never turns it back on.
+      const openRuns = await findOpenRunsCoveredByLeave(tx, {
+        tenantId,
+        startMonth,
+        endMonth,
+        placement: {
+          studentId: enrollment.studentId,
+          classSectionId: enrollment.classSectionId,
+          academicYearId: enrollment.classSection.academicYearId,
+        },
+      });
       const touched: AffectedRun[] = [];
       for (const run of openRuns) {
         const updated = await tx.billingRunRow.updateMany({
           where: {
             billingRunId: run.id,
             studentId: enrollment.studentId,
-            status: { in: ["PENDING", "EXCLUDED"] },
+            status: "PENDING",
             invoiceId: null,
           },
           data: { status: "EXCLUDED", error: LEAVE_RECORDED_AFTER_DRAFT_REASON },
