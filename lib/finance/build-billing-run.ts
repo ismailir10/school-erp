@@ -1,5 +1,6 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { applyAdjustments, type AdjustmentInput } from "./apply-adjustments";
+import type { BundleFee } from "./bundle-fees";
 
 /**
  * Pure classifier + materializer for the Billing Run wizard draft (Cycle B1
@@ -53,6 +54,13 @@ export type BuildInput = {
    * skipped only when EVERY in-scope enrollment is on leave.
    */
   onLeaveEnrollmentIds?: ReadonlySet<string>;
+  /**
+   * Harga paket sekolah + daycare (lib/finance/bundle-fees.ts): an explicit total for one
+   * component and one school + daycare program pair. Optional: absent or empty leaves
+   * every amount exactly as the per-program sum. Matched by program ids only — the builder
+   * does not know Program.type.
+   */
+  bundleFees?: ReadonlyArray<BundleFee>;
   parentByStudent: Map<string, string | null>;
   academicYearId: string;
   dueDate: string; // YYYY-MM-DD
@@ -106,6 +114,7 @@ export function buildBillingRunRows(input: BuildInput): {
     adjustmentsByStudent,
     alreadyInvoicedStudentIds,
     onLeaveEnrollmentIds,
+    bundleFees,
     parentByStudent,
     academicYearId,
     dueDate,
@@ -115,18 +124,24 @@ export function buildBillingRunRows(input: BuildInput): {
   const includeSet = new Set(scope.includeStudentIds);
   const excludeSet = new Set(scope.excludeStudentIds);
 
-  // Resolve in-scope enrollments: class-scope match OR explicit include,
-  // minus explicit exclude, GROUPED by studentId — a student may legitimately
-  // hold more than one in-scope ACTIVE enrollment (e.g. school + daycare), so
-  // ALL of them are kept, not just the first. `exclude` is checked
-  // per-candidate rather than filtered up front so it always wins regardless
-  // of which scope path (class or explicit include) admitted the student,
-  // and regardless of how many enrollments that student has.
+  // Per-student scope (docs/cycles/2026-10-29-school-daycare-bundle-price.md,
+  // Decision 4): a student is IN the run when ANY of their enrollments is in a
+  // ticked class, or they are explicitly included, minus explicit exclusions.
+  // An admitted student is then priced for ALL their enrollments in the input
+  // (their other placements too), grouped by studentId — a student may hold
+  // more than one ACTIVE enrollment (e.g. school + daycare), so none is
+  // dropped. `exclude` always wins, whichever path admitted the student.
+  const admittedStudentIds = new Set<string>();
+  for (const e of enrollments) {
+    if (classSectionSet.has(e.classSectionId) || includeSet.has(e.studentId)) {
+      admittedStudentIds.add(e.studentId);
+    }
+  }
+  for (const id of excludeSet) admittedStudentIds.delete(id);
+
   const enrollmentsByStudent = new Map<string, BuildEnrollment[]>();
   for (const e of enrollments) {
-    const inScope = classSectionSet.has(e.classSectionId) || includeSet.has(e.studentId);
-    if (!inScope) continue;
-    if (excludeSet.has(e.studentId)) continue; // exclude wins over class-scope and include
+    if (!admittedStudentIds.has(e.studentId)) continue;
     const list = enrollmentsByStudent.get(e.studentId);
     if (list) list.push(e);
     else enrollmentsByStudent.set(e.studentId, [e]);
@@ -267,10 +282,30 @@ export function buildBillingRunRows(input: BuildInput): {
           amount: new Prisma.Decimal(f.amount),
         };
       }
-      const amount = group2.reduce(
+      let amount = group2.reduce(
         (acc, f) => acc.plus(new Prisma.Decimal(f.amount)),
         new Prisma.Decimal(0)
       );
+      // Harga paket: when this component's merged line really comes from BOTH programs of
+      // exactly one active bundle, the bundle amount replaces those two programs' fees. Any
+      // other program carrying the component (a pop-up class) is still added on top. Zero or
+      // several matching bundles keep the sum; a one-program component never reaches here.
+      if (bundleFees && bundleFees.length > 0) {
+        const linePrograms = new Set(group2.map((f) => f.programId));
+        const matches = bundleFees.filter(
+          (b) =>
+            b.feeComponentId === feeComponentId &&
+            b.schoolProgramId !== b.daycareProgramId &&
+            linePrograms.has(b.schoolProgramId) &&
+            linePrograms.has(b.daycareProgramId),
+        );
+        if (matches.length === 1) {
+          const bundle = matches[0];
+          amount = group2
+            .filter((f) => f.programId !== bundle.schoolProgramId && f.programId !== bundle.daycareProgramId)
+            .reduce((acc, f) => acc.plus(new Prisma.Decimal(f.amount)), new Prisma.Decimal(bundle.amount));
+        }
+      }
       const programNames = [
         ...new Set(group2.map((f) => programNameById.get(f.programId) ?? f.programId)),
       ].sort();

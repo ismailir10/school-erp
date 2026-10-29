@@ -1,5 +1,5 @@
 // Adapter parity: seed.ts uses the same PrismaPg adapter — keep in sync.
-// Last verified: 2026-10-29-student-enrollment-leave — the seed only clears the new EnrollmentLeave
+// Last verified: 2026-10-29-school-daycare-bundle-price — the seed only clears the new ProgramBundleFee
 // table; both sides still construct PrismaPg from DATABASE_URL, adapter unchanged.
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";

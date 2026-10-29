@@ -22,6 +22,7 @@ vi.mock("@/lib/db", () => ({
     student: { findMany: vi.fn() },
     studentEnrollment: { findMany: vi.fn() },
     programFeeStructure: { findMany: vi.fn() },
+    programBundleFee: { findMany: vi.fn().mockResolvedValue([]) },
     invoice: { findMany: vi.fn() },
     studentGuardian: { findMany: vi.fn() },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue([]) },
@@ -514,18 +515,18 @@ describe("GET /api/billing-runs/[id]", () => {
       expect(label(body, "row-1")).toBe("TK B");
     });
 
-    it("lists every in-scope program once, sorted, and ignores enrolments outside the scope", async () => {
+    it("lists every program the student is billed for once, sorted — including a placement whose class was not ticked", async () => {
       const { body } = await primeRun(
         { classSectionIds: ["cs-1", "cs-2"], includeStudentIds: [], excludeStudentIds: [] },
         [{ id: "row-1", studentId: "s-1", lines: [] }],
         [
           enrol("s-1", "cs-2", "Day Care"),
           enrol("s-1", "cs-1", "TK A"),
-          enrol("s-1", "cs-x", "KB"), // a class this run does not cover
+          enrol("s-1", "cs-x", "KB"), // not ticked, but the run prices every active placement of an admitted student
         ],
       );
 
-      expect(label(body, "row-1")).toBe("Day Care, TK A");
+      expect(label(body, "row-1")).toBe("Day Care, KB, TK A");
     });
 
     it("counts an explicitly included student's class even when it is not a scope class", async () => {
@@ -569,14 +570,14 @@ describe("GET /api/billing-runs/[id]", () => {
       expect(prisma.studentEnrollment.findMany).not.toHaveBeenCalled();
     });
 
-    it("reads a malformed scope as covering nothing instead of failing", async () => {
+    it("does not depend on the run's stored scope: a malformed one neither fails nor hides the program", async () => {
       const { body } = await primeRun(
         { classSectionIds: 7, includeStudentIds: "s-1" },
         [{ id: "row-1", studentId: "s-1", lines: [] }],
         [enrol("s-1", "cs-1", "TK A")],
       );
 
-      expect(label(body, "row-1")).toBeNull();
+      expect(label(body, "row-1")).toBe("TK A");
     });
   });
 });

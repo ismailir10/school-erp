@@ -127,6 +127,7 @@ async function main() {
   await prisma.payment.deleteMany();
   await prisma.invoiceLine.deleteMany();
   await prisma.invoice.deleteMany();
+  await prisma.programBundleFee.deleteMany();
   await prisma.programFeeStructure.deleteMany();
   await prisma.feeComponentDef.deleteMany();
   await prisma.admission.deleteMany();

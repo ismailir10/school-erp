@@ -715,3 +715,259 @@ describe("buildBillingRunRows — enrollment leave (cuti)", () => {
     expect(baseline.summary.skippedOnLeave).toBe(0);
   });
 });
+
+describe("buildBillingRunRows — per-student run scope", () => {
+  const school = (overrides: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-school", classSectionId: "class-a", ...overrides });
+  const daycare = (overrides: Partial<BuildEnrollment> = {}) =>
+    enrollment({
+      enrollmentId: "enr-daycare",
+      classSectionId: "class-d",
+      classLabel: "Daycare Pagi",
+      programId: "program-dcare",
+      programName: "Daycare",
+      ...overrides,
+    });
+  const fees = new Map([
+    ["program-tkit", [feeLine({ feeComponentId: "fc-spp-tkit", amount: D("500000") })]],
+    ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", amount: D("300000") })]],
+  ]);
+  const scope = (overrides: Partial<BuildInput["scope"]> = {}): BuildInput["scope"] => ({
+    classSectionIds: ["class-a"],
+    includeStudentIds: [],
+    excludeStudentIds: [],
+    ...overrides,
+  });
+
+  it("a student with one ticked and one non-ticked placement is priced for both, once", () => {
+    const out = build({ enrollments: [school(), daycare()], scope: scope(), feesByProgram: fees });
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].status).toBe("PENDING");
+    expect(out.rows[0].lines.map((l) => l.feeComponentId).sort()).toEqual(["fc-spp-dcare", "fc-spp-tkit"]);
+    expect(out.rows[0].totalDue.toString()).toBe("800000");
+    expect(out.rows[0].classLabelSnapshot).toBe("Daycare Pagi, TKIT A");
+  });
+
+  it("the same holds when only the daycare class is ticked", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: scope({ classSectionIds: ["class-d"] }),
+      feesByProgram: fees,
+    });
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].totalDue.toString()).toBe("800000");
+  });
+
+  it("a student with no ticked placement and no include is absent, however many placements they hold", () => {
+    const out = build({
+      enrollments: [school({ classSectionId: "class-x" }), daycare({ classSectionId: "class-y" })],
+      scope: scope(),
+      feesByProgram: fees,
+    });
+    expect(out.rows).toEqual([]);
+    expect(out.summary.total).toBe(0);
+  });
+
+  it("exclude wins even when one placement is ticked and the student is also included", () => {
+    const out = build({
+      enrollments: [school(), daycare()],
+      scope: scope({ includeStudentIds: ["student-1"], excludeStudentIds: ["student-1"] }),
+      feesByProgram: fees,
+    });
+    expect(out.rows).toEqual([]);
+  });
+
+  it("include admits a student whose placements are all non-ticked, priced for all of them", () => {
+    const out = build({
+      enrollments: [school({ classSectionId: "class-x" }), daycare({ classSectionId: "class-y" })],
+      scope: scope({ includeStudentIds: ["student-1"] }),
+      feesByProgram: fees,
+    });
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].totalDue.toString()).toBe("800000");
+  });
+
+  it("admitting one student does not drag in another student's placements", () => {
+    const out = build({
+      enrollments: [
+        school(),
+        daycare(),
+        school({ enrollmentId: "enr-other", studentId: "student-2", classSectionId: "class-x" }),
+      ],
+      scope: scope(),
+      feesByProgram: fees,
+    });
+    expect(out.rows.map((r) => r.studentId)).toEqual(["student-1"]);
+  });
+});
+
+describe("buildBillingRunRows — harga paket sekolah + daycare", () => {
+  const TK_A = "program-tka";
+  const TK_B = "program-tkb";
+  const DC = "program-dcare";
+  const POPUP = "program-popup";
+
+  const tkA = (o: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-tka", classSectionId: "class-tka", classLabel: "TK A 1", programId: TK_A, programName: "TKIT-A", ...o });
+  const tkB = (o: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-tkb", classSectionId: "class-tkb", classLabel: "TK B 1", programId: TK_B, programName: "TKIT-B", ...o });
+  const dcare = (o: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-dc", classSectionId: "class-dc", classLabel: "Daycare", programId: DC, programName: "D'Care", ...o });
+  const popup = (o: Partial<BuildEnrollment> = {}) =>
+    enrollment({ enrollmentId: "enr-pop", classSectionId: "class-pop", classLabel: "Pop-up", programId: POPUP, programName: "Pop-up", ...o });
+
+  const spp = (amount: number, feeComponentId = "fc-spp"): FeeStructureLine => feeLine({ feeComponentId, amount: D(amount) });
+  const fees = new Map<string, FeeStructureLine[]>([
+    [TK_A, [spp(499_000)]],
+    [TK_B, [spp(504_000)]],
+    [DC, [spp(1_100_000)]],
+    [POPUP, [spp(100_000)]],
+  ]);
+  const bundle = (school: string, amount: number, over: Partial<NonNullable<BuildInput["bundleFees"]>[number]> = {}) => ({
+    schoolProgramId: school,
+    daycareProgramId: DC,
+    feeComponentId: "fc-spp",
+    amount: D(amount),
+    ...over,
+  });
+  const scope = (ids: string[]) => ({ classSectionIds: ids, includeStudentIds: [], excludeStudentIds: [] });
+  const ALL_CLASSES = ["class-tka", "class-tkb", "class-dc", "class-pop"];
+  const run = (enrollments: BuildEnrollment[], bundleFees?: BuildInput["bundleFees"], extra: Partial<BuildInput> = {}) =>
+    build({ enrollments, scope: scope(ALL_CLASSES), feesByProgram: fees, bundleFees, ...extra });
+
+  it("replaces the summed component with the bundle for the pair; label unchanged", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)]);
+    expect(out.rows).toHaveLength(1);
+    const row = out.rows[0];
+    expect(row.lines).toHaveLength(1);
+    expect(row.lines[0].labelSnapshot).toBe("SPP Bulanan (D'Care + TKIT-A)");
+    expect(row.lines[0].amount.toString()).toBe("1560000");
+    expect(row.lines[0].finalAmount.toString()).toBe("1560000");
+    expect(row.totalDue.toString()).toBe("1560000");
+  });
+
+  it("without a bundle the same child is billed the sum (label identical)", () => {
+    const withBundle = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)]);
+    const without = run([tkA(), dcare()]);
+    expect(without.rows[0].totalDue.toString()).toBe("1599000"); // 499000 + 1100000
+    const other = run([tkA(), dcare()], [bundle(TK_A, 1_400_000)]);
+    expect(other.rows[0].totalDue.toString()).toBe("1400000");
+    expect(withBundle.rows[0].lines[0].labelSnapshot).toBe(without.rows[0].lines[0].labelSnapshot);
+  });
+
+  it("TK B uses its own bundle, never TK A's", () => {
+    const bundles = [bundle(TK_A, 1_560_000), bundle(TK_B, 1_500_000)];
+    const out = run([tkB(), dcare()], bundles);
+    expect(out.rows[0].totalDue.toString()).toBe("1500000");
+    expect(out.rows[0].lines[0].labelSnapshot).toBe("SPP Bulanan (D'Care + TKIT-B)");
+  });
+
+  it("a third program carrying the component is added on top of the bundle", () => {
+    const out = run([tkA(), dcare(), popup()], [bundle(TK_A, 1_560_000)]);
+    expect(out.rows[0].lines).toHaveLength(1);
+    expect(out.rows[0].lines[0].amount.toString()).toBe("1660000"); // 1.560.000 + pop-up 100.000
+    expect(out.rows[0].lines[0].labelSnapshot).toBe("SPP Bulanan (D'Care + Pop-up + TKIT-A)");
+  });
+
+  it("a component priced by only one program is untouched", () => {
+    const f = new Map<string, FeeStructureLine[]>([
+      [TK_A, [spp(499_000), feeLine({ feeComponentId: "fc-meal", label: "Makan", amount: D("200000") })]],
+      [DC, [spp(1_100_000)]],
+    ]);
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_400_000)], { feesByProgram: f });
+    const byComp = Object.fromEntries(out.rows[0].lines.map((l) => [l.feeComponentId, l.amount.toString()]));
+    expect(byComp).toEqual({ "fc-spp": "1400000", "fc-meal": "200000" });
+    expect(out.rows[0].totalDue.toString()).toBe("1600000");
+  });
+
+  it("a bundle never creates or replaces a line only one program prices", () => {
+    // Daycare has no SPP: the TK A SPP line stays its own amount, label undisambiguated by the merge.
+    const f = new Map<string, FeeStructureLine[]>([
+      [TK_A, [spp(499_000)]],
+      [DC, [feeLine({ feeComponentId: "fc-care", label: "Daycare", amount: D("300000") })]],
+    ]);
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)], { feesByProgram: f });
+    const byComp = Object.fromEntries(out.rows[0].lines.map((l) => [l.feeComponentId, l.amount.toString()]));
+    expect(byComp).toEqual({ "fc-spp": "499000", "fc-care": "300000" });
+    expect(out.rows[0].totalDue.toString()).toBe("799000");
+  });
+
+  it("two matching bundles are ambiguous: keep the sum", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_000_000), bundle(TK_A, 1_200_000)]);
+    expect(out.rows[0].totalDue.toString()).toBe("1599000");
+    expect(out.rows[0].lines[0].amount.toString()).toBe("1599000");
+  });
+
+  it("PERCENT keringanan on a bundle is computed from the bundle amount", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)], {
+      adjustmentsByStudent: new Map([["student-1", [adjustment({ value: "10" })]]]),
+    });
+    const line = out.rows[0].lines[0];
+    expect(line.amount.toString()).toBe("1560000");
+    expect(line.adjustmentAmount.toString()).toBe("-156000");
+    expect(line.finalAmount.toString()).toBe("1404000");
+    expect(out.rows[0].totalDue.toString()).toBe("1404000");
+    expect(out.summary.withAdjustments).toBe(1);
+  });
+
+  it("stacked PERCENT and FIXED keringanan both follow the bundle", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)], {
+      adjustmentsByStudent: new Map([
+        [
+          "student-1",
+          [
+            adjustment({ id: "adj-pct", value: "10" }),
+            adjustment({ id: "adj-fix", mode: "FIXED", value: "60000", reason: "Beasiswa" }),
+          ],
+        ],
+      ]),
+    });
+    const line = out.rows[0].lines[0];
+    expect(line.amount.toString()).toBe("1560000");
+    // 10% of 1.560.000 = 156.000, plus a flat 60.000: 1.560.000 - 216.000.
+    expect(line.finalAmount.toString()).toBe("1344000");
+    expect(out.rows[0].totalDue.toString()).toBe("1344000");
+  });
+
+  it("a bundle for a component the pair does not both price is ignored", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 100_000, { feeComponentId: "fc-meal" })]);
+    expect(out.rows[0].totalDue.toString()).toBe("1599000");
+    expect(out.rows[0].lines).toHaveLength(1);
+  });
+
+  it("a bundle for a pair the student does not hold is ignored", () => {
+    // Student holds TK A + daycare; the bundle belongs to TK B + daycare.
+    const out = run([tkA(), dcare()], [bundle(TK_B, 1_500_000)]);
+    expect(out.rows[0].totalDue.toString()).toBe("1599000");
+    // Student holds only the school program: a bundle never prices a single placement.
+    const single = run([tkA()], [bundle(TK_A, 1_560_000)]);
+    expect(single.rows[0].totalDue.toString()).toBe("499000");
+    expect(single.rows[0].lines[0].labelSnapshot).toBe("SPP Bulanan");
+    const dcOnly = run([dcare()], [bundle(TK_A, 1_560_000)]);
+    expect(dcOnly.rows[0].totalDue.toString()).toBe("1100000");
+  });
+
+  it("absent or empty bundleFees gives byte-identical output to today", () => {
+    const baseline = run([tkA(), dcare(), popup()]);
+    expect(run([tkA(), dcare(), popup()], [])).toEqual(baseline);
+    expect(run([tkA(), dcare(), popup()], undefined)).toEqual(baseline);
+  });
+
+  it("the daycare placement on leave bills the school price only (no bundle)", () => {
+    const out = run([tkA(), dcare()], [bundle(TK_A, 1_560_000)], { onLeaveEnrollmentIds: new Set(["enr-dc"]) });
+    expect(out.rows[0].status).toBe("PENDING");
+    expect(out.rows[0].lines).toHaveLength(1);
+    expect(out.rows[0].totalDue.toString()).toBe("499000");
+    expect(out.rows[0].lines[0].labelSnapshot).toBe("SPP Bulanan");
+  });
+
+  it("the bundle applies when only one of the two classes is ticked", () => {
+    const out = build({
+      enrollments: [tkA(), dcare()],
+      scope: scope(["class-tka"]),
+      feesByProgram: fees,
+      bundleFees: [bundle(TK_A, 1_500_000)],
+    });
+    expect(out.rows[0].totalDue.toString()).toBe("1500000");
+  });
+});

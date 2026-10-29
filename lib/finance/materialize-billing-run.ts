@@ -3,6 +3,7 @@ import { buildBillingRunRows, type BuildEnrollment, type BuiltRow, type BuildSum
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
 import { normalizePeriodLabel, parsePeriodMonth } from "@/lib/finance/period-label";
 import { BILLABLE_FEE_COMPONENT_WHERE } from "@/lib/finance/billable-fees";
+import { loadBundleFees } from "@/lib/finance/bundle-fees";
 
 /**
  * Shared draft-materialization path for the Billing Run wizard (Cycle B2 —
@@ -79,8 +80,12 @@ export async function materializeBillingRun(
   const { classSectionIds, includeStudentIds, excludeStudentIds } = scope;
 
   // Fetch the data buildBillingRunRows needs — same query shapes as
-  // app/api/invoices/generate/batch/route.ts, scoped by class-section ∪
-  // explicit-include instead of an explicit studentIds list.
+  // app/api/invoices/generate/batch/route.ts. The run is scoped PER STUDENT
+  // (docs/cycles/2026-10-29-school-daycare-bundle-price.md, Decision 4): a
+  // student is in when ANY of their ACTIVE enrollments this year is in a
+  // ticked class, or they are explicitly included. The rows returned are then
+  // ALL of that student's ACTIVE placements in the year (not only the ticked
+  // ones), so the builder prices everything they hold into one invoice.
   const enrollments = await db.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
@@ -89,7 +94,18 @@ export async function materializeBillingRun(
       // (FINX-5). Applies to the class-scope and explicit-include paths alike.
       student: { status: "ACTIVE" },
       OR: [
-        classSectionIds.length > 0 ? { classSectionId: { in: classSectionIds } } : undefined,
+        classSectionIds.length > 0
+          ? {
+              student: {
+                enrollments: {
+                  some: {
+                    status: "ACTIVE",
+                    classSection: { tenantId, academicYearId, id: { in: classSectionIds } },
+                  },
+                },
+              },
+            }
+          : undefined,
         includeStudentIds.length > 0 ? { studentId: { in: includeStudentIds } } : undefined,
       ].filter(Boolean) as Prisma.StudentEnrollmentWhereInput[],
       // Scoped to the run's own academic year — without this, a student's
@@ -128,7 +144,7 @@ export async function materializeBillingRun(
     ? `${periodMonth.year}-${String(periodMonth.month).padStart(2, "0")}`
     : null;
 
-  const [feeStructures, alreadyInvoicedStudentIds, primaryGuardians, candidateAdjustments, activeLeaves] = await Promise.all([
+  const [feeStructures, bundleFees, alreadyInvoicedStudentIds, primaryGuardians, candidateAdjustments, activeLeaves] = await Promise.all([
     db.programFeeStructure.findMany({
       where: {
         programId: { in: programIds },
@@ -137,6 +153,8 @@ export async function materializeBillingRun(
       },
       include: { feeComponent: true },
     }),
+    // Harga paket sekolah + daycare for the programs these students hold (none when < 2 programs).
+    loadBundleFees(db, { tenantId, academicYearId, programIds }),
     findAlreadyInvoicedStudentIds(db, tenantId, periodLabel, candidateStudentIds),
     db.studentGuardian.findMany({
       where: { studentId: { in: candidateStudentIds }, isPrimary: true, status: "ACTIVE" },
@@ -197,6 +215,7 @@ export async function materializeBillingRun(
     adjustmentsByStudent,
     alreadyInvoicedStudentIds,
     onLeaveEnrollmentIds: new Set(activeLeaves.map((l) => l.enrollmentId)),
+    bundleFees,
     parentByStudent,
     academicYearId,
     dueDate,

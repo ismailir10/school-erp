@@ -18,6 +18,7 @@ type Overrides = {
   invoices?: unknown[];
   labels?: unknown[];
   fees?: unknown[];
+  bundles?: unknown[];
 };
 
 const YEAR = { id: "ay-1", name: "2026/2027", startDate: "2026-07-01", endDate: "2027-06-30" };
@@ -45,6 +46,7 @@ function dbMock(over: Overrides = {}) {
       findMany: vi.fn().mockResolvedValue([{ enrollmentId: "enr-1", startMonth: "2026-07", endMonth: "2027-06" }]),
     },
     programFeeStructure: { findMany: vi.fn().mockResolvedValue(over.fees ?? [SPP_FEE]) },
+    programBundleFee: { findMany: vi.fn().mockResolvedValue(over.bundles ?? []) },
     studentFeeAdjustment: { findMany: vi.fn().mockResolvedValue(over.adjustments ?? []) },
     studentGuardian: { findFirst: vi.fn().mockResolvedValue({ parentId: "par-1" }) },
     // Two reads: the student's own invoices (where.studentId) and the tenant-wide distinct labels.
@@ -231,6 +233,64 @@ describe("loadSppPrepayContext", () => {
       const full = { ...waiver, value: D(500000), validFrom: null, validTo: null };
       const ctx = await loadOk(dbMock({ adjustments: [full] }));
       expect(ctx.priceFor({ year: 2026, month: 10 })).toBeNull();
+    });
+  });
+
+  describe("harga paket sekolah + daycare", () => {
+    const DC_ENROLLMENT = {
+      id: "enr-2",
+      studentId: "s-1",
+      classSectionId: "cs-2",
+      student: { id: "s-1", name: "Budi" },
+      classSection: { name: "Daycare", programId: "p-2", program: { name: "D'Care" } },
+    };
+    const DC_FEE = { programId: "p-2", feeComponentId: "fc-spp", amount: D(1100000), feeComponent: { label: "SPP" } };
+    const BUNDLE = { schoolProgramId: "p-1", daycareProgramId: "p-2", feeComponentId: "fc-spp", amount: D(1560000) };
+    const both = (over: Overrides = {}) =>
+      dbMock({ enrollments: [ENROLLMENT, DC_ENROLLMENT], fees: [SPP_FEE, DC_FEE], ...over });
+
+    it("reads the active bundles of the year for the student's programs and prices the pair with them", async () => {
+      const db = both({ bundles: [BUNDLE] });
+      const ctx = await loadOk(db);
+      expect(db.programBundleFee.findMany).toHaveBeenCalledTimes(1);
+      const where = db.programBundleFee.findMany.mock.calls[0][0].where;
+      expect(where).toMatchObject({ tenantId: "t-1", academicYearId: "ay-1", status: "ACTIVE" });
+      expect(where.schoolProgramId.in.sort()).toEqual(["p-1", "p-2"]);
+      const price = ctx.priceFor({ year: 2026, month: 10 });
+      expect(price?.total.toString()).toBe("1560000");
+      expect(price?.lines).toHaveLength(1);
+      expect(price?.lines[0].labelSnapshot).toBe("SPP (D'Care + TKIT)");
+    });
+
+    it("prices the sum without a bundle", async () => {
+      const ctx = await loadOk(both());
+      expect(ctx.priceFor({ year: 2026, month: 10 })?.total.toString()).toBe("1600000");
+    });
+
+    it("applies a percent waiver to the bundle amount", async () => {
+      const pct = {
+        id: "adj-p",
+        academicYearId: "ay-1",
+        feeComponentId: "fc-spp",
+        type: "DISCOUNT",
+        mode: "PERCENT",
+        value: D(10),
+        reason: "Saudara",
+        status: "ACTIVE",
+        validFrom: null,
+        validTo: null,
+      };
+      const ctx = await loadOk(both({ bundles: [BUNDLE], adjustments: [pct] }));
+      expect(ctx.priceFor({ year: 2026, month: 10 })?.total.toString()).toBe("1404000");
+    });
+
+    it("makes no bundle query for a student with one program, and stays leave-unaware with two", async () => {
+      const single = dbMock();
+      await loadOk(single);
+      expect(single.programBundleFee.findMany).not.toHaveBeenCalled();
+      const db = both({ bundles: [BUNDLE] });
+      await loadOk(db);
+      expect(db.enrollmentLeave.findMany).not.toHaveBeenCalled();
     });
   });
 
