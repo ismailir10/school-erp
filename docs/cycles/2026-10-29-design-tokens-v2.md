@@ -166,4 +166,54 @@ None: no schema, no dependency, no auth/PII, no production write.
 
 ## Verification
 
+### Verified locally — 0a286206, 2026-10-29
+- Route: other code (no auth, session, cookie or guard paths). Compared `origin/staging` 416e5264...0a286206: 118 files, across `components/{admin,ui,portal,reactbits,student-journal,parent,enrollment}`, `app/{admin,teacher,parent,…}`, `lib/{utils,motion}.ts`, `lib/__tests__`, `app/globals.css`, `public/admin/design-system-reference.html` and `.claude/standards/*`.
+- Gate (`/tmp` full-gate run on 0a286206, disposable Postgres):
+  - `npm run lint` → exit 0.
+  - `npx vitest run` → `Test Files 729 passed | 2 skipped (731)`, `Tests 8767 passed | 42 todo (8809)`.
+  - Guards → `✓ RLS coverage OK: 45 / 45` and `✓ API auth coverage OK: 224 / 224`.
+  - `DEMO_MODE=true` build → exit 0.
+  - `npx playwright test` → `263 passed (6.9m)`.
+- App: production build, demo auth + disposable local Postgres (docker `postgres:15`, freshly pushed + seeded). Signed in by cookie as `u_super_admin` (1440×900), `u_rightjet` (390×844) and `u_teacher` (390×844).
+- Walked: before (staging 416e5264) and after (0a286206) on the same fresh seed.
+  - Admin: dashboard, students, student detail, HR monthly attendance, employees, users, leave requests.
+  - Parent: home, kehadiran, tagihan. Teacher: home, student-journal entry.
+  - Per page, the pixel diff vs before is 0.04–16%. Each was inspected side by side; the differences are only the intended ones:
+    - small/caption text uses its paired line-height (1.4 / 1.35 instead of an inherited 1.5), so cards are a few px shorter, with the same wraps and sizes;
+    - pills render through Badge tones;
+    - avatars show two initials (first + last);
+    - the stat labels' leading is tighter.
+  - No clipping, overlap or horizontal scroll at 390.
+  - Edge: reduced motion — the compiled CSS carries `motion-reduce:animate-none{animation:none}` on the Spinner, and the unit test asserts it.
+  - Error: `ErrorState` (role=alert, "Coba lagi" calls `reset`) is covered by its unit tests and by the six boundaries' existing suites.
+- Console/network: 0 console errors and 0 4xx/5xx across all 12 pages. The only noise is Vercel analytics `/_vercel/*` 404s, which are expected off Vercel and filtered.
+- Compiled CSS confirmed:
+  - `z-sticky{z-index:10}`, `ease-emphasized` = `cubic-bezier(.22,1,.36,1)`, `duration-base` = `.2s`;
+  - `text-h2` = `line-height:1.35; font-weight:600`;
+  - `bg-warning-subtle`, `text-destructive-text` and `shadow-sticky-edge` all resolve.
+- Screenshots: before/after for the 12 pages, desktop + phone (local, not committed).
+- Highlight: `semantic-colour-triads.png`, `badge-tones.png` (from the synced design-system reference).
+- Rounds: 2.
+  - Round 1 fixed initials (first two → first + last). It also fixed `cn()` mis-merging theme tokens (the 10 affected call sites now state the size users saw) and the stale served copy of the design-system reference.
+  - Round 2 was clean.
+- design-system: every frontend change was cross-checked against `.claude/standards/design-system.html`, which is updated in this cycle and is the source of the highlight shots.
+- Not checked: forcing a real route error in the browser (no deterministic trigger in the seed), so it rests on the unit tests above.
+
 ## Ship Notes
+
+- **Migrations:** none. **Env:** none. **Dependencies:** none.
+- **Visual deltas reviewers will notice:**
+  - Opaque `-subtle` tints replace `/5`–`/10` opacity tints.
+  - Headings carry their own weight and line-height.
+  - Amber status text darkened `#B35C00` → `#A35000` (AA).
+  - Count pills are neutral Badges.
+  - Avatars show two initials.
+- **Post-merge:** the Vercel staging deploy is `READY` for the merge SHA. Open staging `/admin` and `/parent` and look at the stat cards, pills and header avatar. There is no auth impact, so no `needs-staging-verify`.
+- **Rollback:** revert the squash commit; nothing persistent changes.
+- **Follow-ups (out of scope):**
+  - Dark theme (a `.dark` block).
+  - `text-sm`/`text-xs` → semantic size adoption.
+  - Merge `StatCard`/`StatTile`.
+  - Date formatting through `lib/format.ts`.
+  - StatusBadge tones onto Badge variants.
+  - The pre-existing 1.43 vs 1.5 line-height of shadcn `text-sm` vs `text-body`.
