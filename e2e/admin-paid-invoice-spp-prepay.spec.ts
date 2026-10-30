@@ -278,12 +278,14 @@ test.describe("Admin — money already taken", () => {
     await chooseStudent(page, dialog, student);
 
     // The academic-year range is filled in; narrow it to the last two months.
+    // Wait for the default-range preview to land: the radio reads checked (and the selects exist)
+    // before the student's first look has filled the months in.
     await expect(dialog.getByRole("radio", { name: "Catat SPP beberapa bulan" })).toBeChecked();
+    await expect(dialog.getByRole("radio", { name: "Catat SPP beberapa bulan" })).toBeEnabled();
+    await expect(dialog.getByRole("table")).toContainText(rows[rows.length - 1].periodLabel);
     await dialog.locator("#spp-prepay-from").click();
-    const monthOptions = page.getByRole("option");
-    const monthCount = await monthOptions.count();
-    expect(monthCount).toBeGreaterThanOrEqual(2);
-    await monthOptions.nth(monthCount - 2).click();
+    await page.getByRole("listbox").getByRole("option", { name: rows[0].periodLabel, exact: true }).click();
+    await expect(dialog.locator("#spp-prepay-from")).toContainText(rows[0].periodLabel);
 
     // The one-time amount follows the program's fee table (an ordinary, editable value).
     const amountInput = await addOneTimeLine(page, dialog, 0, component);
