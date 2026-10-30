@@ -162,6 +162,20 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
   declares `payment` as `never`, so a stale client gets a 400 naming the field ("Gunakan Catat pembayaran di muka")
   and nothing is written, while other extra keys are still ignored as before. `invoices-create-paid.test.ts` is
   deleted; the manual-create route, validation and dialog tests cover the refusal and the unchanged billed create.
+- T1+T2: prepay backend (`lib/finance/spp-prepay-{plan,load}.ts`, `lib/validations/spp-prepay.ts`, both
+  `spp-prepay` routes + tests). The SPP part is chosen by sending both `from` and `to`; neither means "Tanpa SPP"
+  (one alone is a 400). A preview with neither part is allowed (it returns `oneTimeComponents` with `prefillAmount`
+  and `spp.{available, reason, defaultRange}`); a confirm needs at least one part. No academic year or no program no
+  longer fails the request: it only makes SPP unavailable (`NO_ACADEMIC_YEAR` / `NO_PROGRAM` block only when SPP is
+  chosen). `otherFees` = label (trimmed, ≤ 64, refused when it reads as one month) + 1–20 lines (enabled, ACTIVE,
+  non-recurring tenant components, else `INVALID_COMPONENT`; duplicates refused like Tagihan Manual). Prefill sums
+  the student's programs' ACTIVE fee rows for the year (as the Billing Run bills each program), null without a
+  program. Caution `UNPAID_SAME_COMPONENT` (non-blocking, with the invoice reference block) per unpaid invoice carrying
+  a chosen component. Confirm: the one-time invoice is created after the SPP months in the same transaction and lock
+  order (SENT, `sentAt`, due on the paid date, adjustment 0), paid via `recordPaymentInTx` `clear-link` with key
+  `<key>:other`, reference = admin's or "Pembayaran di muka", note = label (+ admin note), audit `part: other-fees`.
+  The fingerprint and request hash include the one-time payload; replay detection (`<key>:` prefix) covers it.
+  `NOTHING_TO_RECORD` fires only when nothing at all would be written.
 
 ## Verification
 
