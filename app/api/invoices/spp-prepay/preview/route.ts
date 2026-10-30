@@ -5,16 +5,26 @@ import { hasPermission } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { sppPrepayPreviewSchema } from "@/lib/validations/spp-prepay";
-import { fingerprintPlan, loadSppPrepayContext, planForContext } from "@/lib/finance/spp-prepay-load";
+import {
+  fingerprintPlan,
+  loadSppPrepayContext,
+  planForContext,
+  sppAvailability,
+} from "@/lib/finance/spp-prepay-load";
 
 /**
  * POST /api/invoices/spp-prepay/preview
  *
- * Read-only first half of "Catat SPP di muka" (cycle
- * 2026-10-27-paid-invoice-spp-prepay.md): prices every month of the range the
- * way the Billing Run would, says what confirming will do to each month
- * (create and pay / pay the rest of an existing invoice / skip, already paid)
- * and returns a `fingerprint` the confirm route checks. Writes nothing.
+ * Read-only first half of "Catat pembayaran di muka" (cycles
+ * 2026-10-27-paid-invoice-spp-prepay.md and 2026-10-30-prepay-other-fees.md).
+ * Both parts are optional. With `from` + `to` it prices every month of the range the
+ * way the Billing Run would and says what confirming will do to each month
+ * (create and pay / pay the rest of an existing invoice / skip, already paid).
+ * With `otherFees` it plans one new invoice for the one-time lines, with a caution
+ * for each unpaid invoice of the student that already carries a chosen component.
+ * It always returns the one-time component list (with the student's prefill) and
+ * whether SPP can be chosen, so a call with neither part is the "student picked"
+ * call. Returns a `fingerprint` the confirm route checks. Writes nothing.
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -38,22 +48,24 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.json().catch(() => null);
   const result = await validateBody(sppPrepayPreviewSchema, rawBody);
   if (result.error) return result.error;
-  const { studentId, from, to } = result.data;
+  const { studentId, otherFees } = result.data;
+  const from = result.data.from ?? undefined;
+  const to = result.data.to ?? undefined;
 
   const ctx = await loadSppPrepayContext(prisma, { tenantId: session.tenantId, studentId, from, to });
   if (!ctx.ok) {
-    const status =
-      ctx.code === "STUDENT_NOT_FOUND" ? 404 : ctx.code === "NO_ACADEMIC_YEAR" ? 409 : 400;
-    return NextResponse.json({ error: ctx.message, code: ctx.code }, { status });
+    return NextResponse.json({ error: ctx.message, code: ctx.code }, { status: ctx.code === "STUDENT_NOT_FOUND" ? 404 : 400 });
   }
 
-  const plan = planForContext(ctx);
+  const plan = planForContext(ctx, otherFees);
 
   return NextResponse.json({
     student: ctx.student,
     academicYear: ctx.academicYear,
     range: ctx.range,
     program: ctx.program,
+    spp: sppAvailability(ctx),
+    oneTimeComponents: ctx.oneTimeComponents,
     rows: plan.rows.map((r) => ({
       year: r.year,
       month: r.month,
@@ -66,7 +78,19 @@ export async function POST(req: NextRequest) {
       linkExpiresAt: r.linkExpiresAt ? r.linkExpiresAt.toISOString() : null,
       beforeFirstBilling: r.beforeFirstBilling,
     })),
-    total: Number(plan.total),
+    sppTotal: Number(plan.sppTotal),
+    otherFees: plan.otherFees
+      ? {
+          label: plan.otherFees.label,
+          lines: plan.otherFees.lines.map((l) => ({
+            feeComponentId: l.feeComponentId,
+            label: l.label,
+            amount: Number(l.amount),
+          })),
+          total: Number(plan.otherFees.total),
+        }
+      : null,
+    total: Number(plan.total), // grand total: SPP rows + one-time lines
     issues: plan.issues,
     blocked: plan.blocked,
     fingerprint: fingerprintPlan(plan, ctx.invoices),

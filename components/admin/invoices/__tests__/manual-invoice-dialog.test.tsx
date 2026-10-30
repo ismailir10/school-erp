@@ -19,7 +19,6 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { ManualInvoiceDialog } from "../manual-invoice-dialog";
 
 const FEE_COMPONENT = { id: "fc-1", label: "SPP Bulanan", isEnabled: true, status: "ACTIVE" };
@@ -225,8 +224,7 @@ describe("ManualInvoiceDialog", () => {
     expect(screen.getByRole("button", { name: "Hapus baris 1" })).toBeDisabled();
   });
 
-  describe("Sudah dibayar", () => {
-    const today = () => getTodayInTimezone("Asia/Jakarta");
+  describe("billing the wali", () => {
     const invoicePosts = (fetchMock: ReturnType<typeof fixture>) =>
       fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/invoices"));
     const postBody = (call: ReturnType<typeof invoicePosts>[number]) => JSON.parse(call[1]?.body as string);
@@ -241,25 +239,27 @@ describe("ManualInvoiceDialog", () => {
       await user.type(screen.getByLabelText(/^Jumlah 1/), "100000");
     }
 
-    const failure = (status: number, body: unknown): PostResponse => ({
-      ok: false,
-      status,
-      json: async () => body,
+    it("has no Sudah dibayar option and none of its payment fields", async () => {
+      fixture();
+      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+      await screen.findByRole("button", { name: "Buat Tagihan" });
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sudah dibayar/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Tanggal bayar/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Referensi")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Simpan sebagai lunas" })).not.toBeInTheDocument();
     });
 
-    it("shows no Sudah dibayar control and posts no payment without canRecordPayment", async () => {
+    it("posts only studentId, periodLabel, dueDate and lines", async () => {
       const fetchMock = fixture();
       const user = userEvent.setup();
       render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
       await fillValidInvoice(user);
 
-      expect(screen.queryByRole("checkbox", { name: /Sudah dibayar/ })).not.toBeInTheDocument();
-      expect(screen.queryByText("Tanggal bayar")).not.toBeInTheDocument();
-
       await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
       await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
       const body = postBody(invoicePosts(fetchMock)[0]!);
-      expect(body).not.toHaveProperty("payment");
       expect(Object.keys(body).sort()).toEqual(["dueDate", "lines", "periodLabel", "studentId"]);
     });
 
@@ -273,203 +273,39 @@ describe("ManualInvoiceDialog", () => {
       ).toBeInTheDocument();
     });
 
-    it("reveals Metode, Tanggal bayar, Referensi, Catatan and flips the button label when ticked", async () => {
-      fixture();
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-
-      const box = await screen.findByRole("checkbox", { name: /Sudah dibayar/ });
-      expect(
-        screen.getByText("Tagihan langsung Lunas. Tidak ada link pembayaran dan tidak ada email ke wali."),
-      ).toBeInTheDocument();
-      expect(screen.queryByText("Tanggal bayar")).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Buat Tagihan" })).toBeInTheDocument();
-
-      await user.click(box);
-
-      expect(screen.getByText(/^Metode/)).toBeInTheDocument();
-      expect(screen.getByText(/^Tanggal bayar/)).toBeInTheDocument();
-      expect(screen.getByLabelText("Referensi")).toBeInTheDocument();
-      expect(screen.getByLabelText("Catatan")).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /Metode/ })).toHaveTextContent("Tunai");
-      expect(screen.getByText(/sama dengan total tagihan/)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Simpan sebagai lunas" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Buat Tagihan" })).not.toBeInTheDocument();
-
-      await user.click(box);
-      expect(screen.queryByText(/^Tanggal bayar/)).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Buat Tagihan" })).toBeInTheDocument();
-    });
-
-    it("shows the amount that will be recorded as the invoice total", async () => {
-      fixture();
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await waitFor(() => expect(screen.getAllByRole("combobox")[1]).toHaveTextContent(FEE_COMPONENT.label));
-
-      await user.type(screen.getByLabelText(/^Jumlah 1/), "1500000");
-      await user.click(await screen.findByRole("checkbox", { name: /Sudah dibayar/ }));
-
-      expect(screen.getByText(/Jumlah dibayar:/).parentElement ?? document.body).toHaveTextContent(
-        "Jumlah dibayar: Rp 1.500.000, sama dengan total tagihan.",
-      );
-    });
-
-    it("sends payment with a uuid key, CASH, today's date and the lines, then toasts paid and navigates", async () => {
-      const fetchMock = fixture();
-      const onCreated = vi.fn();
-      const onOpenChange = vi.fn();
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={onOpenChange} onCreated={onCreated} canRecordPayment />);
-      await fillValidInvoice(user);
-
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-      await user.type(screen.getByLabelText("Referensi"), "  KWT-001 ");
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
-      const body = postBody(invoicePosts(fetchMock)[0]!);
-      expect(body.lines).toEqual([{ feeComponentId: FEE_COMPONENT.id, amount: 100000 }]);
-      expect(body.payment).toEqual({
-        idempotencyKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
-        method: "CASH",
-        paidAt: today(),
-        reference: "KWT-001",
-        notes: null,
-      });
-      // The amount is never sent: the server pays the total it derives.
-      expect(body.payment).not.toHaveProperty("amount");
-
-      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/invoices/inv-1"));
-      expect(toast.success).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(toast.success).mock.calls[0]).toEqual(["Tagihan dibuat dan dicatat lunas"]);
-      expect(toast.warning).not.toHaveBeenCalled();
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-      expect(onCreated).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not send the paid fields after the box is unticked again", async () => {
-      const fetchMock = fixture();
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-
-      const box = screen.getByRole("checkbox", { name: /Sudah dibayar/ });
-      await user.click(box);
-      await user.type(screen.getByLabelText("Referensi"), "KWT-001");
-      await user.click(box);
-      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
-
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
-      expect(postBody(invoicePosts(fetchMock)[0]!)).not.toHaveProperty("payment");
-    });
-
-    it("reuses the same idempotency key when the first attempt fails and the admin retries", async () => {
-      const fetchMock = fixture({
-        invoicePosts: [failure(500, { error: "Internal Server Error" })],
-      });
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
-      // Failed attempt: dialog stays, root error shown.
-      expect(await screen.findByRole("alert")).toBeInTheDocument();
-      await waitFor(() => expect(screen.getByRole("button", { name: "Simpan sebagai lunas" })).toBeEnabled());
-
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(2));
-
-      const [first, second] = invoicePosts(fetchMock).map(postBody);
-      expect(first.payment.idempotencyKey).toBe(second.payment.idempotencyKey);
-    });
-
-    it("generates a fresh key after the dialog is closed and reopened", async () => {
-      const fetchMock = fixture({
-        invoicePosts: [failure(500, { error: "Internal Server Error" })],
-      });
-      const user = userEvent.setup();
-      const { rerender } = render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
-
-      rerender(<ManualInvoiceDialog open={false} onOpenChange={vi.fn()} canRecordPayment />);
-      rerender(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(2));
-
-      const [first, second] = invoicePosts(fetchMock).map(postBody);
-      expect(first.payment.idempotencyKey).not.toBe(second.payment.idempotencyKey);
-    });
-
-    it("lands a server payment.paidAt error on the Tanggal bayar field", async () => {
+    it("toasts the payment link with a Salin Link action and navigates to the invoice", async () => {
       fixture({
-        invoicePosts: [
-          failure(400, {
-            error: "Validasi gagal",
-            errors: [{ field: "payment.paidAt", message: "Tanggal bayar tidak boleh di masa depan." }],
-          }),
-        ],
-      });
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-
-      const message = await screen.findByText("Tanggal bayar tidak boleh di masa depan.");
-      expect(message).toHaveAttribute("id", "manual-invoice-paid-at-error");
-      expect(pushMock).not.toHaveBeenCalled();
-    });
-
-    it("shows a clear Indonesian root error when the server refuses payments.record", async () => {
-      fixture({
-        invoicePosts: [failure(403, { error: "forbidden", missing: "payments.record" })],
-      });
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await fillValidInvoice(user);
-      await user.click(screen.getByRole("checkbox", { name: /Sudah dibayar/ }));
-      await user.click(screen.getByRole("button", { name: "Simpan sebagai lunas" }));
-
-      expect(await screen.findByText(/Anda belum punya izin mencatat pembayaran/)).toBeInTheDocument();
-      expect(pushMock).not.toHaveBeenCalled();
-    });
-
-    it("defaults Tanggal bayar to today and requires it", async () => {
-      fixture();
-      const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
-      await user.click(await screen.findByRole("checkbox", { name: /Sudah dibayar/ }));
-
-      const trigger = document.getElementById("manual-invoice-paid-at")!;
-      expect(trigger).toHaveAttribute("aria-required", "true");
-      expect(trigger).not.toHaveTextContent("Pilih tanggal");
-    });
-
-    it("keeps the unpaid success path: link toast with a Salin Link action", async () => {
-      const fetchMock = fixture({
         invoicePosts: [
           { ok: true, status: 201, json: async () => ({ id: "inv-9", xenditPaymentUrl: "https://pay.example/9" }) },
         ],
       });
+      const onCreated = vi.fn();
       const user = userEvent.setup();
-      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} canRecordPayment />);
+      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} onCreated={onCreated} />);
       await fillValidInvoice(user);
       await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
 
       await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/invoices/inv-9"));
-      expect(postBody(invoicePosts(fetchMock)[0]!)).not.toHaveProperty("payment");
       expect(toast.success).toHaveBeenCalledWith(
         "Tagihan dibuat",
         expect.objectContaining({ action: expect.objectContaining({ label: "Salin Link" }) }),
       );
+      expect(onCreated).toHaveBeenCalledTimes(1);
+    });
+
+    it("warns when the invoice was created but the link failed", async () => {
+      fixture({
+        invoicePosts: [
+          { ok: true, status: 201, json: async () => ({ id: "inv-8", xenditError: "unknown: x" }) },
+        ],
+      });
+      const user = userEvent.setup();
+      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+      await fillValidInvoice(user);
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+
+      await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/invoices/inv-8"));
+      expect(toast.warning).toHaveBeenCalledTimes(1);
     });
   });
 });

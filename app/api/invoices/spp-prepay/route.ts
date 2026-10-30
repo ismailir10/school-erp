@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { recordAudit } from "@/lib/audit";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { sppPrepayConfirmSchema } from "@/lib/validations/spp-prepay";
 import { reserveInvoiceNumbers } from "@/lib/finance/invoice-numbers";
 import { PaymentError, recordPaymentInTx } from "@/lib/finance/record-payment";
@@ -24,6 +25,8 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
 export const maxDuration = 30;
 
 const STALE_MESSAGE = "Data berubah sejak pratinjau. Muat ulang pratinjau lalu coba lagi.";
+/** Default reference of the one-time invoice's payment (the SPP payments default to "SPP di muka TA …"). */
+const OTHER_FEES_REFERENCE = "Pembayaran di muka";
 
 /** Thrown inside the transaction to roll it back and answer with this status and body. */
 class Abort extends Error {
@@ -45,12 +48,17 @@ type Outcome =
       total: number;
       reference: string;
       invoiceIds: string[];
+      /** The new invoice for the one-time lines, or null when that part was not given. */
+      otherFees: { invoiceId: string; invoiceNumber: string; total: number } | null;
     };
 
 /**
  * POST /api/invoices/spp-prepay
  *
- * Confirm half of "Catat SPP di muka" (cycle 2026-10-27-paid-invoice-spp-prepay.md).
+ * Confirm half of "Catat pembayaran di muka" (cycles 2026-10-27-paid-invoice-spp-prepay.md
+ * and 2026-10-30-prepay-other-fees.md). Two optional parts, at least one: SPP months
+ * (settle or create one paid invoice per month) and one-time fees (ONE new invoice, SENT
+ * and sent-stamped, paid in full, payment key `<key>:other`, created after the SPP months).
  * Everything happens in ONE transaction, all or nothing. Never calls the payment
  * gateway and never schedules a relink: a settled invoice has its old link
  * cleared (D9) and a created one never gets a link (D4).
@@ -65,7 +73,9 @@ type Outcome =
  *      `recordPaymentInTx` takes the same invoice lock again (re-entrant), and
  *      it is the lock the payments route and the Xendit webhook take, so a
  *      concurrent payment on one of these invoices waits instead of racing.
- * The invoice-number sequence row is touched last (once, after the settles).
+ * The invoice-number sequence row is touched last (once, after the settles; it also numbers
+ * the one-time invoice, which is created after the SPP months). The new one-time invoice
+ * cannot be locked by anyone else before it exists.
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -88,7 +98,9 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.json().catch(() => null);
   const result = await validateBody(sppPrepayConfirmSchema, rawBody);
   if (result.error) return result.error;
-  const { studentId, from, to, method, paidAt, idempotencyKey, fingerprint } = result.data;
+  const { studentId, method, paidAt, idempotencyKey, fingerprint, otherFees } = result.data;
+  const from = result.data.from ?? undefined;
+  const to = result.data.to ?? undefined;
   const tenantId = session.tenantId;
   const actorId = session.id;
   const adminReference = result.data.reference?.trim() || null;
@@ -96,7 +108,20 @@ export async function POST(req: NextRequest) {
 
   // Same hash on every payment of this request: a retry with different details is refused.
   const requestHash = createHash("sha256")
-    .update(JSON.stringify({ studentId, from, to, method, paidAt, reference: adminReference, notes: adminNote }))
+    .update(
+      JSON.stringify({
+        studentId,
+        from: from ?? null,
+        to: to ?? null,
+        otherFees: otherFees
+          ? { label: otherFees.label, lines: otherFees.lines.map((l) => [l.feeComponentId, l.amount]) }
+          : null,
+        method,
+        paidAt,
+        reference: adminReference,
+        notes: adminNote,
+      }),
+    )
     .digest("hex");
   // Back-dated payments are stored at 00:00 Asia/Jakarta of the chosen day; today keeps `now`.
   const todayYmd = getTodayInTimezone("Asia/Jakarta");
@@ -133,11 +158,12 @@ export async function POST(req: NextRequest) {
         for (let round = 0; round < 4 && !state; round++) {
           const loaded = await loadSppPrepayContext(tx, { tenantId, studentId, from, to });
           if (!loaded.ok) {
-            const status =
-              loaded.code === "STUDENT_NOT_FOUND" ? 404 : loaded.code === "NO_ACADEMIC_YEAR" ? 409 : 400;
-            throw new Abort(status, { error: loaded.message, code: loaded.code });
+            throw new Abort(loaded.code === "STUDENT_NOT_FOUND" ? 404 : 400, {
+              error: loaded.message,
+              code: loaded.code,
+            });
           }
-          const plan = planForContext(loaded);
+          const plan = planForContext(loaded, otherFees);
           const unlocked = plan.rows
             .filter((r) => r.action === "SETTLE")
             .flatMap((r) => r.invoiceIds)
@@ -164,13 +190,14 @@ export async function POST(req: NextRequest) {
         const blocking = plan.issues.find((i) => i.blocking);
         if (plan.blocked || blocking) {
           throw new Abort(400, {
-            error: blocking?.message ?? "SPP di muka belum bisa dicatat.",
+            error: blocking?.message ?? "Pembayaran di muka belum bisa dicatat.",
             code: blocking?.code ?? "BLOCKED",
           });
         }
         const settleRows = plan.rows.filter((r) => r.action === "SETTLE");
         const createRows = plan.rows.filter((r) => r.action === "CREATE");
-        if (settleRows.length === 0 && createRows.length === 0) {
+        const otherPlan = plan.otherFees;
+        if (settleRows.length === 0 && createRows.length === 0 && !otherPlan) {
           throw new Abort(409, {
             error: "Semua bulan dalam rentang ini sudah lunas. Tidak ada yang perlu dicatat.",
             code: "NOTHING_TO_RECORD",
@@ -179,20 +206,28 @@ export async function POST(req: NextRequest) {
 
         const periodKey = (r: { year: number; month: number }) =>
           `${r.year}-${String(r.month).padStart(2, "0")}`;
-        const groupLabel = `SPP di muka TA ${ctx.academicYear.name}`;
-        const reference = adminReference ?? groupLabel;
-        const notes =
-          `${groupLabel} (${plan.rows[0].periodLabel} – ${plan.rows[plan.rows.length - 1].periodLabel})` +
-          (adminNote ? ` — ${adminNote}` : "");
-        const pay = (invoiceId: string, amount: (typeof plan.rows)[number]["amount"], key: string) =>
+        // The SPP part's group label and note exist only when SPP months were planned.
+        const sppGroupLabel =
+          ctx.academicYear && plan.rows.length > 0 ? `SPP di muka TA ${ctx.academicYear.name}` : null;
+        const sppReference = adminReference ?? sppGroupLabel ?? OTHER_FEES_REFERENCE;
+        const sppNotes = sppGroupLabel
+          ? `${sppGroupLabel} (${plan.rows[0].periodLabel} – ${plan.rows[plan.rows.length - 1].periodLabel})` +
+            (adminNote ? ` — ${adminNote}` : "")
+          : adminNote;
+        const pay = (
+          invoiceId: string,
+          amount: (typeof plan.rows)[number]["amount"],
+          key: string,
+          text: { reference: string; notes: string | null } = { reference: sppReference, notes: sppNotes },
+        ) =>
           recordPaymentInTx(tx, {
             invoiceId,
             tenantId,
             actorId,
             amount,
             method,
-            reference,
-            notes,
+            reference: text.reference,
+            notes: text.notes,
             paidAt: backdatedPaidAt,
             idempotencyKey: key,
             requestHash,
@@ -221,7 +256,8 @@ export async function POST(req: NextRequest) {
         }
 
         // (8) Invoice numbers, once, after the settles (the sequence row is the last lock taken).
-        const numbers = createRows.length > 0 ? await reserveInvoiceNumbers(tx, tenantId, createRows.length) : [];
+        const numberCount = createRows.length + (otherPlan ? 1 : 0);
+        const numbers = numberCount > 0 ? await reserveInvoiceNumbers(tx, tenantId, numberCount) : [];
 
         // (9) Create each missing month as a sent invoice and pay it in full.
         for (const [i, row] of createRows.entries()) {
@@ -271,14 +307,71 @@ export async function POST(req: NextRequest) {
           invoiceIds.push(invoice.id);
         }
 
+        // (10) The one-time invoice, after the SPP months: SENT and sent-stamped (a later reversal
+        // falls back to Terkirim / Lewat Tempo, never to an invisible DRAFT), due on the paid date,
+        // paid in full under the key `<key>:other`. No gateway call, no relink.
+        let otherInvoice: { invoiceId: string; invoiceNumber: string; total: number } | null = null;
+        if (otherPlan) {
+          const invoiceNumber = numbers[createRows.length];
+          const invoice = await tx.invoice.create({
+            data: {
+              tenantId,
+              studentId,
+              parentId: ctx.parentId,
+              invoiceNumber,
+              periodLabel: otherPlan.label,
+              dueDate: paidAt,
+              totalDue: otherPlan.total,
+              status: "SENT",
+              sentAt: new Date(),
+              createdBy: actorId,
+              lines: {
+                create: otherPlan.lines.map((l) => ({
+                  feeComponentId: l.feeComponentId,
+                  labelSnapshot: l.label,
+                  amount: l.amount,
+                  adjustmentAmount: new Prisma.Decimal(0),
+                  adjustmentNote: null,
+                  finalAmount: l.amount,
+                })),
+              },
+            },
+            select: { id: true },
+          });
+          await pay(invoice.id, otherPlan.total, `${idempotencyKey}:other`, {
+            reference: adminReference ?? OTHER_FEES_REFERENCE,
+            notes: otherPlan.label + (adminNote ? ` — ${adminNote}` : ""),
+          });
+          await recordAudit(
+            {
+              tenantId,
+              actorId,
+              entity: "Invoice",
+              entityId: invoice.id,
+              action: "create",
+              after: {
+                invoiceNumber,
+                periodLabel: otherPlan.label,
+                totalDue: otherPlan.total.toString(),
+                source: "spp-prepay",
+                part: "other-fees",
+              },
+            },
+            tx,
+          );
+          invoiceIds.push(invoice.id);
+          otherInvoice = { invoiceId: invoice.id, invoiceNumber, total: Number(otherPlan.total) };
+        }
+
         return {
           replayed: false,
           created: createRows.length,
           settled: settles.length,
           skipped: plan.rows.filter((r) => r.action === "SKIP_PAID").length,
           total: Number(plan.total),
-          reference,
+          reference: sppReference,
           invoiceIds,
+          otherFees: otherInvoice,
         };
       },
       { timeout: 15000 },
@@ -330,6 +423,6 @@ export async function POST(req: NextRequest) {
       tenantId,
       err: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : e,
     });
-    return NextResponse.json({ error: "Gagal mencatat SPP di muka" }, { status: 500 });
+    return NextResponse.json({ error: "Gagal mencatat pembayaran di muka" }, { status: 500 });
   }
 }

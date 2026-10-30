@@ -2,9 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   createManualInvoiceSchema,
   manualInvoiceFormSchema,
-  paymentFromForm,
+  PAYMENT_MODE_RETIRED_MESSAGE,
 } from "@/lib/validations/invoice";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * Schema tests for createManualInvoiceSchema. The route layer relies on the
@@ -82,109 +81,33 @@ describe("createManualInvoiceSchema", () => {
   });
 });
 
-const tomorrowYmd = () => {
-  const d = new Date(`${getTodayInTimezone("Asia/Jakarta")}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-};
-
-describe("createManualInvoiceSchema — optional payment", () => {
-  const today = getTodayInTimezone("Asia/Jakarta");
-  const KEY = "3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e";
-  const withPayment = (over: Record<string, unknown> = {}) => ({
-    ...baseValid,
-    payment: { idempotencyKey: KEY, method: "BANK_TRANSFER", paidAt: today, ...over },
-  });
+describe("createManualInvoiceSchema — retired payment mode", () => {
   const fieldsOf = (r: ReturnType<typeof createManualInvoiceSchema.safeParse>) =>
     r.success ? [] : r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
 
-  it("is optional, and accepts a full payment", () => {
+  it("refuses a body that carries `payment`, naming the key", () => {
+    const payment = {
+      idempotencyKey: "3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e",
+      method: "CASH",
+      paidAt: "2026-04-01",
+    };
+    expect(fieldsOf(createManualInvoiceSchema.safeParse({ ...baseValid, payment }))).toEqual([
+      `payment: ${PAYMENT_MODE_RETIRED_MESSAGE}`,
+    ]);
+    expect(createManualInvoiceSchema.safeParse({ ...baseValid, payment: null }).success).toBe(false);
+  });
+
+  it("still accepts a body without `payment`", () => {
     expect(createManualInvoiceSchema.safeParse(baseValid).success).toBe(true);
-    const r = createManualInvoiceSchema.safeParse(withPayment({ reference: "TRF-1", notes: null }));
-    expect(r.success).toBe(true);
-  });
-
-  it("refuses gateway rails and unknown methods with the manual-method message", () => {
-    for (const method of ["DOKU", "XENDIT", "cash", undefined]) {
-      expect(fieldsOf(createManualInvoiceSchema.safeParse(withPayment({ method })))).toEqual([
-        "payment.method: Pilih Tunai, Transfer Bank, atau Lainnya.",
-      ]);
-    }
-  });
-
-  it("requires a real, non-future paidAt and a uuid key", () => {
-    expect(fieldsOf(createManualInvoiceSchema.safeParse(withPayment({ paidAt: undefined })))).toHaveLength(1);
-    expect(fieldsOf(createManualInvoiceSchema.safeParse(withPayment({ paidAt: tomorrowYmd() })))).toEqual([
-      "payment.paidAt: Tanggal bayar tidak boleh di masa depan.",
-    ]);
-    expect(fieldsOf(createManualInvoiceSchema.safeParse(withPayment({ paidAt: "2026-02-30" })))).toEqual([
-      "payment.paidAt: Tanggal bayar tidak valid",
-    ]);
-    expect(createManualInvoiceSchema.safeParse(withPayment({ idempotencyKey: "abc" })).success).toBe(false);
-  });
-
-  it("keeps the duplicate-component rule when a payment is present", () => {
-    const r = createManualInvoiceSchema.safeParse({
-      ...withPayment(),
-      lines: [
-        { feeComponentId: "fc-1", amount: 1 },
-        { feeComponentId: "fc-1", amount: 2 },
-      ],
-    });
-    expect(fieldsOf(r)).toEqual(["lines: Komponen biaya tidak boleh duplikat"]);
   });
 });
 
-describe("manualInvoiceFormSchema — Sudah dibayar fields", () => {
-  const today = getTodayInTimezone("Asia/Jakarta");
-  const KEY = "3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e";
-  const form = (over: Record<string, unknown> = {}) => ({ ...baseValid, ...over });
-  const fieldsOf = (r: ReturnType<typeof manualInvoiceFormSchema.safeParse>) =>
-    r.success ? [] : r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
-
-  it("defaults markPaid to false and ignores the payment fields while unticked", () => {
-    const r = manualInvoiceFormSchema.safeParse(form());
+describe("manualInvoiceFormSchema", () => {
+  it("carries no paid-mode fields", () => {
+    const r = manualInvoiceFormSchema.safeParse({ ...baseValid, markPaid: true, method: "CASH" });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.markPaid).toBe(false);
-      expect(paymentFromForm(r.data, KEY)).toBeUndefined();
+      expect(Object.keys(r.data).sort()).toEqual(["dueDate", "lines", "periodLabel", "studentId"]);
     }
-    expect(manualInvoiceFormSchema.safeParse(form({ markPaid: false, method: "", paidAt: "" })).success).toBe(true);
-  });
-
-  it("requires method and paidAt once ticked", () => {
-    expect(fieldsOf(manualInvoiceFormSchema.safeParse(form({ markPaid: true })))).toEqual([
-      "method: Pilih metode pembayaran",
-      "paidAt: Tanggal bayar wajib diisi",
-    ]);
-    expect(fieldsOf(manualInvoiceFormSchema.safeParse(form({ markPaid: true, method: "", paidAt: "" })))).toEqual([
-      "method: Pilih metode pembayaran",
-      "paidAt: Tanggal bayar wajib diisi",
-    ]);
-  });
-
-  it("applies the API date rules to paidAt", () => {
-    expect(fieldsOf(manualInvoiceFormSchema.safeParse(form({ markPaid: true, method: "CASH", paidAt: tomorrowYmd() })))).toEqual([
-      "paidAt: Tanggal bayar tidak boleh di masa depan.",
-    ]);
-  });
-
-  it("paymentFromForm builds an API payment that createManualInvoiceSchema accepts", () => {
-    const r = manualInvoiceFormSchema.safeParse(
-      form({ markPaid: true, method: "CASH", paidAt: today, reference: "  KW-9 ", notes: "   " }),
-    );
-    expect(r.success).toBe(true);
-    if (!r.success) return;
-    const payment = paymentFromForm(r.data, KEY);
-    expect(payment).toEqual({ idempotencyKey: KEY, method: "CASH", paidAt: today, reference: "KW-9", notes: null });
-    expect(
-      createManualInvoiceSchema.safeParse({
-        studentId: r.data.studentId,
-        periodLabel: r.data.periodLabel,
-        dueDate: r.data.dueDate,
-        lines: r.data.lines,
-        payment,
-      }).success,
-    ).toBe(true);
   });
 });

@@ -1,7 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { ResolvedLine } from "../apply-adjustments";
-import { planSppPrepay, type MonthPrice, type PlanInvoice, type YearMonth } from "../spp-prepay-plan";
+import {
+  INVALID_COMPONENT_MESSAGE,
+  planOtherFees,
+  planSppPrepay,
+  type MonthPrice,
+  type PlanInvoice,
+  type YearMonth,
+} from "../spp-prepay-plan";
 
 const D = (v: string | number) => new Prisma.Decimal(v);
 
@@ -14,6 +21,7 @@ function inv(over: Partial<PlanInvoice> & { id: string; periodLabel: string }): 
     monthlyAmount: D(500000),
     hasMonthlyLine: true,
     hasOtherLine: false,
+    feeComponentIds: [],
     hasLink: false,
     paymentLinkExpiresAt: null,
     ...over,
@@ -388,5 +396,110 @@ describe("planSppPrepay", () => {
       firstInvoicedMonth: null,
     });
     expect(plan.total.equals(D(983000))).toBe(true);
+  });
+});
+
+describe("planOtherFees (cycle 2026-10-30-prepay-other-fees)", () => {
+  const components = [
+    { id: "fc-pangkal", label: "Uang Pangkal" },
+    { id: "fc-sarana", label: "Sarana" },
+  ];
+  const input = {
+    label: "Biaya Sekolah Tahap 1 TA 2027/2028",
+    lines: [
+      { feeComponentId: "fc-pangkal", amount: 5000000 },
+      { feeComponentId: "fc-sarana", amount: 1500000 },
+    ],
+  };
+  const unpaidPangkal = (over: Partial<PlanInvoice> = {}) =>
+    inv({
+      id: "i-pangkal",
+      periodLabel: "Uang Pangkal",
+      invoiceNumber: "INV-2026-0042",
+      hasMonthlyLine: false,
+      hasOtherLine: true,
+      monthlyAmount: D(0),
+      totalDue: D(5000000),
+      feeComponentIds: ["fc-pangkal"],
+      ...over,
+    });
+
+  it("no input is no plan and no issues (the SPP-only request)", () => {
+    expect(planOtherFees({ input: null, components, invoices: [unpaidPangkal()] })).toEqual({ plan: null, issues: [] });
+    expect(planOtherFees({ input: undefined, components, invoices: [] })).toEqual({ plan: null, issues: [] });
+  });
+
+  it("plans the lines with the component's own label and an exact Decimal total", () => {
+    const { plan, issues } = planOtherFees({ input, components, invoices: [] });
+    expect(issues).toEqual([]);
+    expect(plan?.label).toBe("Biaya Sekolah Tahap 1 TA 2027/2028");
+    expect(plan?.lines.map((l) => [l.feeComponentId, l.label, l.amount.toString()])).toEqual([
+      ["fc-pangkal", "Uang Pangkal", "5000000"],
+      ["fc-sarana", "Sarana", "1500000"],
+    ]);
+    expect(plan?.total).toBeInstanceOf(Prisma.Decimal);
+    expect(plan?.total.toString()).toBe("6500000");
+  });
+
+  it("a component that is not in the tenant's enabled one-time list blocks the whole part", () => {
+    const { plan, issues } = planOtherFees({
+      input: { ...input, lines: [...input.lines, { feeComponentId: "fc-foreign-or-spp", amount: 1000 }] },
+      components,
+      invoices: [],
+    });
+    expect(plan).toBeNull();
+    expect(issues).toEqual([{ code: "INVALID_COMPONENT", blocking: true, message: INVALID_COMPONENT_MESSAGE }]);
+  });
+
+  describe("caution for an unpaid invoice that already carries a chosen component (D7)", () => {
+    it("names the invoice, is non-blocking, and points to Catat Pembayaran", () => {
+      const { issues } = planOtherFees({ input, components, invoices: [unpaidPangkal({ status: "SENT" })] });
+      expect(issues).toEqual([
+        {
+          code: "UNPAID_SAME_COMPONENT",
+          blocking: false,
+          message:
+            "Siswa ini sudah punya tagihan belum lunas yang memuat Uang Pangkal. Jika wali membayar tagihan itu, gunakan Catat Pembayaran di tagihan tersebut.",
+          invoiceId: "i-pangkal",
+          invoice: {
+            id: "i-pangkal",
+            invoiceNumber: "INV-2026-0042",
+            periodLabel: "Uang Pangkal",
+            status: "SENT",
+            totalDue: 5000000,
+            monthlyAmount: 0,
+          },
+        },
+      ]);
+    });
+
+    it.each(["DRAFT", "SENT", "PARTIALLY_PAID", "OVERDUE", "PENDING_PAYMENT_LINK"])("applies to a %s invoice", (status) => {
+      const { issues } = planOtherFees({ input, components, invoices: [unpaidPangkal({ status })] });
+      expect(issues.map((i) => i.code)).toEqual(["UNPAID_SAME_COMPONENT"]);
+    });
+
+    it.each(["PAID", "CANCELLED"])("ignores a %s invoice", (status) => {
+      expect(planOtherFees({ input, components, invoices: [unpaidPangkal({ status })] }).issues).toEqual([]);
+    });
+
+    it("ignores an unpaid invoice that carries only other components (e.g. this month's SPP)", () => {
+      const spp = inv({ id: "i-spp", periodLabel: "Oktober 2026", feeComponentIds: ["fc-spp"] });
+      expect(planOtherFees({ input, components, invoices: [spp] }).issues).toEqual([]);
+    });
+
+    it("gives one caution per invoice, listing each matched component once, and one per invoice", () => {
+      const both = unpaidPangkal({ id: "i-both", feeComponentIds: ["fc-pangkal", "fc-sarana", "fc-pangkal", "fc-spp"] });
+      const sarana = unpaidPangkal({ id: "i-sarana", feeComponentIds: ["fc-sarana"] });
+      const { issues } = planOtherFees({ input, components, invoices: [both, sarana] });
+      expect(issues.map((i) => i.invoiceId)).toEqual(["i-both", "i-sarana"]);
+      expect(issues[0].message).toContain("memuat Uang Pangkal, Sarana.");
+      expect(issues[1].message).toContain("memuat Sarana.");
+      expect(issues.every((i) => !i.blocking)).toBe(true);
+    });
+
+    it("a caution never makes the plan null: confirm stays possible", () => {
+      const { plan } = planOtherFees({ input, components, invoices: [unpaidPangkal()] });
+      expect(plan?.total.toString()).toBe("6500000");
+    });
   });
 });

@@ -762,15 +762,15 @@ describe("InvoicesClient — Link berlaku column (cycle 2026-10-20-payment-link-
   });
 });
 
-describe("InvoicesClient — Catat SPP di muka button (gate)", () => {
-  const label = "Catat SPP di muka";
+describe("InvoicesClient — Catat pembayaran di muka button (gate)", () => {
+  const label = "Catat pembayaran di muka";
 
   it("is offered with both invoices.create and payments.record, and opens the dialog", async () => {
     vi.stubGlobal("fetch", stubFetch());
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
     await user.click(await screen.findByRole("button", { name: label }));
-    expect(await screen.findByRole("dialog", { name: "Catat SPP di Muka" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Catat Pembayaran di Muka" })).toBeInTheDocument();
   });
 
   it("is hidden without payments.record", async () => {
@@ -788,20 +788,14 @@ describe("InvoicesClient — Catat SPP di muka button (gate)", () => {
   });
 });
 
-describe("InvoicesClient — Tagihan Manual offers Sudah dibayar only with payments.record", () => {
-  it("shows the option when the admin can record payments", async () => {
+describe("InvoicesClient — Tagihan Manual no longer offers Sudah dibayar (cycle 2026-10-30-prepay-other-fees)", () => {
+  it.each([
+    ["with payments.record", caps],
+    ["without payments.record", { create: true, recordPayment: false, void: false }],
+  ])("shows no paid-at-creation option %s", async (_name, capabilities) => {
     vi.stubGlobal("fetch", stubFetch());
     const user = userEvent.setup();
-    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
-    await user.click(await screen.findByRole("button", { name: "Tagihan Manual" }));
-    const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
-    expect(within(dialog).getByRole("checkbox", { name: /Sudah dibayar/ })).toBeInTheDocument();
-  });
-
-  it("hides the option without payments.record", async () => {
-    vi.stubGlobal("fetch", stubFetch());
-    const user = userEvent.setup();
-    render(<InvoicesClient gatewayId="xendit" capabilities={{ create: true, recordPayment: false, void: false }} />);
+    render(<InvoicesClient gatewayId="xendit" capabilities={capabilities} />);
     await user.click(await screen.findByRole("button", { name: "Tagihan Manual" }));
     const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
     expect(within(dialog).queryByRole("checkbox", { name: /Sudah dibayar/ })).not.toBeInTheDocument();
@@ -828,7 +822,7 @@ describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-
       "Cek semua belum lunas",
       "Pengingat WhatsApp",
       "Tagihan Manual",
-      "Catat SPP di muka",
+      "Catat pembayaran di muka",
     ]);
   });
 
@@ -867,17 +861,16 @@ describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-
     render(<InvoicesClient gatewayId="doku" capabilities={full} />);
     await user.click(await trigger());
     await user.click(await screen.findByRole("menuitem", { name: "Tagihan Manual" }));
-    const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
-    expect(within(dialog).getByRole("checkbox", { name: /Sudah dibayar/ })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Tagihan Manual" })).toBeInTheDocument();
   });
 
-  it("'Catat SPP di muka' in the menu opens its dialog", async () => {
+  it("'Catat pembayaran di muka' in the menu opens its dialog", async () => {
     vi.stubGlobal("fetch", stubFetch());
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="doku" capabilities={full} />);
     await user.click(await trigger());
-    await user.click(await screen.findByRole("menuitem", { name: "Catat SPP di muka" }));
-    expect(await screen.findByRole("dialog", { name: "Catat SPP di Muka" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("menuitem", { name: "Catat pembayaran di muka" }));
+    expect(await screen.findByRole("dialog", { name: "Catat Pembayaran di Muka" })).toBeInTheDocument();
   });
 
   it("'Pengingat WhatsApp' in the menu opens the reminder queue", async () => {
