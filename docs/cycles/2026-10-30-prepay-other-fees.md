@@ -150,6 +150,19 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
 
 ## Implementation
 
+- Plan: driver=claude-opus-5-5 (spec, task specs, diff review, sign-off), workers=claude-sonnet-5-5 (T1–T4 code,
+  T5 e2e) and claude-haiku-4-5 (code sweeps, T5 docs). T1+T2 (one worker, prepay backend) parallel with T3 (disjoint
+  files); T4 after both; T5 last.
+- Branch note: this cloud session is assigned `claude/exciting-dijkstra-48q4x5`, not `feat/*`, and works in the main
+  checkout of an isolated container. Local DB: throwaway Postgres 16 cluster on port 54329 (no Docker daemon here).
+- T3: "Sudah dibayar" retired. `manual-invoice-dialog.tsx` loses the checkbox, payment fields, idempotency key,
+  paid-mode labels/errors and the `canRecordPayment` prop (`invoices-client.tsx` stops passing it). `POST
+  /api/invoices` loses the paid mode (permission check, request hash, advisory lock + replay, paid `sentAt`,
+  `recordPaymentInTx`); it keeps the rate limit, `validateBody`, audit and P2002 retry. `createManualInvoiceSchema`
+  declares `payment` as `never`, so a stale client gets a 400 naming the field ("Gunakan Catat pembayaran di muka")
+  and nothing is written, while other extra keys are still ignored as before. `invoices-create-paid.test.ts` is
+  deleted; the manual-create route, validation and dialog tests cover the refusal and the unchanged billed create.
+
 ## Verification
 
 ## Ship Notes

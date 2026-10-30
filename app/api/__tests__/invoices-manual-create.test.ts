@@ -204,6 +204,33 @@ describe("POST /api/invoices — validation", () => {
   });
 });
 
+describe("POST /api/invoices — retired payment mode", () => {
+  it("refuses a body carrying `payment` with 400 and writes nothing", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    const res = await POST(
+      makeReq({
+        ...validBody,
+        payment: {
+          idempotencyKey: "3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e",
+          method: "CASH",
+          paidAt: "2026-04-01",
+        },
+      }) as never,
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Validasi gagal");
+    expect(body.errors).toEqual([expect.objectContaining({ field: "payment" })]);
+    expect(prisma.student.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/invoices — business validation", () => {
   it("returns 400 when the student is missing, not ACTIVE, or in another tenant", async () => {
     const { getSession } = await import("@/lib/auth");
@@ -299,6 +326,7 @@ describe("POST /api/invoices — happy path", () => {
     expect(body.status).toBe("SENT");
     expect(body.xenditPaymentUrl).toBe("https://checkout.xendit.co/web/inv-new");
     expect(body.xenditError).toBeUndefined();
+    expect(body.paid).toBeUndefined();
     expect(body.lines).toHaveLength(2);
 
     // The status flip update — paymentLinkError cleared, sentAt set.
