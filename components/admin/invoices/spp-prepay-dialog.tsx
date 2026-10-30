@@ -33,11 +33,13 @@ import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
+import { parsePeriodMonth } from "@/lib/finance/period-label";
 import { formatDateTime, formatMonthLabel, formatRupiah } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { invoiceStatusLabel } from "@/lib/constants/invoice-status";
 import {
   OTHER_FEES_MAX_LINES,
+  OTHER_FEES_MONTH_LABEL_MESSAGE,
   SPP_PREPAY_METHODS,
   SPP_PREPAY_RANGE_ORDER_MESSAGE,
   sppPrepayFormSchema,
@@ -119,7 +121,9 @@ type PreviewState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; data: Preview }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string }
+  // The server refused the parts and the messages sit on the form fields.
+  | { status: "fieldErrors" };
 
 /** The `from` / `to` / `otherFees` a preview or confirm request carries. */
 type Parts = ReturnType<typeof sppPrepayPartsFromForm>;
@@ -152,6 +156,7 @@ const METHOD_LABELS: Record<(typeof SPP_PREPAY_METHODS)[number], string> = {
 const NOTHING_CHOSEN_HINT = "Pilih bulan SPP atau tambahkan biaya lainnya.";
 const OTHER_FEES_INCOMPLETE_HINT =
   "Lengkapi komponen, jumlah, dan Periode pada biaya lainnya untuk melihat rincian.";
+const PREVIEW_FIELD_ERRORS_HINT = "Periksa isian yang ditandai.";
 const LABEL_HELPER =
   'Beri nama biayanya, mis. "Biaya Sekolah Tahap 1 TA 2027/2028". Jangan hanya nama bulan.';
 
@@ -172,6 +177,15 @@ function buildInitialForm() {
     reference: "",
     notes: "",
   };
+}
+
+function hasPath(values: unknown, path: string): boolean {
+  let cursor: unknown = values;
+  for (const key of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || !(key in cursor)) return false;
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+  return true;
 }
 
 /** Every "YYYY-MM" from `from` to `to`, inclusive, with its Indonesian label. */
@@ -274,6 +288,11 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
     },
   });
   const currentKey = partsKey(currentParts);
+  // The server refuses a one-time label that names one month (it would hide that month's SPP in the Billing Run).
+  // Say so on the field straight away instead of sending a preview that is bound to fail.
+  const otherLabelTrimmed = (otherFeesValue?.label ?? "").trim();
+  const labelIsMonth = lines.length > 0 && otherLabelTrimmed !== "" && parsePeriodMonth(otherLabelTrimmed) !== null;
+  const previewBlockedByLabel = labelIsMonth && !!currentParts.otherFees;
   const rangeInverted = withSpp && !!from && !!to && from > to;
 
   /**
@@ -319,8 +338,25 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
       setPreview({ status: "ready", data });
     } catch (err) {
       if (seq !== previewSeq.current) return;
+      if (err instanceof ApiError && err.status === 400 && applyPreviewFieldErrors(err)) {
+        setPreview({ status: "fieldErrors" });
+        return;
+      }
       setPreview({ status: "error", message: userMessage(err, MESSAGES.loadFailed("Pratinjau pembayaran")) });
     }
+  }
+
+  /** Put a 400's field errors on the matching form fields (no toast: the preview is not a submit). True when any landed. */
+  function applyPreviewFieldErrors(err: ApiError): boolean {
+    const values = form.getValues();
+    let mapped = 0;
+    for (const { field: rawField, message } of err.fieldErrors) {
+      const field = rawField.replace(/\[(\d+)\]/g, ".$1");
+      if (!field || !hasPath(values, field)) continue;
+      form.setError(field as Parameters<typeof form.setError>[0], { type: "server", message });
+      mapped++;
+    }
+    return mapped > 0;
   }
 
   function clearPreview() {
@@ -380,12 +416,26 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
   // once they stop typing. Selecting a student runs its own first look (`runPreview(..., true)`).
   useEffect(() => {
     if (!open || !studentId || loadedStudentId !== studentId || rangeInverted) return;
-    if (currentKey === requestedKey.current) return;
+    if (currentKey === requestedKey.current || previewBlockedByLabel) return;
     const timer = setTimeout(() => void runPreview(studentId, JSON.parse(currentKey) as Parts), PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // `runPreview` only reads refs and stable setters; the key already carries the parts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, studentId, loadedStudentId, rangeInverted, currentKey]);
+  }, [open, studentId, loadedStudentId, rangeInverted, currentKey, previewBlockedByLabel]);
+
+  // Mirror the server's label rule on the Periode field as the admin types; drop the message once the label is fine.
+  useEffect(() => {
+    if (labelIsMonth) {
+      form.setError("otherFees.label", { type: "validate", message: OTHER_FEES_MONTH_LABEL_MESSAGE });
+      return;
+    }
+    const current = form.formState.errors.otherFees?.label;
+    if (current && (current.type === "validate" || current.type === "server")) {
+      form.clearErrors("otherFees.label");
+    }
+    // `form` is stable; the label is the only input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labelIsMonth, otherLabelTrimmed]);
 
   // Reset whenever the dialog flips closed so the next open starts fresh and
   // gets a new idempotency key.
@@ -586,58 +636,60 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
             </p>
           )}
 
-          <div className="grid grid-cols-1 gap-field sm:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="from"
-              label="Dari bulan"
-              required={withSpp}
-              id="spp-prepay-from"
-              render={({ field, controlProps }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={(v) => v != null && handleRangeChange("from", v as string, field.onChange)}
-                  disabled={!withSpp || months.length === 0}
-                >
-                  <SelectTrigger {...controlProps} onBlur={field.onBlur} className="w-full min-w-0 bg-background">
-                    <SelectValue className="min-w-0 truncate" placeholder="Pilih siswa dulu" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="to"
-              label="Sampai bulan"
-              required={withSpp}
-              id="spp-prepay-to"
-              render={({ field, controlProps }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={(v) => v != null && handleRangeChange("to", v as string, field.onChange)}
-                  disabled={!withSpp || months.length === 0}
-                >
-                  <SelectTrigger {...controlProps} onBlur={field.onBlur} className="w-full min-w-0 bg-background">
-                    <SelectValue className="min-w-0 truncate" placeholder="Pilih siswa dulu" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
+          {withSpp && (
+            <div className="grid grid-cols-1 gap-field sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="from"
+                label="Dari bulan"
+                required={withSpp}
+                id="spp-prepay-from"
+                render={({ field, controlProps }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => v != null && handleRangeChange("from", v as string, field.onChange)}
+                    disabled={!withSpp || months.length === 0}
+                  >
+                    <SelectTrigger {...controlProps} onBlur={field.onBlur} className="w-full min-w-0 bg-background">
+                      <SelectValue className="min-w-0 truncate" placeholder="Pilih siswa dulu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="to"
+                label="Sampai bulan"
+                required={withSpp}
+                id="spp-prepay-to"
+                render={({ field, controlProps }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => v != null && handleRangeChange("to", v as string, field.onChange)}
+                    disabled={!withSpp || months.length === 0}
+                  >
+                    <SelectTrigger {...controlProps} onBlur={field.onBlur} className="w-full min-w-0 bg-background">
+                      <SelectValue className="min-w-0 truncate" placeholder="Pilih siswa dulu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          )}
         </FieldSet>
 
         {/* One-time part: uang pangkal, sarana, seragam, "biaya sekolah tahap 1", ... */}
@@ -844,6 +896,10 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
             </div>
           )}
 
+          {preview.status === "fieldErrors" && (
+            <p className="text-sm text-muted-foreground">{PREVIEW_FIELD_ERRORS_HINT}</p>
+          )}
+
           {preview.status === "error" && (
             <Alert variant="destructive">
               <CircleAlert aria-hidden="true" />
@@ -908,7 +964,7 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
                         </TableCell>
                         <TableCell
                           className={
-                            row.action === "SKIP_PAID" ? "whitespace-normal text-muted-foreground" : "whitespace-normal"
+                            row.action === "SKIP_PAID" ? "whitespace-nowrap text-muted-foreground" : "whitespace-nowrap"
                           }
                         >
                           {ACTION_LABELS[row.action]}
@@ -920,13 +976,20 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
                         <TableCell className="whitespace-normal">
                           <span className="font-medium">{otherInvoice.label}</span>
                           <p className="text-xs text-muted-foreground">
-                            {otherInvoice.lines.map((l) => `${l.label} ${formatRupiah(l.amount)}`).join(" · ")}
+                            {otherInvoice.lines.map((l, i) => (
+                              <span key={l.feeComponentId}>
+                                {i > 0 && " · "}
+                                <span className="whitespace-nowrap">
+                                  {l.label} {formatRupiah(l.amount)}
+                                </span>
+                              </span>
+                            ))}
                           </p>
                         </TableCell>
                         <TableCell className="text-right font-currency tabular-nums">
                           {formatRupiah(otherInvoice.total)}
                         </TableCell>
-                        <TableCell className="whitespace-normal">{ACTION_LABELS.CREATE}</TableCell>
+                        <TableCell className="whitespace-nowrap">{ACTION_LABELS.CREATE}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>

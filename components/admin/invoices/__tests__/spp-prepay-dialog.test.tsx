@@ -17,6 +17,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
+import { OTHER_FEES_MONTH_LABEL_MESSAGE } from "@/lib/validations/spp-prepay";
 import { SppPrepayDialog } from "../spp-prepay-dialog";
 
 const STUDENT = { id: "stu-1", name: "Ahmad Fauzi", nickname: null, nis: "12345" };
@@ -300,8 +301,9 @@ describe("SppPrepayDialog", () => {
       expect(screen.getByRole("link", { name: "halaman Siswa" })).toHaveAttribute("href", "/admin/students");
       expect(screen.getByRole("radio", { name: "Catat SPP beberapa bulan" })).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByRole("radio", { name: "Tanpa SPP" })).toBeChecked();
-      // No month range to pick, and no table: only the student-only look.
-      expect(screen.getAllByRole("combobox")[1]).toBeDisabled();
+      // No month range to pick (the selects are not rendered), and no table: only the student-only look.
+      expect(screen.queryByText(/Dari bulan/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sampai bulan/)).not.toBeInTheDocument();
       expect(screen.queryByRole("table")).not.toBeInTheDocument();
       expect(previewBodies(f)).toEqual([{ studentId: STUDENT.id }]);
       expect(screen.getByRole("button", { name: "Catat lunas" })).toBeDisabled();
@@ -478,11 +480,102 @@ describe("SppPrepayDialog", () => {
 
     expect(await screen.findByText("Pilih bulan SPP atau tambahkan biaya lainnya.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Catat lunas" })).toBeDisabled();
-    // The month selects stop mattering.
-    expect(screen.getAllByRole("combobox")[1]).toBeDisabled();
+    // The month selects stop mattering: they are gone.
+    expect(screen.queryByText(/Dari bulan/)).not.toBeInTheDocument();
     await waitFor(() => expect(previewBodies(f).at(-1)).toEqual({ studentId: STUDENT.id }));
     expect(screen.getByRole("button", { name: "Catat lunas" })).toBeDisabled();
     expect(calls(f, "/api/invoices/spp-prepay")).toHaveLength(0);
+  });
+
+  it("hides the month selects under Tanpa SPP and shows them again, values kept, when SPP is re-chosen", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+    await screen.findByRole("table");
+    expect(screen.getByText(/Dari bulan/)).toBeInTheDocument();
+    expect(screen.getByText(/Sampai bulan/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Tanpa SPP" }));
+    expect(screen.queryByText(/Dari bulan/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sampai bulan/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Catat SPP beberapa bulan" }));
+    expect(await screen.findByText(/Dari bulan/)).toBeInTheDocument();
+    const [, from, to] = screen.getAllByRole("combobox");
+    expect(from).toHaveTextContent("Juli 2026");
+    expect(to).toHaveTextContent("Juni 2027");
+  });
+
+  it("flags a Periode that names one month on the field and sends no preview for it", async () => {
+    const f = fixture({ respond: plan(noProgramBody()) });
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+    await screen.findByText(new RegExp(NO_PROGRAM_MESSAGE));
+    await addLine(user, 0, "Uang Pangkal");
+    await waitFor(() => expect(amountInput(0)).toHaveValue("5.000.000"));
+    await setLabel(user, "Januari 2027");
+
+    const labelField = await screen.findByLabelText(/^Periode/);
+    await waitFor(() => expect(labelField).toHaveAttribute("aria-invalid", "true"));
+    expect(screen.getByText(OTHER_FEES_MONTH_LABEL_MESSAGE)).toBeInTheDocument();
+    // Past the debounce: nothing carrying otherFees went out, and the generic alert never appears.
+    await new Promise((r) => setTimeout(r, 600));
+    expect(previewBodies(f).some((b) => b.otherFees)).toBe(false);
+    expect(screen.queryByText("Pratinjau belum dapat dimuat")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Catat lunas" })).toBeDisabled();
+
+    // An acceptable label clears the message and the preview goes out.
+    await user.clear(labelField);
+    await user.type(labelField, LABEL);
+    await waitFor(() => expect(labelField).not.toHaveAttribute("aria-invalid", "true"));
+    expect(screen.queryByText(OTHER_FEES_MONTH_LABEL_MESSAGE)).not.toBeInTheDocument();
+    await waitFor(() => expect(previewBodies(f).at(-1)?.otherFees?.label).toBe(LABEL));
+  });
+
+  it("puts a preview 400's field errors on the fields and shows a neutral line, not the failure alert", async () => {
+    const message = "Jumlah pada setiap baris harus lebih dari 0";
+    const noProgram = noProgramBody();
+    const f = fixture({
+      respond: (req) =>
+        req.otherFees
+          ? { status: 400, body: { error: "Validasi gagal", errors: [{ field: "otherFees.lines.0.amount", message }] } }
+          : plan(noProgram)(req),
+    });
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+    await screen.findByText(new RegExp(NO_PROGRAM_MESSAGE));
+    await addLine(user, 0, "Uang Pangkal");
+    await setLabel(user, LABEL);
+
+    expect(await screen.findByText("Periksa isian yang ditandai.")).toBeInTheDocument();
+    await waitFor(() => expect(amountInput(0)).toHaveAttribute("aria-invalid", "true"));
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByText("Pratinjau belum dapat dimuat")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Muat ulang pratinjau" })).not.toBeInTheDocument();
+    expect(previewBodies(f).some((b) => b.otherFees)).toBe(true);
+  });
+
+  it("keeps the failure alert with a retry for a preview that fails without field errors", async () => {
+    const noProgram = noProgramBody();
+    fixture({
+      respond: (req) =>
+        req.otherFees
+          ? { status: 500, body: { error: "Terjadi kendala di server. Coba lagi sebentar lagi." } }
+          : plan(noProgram)(req),
+    });
+    const user = userEvent.setup();
+    render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+    await pickStudent(user);
+    await screen.findByText(new RegExp(NO_PROGRAM_MESSAGE));
+    await addLine(user, 0, "Uang Pangkal");
+    await setLabel(user, LABEL);
+
+    expect(await screen.findByText("Pratinjau belum dapat dimuat")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Muat ulang pratinjau" })).toBeInTheDocument();
+    expect(screen.queryByText("Periksa isian yang ditandai.")).not.toBeInTheDocument();
   });
 
   it("explains an unfinished one-time line instead of leaving the confirm silently disabled", async () => {
@@ -517,7 +610,8 @@ describe("SppPrepayDialog", () => {
     await pickStudent(user);
     await screen.findByText(new RegExp(NO_PROGRAM_MESSAGE));
     await addLine(user, 0, "Uang Pangkal");
-    await setLabel(user, "Januari 2027");
+    // A label the client accepts, that the server still refuses on confirm.
+    await setLabel(user, LABEL);
 
     await user.click(await screen.findByRole("button", { name: "Catat Rp 5.000.000 lunas" }));
 

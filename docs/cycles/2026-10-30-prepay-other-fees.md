@@ -188,7 +188,60 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
   invoice-reference block (its "SPP di dalamnya" part only when > 0). The button "Catat Rp X lunas" uses the grand
   total; a plain line explains a disabled button. Two `invoices-client` tests still expecting the T3 checkbox now
   assert it is absent. Built from existing components following design-system.html.
+- T5: `e2e/admin-paid-invoice-spp-prepay.spec.ts` rewritten (3 tests: Tagihan Manual has no "Sudah dibayar" and the
+  API refuses `payment`; one-time only with Tanpa SPP; SPP months + a prefilled one-time fee together, then a second
+  preview shows the months "Sudah lunas"). The old "Perlu diperiksa" e2e case is dropped: its fixture was built with
+  the retired paid mode, and the 2026-10-29 unit and component tests still cover it. `docs/uat/jobs/admin.md`
+  JTBD-ADMIN-INV-10/11 and FEE-03 rewritten; README rows; counts block.
+- Fixes from the verify-local walk (dialog + test): a Periode that reads as one month is caught in the browser and
+  the message lands on the field, with no preview sent (before, the admin saw only a generic "Validasi gagal" alert);
+  any preview 400 with field errors is put on those fields with a neutral "Periksa isian yang ditandai." line; the
+  Dari/Sampai selects are hidden while Tanpa SPP is chosen (they showed a confusing disabled "Pilih siswa dulu");
+  rupiah amounts and the Tindakan cell no longer wrap mid-value. The e2e spec now waits for the default-range
+  preview before narrowing the months (it opened "Dari bulan" before the first preview landed).
 
 ## Verification
 
+- App: `DEMO_MODE=true` production build, demo auth (`u_school_admin`), disposable Postgres 16 on port 54329,
+  freshly seeded. design-system: the dialog reuses the existing Dialog, RadioGroup, Select, RupiahInput, DatePicker,
+  Alert and table components and the Tagihan Manual line-editor look; copy follows voice.md.
+- Full gate (on `42cbf52e`, the last product commit before the walk fixes): `npx tsc --noEmit` clean; `npm run lint`
+  exit 0; `npx vitest run` 734 files passed / 2 skipped, 9033 tests passed; `verify-rls-coverage` 46/46;
+  `verify-api-auth` 225/225; `audit-docs.sh` 13 ok / 1 warn (existing ADR 60-day warning) / 0 fail; `DEMO_MODE`
+  build exit 0. After the walk fixes: tsc, eslint and `vitest run components/admin/invoices app/admin/invoices`
+  (14 files, 257 tests) green, `DEMO_MODE` build exit 0.
+- Playwright (container Chromium via a git-excluded wrapper config; the installed Playwright expects a newer browser
+  build than the container ships), production build, freshly seeded DB: the whole suite **269 passed in 8.2 min**,
+  including the rewritten spec (3 passed). After the walk fixes and a rebuild: the prepay spec plus
+  `admin-manual-invoice-layout.spec.ts`, 9 passed.
+- Verify flows walked in the browser (1440x900 and 390x844), facts read back from the database:
+  1. Tahap 1 cash, student with no class: SPP option disabled with the reason and a link to Siswa, Tanpa SPP
+     selected; Daftar Ulang Rp 5.000.000 + Seragam Rp 1.500.000 (typed — no program, no prefill), label "Biaya Sekolah
+     Tahap 1 TA 2027/2028", Tunai, three days ago → one invoice PAID, total 6.500.000, `sentAt` set, no payment link
+     or link error, two lines; one CASH payment dated that day, reference "Pembayaran di muka", note = the label;
+     audit rows for the invoice (`part: other-fees`) and the payment.
+  2. SPP + seragam, student with a program: default range Juli 2026–Juni 2027 prefilled; Seragam prefilled at
+     650.000 from the fee table, lowered to 300.000; Mei–Juni 2027 → preview 850.000 + 850.000 + 300.000 = 2.000.000;
+     three invoices PAID, no links; SPP payments referenced "SPP di muka TA 2026/2027", the one-time one "Pembayaran
+     di muka". A second preview shows both months "Sudah lunas" (e2e).
+  3. Already billed: a normal Tagihan Manual Seragam invoice (Terkirim, with a link) → adding Seragam in the dialog
+     shows the caution with the invoice number, label, status, total and a "Buka tagihan" link that opens it in a new
+     tab; confirm stays enabled.
+  4. Month label: "Januari 2027" → the field message appears at once and no preview is sent (after the fix). Tagihan
+     Manual has no "Sudah dibayar"; saving creates a billed invoice with a link.
+  5. Neither part: Tanpa SPP with no lines → "Catat lunas" disabled with "Pilih bulan SPP atau tambahkan biaya
+     lainnya."
+  No horizontal scroll at 390; no console errors besides the absent Vercel analytics scripts.
+- Not walked: the Billing Run skipping prepaid months (unchanged code path; the month invoices are created exactly as
+  before) and the parent portal view of a one-time paid invoice (same invoice shape as the SPP months).
+
 ## Ship Notes
+
+- Migrations: none (no schema change, no RLS change). Env vars: none. Manual steps: none.
+- Not auth-impacting: the routes keep their `invoices.create` + `payments.record` checks; no session, role or tenant
+  logic changed. No `needs-staging-verify`. Touches a user flow, so the PR carries `e2e`.
+- Rollback: revert the squash-merge commit on `staging`. Invoices and payments recorded with the feature stay valid
+  and are reversed or cancelled through the normal screens. A revert brings "Sudah dibayar" back.
+- For the school: money already received (SPP months, uang pangkal, seragam, tahap 1…) is now recorded only through
+  "Catat pembayaran di muka". Tagihan Manual always bills the wali. A one-time fee for a student who already has an
+  unpaid invoice for it should be recorded with "Catat Pembayaran" on that invoice; the dialog warns about this.
