@@ -176,6 +176,18 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
   `<key>:other`, reference = admin's or "Pembayaran di muka", note = label (+ admin note), audit `part: other-fees`.
   The fingerprint and request hash include the one-time payload; replay detection (`<key>:` prefix) covers it.
   `NOTHING_TO_RECORD` fires only when nothing at all would be written.
+- T4: `components/admin/invoices/spp-prepay-dialog.tsx` (+ test, 30 cases), `app/admin/invoices/invoices-client.tsx`
+  (menu label) and its test. Title "Catat Pembayaran di Muka". SPP is a radio pair ("Catat SPP beberapa bulan" with
+  Dari/Sampai, or "Tanpa SPP"); when SPP is unavailable the range option is disabled, Tanpa SPP is selected and the
+  server's reason shows (with an "Atur kelasnya di halaman Siswa" link for no program). "Biaya lainnya" lines reuse
+  the Tagihan Manual line editor (component select without already-used components, prefilled editable
+  `RupiahInput`, remove), "Tambah biaya", and a Periode field once a line exists. Picking a student runs a no-parts
+  preview and then one with the defaults; later edits re-preview after 350 ms; the confirm body carries exactly the
+  parts the shown preview was computed for, so a stale preview disables the button rather than sending other data.
+  The one-time invoice is one preview row ("Buat & lunasi"); the `UNPAID_SAME_COMPONENT` caution reuses the
+  invoice-reference block (its "SPP di dalamnya" part only when > 0). The button "Catat Rp X lunas" uses the grand
+  total; a plain line explains a disabled button. Two `invoices-client` tests still expecting the T3 checkbox now
+  assert it is absent. Built from existing components following design-system.html.
 
 ## Verification
 
