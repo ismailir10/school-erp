@@ -135,17 +135,17 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
 
 ## Tasks
 
-- [ ] T1 Planner, loader, validation for one-time lines — accept: unit tests for both-parts rules, month-label refusal,
+- [x] T1 Planner, loader, validation for one-time lines — accept: unit tests for both-parts rules, month-label refusal,
       prefill, unpaid-same-component caution, SPP-blocked-but-one-time-ok (deps: none, reuse: `spp-prepay-plan`,
       `parsePeriodMonth`, `IssueInvoice` reference shape)
-- [ ] T2 Confirm route: one paid invoice for the one-time lines in the same transaction — accept: API tests for create +
+- [x] T2 Confirm route: one paid invoice for the one-time lines in the same transaction — accept: API tests for create +
       pay, replay, drift, one-time-only, SPP-only, no gateway call (deps: T1, reuse: `recordPaymentInTx` with
       `clear-link`, the existing lock order)
-- [ ] T3 Retire "Sudah dibayar": manual dialog checkbox, `POST /api/invoices` payment mode, their validation and tests —
+- [x] T3 Retire "Sudah dibayar": manual dialog checkbox, `POST /api/invoices` payment mode, their validation and tests —
       accept: normal create tests green, `payment` → 400 (deps: none; **parallel with T1–T2**, disjoint files)
-- [ ] T4 Dialog: rename, Tanpa SPP, one-time lines, preview row, caution, invoices-client button label — accept:
+- [x] T4 Dialog: rename, Tanpa SPP, one-time lines, preview row, caution, invoices-client button label — accept:
       component tests (deps: T2, T3 for `invoices-client.tsx`)
-- [ ] T5 E2E rewrite, README rows, `docs/uat/jobs/admin.md` JTBD-ADMIN-INV-10/11, counts block — accept: `audit-docs.sh`
+- [x] T5 E2E rewrite, README rows, `docs/uat/jobs/admin.md` JTBD-ADMIN-INV-10/11, counts block — accept: `audit-docs.sh`
       passes, spec green locally (deps: T4)
 
 ## Implementation
@@ -232,6 +232,8 @@ checks on `app/api/**` (a sensitive path), so the security standard applies. It 
   5. Neither part: Tanpa SPP with no lines → "Catat lunas" disabled with "Pilih bulan SPP atau tambahkan biaya
      lainnya."
   No horizontal scroll at 390; no console errors besides the absent Vercel analytics scripts.
+- Ship route (from the actual diff `origin/staging...afa1118b`, base `5765319e`): **other code** — finance routes,
+  validation, dialogs, tests, e2e, docs; no auth, session, cookie or tenant logic. Soft-skip delta vs staging: 26 → 26.
 - Not walked: the Billing Run skipping prepaid months (unchanged code path; the month invoices are created exactly as
   before) and the parent portal view of a one-time paid invoice (same invoice shape as the SPP months).
 
