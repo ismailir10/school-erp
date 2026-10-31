@@ -63,8 +63,11 @@ export function Deck({
   slides,
   homeHref,
   homeLabel,
+  title = "Panduan Talib",
 }: {
   slides: Slide[];
+  /** Deck name in the header and the carousel label. */
+  title?: string;
   /** Where "Kembali" goes: the viewer's own portal home. */
   homeHref: string;
   homeLabel: string;
@@ -178,7 +181,7 @@ export function Deck({
           <TalibWordmark size="sm" showSublabel={false} />
         </Link>
         <span aria-hidden="true" className="h-4 w-px bg-border" />
-        <span className="text-sm text-muted-foreground">Panduan Talib</span>
+        <span className="truncate text-sm text-muted-foreground">{title}</span>
         <div className="ml-auto flex items-center gap-1">
           <p
             className="mr-2 hidden text-xs tabular-nums text-muted-foreground sm:block"
@@ -206,7 +209,7 @@ export function Deck({
 
       <main
         aria-roledescription="carousel"
-        aria-label="Panduan Talib"
+        aria-label={title}
         className="relative min-h-0 flex-1"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}

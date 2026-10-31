@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type Who = "admin" | "guru";
+export type Who = "admin" | "guru" | "ortu";
 
 export type SlideStep = { title: string; text: string };
 
@@ -15,8 +15,8 @@ export type Slide = {
   lead: string;
   /** Up to four numbered points, revealed in sequence. */
   steps?: SlideStep[];
-  /** Who uses this part of Talib. */
-  who: Who[];
+  /** Who uses this part of Talib. Omitted on a single-audience deck, where the chip would say the same thing every time. */
+  who?: Who[];
   /** Small tag for parts that are mid-cutover. */
   badge?: string;
   /** Right-hand illustration (or any node). Decorative: meaning lives in the text beside it. */
