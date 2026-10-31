@@ -13,14 +13,14 @@ import {
 import { Spotlight } from "@/components/reactbits/spotlight";
 import { Stagger, StaggerItem } from "@/components/reactbits/stagger";
 
-/** Slide 2 — the nine modules, and the three doors into them. */
+/** Staff deck, slide 2 — the nine modules, and the three doors into them. */
 const MODULES: { icon: LucideIcon; name: string; line: string }[] = [
   { icon: Landmark, name: "Dasar", line: "Akun, kampus, kalender libur" },
   { icon: GraduationCap, name: "Kesiswaan", line: "Dari pendaftar sampai siswa" },
   { icon: Layers, name: "Akademik", line: "Tahun ajaran, kelas, guru" },
   { icon: CalendarCheck, name: "Kehadiran", line: "Absensi harian siswa" },
   { icon: BookOpen, name: "Buku Penghubung", line: "Kabar sekolah dan rumah" },
-  { icon: NotebookPen, name: "Kurikulum", line: "Tema mingguan, indikator" },
+  { icon: NotebookPen, name: "Kurikulum", line: "Tema, pekan, penilaian" },
   { icon: FileText, name: "Rapor", line: "Laporan tiap triwulan" },
   { icon: Receipt, name: "Keuangan", line: "Tagihan dan pembayaran" },
   { icon: Users, name: "SDM", line: "Kehadiran, cuti, gaji" },

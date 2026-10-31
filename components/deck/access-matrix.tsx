@@ -1,14 +1,15 @@
 import { cn } from "@/lib/utils";
 
-/** Slide 10 — who can open what, by default. Derived from lib/permissions.ts and the portal layouts. */
+/** Staff deck, Akses slide — who can open what, by default. Derived from lib/permissions.ts and the portal layouts. */
 type Level = "full" | "part" | "none";
 
 const COLUMNS = ["Pemilik", "Admin sekolah", "Guru"] as const;
 
 const ROWS: { area: string; levels: [Level, Level, Level]; note?: string }[] = [
   { area: "Siswa dan pendaftaran", levels: ["full", "full", "part"], note: "guru: kelasnya" },
-  { area: "Kehadiran siswa", levels: ["full", "full", "part"], note: "guru: kelasnya" },
-  { area: "Penilaian dan kurikulum", levels: ["full", "part", "part"], note: "admin: baca dan koreksi" },
+  { area: "Kehadiran dan Buku Penghubung", levels: ["full", "full", "part"], note: "guru: kelasnya" },
+  { area: "Kurikulum", levels: ["full", "full", "part"], note: "guru: baca" },
+  { area: "Penilaian", levels: ["full", "part", "part"], note: "guru mencatat; admin memantau dan menimpa" },
   { area: "Rapor", levels: ["full", "full", "none"] },
   { area: "Tagihan dan pembayaran", levels: ["full", "full", "none"] },
   { area: "Pegawai dan gaji", levels: ["full", "none", "part"], note: "guru: data sendiri" },

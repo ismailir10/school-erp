@@ -19,7 +19,7 @@ export function TeamArt() {
         Kehadiran
       </Label>
       <Label x={46} y={74} size={13.5}>
-        Check-in dan check-out
+        Catat masuk dan pulang
       </Label>
       {DAYS.map((d, i) => (
         <Label key={d} x={78 + i * 44} y={102} size={13} anchor="middle">

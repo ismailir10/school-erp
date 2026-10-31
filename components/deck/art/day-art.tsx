@@ -1,6 +1,6 @@
 import { Art, Avatar, Bar, Card, Label, Tick } from "./kit";
 
-/** Slide 5 — the class attendance screen, the school↔home thread, and the monthly recap. */
+/** The class attendance screen, the school↔home thread, and the monthly recap. */
 const ROWS = [
   { y: 112, mark: "hadir" },
   { y: 150, mark: "hadir" },
@@ -44,7 +44,7 @@ export function DayArt() {
 
       <rect x={52} y={316} width={190} height={42} rx={14} className="fill-primary stroke-none" />
       <Label x={147} y={342} size={13.5} anchor="middle" tone="onTeal" weight={700}>
-        Tandai sisanya Hadir
+        Tandai 3 lainnya Hadir
       </Label>
 
       {/* thread */}
