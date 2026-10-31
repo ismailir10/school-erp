@@ -28,7 +28,7 @@ function Amount({ digits, size, className }: { digits: string; size: "display" |
 }
 
 function SectionLabel({ children }: { children: string }) {
-  return <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">{children}</p>;
+  return <p className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{children}</p>;
 }
 
 /** Parent invoice detail with its pay button, beside the "Lunas" receipt moment that follows. */
@@ -38,28 +38,27 @@ export function ParentInvoiceMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="NR" name="Bu Nur" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background">
-          <div className="border-b border-border px-4 pb-2.5 pt-3">
+          <div className="border-b border-border px-4 py-2.5">
             <p className="truncate text-sm font-medium">
               SPP November 2026<span className="ml-1 text-muted-foreground">· Aisyah Putri</span>
             </p>
-            <p className="text-xs text-muted-foreground">INV/2026/11/0042</p>
           </div>
 
-          <div className="space-y-3.5 px-4 pt-3.5">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="mb-0.5 text-xs font-medium text-muted-foreground">Sisa tagihan</p>
-              <Amount digits="850.000" size="display" />
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <div className="space-y-2.5 px-4 pt-2.5">
+            <div className="rounded-xl border border-border bg-card px-4 py-2.5">
+              <p className="text-xs font-medium text-muted-foreground">Sisa tagihan</p>
+              <div className="flex items-center justify-between gap-2">
+                <Amount digits="850.000" size="display" />
                 <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   Belum dibayar
                 </span>
-                <span>
-                  Jatuh tempo <b className="text-foreground">10 November 2026</b>
-                </span>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Jatuh tempo <b className="text-foreground">10 November 2026</b>
+              </p>
             </div>
 
-            <dl className="space-y-1.5 text-sm">
+            <dl className="space-y-1 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground">Total tagihan</dt>
                 <dd>
@@ -72,7 +71,7 @@ export function ParentInvoiceMock() {
                   <Amount digits="0" size="line" />
                 </dd>
               </div>
-              <div className="flex items-center justify-between gap-3 border-t border-border pt-1.5">
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-1">
                 <dt className="font-medium">Sisa tagihan</dt>
                 <dd>
                   <Amount digits="850.000" size="line" />
@@ -82,8 +81,8 @@ export function ParentInvoiceMock() {
 
             <div>
               <SectionLabel>Cara bayar</SectionLabel>
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-2">
+                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                   <Building2 size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -95,8 +94,8 @@ export function ParentInvoiceMock() {
           </div>
         </div>
 
-        <div className="border-t border-border bg-background px-4 py-2.5">
-          <div className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+        <div className="border-t border-border bg-background px-4 py-2">
+          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
             <ExternalLink size={16} />
             Bayar sekarang
           </div>
