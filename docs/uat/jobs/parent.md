@@ -241,11 +241,11 @@ This file is the living catalog of what a parent user can and should be able to 
   2. Tap "Panduan Talib" under Bantuan
   3. Page through the guide with the arrows or a sideways swipe
   4. Tap "Kembali"
-- **Done when:** `/panduan/orang-tua` opens on the cover, every slide reads in Indonesian with no sideways page scroll on a 375px viewport, and "Kembali" lands on `/parent`. Opening `/panduan` (the staff guide) instead sends the parent to `/parent`.
+- **Done when:** `/guide/parents` opens on the cover, every slide reads in Indonesian with no sideways page scroll on a 375px viewport, and "Kembali" lands on `/parent`. Opening `/guide` (the staff guide) instead sends the parent to `/parent`.
 - **Why this job matters:** The same deck is shown at parent meetings; a parent who missed the meeting, or forgot a step (how to pay, what "Perlu Penguatan" means), needs to find it again without calling the school.
 - **Expected perf:** guide first slide visible <2s; slide change <300ms.
 - **Error scenarios to verify:**
-  - Session expired → `/panduan/orang-tua` redirects to the sign-in screen, not a blank deck
+  - Session expired → `/guide/parents` redirects to the sign-in screen, not a blank deck
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { PARENT_SLIDES } from "../components/deck/parent-slides";
 import { SLIDES } from "../components/deck/slides";
 
-// Product tours: /panduan is staff only; /panduan/orang-tua is open to every signed-in role. Demo-mode cookie auth, same pattern as the other specs.
+// Product tours: /guide is staff only; /guide/parents is open to every signed-in role. Demo-mode cookie auth, same pattern as the other specs.
 
 type DemoUser = { id: string; role: string };
 let users: DemoUser[] = [];
@@ -25,19 +25,19 @@ test.describe("Panduan Talib (product tour)", () => {
   });
 
   test("a signed-out visitor is sent to the sign-in screen", async ({ page }) => {
-    await page.goto("/panduan");
+    await page.goto("/guide");
     await expect(page).toHaveURL(/localhost:3000\/$/);
   });
 
   test("a parent is sent to their own portal", async ({ page }) => {
     await signInAs(page, "GUARDIAN");
-    await page.goto("/panduan");
+    await page.goto("/guide");
     await page.waitForURL("**/parent", { timeout: 15_000 });
   });
 
   test("an admin pages through every slide with the keyboard", async ({ page }) => {
     await signInAs(page, "SUPER_ADMIN");
-    await page.goto("/panduan");
+    await page.goto("/guide");
     await expect(heading(page, 1, SLIDES[0].title)).toBeVisible();
     // The cover is server-rendered. This Chromium-only control appears after hydration,
     // so the keyboard listener is ready before we send the first shortcut.
@@ -56,7 +56,7 @@ test.describe("Panduan Talib (product tour)", () => {
 
   test("a deep link opens that slide, and the rail jumps back", async ({ page }) => {
     await signInAs(page, "SUPER_ADMIN");
-    await page.goto("/panduan#8");
+    await page.goto("/guide#8");
     await expect(heading(page, 2, SLIDES[7].title)).toBeVisible();
     await page.getByRole("button", { name: /^Slide 2:/ }).click();
     await expect(heading(page, 2, SLIDES[1].title)).toBeVisible();
@@ -65,7 +65,7 @@ test.describe("Panduan Talib (product tour)", () => {
   test("a teacher on a phone can read every slide and go back to their portal", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signInAs(page, "TEACHER");
-    await page.goto("/panduan");
+    await page.goto("/guide");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "Slide berikutnya" }).click();
     await expect(heading(page, 2, SLIDES[1].title)).toBeVisible();
@@ -85,7 +85,7 @@ test.describe("Panduan Talib (product tour)", () => {
       { name: "school-erp-session", value: teacher.id, domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" },
     ]);
     const page = await context.newPage();
-    await page.goto("/panduan#3");
+    await page.goto("/guide#3");
     await expect(heading(page, 2, SLIDES[2].title)).toBeVisible();
 
     const cdp = await context.newCDPSession(page);
@@ -116,7 +116,7 @@ test.describe("Panduan Talib (product tour)", () => {
     await signInAs(page, "GUARDIAN");
     await page.goto("/parent/profile");
     await page.getByRole("link", { name: /Panduan Talib/ }).click();
-    await page.waitForURL("**/panduan/orang-tua", { timeout: 15_000 });
+    await page.waitForURL("**/guide/parents", { timeout: 15_000 });
     await expect(heading(page, 1, PARENT_SLIDES[0].title)).toBeVisible();
 
     for (let i = 1; i < PARENT_SLIDES.length; i++) {
@@ -130,12 +130,21 @@ test.describe("Panduan Talib (product tour)", () => {
 
   test("an admin can open the parent tour to present it", async ({ page }) => {
     await signInAs(page, "SUPER_ADMIN");
-    await page.goto("/panduan/orang-tua#4");
+    await page.goto("/guide/parents#4");
     await expect(heading(page, 2, PARENT_SLIDES[3].title)).toBeVisible();
   });
 
   test("a signed-out visitor cannot open the parent tour", async ({ page }) => {
-    await page.goto("/panduan/orang-tua");
+    await page.goto("/guide/parents");
     await expect(page).toHaveURL(/localhost:3000\/$/);
+  });
+
+  test("the old Indonesian links still open the same slide", async ({ page }) => {
+    await signInAs(page, "SUPER_ADMIN");
+    await page.goto("/panduan#5");
+    await expect(page).toHaveURL(/\/guide#5$/);
+    await expect(heading(page, 2, SLIDES[4].title)).toBeVisible();
+    await page.goto("/panduan/orang-tua");
+    await expect(page).toHaveURL(/\/guide\/parents$/);
   });
 });

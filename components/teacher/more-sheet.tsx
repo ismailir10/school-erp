@@ -46,7 +46,7 @@ export const TEACHER_MORE_ITEMS: TeacherMoreItem[] = [
   {
     label: "Panduan Talib",
     description: "Tur singkat semua modul Talib",
-    href: "/panduan",
+    href: "/guide",
     icon: Presentation,
   },
 ];

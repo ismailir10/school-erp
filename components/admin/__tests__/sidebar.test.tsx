@@ -95,7 +95,7 @@ describe("AppSidebar — collapsible group chevron", () => {
     );
 
     const tour = screen.getByRole("link", { name: "Panduan Talib" });
-    expect(tour).toHaveAttribute("href", "/panduan");
+    expect(tour).toHaveAttribute("href", "/guide");
     const logout = screen.getByRole("button", { name: "Keluar" });
     expect(tour.compareDocumentPosition(logout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
