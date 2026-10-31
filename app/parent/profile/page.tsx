@@ -135,7 +135,7 @@ export default async function ParentProfilePage({ searchParams }: {
       <section>
         <SectionLabel>Bantuan</SectionLabel>
         <Link
-          href="/panduan/orang-tua"
+          href="/guide/parents"
           className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
         >
           <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">

@@ -13,7 +13,7 @@ function mount() {
 const announced = () => document.querySelector("[aria-live='polite']")?.textContent ?? "";
 
 beforeEach(() => {
-  window.history.replaceState(null, "", "/panduan");
+  window.history.replaceState(null, "", "/guide");
 });
 afterEach(() => cleanup());
 
@@ -82,12 +82,12 @@ describe("Deck", () => {
   });
 
   it("restores the slide from the URL hash and falls back to the cover for junk", () => {
-    window.history.replaceState(null, "", "/panduan#5");
+    window.history.replaceState(null, "", "/guide#5");
     const { unmount } = mount();
     expect(announced()).toContain("Slide 5 dari");
     unmount();
 
-    window.history.replaceState(null, "", "/panduan#99");
+    window.history.replaceState(null, "", "/guide#99");
     mount();
     expect(announced()).toContain("Slide 1 dari");
   });
@@ -108,7 +108,7 @@ describe("Deck", () => {
   it("follows the browser's own hash changes", () => {
     mount();
     act(() => {
-      window.history.replaceState(null, "", "/panduan#3");
+      window.history.replaceState(null, "", "/guide#3");
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
     expect(announced()).toContain("Slide 3 dari");
@@ -137,7 +137,7 @@ describe("Deck content", () => {
     mount();
     for (let i = 1; i <= SLIDES.length; i++) {
       act(() => {
-        window.history.replaceState(null, "", `/panduan#${i}`);
+        window.history.replaceState(null, "", `/guide#${i}`);
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       });
       const slide = screen.getByRole("group", { name: `${i} dari ${SLIDES.length}` });
@@ -145,6 +145,11 @@ describe("Deck content", () => {
       expect(heading).toHaveTextContent(SLIDES[i - 1].title);
       expect(slide.textContent).toContain(SLIDES[i - 1].lead);
       expect(slide.textContent ?? "").not.toMatch(FORBIDDEN);
+      // Mock screens are pictures: hidden from assistive tech, inert, and with nothing focusable inside.
+      for (const mock of slide.querySelectorAll("[data-art]")) {
+        expect(mock).toHaveAttribute("aria-hidden", "true");
+        expect(mock.querySelector("button, a[href], input, select, textarea, [tabindex]")).toBeNull();
+      }
     }
   });
 
@@ -183,7 +188,7 @@ describe("Parent deck content", () => {
     render(<Deck slides={PARENT_SLIDES} title="Panduan orang tua" homeHref="/parent" homeLabel="Beranda orang tua" />);
     for (let i = 1; i <= PARENT_SLIDES.length; i++) {
       act(() => {
-        window.history.replaceState(null, "", `/panduan/orang-tua#${i}`);
+        window.history.replaceState(null, "", `/guide/parents#${i}`);
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       });
       const slide = screen.getByRole("group", { name: `${i} dari ${PARENT_SLIDES.length}` });
@@ -192,6 +197,10 @@ describe("Parent deck content", () => {
       expect(slide.textContent ?? "").not.toMatch(FORBIDDEN);
       // One audience: no "Dipakai oleh" chips repeating "Orang tua" on every slide.
       expect(slide.textContent ?? "").not.toContain("Dipakai oleh");
+      for (const mock of slide.querySelectorAll("[data-art]")) {
+        expect(mock).toHaveAttribute("aria-hidden", "true");
+        expect(mock.querySelector("button, a[href], input, select, textarea, [tabindex]")).toBeNull();
+      }
     }
   });
 
