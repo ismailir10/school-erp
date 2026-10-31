@@ -57,6 +57,9 @@ decks and asked for:
   `next.config.ts`. Links updated in the admin sidebar, the teacher Lainnya sheet and the parent Profil. Tests updated,
   and an e2e case checks that `/panduan#5` lands on `/guide#5`. README Guides row and `docs/uat/jobs/parent.md` updated.
 
+- **T2 (in progress).** Mock kit `components/deck/mock/{stage,frames}.tsx`; samples land here before the owner's
+  review. Nothing imports them yet.
+
 ## Verification
 
 - Visual reference: `.claude/standards/design-system.html`; the mocks are built from its tokens.
