@@ -73,7 +73,7 @@ export function ReportCardMock() {
             <Download className="size-4" />
             Unduh PDF
           </span>
-          <span className="flex h-8 items-center whitespace-nowrap rounded-lg bg-destructive/10 px-2.5 text-sm font-medium text-destructive">Tarik penerbitan</span>
+          <span className="flex h-8 items-center whitespace-nowrap rounded-lg bg-destructive-subtle px-2.5 text-sm font-medium text-destructive-text">Tarik penerbitan</span>
         </div>
       </Float>
     </Stage>

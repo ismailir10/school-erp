@@ -91,6 +91,9 @@ decks and asked for:
 - **Playwright, local.** `e2e/deck.spec.ts` passed 10/10 against a production `DEMO_MODE` build on a disposable local
   Postgres 16, run with the preinstalled Chromium. The 10th case is new: `/panduan#5` → `/guide#5` and
   `/panduan/orang-tua` → `/guide/parents`.
+- **CI fix.** `Test & Build` first failed on `lib/__tests__/design-token-guard.test.ts` rule E: `report-card-mock.tsx` drew
+  "Tarik penerbitan" with `bg-destructive/10`. It now uses `bg-destructive-subtle text-destructive-text`, the real
+  destructive chip. The guard test reproduced the failure locally and then passed.
 - **Visual loop.** Every slide of both decks was captured at 1440×900 and 390×844 (reduced motion), with no sideways
   overflow, and I reviewed all of them. The only fix after review was aligning the parent's name across mocks.
   Each mock was also checked in isolation by its worker, at 560px and 366px, with a static render harness using the
