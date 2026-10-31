@@ -469,6 +469,103 @@ describe("SppPrepayDialog", () => {
     expect(screen.getByRole("button", { name: "Tambah biaya" })).toBeDisabled();
   });
 
+  describe("the hint under Tambah biaya", () => {
+    const hint = (name: RegExp) => screen.queryByText(name);
+
+    it("says every component is used and links to Biaya in a new tab", async () => {
+      fixture({ respond: plan(previewBody({ oneTimeComponents: COMPONENTS.slice(0, 1) })) });
+      const user = userEvent.setup();
+      render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+      await pickStudent(user);
+      await screen.findByRole("table");
+
+      await addLine(user, 0, "Uang Pangkal");
+      const button = screen.getByRole("button", { name: "Tambah biaya" });
+      expect(button).toBeDisabled();
+      const text = await screen.findByText(/Semua komponen biaya sekali bayar sudah dipakai\. Tambah komponen baru di/);
+      expect(text).toHaveTextContent(
+        "Semua komponen biaya sekali bayar sudah dipakai. Tambah komponen baru di halaman Biaya.",
+      );
+      expect(button).toHaveAttribute("aria-describedby", text.id);
+      const link = within(text).getByRole("link", { name: /halaman Biaya/ });
+      expect(link).toHaveAttribute("href", "/admin/fees");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    });
+
+    it("says there is no component at all, with the same link", async () => {
+      fixture({ respond: plan(previewBody({ oneTimeComponents: [] })) });
+      const user = userEvent.setup();
+      render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+      await pickStudent(user);
+      await screen.findByRole("table");
+
+      const text = await screen.findByText(/Belum ada komponen biaya sekali bayar\. Tambahkan di/);
+      expect(text).toHaveTextContent("Belum ada komponen biaya sekali bayar. Tambahkan di halaman Biaya.");
+      expect(screen.getByRole("button", { name: "Tambah biaya" })).toBeDisabled();
+      expect(within(text).getByRole("link", { name: /halaman Biaya/ })).toHaveAttribute("href", "/admin/fees");
+      expect(hint(/sudah dipakai/)).not.toBeInTheDocument();
+    });
+
+    it("names the line limit instead of the component reasons at 20 lines", async () => {
+      const many = Array.from({ length: 25 }, (_, i) => ({
+        id: `fc-${i}`,
+        label: `Biaya ${i}`,
+        sortOrder: i,
+        prefillAmount: null,
+      }));
+      fixture({ respond: () => ({ body: previewBody({ oneTimeComponents: many }) }) });
+      const user = userEvent.setup();
+      render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+      await pickStudent(user);
+      await screen.findByRole("table");
+
+      const add = () => screen.getByRole("button", { name: "Tambah biaya" });
+      for (let i = 0; i < 19; i += 1) await user.click(add());
+      expect(hint(/Maksimal 20 biaya/)).not.toBeInTheDocument();
+      await user.click(add());
+
+      const text = await screen.findByText("Maksimal 20 biaya dalam satu pencatatan.");
+      expect(add()).toBeDisabled();
+      expect(add()).toHaveAttribute("aria-describedby", text.id);
+      expect(screen.queryByRole("link", { name: /halaman Biaya/ })).not.toBeInTheDocument();
+      expect(hint(/sudah dipakai/)).not.toBeInTheDocument();
+    });
+
+    it("shows nothing while a component is still available", async () => {
+      fixture();
+      const user = userEvent.setup();
+      render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+      await pickStudent(user);
+      await screen.findByRole("table");
+
+      await addLine(user, 0, "Uang Pangkal");
+      const button = screen.getByRole("button", { name: "Tambah biaya" });
+      expect(button).toBeEnabled();
+      expect(button).not.toHaveAttribute("aria-describedby");
+      expect(hint(/Semua komponen|Belum ada komponen biaya sekali bayar\.|Maksimal 20/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /halaman Biaya/ })).not.toBeInTheDocument();
+    });
+
+    it("shows nothing before a student is picked, and drops the hint when a line is removed", async () => {
+      fixture({ respond: plan(previewBody({ oneTimeComponents: COMPONENTS.slice(0, 1) })) });
+      const user = userEvent.setup();
+      render(<SppPrepayDialog open onOpenChange={vi.fn()} />);
+      expect(screen.queryByRole("link", { name: /halaman Biaya/ })).not.toBeInTheDocument();
+      expect(hint(/Belum ada komponen biaya sekali bayar\./)).not.toBeInTheDocument();
+      expect(hint(/Semua komponen/)).not.toBeInTheDocument();
+
+      await pickStudent(user);
+      await screen.findByRole("table");
+      await addLine(user, 0, "Uang Pangkal");
+      expect(await screen.findByRole("link", { name: /halaman Biaya/ })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Hapus biaya 1" }));
+      expect(screen.queryByRole("link", { name: /halaman Biaya/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Tambah biaya" })).toBeEnabled();
+    });
+  });
+
   it("with neither part chosen, says what to do and disables the confirm", async () => {
     const f = fixture();
     const user = userEvent.setup();
