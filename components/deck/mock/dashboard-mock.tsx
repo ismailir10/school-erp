@@ -31,8 +31,8 @@ const DAYS = [92, 94, 91, 95, 93, 90, 94, 96, 93, 91, 88, 94, 95, 92, 90, 93, 96
 /** A tile as the dashboard draws it: tiny uppercase label over a bold mono figure. */
 function Tile({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("min-w-0 rounded-lg border border-border bg-card p-2.5", className)}>
-      <p className="text-[0.6rem] font-semibold uppercase leading-tight tracking-wider text-muted-foreground">{label}</p>
+    <div className={cn("min-w-0 rounded-lg border border-border bg-card px-2.5 py-2", className)}>
+      <p className="text-[0.58rem] font-semibold uppercase leading-[1.15] tracking-wider text-muted-foreground">{label}</p>
       {children}
     </div>
   );
@@ -42,7 +42,7 @@ function Tile({ label, children, className }: { label: string; children: React.R
 export function DashboardMock() {
   return (
     <Stage label="dashboard">
-      <Browser url="/admin" className="left-3 top-3 h-[412px] w-[640px]">
+      <Browser url="/admin" className="left-3 top-3 h-[380px] w-[640px]">
         <div className="flex h-[calc(100%-32px)]">
           <div className="flex w-11 shrink-0 flex-col items-center gap-2 bg-sidebar py-3">
             <Image src="/logo.png" alt="" width={22} height={22} className="mb-2 rounded-md" />
@@ -57,17 +57,9 @@ export function DashboardMock() {
           </div>
 
           <div className="min-w-0 flex-1 overflow-hidden bg-background">
-            <div className="flex items-center justify-between border-b border-border/70 px-4 py-2">
-              <p className="text-xs">
-                <span className="font-medium">Semua kampus (2)</span>
-                <span className="ml-1.5 text-muted-foreground">2026/2027</span>
-              </p>
-              <span className="grid size-5 place-items-center rounded-full bg-secondary text-[0.55rem] font-semibold text-primary-text">A</span>
-            </div>
-
-            <div className="px-4 pt-3">
+            <div className="px-4 pt-3.5">
               <p className="text-xs text-muted-foreground">Dasbor</p>
-              <div className="mb-3 mt-1 flex items-baseline justify-between gap-3">
+              <div className="mb-2.5 mt-1 flex items-baseline justify-between gap-3">
                 <h1 className="text-h1 font-bold leading-tight tracking-tight">Perlu ditangani</h1>
                 <p className="shrink-0 text-xs text-muted-foreground">Sabtu, 31 Oktober 2026</p>
               </div>
@@ -75,22 +67,22 @@ export function DashboardMock() {
               <div className="grid grid-cols-5 gap-2">
                 {QUEUE.map((q) => (
                   <Tile key={q.label} label={q.label}>
-                    <p className="mt-1 font-currency text-2xl font-bold leading-tight tabular-nums">{q.value}</p>
+                    <p className="mt-1 font-currency text-xl font-bold leading-tight tabular-nums">{q.value}</p>
                   </Tile>
                 ))}
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Tile label="Tagihan lewat tempo">
-                  <p className="mt-0.5 font-currency text-lg font-bold leading-tight tabular-nums">7</p>
+                  <p className="font-currency text-base font-bold leading-tight tabular-nums">7</p>
                 </Tile>
                 <Tile label="Piutang (belum dibayar)">
-                  <p className="mt-0.5 whitespace-nowrap font-currency text-lg font-bold leading-tight tabular-nums">Rp 24.850.000</p>
+                  <p className="whitespace-nowrap font-currency text-base font-bold leading-tight tabular-nums">Rp 24.850.000</p>
                 </Tile>
               </div>
 
               <div className="mt-2 overflow-hidden rounded-xl bg-card ring-1 ring-border">
-                <p className="px-3.5 pb-1 pt-2.5 text-sm font-semibold">Perlu perhatian</p>
+                <p className="px-3.5 pb-1 pt-2 text-sm font-semibold">Perlu perhatian</p>
                 <div className="space-y-2 px-3.5 pb-2.5">
                   {URGENT.map((u) => (
                     <div key={u.title} className="flex items-center justify-between gap-3">
@@ -112,7 +104,7 @@ export function DashboardMock() {
         </div>
       </Browser>
 
-      <Float className="left-[388px] top-[346px] w-[280px] p-3.5">
+      <Float className="left-[388px] top-[340px] w-[280px] p-3">
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-base font-semibold leading-tight">Kehadiran siswa</p>
@@ -120,7 +112,7 @@ export function DashboardMock() {
           </div>
           <p className="font-currency text-xl font-bold leading-none tabular-nums">89%</p>
         </div>
-        <div className="mt-3 flex h-12 items-end gap-[3px]">
+        <div className="mt-2.5 flex h-10 items-end gap-[3px]">
           {DAYS.map((d, i) => (
             <span
               key={i}
@@ -129,7 +121,7 @@ export function DashboardMock() {
             />
           ))}
         </div>
-        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning-subtle px-2.5 py-1 text-xs font-medium text-warning-text">
+        <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning-subtle px-2.5 py-1 text-xs font-medium text-warning-text">
           <TriangleAlert className="size-3.5" />
           Kelas perlu perhatian
         </span>
