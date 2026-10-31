@@ -71,7 +71,7 @@ export function PortalHeader({
   );
 
   return (
-    <header className={cn("sticky top-0 z-20 bg-card border-b border-border", className)}>
+    <header className={cn("sticky top-0 z-header bg-card border-b border-border", className)}>
       <div className="max-w-md mx-auto flex items-center justify-between px-5 h-14">
         <div className="flex items-center gap-2.5">
           <Image src="/logo.png" alt="An Nisaa'" width={28} height={28} className="rounded-md" />

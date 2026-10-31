@@ -7,6 +7,7 @@
  * wali will see it in a chat, filled with sample data, as the admin types.
  */
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
@@ -26,7 +27,7 @@ import {
   validateReminderTemplate,
 } from "@/lib/finance/reminder-template";
 
-const SAVE_FALLBACK = "Gagal menyimpan. Coba lagi.";
+const SAVE_FALLBACK = MESSAGES.saveFailed;
 const SAMPLE = sampleReminderValues();
 
 type Stored = { template?: unknown; defaultTemplate?: unknown };
@@ -217,7 +218,7 @@ export default function ReminderTemplatePage() {
 
           <Card className="space-y-3 p-card" data-testid="reminder-preview">
             <div>
-              <h2 className="text-h2 font-semibold">Pratinjau</h2>
+              <h2 className="text-h2">Pratinjau</h2>
               <p className="text-small text-muted-foreground">Begini pesan tampil di WhatsApp wali. Datanya contoh.</p>
             </div>
             <div className="rounded-xl bg-muted p-3 sm:p-4">

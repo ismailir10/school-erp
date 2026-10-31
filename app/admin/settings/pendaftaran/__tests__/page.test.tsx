@@ -1,3 +1,4 @@
+import { MESSAGES } from "@/lib/feedback";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -128,9 +129,9 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     await user.click(await screen.findByRole("checkbox", { name: "KTP Ayah" }));
     await user.click(screen.getByRole("button", { name: "Simpan Pengaturan" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan. Coba lagi."));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(MESSAGES.saveFailed));
     // Rendered in the form too (FormRootError), not only as a toast.
-    expect(screen.getByRole("alert")).toHaveTextContent("Gagal menyimpan. Coba lagi.");
+    expect(screen.getByRole("alert")).toHaveTextContent(MESSAGES.saveFailed);
     expect(screen.getByRole("checkbox", { name: "KTP Ayah" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "Simpan Pengaturan" })).toBeEnabled();
   });

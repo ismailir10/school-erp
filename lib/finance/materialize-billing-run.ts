@@ -1,8 +1,9 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { buildBillingRunRows, type BuildEnrollment, type BuiltRow, type BuildSummary } from "@/lib/finance/build-billing-run";
 import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
-import { normalizePeriodLabel } from "@/lib/finance/period-label";
+import { normalizePeriodLabel, parsePeriodMonth } from "@/lib/finance/period-label";
 import { BILLABLE_FEE_COMPONENT_WHERE } from "@/lib/finance/billable-fees";
+import { loadBundleFees } from "@/lib/finance/bundle-fees";
 
 /**
  * Shared draft-materialization path for the Billing Run wizard (Cycle B2 —
@@ -79,8 +80,12 @@ export async function materializeBillingRun(
   const { classSectionIds, includeStudentIds, excludeStudentIds } = scope;
 
   // Fetch the data buildBillingRunRows needs — same query shapes as
-  // app/api/invoices/generate/batch/route.ts, scoped by class-section ∪
-  // explicit-include instead of an explicit studentIds list.
+  // app/api/invoices/generate/batch/route.ts. The run is scoped PER STUDENT
+  // (docs/cycles/2026-10-29-school-daycare-bundle-price.md, Decision 4): a
+  // student is in when ANY of their ACTIVE enrollments this year is in a
+  // ticked class, or they are explicitly included. The rows returned are then
+  // ALL of that student's ACTIVE placements in the year (not only the ticked
+  // ones), so the builder prices everything they hold into one invoice.
   const enrollments = await db.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
@@ -89,7 +94,18 @@ export async function materializeBillingRun(
       // (FINX-5). Applies to the class-scope and explicit-include paths alike.
       student: { status: "ACTIVE" },
       OR: [
-        classSectionIds.length > 0 ? { classSectionId: { in: classSectionIds } } : undefined,
+        classSectionIds.length > 0
+          ? {
+              student: {
+                enrollments: {
+                  some: {
+                    status: "ACTIVE",
+                    classSection: { tenantId, academicYearId, id: { in: classSectionIds } },
+                  },
+                },
+              },
+            }
+          : undefined,
         includeStudentIds.length > 0 ? { studentId: { in: includeStudentIds } } : undefined,
       ].filter(Boolean) as Prisma.StudentEnrollmentWhereInput[],
       // Scoped to the run's own academic year — without this, a student's
@@ -100,6 +116,7 @@ export async function materializeBillingRun(
       classSection: { tenantId, academicYearId },
     },
     select: {
+      id: true,
       studentId: true,
       classSectionId: true,
       student: { select: { id: true, name: true } },
@@ -108,6 +125,7 @@ export async function materializeBillingRun(
   });
 
   const buildEnrollments: BuildEnrollment[] = enrollments.map((e) => ({
+    enrollmentId: e.id,
     studentId: e.studentId,
     studentName: e.student.name,
     classLabel: e.classSection.name,
@@ -119,7 +137,14 @@ export async function materializeBillingRun(
   const candidateStudentIds = [...new Set(enrollments.map((e) => e.studentId))];
   const programIds = [...new Set(enrollments.map((e) => e.classSection.programId))];
 
-  const [feeStructures, alreadyInvoicedStudentIds, primaryGuardians, candidateAdjustments] = await Promise.all([
+  // Leave (cuti) only applies to a run whose label is a single month; any other
+  // label (semester, range) loads nothing and is never skipped by leave.
+  const periodMonth = parsePeriodMonth(periodLabel);
+  const periodYm = periodMonth
+    ? `${periodMonth.year}-${String(periodMonth.month).padStart(2, "0")}`
+    : null;
+
+  const [feeStructures, bundleFees, alreadyInvoicedStudentIds, primaryGuardians, candidateAdjustments, activeLeaves] = await Promise.all([
     db.programFeeStructure.findMany({
       where: {
         programId: { in: programIds },
@@ -128,6 +153,8 @@ export async function materializeBillingRun(
       },
       include: { feeComponent: true },
     }),
+    // Harga paket sekolah + daycare for the programs these students hold (none when < 2 programs).
+    loadBundleFees(db, { tenantId, academicYearId, programIds }),
     findAlreadyInvoicedStudentIds(db, tenantId, periodLabel, candidateStudentIds),
     db.studentGuardian.findMany({
       where: { studentId: { in: candidateStudentIds }, isPrimary: true, status: "ACTIVE" },
@@ -138,6 +165,20 @@ export async function materializeBillingRun(
     db.studentFeeAdjustment.findMany({
       where: { tenantId, studentId: { in: candidateStudentIds }, academicYearId, status: "ACTIVE" },
     }),
+    // "YYYY-MM" strings compare correctly as text, so the inclusive month
+    // range is a plain string comparison.
+    periodYm && enrollments.length > 0
+      ? db.enrollmentLeave.findMany({
+          where: {
+            tenantId,
+            enrollmentId: { in: enrollments.map((e) => e.id) },
+            status: "ACTIVE",
+            startMonth: { lte: periodYm },
+            endMonth: { gte: periodYm },
+          },
+          select: { enrollmentId: true },
+        })
+      : Promise.resolve([] as { enrollmentId: string }[]),
   ]);
 
   const feesByProgram = new Map<string, { feeComponentId: string; label: string; amount: Prisma.Decimal }[]>();
@@ -173,6 +214,8 @@ export async function materializeBillingRun(
     feesByProgram,
     adjustmentsByStudent,
     alreadyInvoicedStudentIds,
+    onLeaveEnrollmentIds: new Set(activeLeaves.map((l) => l.enrollmentId)),
+    bundleFees,
     parentByStudent,
     academicYearId,
     dueDate,

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -123,7 +124,7 @@ export default function TeacherStudentWeekPage() {
         const err = await res.json().catch(() => ({} as { error?: string }));
         // Prefer server JSON body; fall back to the Indonesian remediation copy on 403
         // (UAT 2026-05-01 — raw "Forbidden" toast was unhelpful to Bu Sari).
-        const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : "Gagal memuat data";
+        const fallback = res.status === 403 ? JOURNAL_FORBIDDEN_MSG : MESSAGES.loadFailed("Data");
         throw new ApiError((err as { error?: string }).error || fallback);
       }
       const json = await res.json();
@@ -131,7 +132,7 @@ export default function TeacherStudentWeekPage() {
       setData(json.data);
     } catch (error) {
       if (requestId !== loadRequestId.current) return;
-      const message = userMessage(error, "Gagal memuat data");
+      const message = userMessage(error, MESSAGES.loadFailed("Data"));
       setLoadError(message);
       toast.error(message);
     } finally {
@@ -188,7 +189,7 @@ export default function TeacherStudentWeekPage() {
   const notesSection = (
           <section id="catatan" className="my-6" aria-label="Catatan siswa">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-h2 font-semibold">Catatan</h2>
+              <h2 className="text-h2">Catatan</h2>
               <Button
                 size="sm"
                 variant="outline"
@@ -317,7 +318,7 @@ export default function TeacherStudentWeekPage() {
           */}
           {(data?.homeCategories?.length ?? 0) > 0 ? (
             <section className="mt-6" aria-label="Di rumah" data-testid="home-section">
-              <h2 className="text-h2 font-semibold">Di rumah</h2>
+              <h2 className="text-h2">Di rumah</h2>
               <p className="mb-3 mt-1 text-xs text-muted-foreground">
                 Diisi wali murid di rumah — hanya bisa dilihat di sini.
               </p>

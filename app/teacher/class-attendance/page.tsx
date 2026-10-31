@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
-import { Users, Check, LoaderCircle } from "lucide-react";
+import { Users, Check } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { failureFromError, fetchOrDescribe, type FetchFailure } from "@/lib/teacher/fetch-error-copy";
+import { toastError } from "@/lib/feedback";
 
 type Assignment = {
   id: string;
@@ -228,7 +230,14 @@ export default function ClassAttendancePage() {
           setFailedIntents(prev => ({ ...prev, [op.studentId]: next }));
           setSaveState(prev => ({ ...prev, [op.studentId]: "error" }));
         }
-        toast.error(failure.message);
+        // Stays until dismissed: this is the teacher's own record. Retry re-sends
+        // the same ids and status; one id per child (or bulk) so repeats replace.
+        toastError(failure.message, {
+          // A 401/403 can never succeed on retry; it still stays until dismissed.
+          retry: failure.canRetry ? () => persist(studentIds, next, { bulk }) : undefined,
+          persistent: true,
+          id: `class-attendance-save-${context}-${bulk ? "bulk" : studentIds[0]}`,
+        });
       }
     };
     const prior = Promise.all(ops.map((op) => saveQueues.current[op.key] ?? Promise.resolve()));
@@ -308,7 +317,7 @@ export default function ClassAttendancePage() {
             </SelectContent>
           </Select>
         ) : (
-          <p id="class-attendance-class" className="min-w-0 flex-1 truncate text-h2 font-semibold">
+          <p id="class-attendance-class" className="min-w-0 flex-1 truncate text-h2">
             {currentAssignment?.classSection.name}
             <span className="ml-1.5 text-small font-normal text-muted-foreground">{currentAssignment?.classSection.program.name}</span>
           </p>
@@ -371,18 +380,23 @@ export default function ClassAttendancePage() {
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+          {/*
+            @container: each row adapts to the list's real width, not the viewport. Below 20rem (a 320-360px phone)
+            the name got ~80px beside four 44px buttons and read "Abdul Zahr…" / "Fatimah …" (two different
+            children, identical). There the row stacks: full name on top, H/S/I/A as a 4-column grid below.
+          */}
+          <ul className="@container divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
             {students.map((s) => {
               const status = statuses[s.student.id];
               const rowState = saveState[s.student.id];
               return (
                 <li key={s.student.id} data-testid="roster-row" className={cn("px-3 py-2 transition-colors", status && ROW_TINT[status])}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 @max-[20rem]:flex-col @max-[20rem]:items-stretch @max-[20rem]:gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 break-words text-sm font-medium">{s.student.name}</p>
                       {s.student.nickname && <p className="truncate text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
-                    <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1">
+                    <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1 @max-[20rem]:grid @max-[20rem]:grid-cols-4 @max-[20rem]:gap-2">
                       {OPTIONS.map((o) => {
                         const selected = status === o.status;
                         return (
@@ -394,7 +408,7 @@ export default function ClassAttendancePage() {
                             aria-label={o.label}
                             onClick={() => { if (!selected) persist([s.student.id], o.status); }}
                             className={cn(
-                              "size-11 rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                              "size-11 @max-[20rem]:w-full rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                               selected ? SELECTED[o.status] : "border-border bg-background text-muted-foreground hover:bg-muted",
                             )}
                           >
@@ -416,7 +430,7 @@ export default function ClassAttendancePage() {
           </ul>
 
           {/* Most children are present: one tap records the rest. Children who already have a status are never touched. */}
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-sticky -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
             {bulkError ? (
               <div className="mb-2 flex items-center justify-between gap-2">
                 <SaveStatus state="error" message={`Absensi belum tersimpan. ${bulkError.message}`} />
@@ -430,7 +444,7 @@ export default function ClassAttendancePage() {
               </Button>
             ) : confirming ? (
               <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" /> Menyimpan…
+                <Spinner aria-hidden /> Menyimpan…
               </p>
             ) : (
               <p className="flex min-h-11 items-center justify-center gap-1.5 text-sm text-muted-foreground">

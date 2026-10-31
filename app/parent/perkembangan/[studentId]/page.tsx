@@ -108,15 +108,9 @@ export default async function ParentPerkembanganDetailPage({
               Pekan ini
             </SectionLabel>
             {!data.hasActiveWeek ? (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 p-3 text-xs text-muted-foreground">
-                <CalendarOff className="size-4" />
-                Belum ada pekan aktif saat ini.
-              </div>
+              <EmptyState icon={CalendarOff} title="Belum ada pekan aktif saat ini" />
             ) : data.latestThisWeek.length === 0 ? (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 p-3 text-xs text-muted-foreground">
-                <Sparkles className="size-4" />
-                Belum ada catatan pekan ini.
-              </div>
+              <EmptyState icon={Sparkles} title="Belum ada catatan pekan ini" />
             ) : (
               <ul
                 className="space-y-2"

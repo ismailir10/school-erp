@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
@@ -187,7 +188,7 @@ export default function GuardiansPage() {
         active: active.pagination?.total ?? 0,
         inactive: inactive.pagination?.total ?? 0,
       });
-    }).catch(() => toast.error("Gagal memuat data"));
+    }).catch(() => toast.error(MESSAGES.loadFailed("Data")));
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -201,14 +202,14 @@ export default function GuardiansPage() {
       if (status !== "all") params.set("status", status);
       const res = await fetch(`/api/guardians?${params}`);
       if (request !== listRequest.current) return;
-      if (!res.ok) { toast.error("Gagal memuat data wali"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Data wali")); return; }
       const json = await res.json();
       if (request !== listRequest.current) return;
       setData(json.data ?? []);
       setCanEdit(json.capabilities?.canEdit === true);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      if (request === listRequest.current) toast.error("Gagal memuat data wali");
+      if (request === listRequest.current) toast.error(MESSAGES.loadFailed("Data wali"));
     } finally {
       if (request === listRequest.current) setLoading(false);
     }
@@ -295,13 +296,13 @@ export default function GuardiansPage() {
   const handleEditSave = editForm.handleSubmit(async (values) => {
     if (!editTarget || editLoad !== "ready" || discardEdit) return;
     try {
-      await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Data wali diperbarui");
       closeEditDialog();
       fetchGuardians();
       fetchStats();
     } catch (err) {
-      applyServerErrors(editForm, err, "Gagal menyimpan");
+      applyServerErrors(editForm, err, MESSAGES.saveFailed);
     }
   });
 

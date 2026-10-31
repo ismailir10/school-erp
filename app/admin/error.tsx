@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
 
 export default function AdminError({
   error,
@@ -12,17 +11,11 @@ export default function AdminError({
 }) {
   console.error(error);
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-      <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-        <AlertTriangle className="text-destructive" size={28} />
-      </div>
-      <h2 className="text-h2 font-semibold mb-2">Terjadi Kesalahan</h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md">
-        Maaf, terjadi kesalahan saat memuat halaman. Silakan coba lagi.
-      </p>
-      <Button onClick={reset} variant="outline">
-        Coba Lagi
-      </Button>
-    </div>
+    <ErrorState
+      className="py-20"
+      title="Terjadi Kesalahan"
+      description="Maaf, terjadi kesalahan saat memuat halaman. Silakan coba lagi."
+      onRetry={reset}
+    />
   );
 }

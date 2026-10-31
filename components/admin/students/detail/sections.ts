@@ -1,7 +1,7 @@
 /**
  * Anchor ids and grouping for the student dossier.
  *
- * Thirteen concerns live in five groups. Every concern keeps the id it had when
+ * Fourteen concerns live in five groups. Every concern keeps the id it had when
  * it was a section of its own, so `#keuangan`, `#pendaftaran`, `#akademik` and
  * the attention-strip jumps still land; the five groups add `group-*` ids of
  * their own. One table maps a sub-section to its group, which is what lets a
@@ -27,6 +27,7 @@ export const SECTION_AKADEMIK = "akademik";
 export const SECTION_STATUS = "riwayat-status";
 export const SECTION_KEUANGAN = "keuangan";
 export const SECTION_KERINGANAN = "keringanan";
+export const SECTION_CUTI = "cuti";
 export const SECTION_PENDAFTARAN = "pendaftaran";
 export const SECTION_JURNAL = "buku-penghubung";
 
@@ -52,6 +53,7 @@ const GROUP_OF: Record<string, string> = {
   [SECTION_STATUS]: GROUP_KELAS,
   [SECTION_KEUANGAN]: GROUP_KEUANGAN,
   [SECTION_KERINGANAN]: GROUP_KEUANGAN,
+  [SECTION_CUTI]: GROUP_KEUANGAN,
   [SECTION_PENDAFTARAN]: GROUP_CATATAN,
   [SECTION_JURNAL]: GROUP_CATATAN,
 };
@@ -63,6 +65,7 @@ const GROUP_OF: Record<string, string> = {
 export const LAZY_SECTIONS: ReadonlySet<string> = new Set([
   SECTION_KEHADIRAN,
   SECTION_KERINGANAN,
+  SECTION_CUTI,
   SECTION_JURNAL,
   SECTION_AKADEMIK,
   SECTION_PENDAFTARAN,

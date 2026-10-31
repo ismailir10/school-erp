@@ -95,9 +95,11 @@ export default function TeacherSlipsPage() {
       ) : slips.length === 0 && banner ? (
         <div className="space-y-3">
           <PendingSlipCard banner={banner} />
-          <p className="text-center text-xs text-muted-foreground">
-            Belum ada riwayat slip sebelumnya.
-          </p>
+          <EmptyState
+            icon={FileText}
+            title="Belum ada riwayat slip sebelumnya"
+            description="Slip yang sudah disetujui akan muncul di sini."
+          />
         </div>
       ) : (
         <div className="space-y-3">

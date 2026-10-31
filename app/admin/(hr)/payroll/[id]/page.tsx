@@ -1,5 +1,6 @@
 "use client";
 
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -159,9 +160,7 @@ export default function PayrollDetailPage() {
         const item = row.original;
         return (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
-            </div>
+            <UserAvatar name={item.employee.nama} size="sm" className="shrink-0" />
             <DataTableLinkCell
               className="min-w-0 whitespace-normal"
               onClick={() => setDetailItem(item)}

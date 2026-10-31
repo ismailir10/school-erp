@@ -22,6 +22,7 @@ import { PaymentProblemsAlert, type PaymentProblemView } from "@/components/admi
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { Textarea } from "@/components/ui/textarea";
 import { Ban, CreditCard, FileText, Link2, Phone, Mail, AlertTriangle, RefreshCw, Undo2, MessageCircle } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { canRemindInvoice, invoiceReminderWaUrl } from "@/lib/finance/invoice-reminder";
 import { stampReminder } from "@/lib/finance/stamp-reminder";
 import { userMessage } from "@/lib/api/client-errors";
@@ -184,7 +185,7 @@ function PaymentReview({
         <ReviewRow label="Tagihan"><span className="font-currency">{invoice.invoiceNumber}</span></ReviewRow>
         <ReviewRow label="Siswa">{invoice.student.name}</ReviewRow>
         <ReviewRow label="Jumlah">
-          <span className="font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
+          <span className="whitespace-nowrap font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
         </ReviewRow>
         <ReviewRow label="Metode">{paymentMethodLabel(method)}</ReviewRow>
         <ReviewRow label="Tanggal bayar">{formatDateShort(paidAt)}</ReviewRow>
@@ -624,12 +625,10 @@ export default function InvoiceDetailPage() {
             ? [
                 {
                   label: refreshingPayment ? "Memeriksa..." : "Cek status pembayaran",
-                  icon: (
-                    <RefreshCw
-                      size={14}
-                      aria-hidden="true"
-                      className={refreshingPayment ? "animate-spin" : ""}
-                    />
+                  icon: refreshingPayment ? (
+                    <Spinner aria-hidden className="size-3.5" />
+                  ) : (
+                    <RefreshCw size={14} aria-hidden="true" />
                   ),
                   onClick: handleRefreshPayment,
                   disabled: refreshingPayment,
@@ -763,7 +762,7 @@ export default function InvoiceDetailPage() {
       </ConfirmDialog>
 
       {invoice.paymentLinkError && (
-        <Card className="border-warning/40 bg-warning/5 p-4 mb-4">
+        <Card className="border-warning/40 bg-warning-subtle p-4 mb-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -805,21 +804,21 @@ export default function InvoiceDetailPage() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Rincian Tagihan</h3>
           <div className="space-y-2">
             {invoice.lines.map(line => (
-              <div key={line.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <div>
+              <div key={line.id} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{line.labelSnapshot}</p>
                   {line.adjustmentAmount !== 0 && (
                     <p className="text-xs text-muted-foreground">Penyesuaian: {formatRupiah(line.adjustmentAmount)} {line.adjustmentNote && `(${line.adjustmentNote})`}</p>
                   )}
                 </div>
-                <span className="font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
+                <span className="shrink-0 whitespace-nowrap font-currency text-sm font-bold">{formatRupiah(line.finalAmount)}</span>
               </div>
             ))}
           </div>
           <div className="border-t border-border mt-3 pt-3 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
-            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
+            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="shrink-0 whitespace-nowrap font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
+            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Dibayar</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
+            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Sisa</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
           </div>
         </Card>
 

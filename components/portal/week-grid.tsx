@@ -209,7 +209,7 @@ export function WeekGrid({
         <thead>
           <tr>
             {/* Sticky indicator column header */}
-            <th className="sticky left-0 bg-card z-10 text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[104px] min-w-[104px]">
+            <th className="sticky left-0 bg-card z-sticky text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[104px] min-w-[104px]">
               Indikator
             </th>
             {dates.map((d, i) => {
@@ -261,7 +261,7 @@ export function WeekGrid({
               <tr>
                 <td
                   colSpan={dates.length + 1}
-                  className="border-l-4 border-l-primary bg-primary/5 pl-3 py-2 text-h2 font-semibold text-foreground sticky left-0"
+                  className="border-l-4 border-l-primary bg-primary/5 pl-3 py-2 text-h2 text-foreground sticky left-0"
                 >
                   {cat.name}
                 </td>
@@ -274,7 +274,7 @@ export function WeekGrid({
                   className="border-b border-border/40 last:border-0"
                 >
                   {/* Sticky label column */}
-                  <td className="sticky left-0 bg-card z-10 py-2 pr-2 text-xs text-foreground leading-tight w-[104px] min-w-[104px] align-middle">
+                  <td className="sticky left-0 bg-card z-sticky py-2 pr-2 text-xs text-foreground leading-tight w-[104px] min-w-[104px] align-middle">
                     {ind.label}
                   </td>
                   {dates.map((d) => {
@@ -377,7 +377,7 @@ export function WeekGrid({
                               render={
                                 <button
                                   type="button"
-                                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-status-late-subtle hover:bg-status-late-subtle/80 active:bg-status-late-subtle/60 flex items-center justify-center transition-colors"
+                                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full after:absolute after:-inset-3.5 after:content-[''] bg-status-late-subtle hover:bg-status-late-subtle/80 active:bg-status-late-subtle/60 flex items-center justify-center transition-colors"
                                   aria-label={`Entri ini diedit oleh admin pada ${adminEditDateLabel}`}
                                 >
                                   <Pencil size={12} className="text-status-late-text" strokeWidth={2.5} />

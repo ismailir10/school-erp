@@ -17,7 +17,7 @@ export function AuditDiff({
     <div className="grid grid-cols-2 gap-2 text-xs font-mono">
       <div>
         <p className="text-xs text-muted-foreground mb-1 font-sans">Sebelum</p>
-        <pre className="bg-destructive/10 p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">
+        <pre className="bg-destructive-subtle p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">
           {JSON.stringify(before, null, 2)}
         </pre>
       </div>

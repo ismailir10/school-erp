@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDateShort } from "@/lib/format";
 import type { Enrollment } from "./types";
+import { Badge } from "@/components/ui/badge";
 
 /** "Riwayat Kelas" — every enrollment this student has ever held, newest
  * first (as the API returns it). Deliberately historical: unlike the header's
@@ -22,9 +23,9 @@ export function RiwayatKelasSection({
       id="riwayat-kelas"
       label="Riwayat Kelas"
       badge={
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <Badge variant="neutral">
           {enrollments.length}
-        </span>
+        </Badge>
       }
     >
       {enrollments.length === 0 ? (

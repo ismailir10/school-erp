@@ -18,7 +18,7 @@ import {
   type Ref,
 } from "react";
 
-const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+const EASE = "var(--ease-emphasized)";
 const RISE_PX = 16;
 const BLUR_PX = 8;
 /** Largest share of the viewport an element must show before it counts as revealed (tall sections). */

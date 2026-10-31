@@ -139,7 +139,7 @@ export default function MonthlyAttendancePage() {
           <Table className="text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold text-muted-foreground w-40">Nama</TableHead>
+                <TableHead className="sticky left-0 z-sticky bg-card px-3 py-2 font-semibold text-muted-foreground w-40">Nama</TableHead>
                 {days.map((d) => {
                   const dow = new Date(year, month - 1, d).getDay();
                   const isWeekend = dow === 0 || dow === 6;
@@ -154,7 +154,7 @@ export default function MonthlyAttendancePage() {
                     sat past 27+ day cells, out of reach without scrolling
                     the whole grid on a phone. */}
                 <TableHead
-                  className="sticky right-0 z-10 bg-card px-2 py-2 h-auto text-center font-semibold text-muted-foreground shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)]"
+                  className="sticky right-0 z-sticky bg-card px-2 py-2 h-auto text-center font-semibold text-muted-foreground shadow-sticky-edge"
                   title="H = Hadir · T = Terlambat · A = Alpa · I = Izin"
                 >
                   H/T/A/I
@@ -166,7 +166,7 @@ export default function MonthlyAttendancePage() {
                 const recordMap = new Map(emp.records.map((r) => [r.date, r]));
                 return (
                   <TableRow key={emp.employee.id}>
-                    <TableCell className="sticky left-0 z-10 bg-card px-3 py-1.5 font-medium truncate max-w-[160px]">
+                    <TableCell className="sticky left-0 z-sticky bg-card px-3 py-1.5 font-medium truncate max-w-[160px]">
                       {emp.employee.nama}
                     </TableCell>
                     {days.map((d) => {
@@ -193,7 +193,7 @@ export default function MonthlyAttendancePage() {
                         </TableCell>
                       );
                     })}
-                    <TableCell className="sticky right-0 z-10 bg-card px-2 py-1 shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)]">
+                    <TableCell className="sticky right-0 z-sticky bg-card px-2 py-1 shadow-sticky-edge">
                       <div className="flex items-center justify-center gap-1.5 font-currency">
                         <span className="text-status-present" title="Hadir">{emp.summary.present}</span>
                         <span className="text-status-late" title="Terlambat">{emp.summary.late}</span>

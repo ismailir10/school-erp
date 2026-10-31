@@ -6,7 +6,8 @@ const refresh = vi.fn();
 const push = vi.fn();
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push, replace }) }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 
 import { CenterSessionClient } from "../client";
 
@@ -40,6 +41,7 @@ describe("CenterSessionClient", () => {
     refresh.mockClear();
     push.mockClear();
     replace.mockClear();
+    toastError.mockClear();
   });
 
   it("uses keyboard-operable native age-group radios with 44px focus targets", async () => {
@@ -132,6 +134,53 @@ describe("CenterSessionClient", () => {
     expect(screen.getByRole("button", { name: "Tambah catatan" })).toBeDisabled();
     expect(screen.getByText("Catatan: Sudah dicatat")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Catatan singkat (opsional)")).toBeNull();
+  });
+
+  it("marks a missing kegiatan at the field on Simpan, focuses it, and clears once filled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(session()));
+    vi.stubGlobal("fetch", fetchMock);
+    renderClient();
+    fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+    const activity = screen.getByTestId("center-activity");
+    expect(activity).not.toHaveAttribute("aria-invalid");
+
+    fireEvent.click(screen.getByTestId("center-save"));
+
+    const error = await screen.findByText("Isi kegiatan dulu sebelum menyimpan.");
+    expect(error).toHaveAttribute("id", "center-activity-error");
+    expect(activity).toHaveAttribute("aria-invalid", "true");
+    expect(activity).toHaveAttribute("aria-describedby", "center-activity-error");
+    expect(activity).toHaveFocus();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // only the load, nothing saved
+
+    fireEvent.change(activity, { target: { value: "Doa pagi" } });
+    expect(screen.queryByText("Isi kegiatan dulu sebelum menyimpan.")).toBeNull();
+    expect(activity).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("keeps a failed save on screen with Coba lagi that re-sends the same payload", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ok(session()))
+      .mockResolvedValueOnce({ ok: false, json: async () => ({}) })
+      .mockResolvedValueOnce(ok({ written: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    renderClient();
+    fireEvent.click(await screen.findByRole("button", { name: /Karakter.*Mengikuti kegiatan/ }));
+    fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Doa pagi" } });
+    fireEvent.click(screen.getByRole("radio", { name: /^Mampu untuk Aisyah/ }));
+    fireEvent.click(screen.getByTestId("center-save"));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    const options = toastError.mock.calls[0][1];
+    expect(options).toMatchObject({ duration: Infinity, action: { label: "Coba lagi" } });
+
+    // The teacher keeps typing; the retry still sends what failed.
+    fireEvent.change(screen.getByTestId("center-activity"), { target: { value: "Lain" } });
+    await act(async () => { options.action.onClick(); });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[2][1].body).toBe(fetchMock.mock.calls[1][1].body);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   describe("unsaved-changes guard (TCHX-3)", () => {

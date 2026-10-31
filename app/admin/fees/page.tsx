@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -31,6 +32,7 @@ import { sendJson } from "@/lib/api/send-json";
 import { feeComponentFormSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
 import { MAX_FEE_AMOUNT } from "@/lib/validations/fee-structure";
 import { ProgramClassesUsage } from "@/components/admin/fees/program-classes-usage";
+import { BundleFeesSection } from "@/components/admin/fees/bundle-fees-section";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
 type Program = { id: string; code: string; name: string; status: string };
@@ -156,6 +158,12 @@ export default function FeesPage() {
   // is true — gates the switch behind a ConfirmDialog instead of letting
   // `fetchStructure()`'s effect silently overwrite the unsaved amounts.
   const [pendingSelection, setPendingSelection] = useState<{ field: "program" | "year"; value: string } | null>(null);
+  // "Harga paket sekolah + daycare" belongs to the year, not the program: its
+  // section owns its edits and only reports whether it has unsaved ones, which
+  // gates the YEAR switch (a program switch never touches it). The key is
+  // bumped after "Simpan Tarif" so its "Jumlah biasa" hints refetch.
+  const [bundleDirty, setBundleDirty] = useState(false);
+  const [bundleRefreshKey, setBundleRefreshKey] = useState(0);
 
   async function fetchAll() {
     try {
@@ -165,13 +173,13 @@ export default function FeesPage() {
         fetch("/api/academic-years"),
       ]);
       if (!cRes.ok || !pRes.ok || !yRes.ok) {
-        toast.error("Gagal memuat data biaya");
+        toast.error(MESSAGES.loadFailed("Data biaya"));
         return;
       }
       const [c, p, y] = await Promise.all([cRes.json(), pRes.json(), yRes.json()]);
       setComponents(c); setPrograms(p); setYears(y);
     } catch {
-      toast.error("Gagal memuat data biaya");
+      toast.error(MESSAGES.loadFailed("Data biaya"));
     } finally {
       setLoading(false);
     }
@@ -245,7 +253,7 @@ export default function FeesPage() {
     setStructureLoading(true);
     try {
       const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
-      if (!res.ok) { toast.error("Gagal memuat struktur biaya"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Struktur biaya")); return; }
       const data: FeeStructure[] = await res.json();
       setStructures(data);
       const amounts: Record<string, number> = {};
@@ -254,7 +262,7 @@ export default function FeesPage() {
       setStructureAmounts(amounts);
       setStructureBaseline(amounts);
     } catch {
-      toast.error("Gagal memuat struktur biaya");
+      toast.error(MESSAGES.loadFailed("Struktur biaya"));
     } finally {
       setStructureLoading(false);
     }
@@ -277,7 +285,7 @@ export default function FeesPage() {
     // so their previously-saved amount is left untouched by this PUT.
     const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
     const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
-    if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); }
+    if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); setBundleRefreshKey((k) => k + 1); }
     else {
       // Show the server's reason (e.g. nominal too large) rather than a bare failure.
       const d = await res.json().catch(() => ({}));
@@ -335,7 +343,7 @@ export default function FeesPage() {
   }
   function handleYearChange(v: string | null) {
     if (!v) return;
-    if (structureDirty) setPendingSelection({ field: "year", value: v });
+    if (structureDirty || bundleDirty) setPendingSelection({ field: "year", value: v });
     else setSelectedYear(v);
   }
   function applyPendingSelection() {
@@ -544,6 +552,13 @@ export default function FeesPage() {
               />
             </>
           )}
+          {programs.length > 0 && years.length > 0 && selectedYear && (
+            <BundleFeesSection
+              academicYearId={selectedYear}
+              refreshKey={bundleRefreshKey}
+              onDirtyChange={setBundleDirty}
+            />
+          )}
         </AdminTabsContent>
 
         {/* Keringanan — durable per-student fee adjustments (Cycle A) */}
@@ -671,7 +686,11 @@ export default function FeesPage() {
         open={!!pendingSelection}
         onOpenChange={(o) => !o && setPendingSelection(null)}
         title="Buang perubahan tarif?"
-        description="Tarif yang belum disimpan untuk program dan tahun ajaran ini akan hilang jika Anda beralih sekarang."
+        description={
+          pendingSelection?.field === "year" && bundleDirty
+            ? "Tarif dan harga paket yang belum disimpan akan hilang jika Anda beralih sekarang."
+            : "Tarif yang belum disimpan untuk program dan tahun ajaran ini akan hilang jika Anda beralih sekarang."
+        }
         confirmLabel="Buang perubahan"
         destructive
         onConfirm={() => {

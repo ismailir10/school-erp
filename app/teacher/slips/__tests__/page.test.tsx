@@ -23,14 +23,14 @@ describe("teacher slips recovery", () => {
     render(<Page />);
 
     await screen.findByText("Slip gaji tidak bisa dimuat");
-    expect(screen.queryByText("Belum ada riwayat slip sebelumnya.")).toBeNull();
+    expect(screen.queryByText("Belum ada riwayat slip sebelumnya")).toBeNull();
     const retry = screen.getByRole("button", { name: "Coba lagi" });
     expect(retry).toHaveClass("tap-target");
 
     fireEvent.click(retry);
     expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);
     await act(async () => resolveRetry(ok([])));
-    await screen.findByText("Belum ada riwayat slip sebelumnya.");
+    await screen.findByText("Belum ada riwayat slip sebelumnya");
     expect(screen.queryByText("Slip gaji tidak bisa dimuat")).toBeNull();
   });
 
@@ -40,14 +40,14 @@ describe("teacher slips recovery", () => {
 
     await screen.findByText("Slip gaji tidak bisa dimuat");
     expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
-    expect(screen.queryByText("Belum ada riwayat slip sebelumnya.")).toBeNull();
+    expect(screen.queryByText("Belum ada riwayat slip sebelumnya")).toBeNull();
   });
 
   it("renders the legitimate empty state only after a successful response", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(ok([]))));
     render(<Page />);
 
-    await screen.findByText("Belum ada riwayat slip sebelumnya.");
+    await screen.findByText("Belum ada riwayat slip sebelumnya");
     expect(screen.queryByText("Slip gaji tidak bisa dimuat")).toBeNull();
   });
 

@@ -1,3 +1,4 @@
+import { MESSAGES } from "@/lib/feedback";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,7 +38,7 @@ describe("curriculum interrupted saves", () => {
       fireEvent.change(within(dialog).getByLabelText(/Selesai/), { target: { value: "2026-07-10" } });
     } else fireEvent.change(within(dialog).getByLabelText(kind === "theme" ? /Nama tema/ : /Nama subtema/), { target: { value: "My draft" } });
     await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Gagal menyimpan. Periksa koneksi lalu coba lagi."));
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(MESSAGES.saveFailed));
     expect(within(dialog).getByRole("button", { name: "Batal" })).toBeEnabled();
     expect(within(dialog).getByRole("button", { name: "Simpan" })).toBeEnabled();
     expect(within(dialog).getByDisplayValue(kind === "week" ? "2026-07-06" : "My draft")).toBeInTheDocument();

@@ -19,6 +19,12 @@ type TaskRowBaseProps = {
   icon?: ReactNode;
   meta?: ReactNode;
   tone?: "teal" | "warm" | "purple" | "danger";
+  /**
+   * For a wide `meta` such as a Rupiah amount. When the row is narrow (a 320-360 px
+   * phone) the meta drops under the text instead of squeezing the title and status
+   * line into a ~100 px column. Short meta ("Buka") should leave this off.
+   */
+  stackMeta?: boolean;
   className?: string;
 };
 
@@ -46,6 +52,7 @@ export function TaskRow({
   href,
   onClick,
   tone = "teal",
+  stackMeta = false,
   className,
 }: TaskRowProps) {
   const interactive = Boolean(href || onClick);
@@ -65,16 +72,35 @@ export function TaskRow({
           {icon}
         </ItemMedia>
       ) : null}
-      <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className="w-auto text-body font-semibold leading-snug">{title}</ItemTitle>
-        {description ? <ItemDescription className="text-small">{description}</ItemDescription> : null}
-      </ItemContent>
-      {meta || interactive ? (
-        <ItemActions className="max-w-[42%] shrink-0 flex-wrap justify-end text-right text-small font-semibold text-muted-foreground">
-          {meta}
-          {interactive ? <ChevronRight aria-hidden="true" className="size-4" /> : null}
-        </ItemActions>
-      ) : null}
+      {/*
+        The outer div is the container (its width is the row minus the icon); the inner
+        one reflows against it. A status line is clamped to 3 lines, not 2: at 320 px
+        "Lewat tempo · Dibayar sebagian · Jatuh tempo 15 Sep 2026" needs three.
+      */}
+      <div data-slot="task-row-body" className="@container min-w-0 flex-1">
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            stackMeta && "@max-[15rem]:flex-col @max-[15rem]:items-stretch @max-[15rem]:gap-1.5",
+          )}
+        >
+          <ItemContent className="min-w-0 gap-0.5">
+            <ItemTitle className="w-auto text-body font-semibold leading-snug">{title}</ItemTitle>
+            {description ? <ItemDescription className="line-clamp-3 break-words text-small">{description}</ItemDescription> : null}
+          </ItemContent>
+          {meta || interactive ? (
+            <ItemActions
+              className={cn(
+                "max-w-1/2 shrink-0 flex-wrap justify-end text-right font-semibold text-muted-foreground",
+                stackMeta && "@max-[15rem]:w-full @max-[15rem]:max-w-none @max-[15rem]:justify-between @max-[15rem]:text-left",
+              )}
+            >
+              {meta}
+              {interactive ? <ChevronRight aria-hidden="true" className="size-4" /> : null}
+            </ItemActions>
+          ) : null}
+        </div>
+      </div>
     </>
   );
 

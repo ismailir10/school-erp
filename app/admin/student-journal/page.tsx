@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,7 @@ export default function StudentJournalAdminPage() {
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Gagal memuat kategori");
+        toast.error(err.error ?? MESSAGES.loadFailed("Kategori"));
         setCategories([]);
         return;
       }

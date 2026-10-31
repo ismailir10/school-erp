@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ function DocumentUploadCell({
           : d.error || `Gagal mengunggah ${label}`);
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setBusy(false);
     }
@@ -86,7 +87,7 @@ function DocumentUploadCell({
         toast.error(`Gagal menghapus ${label}`);
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setBusy(false);
     }
@@ -103,9 +104,9 @@ function DocumentUploadCell({
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-sm font-medium">{label}</span>
           {hasFile ? (
-            <Badge className="border-transparent bg-status-present-subtle text-xs text-status-present-text">Ada</Badge>
+            <Badge variant="success">Ada</Badge>
           ) : (
-            <Badge variant="outline" className="text-xs text-muted-foreground">Belum ada</Badge>
+            <Badge variant="outline" className="text-muted-foreground">Belum ada</Badge>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">

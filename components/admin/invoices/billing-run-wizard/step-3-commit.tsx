@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,10 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
   const pendingZero = pending.filter((r) => isZeroTotal(r.totalDue));
   const billable = pending.filter((r) => !isZeroTotal(r.totalDue));
   const skipped = rows.filter(
-    (r) => r.status === "SKIPPED_ALREADY_INVOICED" || r.status === "SKIPPED_NO_FEE_STRUCTURE",
+    (r) =>
+      r.status === "SKIPPED_ALREADY_INVOICED" ||
+      r.status === "SKIPPED_NO_FEE_STRUCTURE" ||
+      r.status === "SKIPPED_ON_LEAVE",
   );
   const alreadyCommitted = rows.filter((r) => r.status === "COMMITTED");
   // Same predicate as step 2's badge — shared so the two can never disagree
@@ -130,6 +134,7 @@ type RebuildResponse = {
     excluded: number;
     skippedAlreadyInvoiced: number;
     skippedNoFeeStructure: number;
+    skippedOnLeave: number;
     withAdjustments: number;
   };
   reappliedExclusions: number;
@@ -465,8 +470,8 @@ export function CommitStep({
         ) : null}
         {summary.skippedCount > 0 ? (
           <p className="mt-3 text-small text-muted-foreground">
-            {summary.skippedCount} siswa dilewati sejak draf dibuat (sudah pernah ditagih atau tidak
-            punya struktur biaya).
+            {summary.skippedCount} siswa dilewati sejak draf dibuat (sudah pernah ditagih, sedang cuti,
+            atau tidak punya struktur biaya).
           </p>
         ) : null}
         {/* Only reachable by reopening a resumable draft that already had a
@@ -519,7 +524,7 @@ export function CommitStep({
       {phase !== "idle" && progress.total > 0 ? (
         <Card className="p-4" role="status" aria-live="polite">
           <div className="mb-2 flex items-center gap-3">
-            {isRunning ? <Loader2 size={16} className="animate-spin text-primary" aria-hidden /> : null}
+            {isRunning ? <Spinner className="text-primary" aria-hidden /> : null}
             {phase === "done" ? <CheckCircle2 size={16} className="text-success" aria-hidden /> : null}
             <span className="text-small font-medium">
               {phase === "running" && `Mengomit tagihan… ${progress.done}/${progress.total}`}

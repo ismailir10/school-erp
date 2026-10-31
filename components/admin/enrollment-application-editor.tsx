@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { Control, Path } from "react-hook-form";
@@ -74,7 +75,7 @@ type ConfigProgram = FeeProgram & { name: string };
 type Ctl = Control<EditorValues, unknown, EditorValues>;
 type Name = Path<EditorValues>;
 
-const SAVE_FALLBACK = "Gagal menyimpan. Periksa koneksi, lalu coba lagi.";
+const SAVE_FALLBACK = MESSAGES.saveFailed;
 const INPUT_CLASS = "h-11 text-base md:text-base";
 
 // ── Field controls (one FormField each, so label ↔ control ↔ error stay wired) ──
@@ -524,7 +525,7 @@ export function EnrollmentApplicationEditor({
     <>
       <form id={formId} onSubmit={save} noValidate className="space-y-section" aria-labelledby={`${formId}-title`}>
         <div>
-          <h2 id={`${formId}-title`} ref={headingRef} tabIndex={-1} className="text-h2 font-semibold outline-none">
+          <h2 id={`${formId}-title`} ref={headingRef} tabIndex={-1} className="text-h2 outline-none">
             Ubah data formulir
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -565,7 +566,7 @@ export function EnrollmentApplicationEditor({
         </div>
 
         {/* Sticky so Simpan stays reachable on a long form, thumb-height on a phone. */}
-        <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-end gap-2 border-t bg-background/95 px-1 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sticky bottom-0 z-sticky -mx-1 flex items-center justify-end gap-2 border-t bg-background/95 px-1 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Button type="button" variant="ghost" onClick={cancel} disabled={saving}>
             Batal
           </Button>

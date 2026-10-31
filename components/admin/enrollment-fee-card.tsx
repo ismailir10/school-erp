@@ -10,6 +10,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ApiError } from "@/lib/api/client-errors";
 import { sendJson } from "@/lib/api/send-json";
@@ -116,13 +117,7 @@ export function EnrollmentFeeCard({
   }
 
   return (
-    <section className="rounded-xl border bg-card p-4" aria-labelledby="pembayaran-pendaftaran-title">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h3 id="pembayaran-pendaftaran-title" className="text-sm font-semibold">
-          Pembayaran pendaftaran
-        </h3>
-        <StatusBadge status={fee.status} />
-      </div>
+    <SectionCard title="Pembayaran pendaftaran" action={<StatusBadge status={fee.status} />}>
 
       {problems.length > 0 && (
         <div className="mb-4 space-y-2">
@@ -272,7 +267,7 @@ export function EnrollmentFeeCard({
         destructive
         onConfirm={waive}
       />
-    </section>
+    </SectionCard>
   );
 }
 

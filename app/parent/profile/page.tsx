@@ -5,16 +5,10 @@ import { ChevronLeft, ChevronRight, Mail, MessageCircle, Phone, School } from "l
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
+import { UserAvatar, getInitials } from "@/components/ui/user-avatar";
 import { SectionLabel } from "@/components/portal/section-label";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 import { SCHOOL_CONTACT_FALLBACK_TEXT, schoolContactPhone, telHref, whatsappHref } from "@/lib/contact";
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]![0]!.toUpperCase();
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
-}
 
 export default async function ParentProfilePage({ searchParams }: {
   searchParams: Promise<{ child?: string }>;
@@ -54,9 +48,7 @@ export default async function ParentProfilePage({ searchParams }: {
 
       {/* Identity surface */}
       <section className="flex flex-col items-center pt-2 pb-4">
-        <div className="grid size-20 place-items-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-          <span className="text-xl font-bold">{initialsOf(parent.name)}</span>
-        </div>
+        <UserAvatar name={parent.name} size="lg" tone="primary" className="size-20" />
         <p className="mt-3 text-base font-semibold text-foreground">
           {parent.name}
         </p>
@@ -111,7 +103,7 @@ export default async function ParentProfilePage({ searchParams }: {
           <SectionLabel>Anak Anda</SectionLabel>
           <ul className="space-y-2">
             {children.map((c) => {
-              const initials = initialsOf(c.studentName);
+              const initials = getInitials(c.studentName);
               return (
                 <li key={c.studentId}>
                   <Link

@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef, useId } from "react";
 import { useParams } from "next/navigation";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
@@ -50,6 +51,7 @@ import { DokumenSection } from "@/components/admin/students/detail/dokumen-secti
 import { RiwayatStatusSection } from "@/components/admin/students/detail/riwayat-status-section";
 import { InformasiTambahanSection } from "@/components/admin/students/detail/informasi-tambahan-section";
 import { StudentLifecycleDialogs } from "@/components/admin/students/detail/lifecycle-dialogs";
+import { CutiSection } from "@/components/admin/students/detail/cuti-section";
 import { StudentRail } from "@/components/admin/students/detail/rail-content";
 import { buildRailTiles } from "@/components/admin/students/detail/rail-tiles";
 import {
@@ -78,6 +80,7 @@ import {
   GROUP_PROFIL,
   LAZY_SECTIONS,
   SECTION_AKADEMIK,
+  SECTION_CUTI,
   SECTION_JURNAL,
   SECTION_KEHADIRAN,
   SECTION_KELUARGA,
@@ -170,10 +173,10 @@ export default function StudentDetailPage() {
     try {
       // Same year scoping as Enroll — see StudentEnrollDialog.
       const res = await fetch("/api/class-sections?yearStatus=ACTIVE,PLANNING");
-      if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
+      if (!res.ok) { toast.error(MESSAGES.loadFailed("Data kelas")); return; }
       setPromoteSections(await res.json());
       setPromoteDialogOpen(true);
-    } catch { toast.error("Terjadi kesalahan"); }
+    } catch { toast.error(MESSAGES.generic); }
   }
 
   // Kehadiran is lazy like Keringanan/Buku Penghubung: nothing is requested
@@ -192,6 +195,8 @@ export default function StudentDetailPage() {
   // does not un-fetch, and re-opening does not re-request.
   const [keringananActive, setKeringananActive] = useState(false);
   const [keringananCount, setKeringananCount] = useState<number | null>(null);
+  const [cutiActive, setCutiActive] = useState(false);
+  const [cutiCount, setCutiCount] = useState<number | null>(null);
   const [jurnalActive, setJurnalActive] = useState(false);
 
   // --- Overview aggregate + lazy sections (increment 3) ---
@@ -223,7 +228,7 @@ export default function StudentDetailPage() {
     try {
       const res = await fetch(`/api/students/${id}`);
       if (!res.ok) {
-        toast.error("Gagal memuat data siswa");
+        toast.error(MESSAGES.loadFailed("Data siswa"));
         setLoadError(res.status === 404 ? "not-found" : res.status === 401 || res.status === 403 ? "denied" : "failed");
         return;
       }
@@ -239,7 +244,7 @@ export default function StudentDetailPage() {
       setMetaSystem(split.system);
       setMetaExtra(split.extra);
       tambahanRef.current = { dirty: false, rows: split.extra };
-    } catch { toast.error("Terjadi kesalahan jaringan"); setLoadError("failed"); }
+    } catch { toast.error(MESSAGES.network); setLoadError("failed"); }
     finally { setLoading(false); }
   }, [id]);
 
@@ -301,6 +306,7 @@ export default function StudentDetailPage() {
       // Opening a lazy row is what pays for its fetch (a one-way latch).
       if (sectionId === SECTION_KEHADIRAN) setKehadiranActive(true);
       if (sectionId === SECTION_KERINGANAN) setKeringananActive(true);
+      if (sectionId === SECTION_CUTI) setCutiActive(true);
       if (sectionId === SECTION_JURNAL) setJurnalActive(true);
       if (sectionId === SECTION_AKADEMIK) setAkademikActive(true);
       if (sectionId === SECTION_PENDAFTARAN) setPendaftaranActive(true);
@@ -423,12 +429,12 @@ export default function StudentDetailPage() {
     if (savingDataAnak.current) return;
     savingDataAnak.current = true;
     try {
-      await sendStudentJson(`/api/students/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendStudentJson(`/api/students/${id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("Data siswa diperbarui");
       setIsEditingDataAnak(false);
       fetchStudent();
     } catch (err) {
-      applyStudentErrors(dataAnakForm, err, "Gagal menyimpan");
+      applyStudentErrors(dataAnakForm, err, MESSAGES.saveFailed);
     } finally {
       savingDataAnak.current = false;
     }
@@ -458,10 +464,10 @@ export default function StudentDetailPage() {
       });
       if (res.ok) return true;
       const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menyimpan");
+      toast.error(d.error || MESSAGES.saveFailed);
       return false;
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
       return false;
     }
   }
@@ -576,6 +582,7 @@ export default function StudentDetailPage() {
       error: invoicesError !== null,
       summary: invoiceSummary,
       keringananCount,
+      cutiCount,
     }),
     [GROUP_CATATAN]: catatanSummary({
       application: overview ? application : undefined,
@@ -678,12 +685,12 @@ export default function StudentDetailPage() {
             {/* Allergy and illness ride in the header, not three sections down:
                 they are the one fact a teacher or admin must not have to hunt for. */}
             {flags.allergy && (
-              <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">
+              <Badge variant="info">
                 Alergi: {flags.allergy}
               </Badge>
             )}
             {flags.illness && (
-              <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">
+              <Badge variant="info">
                 Riwayat: {flags.illness}
               </Badge>
             )}
@@ -799,9 +806,9 @@ export default function StudentDetailPage() {
               label="Akademik"
               badge={
                 raportTally && raportTally.total > 0 ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {raportTally.published}/{raportTally.total} terbit
-                  </span>
+                  </Badge>
                 ) : undefined
               }
               open={openSections[SECTION_AKADEMIK] ?? false}
@@ -834,7 +841,7 @@ export default function StudentDetailPage() {
               label="Tagihan"
               badge={
                 invoiceSummary.unpaidCount > 0 ? (
-                  <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">
+                  <Badge variant="danger">
                     {invoiceSummary.unpaidCount} belum lunas
                   </Badge>
                 ) : undefined
@@ -857,9 +864,9 @@ export default function StudentDetailPage() {
               label="Keringanan"
               badge={
                 keringananCount != null && keringananCount > 0 ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {keringananCount}
-                  </span>
+                  </Badge>
                 ) : undefined
               }
               open={openSections[SECTION_KERINGANAN] ?? false}
@@ -870,6 +877,33 @@ export default function StudentDetailPage() {
                 studentId={id}
                 active={keringananActive}
                 onCountChange={setKeringananCount}
+              />
+            </DossierSubsection>
+
+            {/* Cuti (lazy): billing pauses per enrollment. Recording and
+                cancelling are in-page dialogs (students.edit here, plus
+                invoices.create on the API); the follow-up can cancel unpaid
+                invoices through the existing void route. */}
+            <DossierSubsection
+              id={SECTION_CUTI}
+              label="Cuti"
+              badge={
+                cutiCount != null && cutiCount > 0 ? (
+                  <Badge variant="neutral">
+                    {cutiCount}
+                  </Badge>
+                ) : undefined
+              }
+              open={openSections[SECTION_CUTI] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_CUTI, o)}
+              keepMounted
+            >
+              <CutiSection
+                studentId={id}
+                active={cutiActive}
+                canManage={canManage}
+                onCountChange={setCutiCount}
+                onInvoiceVoided={fetchInvoices}
               />
             </DossierSubsection>
           </DossierGroup>
@@ -892,9 +926,9 @@ export default function StudentDetailPage() {
                 id={SECTION_PENDAFTARAN}
                 label="Formulir Pendaftaran"
                 badge={
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Badge variant="neutral">
                     {application.submittedAt ? formatDateShort(application.submittedAt) : "Belum dikirim"}
-                  </span>
+                  </Badge>
                 }
                 open={openSections[SECTION_PENDAFTARAN] ?? false}
                 onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}

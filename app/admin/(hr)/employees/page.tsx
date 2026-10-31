@@ -1,5 +1,7 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Control } from "react-hook-form";
@@ -75,9 +77,7 @@ const columns: ColumnDef<Employee>[] = [
       const e = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
-          </div>
+          <UserAvatar name={e.nama} size="sm" className="shrink-0" />
           <DataTableLinkCell
             href={`/admin/employees/${e.id}`}
             className="min-w-0 whitespace-normal"
@@ -248,7 +248,7 @@ export default function EmployeesPage() {
           inactive: s.inactive ?? 0,
         }),
       )
-      .catch(() => toast.error("Gagal memuat ringkasan karyawan"));
+      .catch(() => toast.error(MESSAGES.loadFailed("Ringkasan karyawan")));
   }, []);
 
   // Fetch campuses + positions + stats once
@@ -256,7 +256,7 @@ export default function EmployeesPage() {
     fetch("/api/config/campuses")
       .then((r) => r.json())
       .then((c) => setCampuses(Array.isArray(c) ? c : []))
-      .catch(() => toast.error("Gagal memuat daftar kampus"));
+      .catch(() => toast.error(MESSAGES.loadFailed("Daftar kampus")));
     fetch("/api/employees/positions")
       .then((r) => r.json())
       .then((p) => {
@@ -271,7 +271,7 @@ export default function EmployeesPage() {
         const DEFAULT_POSITIONS = ["Guru Kelas", "Guru Pendamping", "Kepala Sekolah", "Admin Sekolah"];
         setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
       })
-      .catch(() => toast.error("Gagal memuat daftar jabatan"));
+      .catch(() => toast.error(MESSAGES.loadFailed("Daftar jabatan")));
     fetchStats();
   }, [fetchStats]);
 
@@ -293,7 +293,7 @@ export default function EmployeesPage() {
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data karyawan");
+      toast.error(MESSAGES.loadFailed("Data karyawan"));
     } finally {
       setLoading(false);
     }

@@ -11,6 +11,12 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { StatCard } from "@/components/admin/stat-card";
@@ -23,7 +29,7 @@ import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, MoreHorizontal, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
@@ -208,7 +214,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // so no list refresh is needed on success (the user leaves the list view).
   const [manualDialog, setManualDialog] = useState(false);
   const [sppPrepayDialog, setSppPrepayDialog] = useState(false);
-  // "Catat SPP di muka" creates invoices and records their payments in one step,
+  // "Catat pembayaran di muka" creates invoices and records their payments in one step,
   // so it needs both permissions (same pair the endpoints enforce).
   const canPrepaySpp = capabilities.create && capabilities.recordPayment;
 
@@ -751,6 +757,51 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     return options;
   }, [statsState, stats, statusFilter]);
 
+  // The header's secondary actions, defined once. Rendered inline from `sm` up and inside the
+  // "Lainnya" menu below it, so both surfaces always offer the same set with the same handlers.
+  const secondaryActions: Array<{
+    key: string;
+    label: string;
+    icon: typeof Plus;
+    onSelect: () => void;
+    disabled?: boolean;
+  }> = [
+    ...(capabilities.create && stats.unpaidWithoutLink > 0
+      ? [{
+          key: "create-links",
+          label: creatingLinks ? "Membuat link..." : `Buat link baru (${stats.unpaidWithoutLink})`,
+          icon: LinkIcon,
+          onSelect: handleCreateMissingLinks,
+          disabled: creatingLinks,
+        }]
+      : []),
+    ...(capabilities.recordPayment
+      ? [
+          {
+            key: "check-all",
+            label: checkingAll ? "Memeriksa..." : "Cek semua belum lunas",
+            icon: RefreshCw,
+            onSelect: handleCheckAllPayments,
+            disabled: checkingAll,
+          },
+          {
+            key: "reminders",
+            label: "Pengingat WhatsApp",
+            icon: MessageCircle,
+            onSelect: () => setReminderQueueOpen(true),
+          },
+        ]
+      : []),
+    ...(capabilities.create
+      ? [
+          { key: "manual", label: "Tagihan Manual", icon: Plus, onSelect: () => setManualDialog(true) },
+          ...(canPrepaySpp
+            ? [{ key: "spp-prepay", label: "Catat pembayaran di muka", icon: CalendarCheck, onSelect: () => setSppPrepayDialog(true) }]
+            : []),
+        ]
+      : []),
+  ];
+
   return (
     <>
       <PageHeader
@@ -766,38 +817,37 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                 gatewayId={gatewayId}
               />
             )}
-            {capabilities.create && stats.unpaidWithoutLink > 0 && (
-              <Button size="sm" variant="outline" onClick={handleCreateMissingLinks} disabled={creatingLinks}>
-                <LinkIcon size={14} className="mr-1.5" />
-                {creatingLinks ? "Membuat link..." : `Buat link baru (${stats.unpaidWithoutLink})`}
-              </Button>
-            )}
-            {capabilities.recordPayment && (
-              <Button size="sm" variant="outline" onClick={handleCheckAllPayments} disabled={checkingAll}>
-                <RefreshCw size={14} className="mr-1.5" />
-                {checkingAll ? "Memeriksa..." : "Cek semua belum lunas"}
-              </Button>
-            )}
-            {capabilities.recordPayment && (
-              <Button size="sm" variant="outline" onClick={() => setReminderQueueOpen(true)}>
-                <MessageCircle size={14} className="mr-1.5" />
-                Pengingat WhatsApp
-              </Button>
+            {/* From `sm` up the secondary actions sit inline as buttons; below it they fold into
+                "Lainnya" so a phone header stays one row. Both render the one list above, and the
+                CSS breakpoint (not JS) picks which, so there is no hydration mismatch. */}
+            <div className="hidden sm:contents">
+              {secondaryActions.map(({ key, label, icon: Icon, onSelect, disabled }) => (
+                <Button key={key} size="sm" variant="outline" onClick={onSelect} disabled={disabled}>
+                  <Icon size={14} className="mr-1.5" />
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {secondaryActions.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button size="sm" variant="outline" className="sm:hidden" />}>
+                  <MoreHorizontal size={14} className="mr-1.5" aria-hidden="true" />
+                  Lainnya
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-48 sm:hidden">
+                  {secondaryActions.map(({ key, label, icon: Icon, onSelect, disabled }) => (
+                    <DropdownMenuItem key={key} onClick={onSelect} disabled={disabled}>
+                      <Icon aria-hidden="true" />
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {capabilities.create && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
-                  <Plus size={14} className="mr-1.5" /> Tagihan Manual
-                </Button>
-                {canPrepaySpp && (
-                  <Button size="sm" variant="outline" onClick={() => setSppPrepayDialog(true)}>
-                    <CalendarCheck size={14} className="mr-1.5" /> Catat SPP di muka
-                  </Button>
-                )}
-                <Button size="sm" onClick={openWizard}>
-                  <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan
-                </Button>
-              </>
+              <Button size="sm" onClick={openWizard}>
+                <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan
+              </Button>
             )}
           </div>
         }
@@ -923,7 +973,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       />
 
       {fetchError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 flex items-start gap-3">
+        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle p-6 flex items-start gap-3">
           <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" />
           <div className="flex-1 min-w-0 space-y-2">
             <p className="text-sm font-semibold text-foreground">Gagal memuat tagihan</p>
@@ -986,8 +1036,6 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       <ManualInvoiceDialog
         open={manualDialog}
         onOpenChange={setManualDialog}
-        // "Sudah dibayar" records the payment too, so it needs payments.record as well as invoices.create.
-        canRecordPayment={capabilities.recordPayment}
         // FIND-012: pre-fix the dialog navigated straight to /admin/invoices/[id]
         // after create. When the admin clicked back to the list, the client
         // component re-mounted and re-fetched from scratch, showing the

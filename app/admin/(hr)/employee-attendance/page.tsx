@@ -1,5 +1,7 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -78,13 +80,13 @@ export default function AttendancePage() {
         fetch("/api/config/campuses"),
       ]);
       if (!attRes.ok || !campRes.ok) {
-        toast.error("Gagal memuat data kehadiran");
+        toast.error(MESSAGES.loadFailed("Data kehadiran"));
         return;
       }
       setData(await attRes.json());
       setCampuses(await campRes.json());
     } catch {
-      toast.error("Gagal memuat data kehadiran");
+      toast.error(MESSAGES.loadFailed("Data kehadiran"));
     } finally {
       setLoading(false);
     }
@@ -169,9 +171,7 @@ export default function AttendancePage() {
         const ea = row.original;
         return (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
-            </div>
+            <UserAvatar name={ea.employee.nama} size="sm" className="shrink-0" />
             <DataTableLinkCell
               href={`/admin/employees/${ea.employee.id}`}
               className="min-w-0 whitespace-normal"

@@ -69,7 +69,7 @@ export function KesehatanSection({
     <DossierSubsection
       id="kesehatan"
       label="Kesehatan & Kelahiran"
-      badge={hasAllergy ? <Badge className="bg-status-leave-subtle text-status-leave-text text-xs">Ada alergi</Badge> : undefined}
+      badge={hasAllergy ? <Badge variant="info">Ada alergi</Badge> : undefined}
       actions={canEdit && (
         editing ? (
           <>

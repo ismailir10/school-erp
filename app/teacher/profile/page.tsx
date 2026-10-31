@@ -1,3 +1,4 @@
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -35,9 +36,7 @@ export default async function TeacherProfilePage() {
 
       {/* Avatar + Name */}
       <div className="flex items-center gap-4 mb-6">
-        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-          <span className="text-primary text-xl font-bold">{employee.nama[0]}</span>
-        </div>
+        <UserAvatar name={employee.nama} size="lg" tone="primary" />
         <div>
           <h2 className="text-base font-semibold">{employee.nama}</h2>
           <div className="flex items-center gap-2 mt-1">

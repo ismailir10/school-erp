@@ -4,6 +4,7 @@
 // (ResponsiveFormDialog overlay, Select, Button states). This page is a
 // single "use client" component — no server wrapper to host the note.
 
+import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -117,7 +118,7 @@ export default function AcademicPage() {
       await sendJson(
         editingYear ? `/api/academic-years/${editingYear.id}` : "/api/academic-years",
         { method: editingYear ? "PUT" : "POST", body: values },
-        "Gagal menyimpan",
+        MESSAGES.saveFailed,
       );
       toast.success(editingYear ? "Tahun ajaran diperbarui" : "Tahun ajaran ditambahkan");
       setYearDialog(false);
@@ -135,7 +136,7 @@ export default function AcademicPage() {
         toast.error(mapped[0].message);
         return;
       }
-      applyServerErrors(yearForm, err, "Gagal menyimpan");
+      applyServerErrors(yearForm, err, MESSAGES.saveFailed);
     }
   });
 
@@ -144,14 +145,14 @@ export default function AcademicPage() {
       await sendJson(
         editingProgram ? `/api/programs/${editingProgram.id}` : "/api/programs",
         { method: editingProgram ? "PUT" : "POST", body: values },
-        "Gagal menyimpan",
+        MESSAGES.saveFailed,
       );
       toast.success(editingProgram ? "Program diperbarui" : "Program ditambahkan");
       setProgramDialog(false);
       setEditingProgram(null);
       fetchAll();
     } catch (err) {
-      applyServerErrors(programForm, err, "Gagal menyimpan");
+      applyServerErrors(programForm, err, MESSAGES.saveFailed);
     }
   });
 
@@ -463,7 +464,7 @@ export default function AcademicPage() {
 
       {/* Programs Section */}
       <div className="mb-8">
-        <h2 className="mb-4 text-h2 font-semibold">Program</h2>
+        <h2 className="mb-4 text-h2">Program</h2>
         <DataTableToolbar
           value={programQuery}
           onValueChange={setProgramQuery}
@@ -501,7 +502,7 @@ export default function AcademicPage() {
 
       {/* Academic Years Section */}
       <div className="mb-8">
-        <h2 className="mb-4 text-h2 font-semibold">Tahun Ajaran</h2>
+        <h2 className="mb-4 text-h2">Tahun Ajaran</h2>
         <DataTableToolbar
           value={yearQuery}
           onValueChange={setYearQuery}

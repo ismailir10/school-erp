@@ -12,6 +12,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { EASE_EMPHASIZED } from "@/lib/motion";
 
 const subscribeNoop = () => () => {};
 
@@ -71,7 +72,7 @@ export function CountUp({
     if (!animating || !inView || settled === value) return;
     const controls = animate(mv, value, {
       duration,
-      ease: [0.22, 1, 0.36, 1],
+      ease: EASE_EMPHASIZED,
       onComplete: () => setSettled(value),
     });
     return () => controls.stop();

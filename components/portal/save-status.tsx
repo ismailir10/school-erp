@@ -1,4 +1,5 @@
-import { AlertCircle, CheckCircle2, LoaderCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 export type SaveStatusProps = {
@@ -15,19 +16,19 @@ const defaultMessage = {
 
 /** Keep mounted as state changes so screen readers can announce save feedback. */
 export function SaveStatus({ state, message, className }: SaveStatusProps) {
-  const Icon = state === "saving" ? LoaderCircle : state === "saved" ? CheckCircle2 : AlertCircle;
+  const Icon = state === "saved" ? CheckCircle2 : AlertCircle;
   return (
     <p
       role={state === "error" ? "alert" : "status"}
       aria-live={state === "error" ? "assertive" : "polite"}
       className={cn(
-        "inline-flex min-h-6 items-center gap-1.5 text-small text-muted-foreground",
+        "inline-flex min-h-6 items-center gap-1.5 text-muted-foreground",
         state === "saved" && "text-status-present-text",
         state === "error" && "text-destructive",
         className,
       )}
     >
-      <Icon aria-hidden="true" className={cn("size-4", state === "saving" && "animate-spin motion-reduce:animate-none")} />
+      {state === "saving" ? <Spinner aria-hidden /> : <Icon aria-hidden="true" className="size-4" />}
       <span>{message ?? defaultMessage[state]}</span>
     </p>
   );

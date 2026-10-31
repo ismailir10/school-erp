@@ -27,7 +27,7 @@ export type PortalTabsProps = {
   className?: string;
   /**
    * When true, the tab bar pins to the top of its scroll container below the
-   * `PortalHeader` (which is `sticky top-0 z-20 h-14`). Use for the Option C
+   * `PortalHeader` (which is `sticky top-0 z-header h-14`). Use for the Option C
    * "pinned top-level switcher" on parent child-detail pages (invoices,
    * attendance, reports) so the active-child context stays visible while
    * inner content scrolls. Default `false` (non-sticky, inline).
@@ -125,7 +125,7 @@ export function PortalTabs({
         // Option C — pinned top-level switcher. Sticks below PortalHeader
         // (top-14 ≈ h-14 header) and covers scrolling content.
         sticky &&
-          "sticky top-14 z-10 -mx-page-x px-page-x pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border",
+          "sticky top-14 z-sticky -mx-page-x px-page-x pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border",
         className
       )}
     >

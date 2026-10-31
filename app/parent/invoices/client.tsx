@@ -20,6 +20,7 @@ import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 import { parentHref } from "@/lib/parent/navigation";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
+import { SectionCard } from "@/components/ui/section-card";
 
 const InvoiceDetailSheet = dynamic(
   () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
@@ -406,7 +407,7 @@ export function InvoicesClient({
       <PageHeader title="Tagihan" subtitle="Pantau pembayaran SPP & biaya tambahan" />
 
       {hasAnyOutstanding ? (
-        <section className="rounded-xl border border-border bg-card p-4 md:p-6">
+        <SectionCard>
           <p className="text-sm text-muted-foreground">Belum dibayar</p>
           <p className="mt-1">
             <Amount value={summary.total} size="display" />
@@ -436,14 +437,14 @@ export function InvoicesClient({
               </>
             ) : null}
           </div>
-        </section>
+        </SectionCard>
       ) : otherChildrenWithOutstanding.length > 0 ? (
         // Selected child is paid, but a sibling still has outstanding tagihan.
         // Without this branch the page reads "Lunas semua" while /parent's
         // Tagihan tile shows the household total — the UAT-2026-05-03 INV-01
         // contradiction. Sibling rows ARE the CTA — no separate "select above"
         // instruction (it would compete with the rows + duplicate ChildSelectorTabs).
-        <section className="rounded-xl border border-border bg-card p-4 md:p-6">
+        <SectionCard>
           <div className="flex items-start gap-3">
             <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-status-present-subtle text-status-present-text">
               <CheckCircle2 size={18} />
@@ -472,7 +473,7 @@ export function InvoicesClient({
               </div>
             </div>
           </div>
-        </section>
+        </SectionCard>
       ) : (
         <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">
           <div className="flex items-center gap-3">
@@ -669,6 +670,7 @@ function InvoiceRow({
       description={secondary}
       icon={<Receipt className="size-5" />}
       meta={<Amount value={amount} size="row" tone={tone === "paid" ? "paid" : "neutral"} />}
+      stackMeta
       tone={tone === "paid" ? "teal" : "warm"}
       className={highlight ? "ring-2 ring-status-present-text/40" : undefined}
     />

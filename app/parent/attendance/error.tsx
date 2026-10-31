@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
 
 export default function ParentAttendanceError({
   reset,
@@ -10,19 +9,10 @@ export default function ParentAttendanceError({
   reset: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 flex flex-col items-center text-center gap-3">
-      <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-        <AlertTriangle className="text-destructive" size={22} />
-      </div>
-      <div>
-        <h2 className="text-h3 font-semibold mb-1">Gagal memuat kehadiran</h2>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Coba lagi sebentar ya. Kalau masih belum bisa, hubungi admin sekolah ya.
-        </p>
-      </div>
-      <Button onClick={reset} variant="outline" size="sm">
-        Coba Lagi
-      </Button>
-    </div>
+    <ErrorState
+      title="Gagal memuat kehadiran"
+      description="Coba lagi sebentar ya. Kalau masih belum bisa, hubungi admin sekolah ya."
+      onRetry={reset}
+    />
   );
 }

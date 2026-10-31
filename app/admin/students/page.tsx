@@ -1,5 +1,7 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -405,23 +407,13 @@ const columns: ColumnDef<Student>[] = [
           }
         >
           <span className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-              {s.photoUrl ? (
-                // Auth-proxied — never a public filesystem path. Lazy-load to
-                // keep large lists snappy on mid-range Android.
-                // eslint-disable-next-line @next/next/no-img-element -- same-origin, cookie-authenticated URL; next/image's server-side optimizer cannot send the session cookie
-                <img
-                  src={`/api/students/${s.id}/photo`}
-                  alt={`Foto ${s.name}`}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <span className="text-primary text-xs font-bold">
-                  {s.name[0]}
-                </span>
-              )}
-            </span>
+            {/* Auth-proxied photo — never a public filesystem path. */}
+            <UserAvatar
+              name={s.name}
+              size="sm"
+              src={s.photoUrl ? `/api/students/${s.id}/photo` : null}
+              className="shrink-0"
+            />
             <span className="whitespace-normal">
               {s.name}
               {s.nickname && (
@@ -649,7 +641,7 @@ export default function StudentsPage() {
       setCapabilities({ canCreate: json.capabilities?.canCreate === true, canEdit: json.capabilities?.canEdit === true });
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data siswa");
+      toast.error(MESSAGES.loadFailed("Data siswa"));
     } finally {
       setLoading(false);
     }

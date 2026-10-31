@@ -7,6 +7,7 @@
 import { motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
+import { EASE_EMPHASIZED } from "@/lib/motion";
 
 const OFFSET_PX = 12;
 
@@ -59,7 +60,7 @@ export function StepTransition({
       data-direction={direction}
       initial={navigated ? { opacity: 0, x: OFFSET_PX * direction } : false}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, ease: EASE_EMPHASIZED }}
     >
       {children}
     </motion.div>

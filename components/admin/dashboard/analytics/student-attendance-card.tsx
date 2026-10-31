@@ -7,7 +7,7 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/
 import { EmptyState } from "@/components/ui/empty-state";
 import { usePrefersReducedMotion } from "@/components/reactbits/use-prefers-reduced-motion";
 import type { AnalyticsSource, AttendanceAnalytics, AttendanceDay } from "@/lib/dashboard/analytics";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import { ANALYTICS_CHART_CLASS, AnalyticsCard, AnalyticsUnavailable } from "./analytics-card";
 import { ClassRankList } from "./class-rank-list";
 import { TooltipCard } from "./chart-tooltip";
@@ -64,7 +64,7 @@ export function StudentAttendanceCard({ source }: { source: AnalyticsSource<Atte
               key: item.classSectionId,
               name: item.name,
               percent: item.rate,
-              caption: `${item.total.toLocaleString("id-ID")} catatan`,
+              caption: `${formatNumber(item.total)} catatan`,
               href: ATTENDANCE_HREF,
             }))}
           />

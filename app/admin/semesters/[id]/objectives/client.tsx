@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { MESSAGES } from "@/lib/feedback";
+import { BackLink } from "@/components/portal/back-link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/accordion";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { ArrowLeft, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Pencil, Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -193,12 +194,7 @@ export function ObjectivesClient({
   return (
     <div className="space-y-section">
       <div>
-        <Link
-          href="/admin/semesters"
-          className="inline-flex items-center gap-1 text-small text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Kembali ke daftar semester
-        </Link>
+        <BackLink href="/admin/semesters" label="Kembali ke daftar semester" />
       </div>
 
       <PageHeader
@@ -258,7 +254,7 @@ export function ObjectivesClient({
         </div>
       ) : objectives.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-small text-muted-foreground">
+          <CardContent className="py-8 text-center text-muted-foreground">
             Belum ada tujuan pembelajaran untuk filter ini. Import PROMES via
             tombol di halaman semester untuk mengisi data.
           </CardContent>
@@ -681,12 +677,12 @@ export function ObjectiveEditDialog({
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/admin/curriculum/objectives/${objective.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/admin/curriculum/objectives/${objective.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("TP tersimpan");
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 
@@ -834,12 +830,12 @@ export function IndicatorEditDialog({
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await sendJson(`/api/admin/curriculum/indicators/${indicator.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      await sendJson(`/api/admin/curriculum/indicators/${indicator.id}`, { method: "PUT", body: values }, MESSAGES.saveFailed);
       toast.success("IKTP tersimpan");
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      applyServerErrors(form, err, "Gagal menyimpan");
+      applyServerErrors(form, err, MESSAGES.saveFailed);
     }
   });
 

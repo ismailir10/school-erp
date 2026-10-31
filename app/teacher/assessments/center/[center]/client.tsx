@@ -2,11 +2,13 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, NotebookPen, Save, Users } from "lucide-react";
+import { NotebookPen, Save, Search, Users } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
+import { toastError } from "@/lib/feedback";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
@@ -26,9 +28,12 @@ import {
   LEVEL_ORDER,
   type Level,
 } from "@/lib/curriculum/level-presentation";
+import { Badge } from "@/components/ui/badge";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
+/** One id so a repeated failed save replaces the earlier toast, and a later success clears it. */
+const SAVE_TOAST_ID = "center-session-save";
 
 type Student = {
   id: string;
@@ -91,6 +96,7 @@ export function CenterSessionClient({
   );
   const [ageGroup, setAgeGroup] = useState<"A" | "B">("A");
   const [activity, setActivity] = useState<string>("");
+  const [activityError, setActivityError] = useState("");
   const [pickedIndicatorIds, setPickedIndicatorIds] = useState<string[]>([]);
   const [cells, setCells] = useState<Map<string, Cell>>(new Map());
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -369,9 +375,11 @@ export function CenterSessionClient({
   async function save(): Promise<void> {
     if (!payload?.ok || !payload.writable) return;
     if (!activity.trim()) {
-      toast.error("Isi kegiatan dulu sebelum menyimpan.");
+      setActivityError("Isi kegiatan dulu sebelum menyimpan.");
+      document.getElementById("center-activity")?.focus();
       return;
     }
+    setActivityError("");
     const entries: Array<{
       studentId: string;
       indicatorId: string;
@@ -390,24 +398,29 @@ export function CenterSessionClient({
         });
       }
     }
+    await submit({ center, date, activity: activity.trim(), entries });
+  }
+
+  /** POSTs one session payload. A failure keeps the payload so "Coba lagi" re-sends exactly it. */
+  async function submit(body: {
+    center: string;
+    date: string;
+    activity: string;
+    entries: unknown[];
+  }): Promise<void> {
     setSaving(true);
     try {
       const res = await fetch("/api/teacher/assessment-entries/center", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          center,
-          date,
-          activity: activity.trim(),
-          entries,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new ApiError(body.error ?? "Gagal menyimpan sesi sentra.");
+        const errBody = await res.json().catch(() => ({}));
+        throw new ApiError(errBody.error ?? "Gagal menyimpan sesi sentra.");
       }
-      const body = await res.json();
-      toast.success(`Penilaian tersimpan · ${body.written} entri`);
+      const result = await res.json();
+      toast.success(`Penilaian tersimpan · ${result.written} entri`, { id: SAVE_TOAST_ID });
       setDirty(false);
       router.refresh();
     } catch (err) {
@@ -415,7 +428,7 @@ export function CenterSessionClient({
         err,
         "Gagal menyimpan sesi sentra. Coba lagi sebentar ya.",
       );
-      toast.error(message);
+      toastError(message, { retry: () => void submit(body), id: SAVE_TOAST_ID });
     } finally {
       setSaving(false);
     }
@@ -509,12 +522,18 @@ export function CenterSessionClient({
           onChange={(e) => {
             setActivity(e.target.value);
             setDirty(true);
+            if (e.target.value.trim()) setActivityError("");
           }}
           disabled={!isWritable}
           maxLength={200}
           placeholder="Doa pagi dan asmaul husna"
           required
+          aria-invalid={activityError ? true : undefined}
+          aria-describedby={activityError ? "center-activity-error" : undefined}
         />
+        {activityError && (
+          <FieldError id="center-activity-error">{activityError}</FieldError>
+        )}
       </Field>
 
       {loading ? (
@@ -635,11 +654,21 @@ export function CenterSessionClient({
           {pickedIndicators.length > 0 &&
             students.length > 0 &&
             visibleStudents.length === 0 && (
-              <p role="status" className="text-sm text-muted-foreground" data-testid="center-no-match">
-                {studentQuery.trim()
-                  ? "Tidak ada siswa dengan nama itu."
-                  : "Belum ada siswa dari kelas Anda di kelompok usia ini. Ketuk “Semua kelas” untuk melihat semuanya."}
-              </p>
+              <div role="status" data-testid="center-no-match">
+                <EmptyState
+                  icon={Search}
+                  title={
+                    studentQuery.trim()
+                      ? "Tidak ada siswa dengan nama itu."
+                      : "Belum ada siswa dari kelas Anda di kelompok usia ini."
+                  }
+                  description={
+                    studentQuery.trim()
+                      ? undefined
+                      : "Ketuk “Semua kelas” untuk melihat semuanya."
+                  }
+                />
+              </div>
             )}
 
           {pickedIndicators.length > 0 && visibleStudents.length > 0 && (
@@ -653,12 +682,13 @@ export function CenterSessionClient({
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
                     {student.name}
                     {student.className && (
-                      <span
-                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground"
+                      <Badge
+                        variant="neutral"
+                        className="font-normal"
                         data-testid={`center-class-${student.id}`}
                       >
                         {student.className}
-                      </span>
+                      </Badge>
                     )}
                   </p>
                   <ul className="space-y-2">
@@ -769,13 +799,13 @@ export function CenterSessionClient({
         <Button
           type="button"
           onClick={save}
-          disabled={saving || loading || !payload?.ok || !!saveBlockedReason}
+          disabled={saving || loading || !payload?.ok || pickedIndicators.length === 0}
           className="tap-target w-full"
           data-testid="center-save"
         >
           {saving ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> Menyimpan…
+              <Spinner aria-hidden className="mr-2" /> Menyimpan…
             </>
           ) : (
             <>

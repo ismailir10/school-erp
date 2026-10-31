@@ -2,16 +2,10 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { getInitials } from "@/components/ui/user-avatar";
 import { PortalHeader } from "@/components/portal/portal-header";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 import { signOut } from "@/lib/sign-out";
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0][0]!.toUpperCase();
-  return (parts[0][0]! + parts[parts.length - 1][0]!).toUpperCase();
-}
 
 export function ParentHeader({
   userName,
@@ -41,7 +35,7 @@ export function ParentHeader({
       userSubtitle={
         childCount && childCount > 0 ? `${childCount} anak` : undefined
       }
-      avatarFallback={initialsOf(userName)}
+      avatarFallback={getInitials(userName)}
       profileHref={parentHref("/parent/profile", childId)}
       onLogout={handleLogout}
     />

@@ -1,5 +1,6 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { applyAdjustments, type AdjustmentInput } from "./apply-adjustments";
+import type { BundleFee } from "./bundle-fees";
 
 /**
  * Pure classifier + materializer for the Billing Run wizard draft (Cycle B1
@@ -20,6 +21,7 @@ import { applyAdjustments, type AdjustmentInput } from "./apply-adjustments";
  */
 
 export type BuildEnrollment = {
+  enrollmentId: string;
   studentId: string;
   studentName: string;
   classLabel: string | null;
@@ -46,6 +48,19 @@ export type BuildInput = {
   feesByProgram: Map<string, FeeStructureLine[]>;
   adjustmentsByStudent: Map<string, AdjustmentInput[]>;
   alreadyInvoicedStudentIds: Set<string>;
+  /**
+   * Enrollments on leave (cuti) for the run's month. Optional: absent or empty
+   * leaves behaviour untouched. Leave is per enrollment, so a student is
+   * skipped only when EVERY in-scope enrollment is on leave.
+   */
+  onLeaveEnrollmentIds?: ReadonlySet<string>;
+  /**
+   * Harga paket sekolah + daycare (lib/finance/bundle-fees.ts): an explicit total for one
+   * component and one school + daycare program pair. Optional: absent or empty leaves
+   * every amount exactly as the per-program sum. Matched by program ids only — the builder
+   * does not know Program.type.
+   */
+  bundleFees?: ReadonlyArray<BundleFee>;
   parentByStudent: Map<string, string | null>;
   academicYearId: string;
   dueDate: string; // YYYY-MM-DD
@@ -55,7 +70,8 @@ export type BuiltRowStatus =
   | "PENDING"
   | "EXCLUDED"
   | "SKIPPED_ALREADY_INVOICED"
-  | "SKIPPED_NO_FEE_STRUCTURE";
+  | "SKIPPED_NO_FEE_STRUCTURE"
+  | "SKIPPED_ON_LEAVE";
 
 export type BuiltLine = {
   feeComponentId: string;
@@ -83,6 +99,7 @@ export type BuildSummary = {
   excluded: number;
   skippedAlreadyInvoiced: number;
   skippedNoFeeStructure: number;
+  skippedOnLeave: number;
   withAdjustments: number;
 };
 
@@ -96,6 +113,8 @@ export function buildBillingRunRows(input: BuildInput): {
     feesByProgram,
     adjustmentsByStudent,
     alreadyInvoicedStudentIds,
+    onLeaveEnrollmentIds,
+    bundleFees,
     parentByStudent,
     academicYearId,
     dueDate,
@@ -105,18 +124,24 @@ export function buildBillingRunRows(input: BuildInput): {
   const includeSet = new Set(scope.includeStudentIds);
   const excludeSet = new Set(scope.excludeStudentIds);
 
-  // Resolve in-scope enrollments: class-scope match OR explicit include,
-  // minus explicit exclude, GROUPED by studentId — a student may legitimately
-  // hold more than one in-scope ACTIVE enrollment (e.g. school + daycare), so
-  // ALL of them are kept, not just the first. `exclude` is checked
-  // per-candidate rather than filtered up front so it always wins regardless
-  // of which scope path (class or explicit include) admitted the student,
-  // and regardless of how many enrollments that student has.
+  // Per-student scope (docs/cycles/2026-10-29-school-daycare-bundle-price.md,
+  // Decision 4): a student is IN the run when ANY of their enrollments is in a
+  // ticked class, or they are explicitly included, minus explicit exclusions.
+  // An admitted student is then priced for ALL their enrollments in the input
+  // (their other placements too), grouped by studentId — a student may hold
+  // more than one ACTIVE enrollment (e.g. school + daycare), so none is
+  // dropped. `exclude` always wins, whichever path admitted the student.
+  const admittedStudentIds = new Set<string>();
+  for (const e of enrollments) {
+    if (classSectionSet.has(e.classSectionId) || includeSet.has(e.studentId)) {
+      admittedStudentIds.add(e.studentId);
+    }
+  }
+  for (const id of excludeSet) admittedStudentIds.delete(id);
+
   const enrollmentsByStudent = new Map<string, BuildEnrollment[]>();
   for (const e of enrollments) {
-    const inScope = classSectionSet.has(e.classSectionId) || includeSet.has(e.studentId);
-    if (!inScope) continue;
-    if (excludeSet.has(e.studentId)) continue; // exclude wins over class-scope and include
+    if (!admittedStudentIds.has(e.studentId)) continue;
     const list = enrollmentsByStudent.get(e.studentId);
     if (list) list.push(e);
     else enrollmentsByStudent.set(e.studentId, [e]);
@@ -127,16 +152,44 @@ export function buildBillingRunRows(input: BuildInput): {
   const excluded = 0; // never set here — draft-time exclusion happens post-creation (T5 PATCH), not at build time.
   let skippedAlreadyInvoiced = 0;
   let skippedNoFeeStructure = 0;
+  let skippedOnLeave = 0;
   let withAdjustments = 0;
 
-  for (const group of enrollmentsByStudent.values()) {
-    const { studentId, studentName } = group[0];
+  for (const fullGroup of enrollmentsByStudent.values()) {
+    const { studentId, studentName } = fullGroup[0];
     const parentId = parentByStudent.get(studentId) ?? null;
 
-    // Deterministic (sorted) join of every distinct in-scope class name.
-    // A single-enrollment student's group of one collapses to that same
-    // single label, so this is byte-identical to today's output when there
-    // is only one enrollment.
+    // Leave (cuti) is per enrollment: drop on-leave enrollments BEFORE the
+    // programId dedupe and fee-line building, so a student with two
+    // enrollments in the same program, one on leave, is still billed for that
+    // program once. With no leave set `group === fullGroup` (unchanged).
+    const group = onLeaveEnrollmentIds && onLeaveEnrollmentIds.size > 0
+      ? fullGroup.filter((e) => !onLeaveEnrollmentIds.has(e.enrollmentId))
+      : fullGroup;
+
+    // Full leave (nothing left to bill) is checked BEFORE already-invoiced, so
+    // a student whose invoice was cancelled for leave reads "Sedang cuti".
+    if (group.length === 0) {
+      skippedOnLeave++;
+      const leaveLabels = [
+        ...new Set(fullGroup.map((e) => e.classLabel).filter((l): l is string => l !== null)),
+      ].sort();
+      rows.push({
+        studentId,
+        studentNameSnapshot: studentName,
+        classLabelSnapshot: leaveLabels.length > 0 ? leaveLabels.join(", ") : null,
+        parentId,
+        status: "SKIPPED_ON_LEAVE",
+        totalDue: new Prisma.Decimal(0),
+        lines: [],
+      });
+      continue;
+    }
+
+    // Deterministic (sorted) join of every distinct in-scope class name of the
+    // BILLED (non-leave) enrollments. A single-enrollment student's group of
+    // one collapses to that same single label, so this is byte-identical to
+    // today's output when there is only one enrollment.
     const distinctClassLabels = [
       ...new Set(group.map((e) => e.classLabel).filter((l): l is string => l !== null)),
     ].sort();
@@ -229,10 +282,30 @@ export function buildBillingRunRows(input: BuildInput): {
           amount: new Prisma.Decimal(f.amount),
         };
       }
-      const amount = group2.reduce(
+      let amount = group2.reduce(
         (acc, f) => acc.plus(new Prisma.Decimal(f.amount)),
         new Prisma.Decimal(0)
       );
+      // Harga paket: when this component's merged line really comes from BOTH programs of
+      // exactly one active bundle, the bundle amount replaces those two programs' fees. Any
+      // other program carrying the component (a pop-up class) is still added on top. Zero or
+      // several matching bundles keep the sum; a one-program component never reaches here.
+      if (bundleFees && bundleFees.length > 0) {
+        const linePrograms = new Set(group2.map((f) => f.programId));
+        const matches = bundleFees.filter(
+          (b) =>
+            b.feeComponentId === feeComponentId &&
+            b.schoolProgramId !== b.daycareProgramId &&
+            linePrograms.has(b.schoolProgramId) &&
+            linePrograms.has(b.daycareProgramId),
+        );
+        if (matches.length === 1) {
+          const bundle = matches[0];
+          amount = group2
+            .filter((f) => f.programId !== bundle.schoolProgramId && f.programId !== bundle.daycareProgramId)
+            .reduce((acc, f) => acc.plus(new Prisma.Decimal(f.amount)), new Prisma.Decimal(bundle.amount));
+        }
+      }
       const programNames = [
         ...new Set(group2.map((f) => programNameById.get(f.programId) ?? f.programId)),
       ].sort();
@@ -275,6 +348,7 @@ export function buildBillingRunRows(input: BuildInput): {
       excluded,
       skippedAlreadyInvoiced,
       skippedNoFeeStructure,
+      skippedOnLeave,
       withAdjustments,
     },
   };

@@ -57,6 +57,19 @@ describe("PortalBottomNav", () => {
     }
   });
 
+  // 320 px phones: a 64 px slot truncated "Kehadiran" to "Kehadi…". Labels shrink
+  // fluidly (10 px floor) and never truncate.
+  it("never truncates a label and sizes it fluidly with a 10px floor", () => {
+    render(<PortalBottomNav items={items} ariaLabel="Test nav" />);
+    for (const item of items) {
+      const label = screen.getByText(item.label);
+      expect(label.className).not.toContain("truncate");
+      expect(label.className).toContain("whitespace-nowrap");
+      expect(label.className).toContain("clamp(0.625rem");
+    }
+    for (const slot of screen.getAllByRole("link")) expect(slot.className).toContain("px-0.5");
+  });
+
   it("gives every slot a visible focus ring", () => {
     render(<PortalBottomNav items={items} ariaLabel="Test nav" />);
     for (const slot of screen.getAllByRole("link")) {

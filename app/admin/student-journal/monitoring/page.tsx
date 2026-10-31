@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Progress } from "@/components/ui/progress";
@@ -95,14 +96,14 @@ export default function MonitoringPage() {
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal memuat data kelas");
+        toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
         return;
       }
       const json = await res.json();
       setData(json.data ?? []);
       setActiveStudentCount(json.summary?.activeStudentCount ?? 0);
     } catch {
-      toast.error("Gagal memuat data kelas");
+      toast.error(MESSAGES.loadFailed("Data kelas"));
     } finally {
       setLoading(false);
     }

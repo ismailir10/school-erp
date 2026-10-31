@@ -1,5 +1,6 @@
 "use client";
 
+import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ import { useZodForm } from "@/lib/forms/use-zod-form";
 import { GuardianDetailCard } from "@/components/admin/guardian-detail-card";
 import { deriveSiblings } from "@/lib/parent/siblings";
 import type { Guardian, Student } from "./types";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * "Keluarga & Wali" — the guardian roster, Saudara (siblings sharing a
@@ -190,7 +192,7 @@ export function KeluargaSection({
         toast.error(d.error || "Gagal menautkan wali");
       }
     } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      toast.error(MESSAGES.network);
     } finally {
       setSavingGuardian(false);
     }
@@ -236,7 +238,7 @@ export function KeluargaSection({
         }
         toast.error(d.error || "Gagal menambahkan wali");
       } catch {
-        toast.error("Terjadi kesalahan jaringan");
+        toast.error(MESSAGES.network);
       }
     });
   }
@@ -483,9 +485,9 @@ export function KeluargaSection({
         id="keluarga"
         label="Keluarga & Wali"
         badge={
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <Badge variant="neutral">
             {activeGuardians.length} wali{siblings.length > 0 ? ` · ${siblings.length} saudara` : ""}
-          </span>
+          </Badge>
         }
         actions={student.canEdit === true &&
           <Button size="sm" variant="ghost" onClick={openAddGuardian}>

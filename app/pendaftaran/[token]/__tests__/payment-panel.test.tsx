@@ -2,6 +2,7 @@
  * The pendaftaran fee as the parent sees it (cycle 2026-10-10-pendaftaran-fee-payment):
  * amount, discount, the pay button and what each failure says.
  */
+import { MESSAGES } from "@/lib/feedback";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -128,7 +129,7 @@ describe("PaymentPanel — paying", () => {
     const user = userEvent.setup();
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Bayar sekarang" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Koneksi terputus. Coba lagi sebentar ya.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(MESSAGES.network);
     expect(screen.getByRole("button", { name: "Bayar sekarang" })).toBeEnabled();
   });
 

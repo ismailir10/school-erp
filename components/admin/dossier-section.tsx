@@ -268,7 +268,7 @@ export function DossierNav({
   return (
     <nav
       aria-label="Bagian halaman"
-      className="sticky top-0 z-10 mb-3 hidden overflow-x-visible rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:block"
+      className="sticky top-0 z-sticky mb-3 hidden overflow-x-visible rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:block"
     >
       <ul className="flex min-w-0 items-center gap-1 flex-wrap">
         {sections.map((s) => (

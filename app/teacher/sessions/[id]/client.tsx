@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { ChevronDown, LogIn, LogOut, Users, X } from "lucide-react";
 import { toast } from "sonner";
+import { MESSAGES, toastError } from "@/lib/feedback";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SaveStatus } from "@/components/portal/save-status";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/field";
 import {
   Select,
   SelectTrigger,
@@ -20,6 +22,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { formatDate, formatTime } from "@/lib/format";
+
+const SAVE_TOAST_ID = "session-attendance-save";
 
 // Prisma enum values — do NOT translate in code, only display labels.
 // Tap order matches class attendance (H · S · I · A) so one muscle memory
@@ -184,11 +188,16 @@ export function SessionRosterClient({
       toast.error(
         `Isi nama penjemput untuk ${missingName.name} (hubungan: Lainnya).`,
       );
+      document.getElementById(`pickup-name-${missingName.studentId}`)?.focus();
       return;
     }
 
+    await submit(changedRows);
+  }
+
+  /** Sends the given rows. A failure keeps them so "Coba lagi" re-sends exactly this payload. */
+  async function submit(submitted: typeof changedRows) {
     setSaving(true);
-    const submitted = changedRows;
     try {
       const res = await fetch(
         `/api/teacher/sessions/${sessionId}/attendance`,
@@ -209,10 +218,11 @@ export function SessionRosterClient({
       );
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        toast.error(
+        toastError(
           d?.message ||
             d?.error ||
             "Absensi tidak tersimpan. Coba ketuk ulang ya.",
+          { retry: () => void submit(submitted), id: SAVE_TOAST_ID },
         );
         return;
       }
@@ -221,9 +231,14 @@ export function SessionRosterClient({
       // was in flight keeps differing from its baseline and stays unsaved.
       setBaseline((prev) => ({ ...prev, ...baselineOf(submitted) }));
       setSavedOnce(true);
-      toast.success(`Absensi tersimpan · ${body.total ?? submitted.length} siswa`);
+      toast.success(`Absensi tersimpan · ${body.total ?? submitted.length} siswa`, {
+        id: SAVE_TOAST_ID,
+      });
     } catch {
-      toast.error("Koneksi terputus. Coba lagi sebentar ya.");
+      toastError(MESSAGES.network, {
+        retry: () => void submit(submitted),
+        id: SAVE_TOAST_ID,
+      });
     } finally {
       setSaving(false);
     }
@@ -411,7 +426,19 @@ export function SessionRosterClient({
                               r.pickedUpByRelation === "OTHER" &&
                               !r.pickedUpByName?.trim()
                             }
+                            aria-describedby={
+                              r.pickedUpByRelation === "OTHER" &&
+                              !r.pickedUpByName?.trim()
+                                ? `pickup-name-${r.studentId}-error`
+                                : undefined
+                            }
                           />
+                          {r.pickedUpByRelation === "OTHER" &&
+                            !r.pickedUpByName?.trim() && (
+                              <FieldError id={`pickup-name-${r.studentId}-error`}>
+                                {MESSAGES.required}
+                              </FieldError>
+                            )}
                         </>
                       )}
                     </div>
@@ -421,7 +448,7 @@ export function SessionRosterClient({
             })}
           </div>
 
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-sticky -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
             {/* Space is reserved so the line appearing never moves the button under a thumb. */}
             <div className="mb-2 min-h-6" data-testid="roster-save-state">
               {saving ? (

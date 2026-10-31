@@ -13,7 +13,7 @@ export function WizardFooter({ children, className }: { children: ReactNode; cla
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-10 -mb-2 flex flex-col-reverse gap-2 border-t bg-background pt-3 pb-2 sm:flex-row sm:items-center sm:justify-end",
+        "sticky bottom-0 z-sticky -mb-2 flex flex-col-reverse gap-2 border-t bg-background pt-3 pb-2 sm:flex-row sm:items-center sm:justify-end",
         className,
       )}
     >

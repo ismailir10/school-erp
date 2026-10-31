@@ -52,7 +52,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   LEAVE: { label: "Izin", className: "bg-status-leave-subtle text-status-leave-text" },
   HOLIDAY: { label: "Libur", className: "bg-status-holiday-subtle text-status-holiday-text" },
   HALF_DAY: { label: "Setengah Hari", className: "bg-status-late-subtle text-status-late-text" },
-  PRESENT_NO_CHECKOUT: { label: "Hadir Tanpa Pulang", className: "bg-status-no-checkout-subtle text-status-late-text" },
+  PRESENT_NO_CHECKOUT: { label: "Hadir Tanpa Pulang", className: "bg-status-no-checkout-subtle text-status-no-checkout-text" },
 
   // Leave
   PENDING: { label: "Menunggu", className: "bg-status-late-subtle text-status-late-text" },

@@ -144,7 +144,7 @@ export default function AdminPenilaianPage() {
           <section aria-labelledby="walas-heading">
             <div className="flex items-center gap-2 mb-3">
               <CalendarDays className="size-4 text-primary" />
-              <h2 id="walas-heading" className="text-h2 font-semibold">
+              <h2 id="walas-heading" className="text-h2">
                 Penilaian Pekanan (Walas)
               </h2>
             </div>
@@ -189,7 +189,7 @@ export default function AdminPenilaianPage() {
           <section aria-labelledby="sentra-heading">
             <div className="flex items-center gap-2 mb-3">
               <Building2 className="size-4 text-primary" />
-              <h2 id="sentra-heading" className="text-h2 font-semibold">
+              <h2 id="sentra-heading" className="text-h2">
                 Penilaian Sentra Harian
               </h2>
             </div>

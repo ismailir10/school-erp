@@ -55,7 +55,7 @@ export function StepIndicator({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full border text-caption font-medium",
+                  "flex size-6 shrink-0 items-center justify-center rounded-full border font-medium",
                   status === "complete" &&
                     "border-primary bg-primary text-primary-foreground",
                   status === "current" && "border-primary text-primary",
@@ -66,7 +66,7 @@ export function StepIndicator({
               </span>
               <span
                 className={cn(
-                  "text-small font-medium whitespace-nowrap",
+                  "font-medium whitespace-nowrap",
                   status === "upcoming" ? "text-muted-foreground" : "text-foreground",
                 )}
               >

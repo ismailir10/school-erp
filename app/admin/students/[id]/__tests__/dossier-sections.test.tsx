@@ -1,6 +1,7 @@
 /**
  * Increment 2 — the three sections the student dossier gained over routes that
- * already accept a `studentId`: Keuangan, Keringanan, Buku Penghubung.
+ * already accept a `studentId`: Keuangan, Keringanan, Buku Penghubung (and Cuti,
+ * which joined Keuangan in cycle 2026-10-29-student-enrollment-leave).
  *
  * The contracts worth pinning are about *when* each one costs a request, and
  * about the money figure agreeing with the summary lib. Keuangan is eager
@@ -13,7 +14,7 @@
  * have, and neither is under test here.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentDetailPage from "@/app/admin/students/[id]/page";
@@ -99,6 +100,26 @@ const ADJUSTMENTS = [
   },
 ];
 
+const LEAVES = [
+  {
+    id: "lv-1",
+    enrollmentId: "enr-1",
+    startMonth: "2026-12",
+    endMonth: "2027-01",
+    reason: "Pulang kampung",
+    status: "ACTIVE",
+    createdAt: "2026-11-01T00:00:00.000Z",
+    cancelledAt: null,
+    enrollment: {
+      id: "enr-1",
+      status: "ACTIVE",
+      className: "Daycare Pagi",
+      programName: "Daycare",
+      academicYearName: "2026/2027",
+    },
+  },
+];
+
 type Calls = { url: string; method: string }[];
 
 /** Records every request the page makes, so laziness is assertable. */
@@ -125,6 +146,9 @@ function stubFetch(
     }
     if (url.startsWith("/api/student-fee-adjustments")) {
       return Promise.resolve({ ok: true, json: async () => ({ data: ADJUSTMENTS }) } as Response);
+    }
+    if (url === "/api/students/s1/leaves") {
+      return Promise.resolve({ ok: true, json: async () => ({ data: LEAVES, enrollments: [] }) } as Response);
     }
     if (url.includes("/api/student-journal/admin/students") && url.includes("/week?weekStart=")) {
       return Promise.resolve({
@@ -262,14 +286,37 @@ describe("student dossier — increment 2 sections", () => {
     expect(screen.queryByText("Lunas semua")).not.toBeInTheDocument();
   });
 
-  it("does not request keringanan or the journal until their sections are opened", async () => {
+  it("does not request keringanan, cuti or the journal until their sections are opened", async () => {
     const { fn, calls } = stubFetch();
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
 
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
     expect(urlsMatching(calls, "/api/student-fee-adjustments")).toHaveLength(0);
+    expect(urlsMatching(calls, "/leaves")).toHaveLength(0);
     expect(urlsMatching(calls, "/api/student-journal/")).toHaveLength(0);
+  });
+
+  it("loads cuti on first open, shows the active count, and does not re-request on a second open", async () => {
+    const user = userEvent.setup();
+    const { fn, calls } = stubFetch();
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
+
+    const trigger = await sectionTrigger("cuti");
+    await user.click(trigger);
+
+    await waitFor(() => expect(urlsMatching(calls, "/leaves")).toHaveLength(1));
+    expect(await screen.findByText("Pulang kampung")).toBeInTheDocument();
+    // Student fixture has canEdit: true, so recording is offered (no eligible
+    // enrollment in this fixture, so it explains why instead of a button).
+    expect(screen.getByRole("button", { name: "Batalkan cuti" })).toBeInTheDocument();
+    expect(within(document.getElementById("cuti")!).getByText("1")).toBeInTheDocument();
+
+    await user.click(trigger);
+    await user.click(trigger);
+    expect(urlsMatching(calls, "/leaves")).toHaveLength(1);
   });
 
   it("loads keringanan on first open and does not re-request on a second open", async () => {

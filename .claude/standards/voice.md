@@ -84,6 +84,8 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Alpa (attendance absent) | Absent, Tidak Hadir |
 | Sakit | Sick, Ill |
 | Izin | Permission, Excused |
+| Cuti (a *student's* billing pause on one placement — "Catat cuti", "Sedang cuti"; staff leave is also Cuti but lives in HR, and a day's absence is **Izin**) | Leave, Libur, Nonaktif |
+| Harga paket (one price for a child who takes school and daycare — "Harga paket sekolah + daycare", on Tarif per Program) | Bundle, Paket SPP, Tarif gabungan |
 | Tagihan | Invoice, Bill (use Tagihan for parent; Invoice ok in admin) |
 | Kehadiran (the attendance *record* — history, recap, a parent's view) | Attendance |
 | Absensi (the *act* of taking roll — a teacher's task surface) | — (this is a real distinction, not drift: "Absensi Kelas" is the screen where a teacher marks; "Kehadiran" is what the marking produced. Do not collapse them into one word.) |
@@ -153,6 +155,8 @@ A default string in `components/ui/**` ships to every caller that omits the prop
 - **Always actionable.** Tell the user what to do next, or tell them it's safe to retry.
 - **Tone scales with audience.** Admin gets terse; parent gets gentle.
 - **Never expose status codes.** `Network error 503` is not a user message.
+- **Generic messages live in `lib/feedback.ts` `MESSAGES`** (`network`, `saveFailed`, `deleteFailed`, `generic`, `required`, `loadFailed(what)`): use them, don't re-word. Domain-specific messages stay at the call site and name the thing plus the next action.
+- **A save fallback must not claim a cause it can't know.** No "periksa koneksi" when the server may have rejected the request; say "Belum tersimpan. Coba lagi sebentar ya."
 
 | Audience | Good | Bad |
 |---|---|---|
