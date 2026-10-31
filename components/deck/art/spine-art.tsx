@@ -5,7 +5,7 @@ const COLS = [
   { x: 70, name: "Semester", nodes: [200] },
   { x: 202, name: "Tema", nodes: [150, 250] },
   { x: 334, name: "Subtema", nodes: [118, 182, 238, 302] },
-  { x: 466, name: "Minggu", nodes: [96, 140, 184, 228, 272, 316] },
+  { x: 466, name: "Pekan", nodes: [96, 140, 184, 228, 272, 316] },
 ] as const;
 
 export function SpineArt() {
@@ -56,9 +56,9 @@ export function SpineArt() {
         Indikator
       </Label>
       {[
-        { x: 148, name: "Perlu penguatan", fill: "fill-transparent stroke-primary-text" },
-        { x: 288, name: "Berkembang", fill: "fill-primary/45 stroke-primary-text" },
-        { x: 420, name: "Konsisten", fill: "fill-primary stroke-primary-text" },
+        { x: 136, name: "Perlu penguatan", fill: "fill-transparent stroke-primary-text" },
+        { x: 276, name: "Belum konsisten", fill: "fill-primary/45 stroke-primary-text" },
+        { x: 428, name: "Konsisten", fill: "fill-primary stroke-primary-text" },
       ].map((s) => (
         <g key={s.name}>
           <circle cx={s.x} cy={363} r={6} className={s.fill} />

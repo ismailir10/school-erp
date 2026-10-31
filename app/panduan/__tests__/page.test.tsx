@@ -46,7 +46,8 @@ describe("PanduanPage — who may open the tour", () => {
     auth.session = { role };
     const element = (await PanduanPage()) as ReactElement<{ homeHref: string; slides: unknown[] }>;
     expect(element.props.homeHref).toBe(home);
-    expect(element.props.slides).toHaveLength(10);
+    expect(element.props.slides.length).toBeGreaterThan(10);
+    expect(element.props.slides.length).toBeLessThanOrEqual(20);
 
     render(element);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Cara Talib bekerja/);

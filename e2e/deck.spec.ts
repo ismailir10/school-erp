@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { PARENT_SLIDES } from "../components/deck/parent-slides";
 import { SLIDES } from "../components/deck/slides";
 
-// Product tour at /panduan: staff only. Demo-mode cookie auth, same pattern as the other specs.
+// Product tours: /panduan is staff only; /panduan/orang-tua is open to every signed-in role. Demo-mode cookie auth, same pattern as the other specs.
 
 type DemoUser = { id: string; role: string };
 let users: DemoUser[] = [];
@@ -34,7 +35,7 @@ test.describe("Panduan Talib (product tour)", () => {
     await page.waitForURL("**/parent", { timeout: 15_000 });
   });
 
-  test("an admin pages through all ten slides with the keyboard", async ({ page }) => {
+  test("an admin pages through every slide with the keyboard", async ({ page }) => {
     await signInAs(page, "SUPER_ADMIN");
     await page.goto("/panduan");
     await expect(heading(page, 1, SLIDES[0].title)).toBeVisible();
@@ -108,5 +109,33 @@ test.describe("Panduan Talib (product tour)", () => {
     await expect(heading(page, 2, SLIDES[2].title)).toBeVisible();
     expect(await page.evaluate(() => document.querySelector("[data-deck-scroll]")!.scrollTop)).toBeGreaterThan(100);
     await context.close();
+  });
+
+  test("a parent opens the parent tour from Profil and pages through it", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signInAs(page, "GUARDIAN");
+    await page.goto("/parent/profile");
+    await page.getByRole("link", { name: /Panduan Talib/ }).click();
+    await page.waitForURL("**/panduan/orang-tua", { timeout: 15_000 });
+    await expect(heading(page, 1, PARENT_SLIDES[0].title)).toBeVisible();
+
+    for (let i = 1; i < PARENT_SLIDES.length; i++) {
+      await page.getByRole("button", { name: "Slide berikutnya" }).click();
+      await expect(heading(page, 2, PARENT_SLIDES[i].title)).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.getByRole("link", { name: "Kembali ke Beranda orang tua" }).click();
+    await page.waitForURL("**/parent", { timeout: 15_000 });
+  });
+
+  test("an admin can open the parent tour to present it", async ({ page }) => {
+    await signInAs(page, "SUPER_ADMIN");
+    await page.goto("/panduan/orang-tua#4");
+    await expect(heading(page, 2, PARENT_SLIDES[3].title)).toBeVisible();
+  });
+
+  test("a signed-out visitor cannot open the parent tour", async ({ page }) => {
+    await page.goto("/panduan/orang-tua");
+    await expect(page).toHaveURL(/localhost:3000\/$/);
   });
 });

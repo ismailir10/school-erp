@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Deck } from "../deck";
+import { PARENT_SLIDES } from "../parent-slides";
 import { SLIDES } from "../slides";
 
 function mount() {
@@ -17,8 +18,8 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("Deck", () => {
-  it("is at most ten slides, with unique ids", () => {
-    expect(SLIDES.length).toBeLessThanOrEqual(10);
+  it("is at most twenty slides, with unique ids", () => {
+    expect(SLIDES.length).toBeLessThanOrEqual(20);
     expect(new Set(SLIDES.map((s) => s.id)).size).toBe(SLIDES.length);
   });
 
@@ -120,6 +121,13 @@ describe("Deck", () => {
   });
 });
 
+describe("Deck title", () => {
+  it("names the deck in the header and the carousel label", () => {
+    render(<Deck slides={PARENT_SLIDES} title="Panduan orang tua" homeHref="/parent" homeLabel="Beranda orang tua" />);
+    expect(screen.getByRole("main", { name: "Panduan orang tua" })).toBeInTheDocument();
+  });
+});
+
 describe("Deck content", () => {
   // The legal pages were made vendor-neutral on 2026-10-09 (DOKU is the one named payment party), and
   // this school says "Bu Guru", never "Ustadz/Ustadzah" (voice.md). The deck follows both.
@@ -141,7 +149,7 @@ describe("Deck content", () => {
   });
 
   it("teaches the shipped admissions flow: pay after the form, walk-in, one-click convert", () => {
-    const slide = SLIDES.find((s) => s.id === "kesiswaan");
+    const slide = SLIDES.find((s) => s.id === "pendaftaran");
     const copy = [slide?.title, slide?.lead, ...(slide?.steps ?? []).flatMap((st) => [st.title, st.text])].join(" ");
     expect(slide?.steps).toHaveLength(4);
     expect(copy).toMatch(/dibayar setelah formulir dikirim|membayar biaya pendaftaran setelah formulir dikirim/);
@@ -153,8 +161,43 @@ describe("Deck content", () => {
     expect(copy).not.toMatch(/Kunjungan|Undangan|mengonversi/);
   });
 
-  it("marks the two modules still in cutover and nothing else", () => {
+  it("marks the modules still in cutover and nothing else", () => {
     const flagged = SLIDES.filter((s) => s.badge).map((s) => s.id);
-    expect(flagged).toEqual(["kurikulum", "rapor"]);
+    expect(flagged).toEqual(["kurikulum", "penilaian", "rapor"]);
+  });
+
+  it("teaches none of the retired finance and curriculum rules", () => {
+    const copy = SLIDES.flatMap((s) => [s.title, s.lead, ...(s.steps ?? []).flatMap((st) => [st.title, st.text])]).join(" ");
+    // "Sudah dibayar" left Tagihan Manual in #704; curriculum authoring is no longer owner-only (#691).
+    expect(copy).not.toMatch(/Sudah dibayar|Pemilik menyusun/);
+    expect(copy).toMatch(/Catat pembayaran di muka/);
+  });
+});
+
+describe("Parent deck content", () => {
+  const FORBIDDEN = /supabase|vercel|resend|cloudflare|xendit|ustadz|ustadzah/i;
+
+  it("renders every slide with a heading and a lead, in the parent voice", () => {
+    expect(PARENT_SLIDES.length).toBeLessThanOrEqual(20);
+    expect(new Set(PARENT_SLIDES.map((s) => s.id)).size).toBe(PARENT_SLIDES.length);
+    render(<Deck slides={PARENT_SLIDES} title="Panduan orang tua" homeHref="/parent" homeLabel="Beranda orang tua" />);
+    for (let i = 1; i <= PARENT_SLIDES.length; i++) {
+      act(() => {
+        window.history.replaceState(null, "", `/panduan/orang-tua#${i}`);
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      const slide = screen.getByRole("group", { name: `${i} dari ${PARENT_SLIDES.length}` });
+      expect(within(slide).getByRole("heading", { level: i === 1 ? 1 : 2 })).toHaveTextContent(PARENT_SLIDES[i - 1].title);
+      expect(slide.textContent).toContain(PARENT_SLIDES[i - 1].lead);
+      expect(slide.textContent ?? "").not.toMatch(FORBIDDEN);
+      // One audience: no "Dipakai oleh" chips repeating "Orang tua" on every slide.
+      expect(slide.textContent ?? "").not.toContain("Dipakai oleh");
+    }
+  });
+
+  it("speaks to parents, not staff: no admin menu names", () => {
+    const copy = PARENT_SLIDES.flatMap((s) => [s.title, s.lead, ...(s.steps ?? []).flatMap((st) => [st.title, st.text])]).join(" ");
+    expect(copy).toMatch(/Assalamu'alaikum/);
+    expect(copy).not.toMatch(/Buat Tagihan|Antrean pekerjaan|Terima & Jadikan Siswa|Dasbor|wizard/i);
   });
 });
