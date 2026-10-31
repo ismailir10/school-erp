@@ -47,7 +47,7 @@ decks and asked for:
 ## Tasks
 
 - [x] **T1 — Slugs.** Move `app/panduan` → `app/guide`, `orang-tua` → `parents`, redirects, links, tests, docs.
-- [ ] **T2 — Mock kit + three samples** for the owner's go-ahead.
+- [x] **T2 — Mock kit + three samples** for the owner's go-ahead.
 - [ ] **T3 — Remaining mocks**, both decks.
 - [ ] **T4 — Remove the retired SVG art**, tests, screenshots, docs.
 
@@ -58,7 +58,8 @@ decks and asked for:
   and an e2e case checks that `/panduan#5` lands on `/guide#5`. README Guides row and `docs/uat/jobs/parent.md` updated.
 
 - **T2 (in progress).** Mock kit `components/deck/mock/{stage,frames}.tsx`; samples land here before the owner's
-  review: class attendance (teacher), parent invoice, admin dashboard. Nothing imports them yet; checkpoints are pushed while the samples are iterated (all three done; sent to the owner for the go-ahead).
+  review: class attendance (teacher), parent invoice, admin dashboard. Nothing imports them yet; checkpoints are pushed while the samples are iterated (all three done; the owner approved the direction).
+- **T3 (in progress).** The remaining 21 mocks are being drawn by five Sonnet workers, grouped by portal.
 
 ## Verification
 
