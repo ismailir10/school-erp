@@ -45,7 +45,7 @@ export function ProfileMock() {
           <div className="flex items-center gap-3 py-1">
             <div className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-secondary text-sm font-semibold text-primary-text">NR</div>
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold leading-tight">Nur Rahmawati</p>
+              <p className="truncate text-base font-semibold leading-tight">Nur Hasanah</p>
               <p className="mt-0.5 text-xs text-muted-foreground">Wali murid · 2 anak terdaftar</p>
             </div>
           </div>

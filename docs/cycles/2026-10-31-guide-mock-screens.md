@@ -31,12 +31,12 @@ decks and asked for:
 
 ## Acceptance criteria
 
-- [ ] Every slide on both decks uses a mock screen (the cover photo and the HTML module map, access matrix and
+- [x] Every slide on both decks uses a mock screen (the cover photo and the HTML module map, access matrix and
       checklist stay).
-- [ ] Mocks use tokens only, real labels, and no real names; nothing focusable inside.
-- [ ] Readable at 1440×900, and not clipped at 390×844.
-- [ ] `/guide`, `/guide/parents` serve the decks; `/panduan#5` lands on `/guide#5`.
-- [ ] Gates: tsc, lint, Vitest, `DEMO_MODE` build, `audit-docs.sh`, Playwright `e2e/deck.spec.ts`.
+- [x] Mocks use tokens only, real labels, and no real names; nothing focusable inside.
+- [x] Readable at 1440×900, and not clipped at 390×844.
+- [x] `/guide`, `/guide/parents` serve the decks; `/panduan#5` lands on `/guide#5`.
+- [x] Gates: tsc, lint, Vitest, `DEMO_MODE` build, `audit-docs.sh`, Playwright `e2e/deck.spec.ts`.
 
 ## Verify flows
 
@@ -48,8 +48,8 @@ decks and asked for:
 
 - [x] **T1 — Slugs.** Move `app/panduan` → `app/guide`, `orang-tua` → `parents`, redirects, links, tests, docs.
 - [x] **T2 — Mock kit + three samples** for the owner's go-ahead.
-- [ ] **T3 — Remaining mocks**, both decks.
-- [ ] **T4 — Remove the retired SVG art**, tests, screenshots, docs.
+- [x] **T3 — Remaining mocks**, both decks.
+- [x] **T4 — Remove the retired SVG art**, tests, screenshots, docs.
 
 ## Implementation
 
@@ -57,13 +57,48 @@ decks and asked for:
   `next.config.ts`. Links updated in the admin sidebar, the teacher Lainnya sheet and the parent Profil. Tests updated,
   and an e2e case checks that `/panduan#5` lands on `/guide#5`. README Guides row and `docs/uat/jobs/parent.md` updated.
 
-- **T2 (in progress).** Mock kit `components/deck/mock/{stage,frames}.tsx`; samples land here before the owner's
-  review: class attendance (teacher), parent invoice, admin dashboard. Nothing imports them yet; checkpoints are pushed while the samples are iterated (all three done; the owner approved the direction).
-- **T3 (in progress).** The remaining 21 mocks are being drawn by five Sonnet workers, grouped by portal. Both decks
-  import the mocks; `components/deck/art/` (the SVG kit and drawings) is removed.
+- **T2.** Mock kit in `components/deck/mock/`:
+  - `stage.tsx` is a 680×500 canvas zoomed to its column, `aria-hidden` and `inert`.
+  - `frames.tsx` holds `Phone`, `PortalHeader`, `BottomNav`, `Browser` and `Float`.
+  - `admin-rail.tsx` is the collapsed admin sidebar.
+
+  Three samples went to the owner: class attendance, parent invoice and admin dashboard. The owner approved them
+  ("get it merged on staging on green").
+- **T3.** 21 more mocks, so every illustrated slide on both decks is a mock screen. Five Sonnet workers drew them in
+  parallel, grouped by portal, from one shared brief, reference screenshots of the real screens and the three approved
+  samples. Two decks share `ParentHomeMock` (parent Beranda, staff Portal orang tua). Names and amounts are invented,
+  and the parent is "Bu Nur" (Nur Hasanah) throughout. Each mock departs from the live page to fit its frame; the
+  workers' notes:
+  - Teacher class-attendance buttons are 32px, not 44px.
+  - The rapor editor shows the Triwulan and Kelas pickers above the editor; the real UI has them on the list page.
+  - The invoice filter is drawn as chips; the real UI uses a select.
+  - The fees tab shows one program, as the real select-driven tab does.
+  - Some dialog descriptions are shortened.
+- **T4.** `components/deck/art/` (the SVG kit and its 23 drawings) is deleted. The cover photo, module map, parent map,
+  access matrix and first-week checklist are real HTML and stay. A deck test asserts every mock is `aria-hidden` with
+  nothing focusable inside.
 
 ## Verification
 
 - Visual reference: `.claude/standards/design-system.html`; the mocks are built from its tokens.
+- **Gates.**
+  - `npx tsc --noEmit` clean, after clearing a stale `.next/types` left by the route move. That stale validator also
+    made one `next build` type-check run out of memory; the clean rebuild passed.
+  - `eslint` clean on `components/deck`, `app/guide` and `e2e/deck.spec.ts`.
+  - Vitest deck and guide suites: 27/27.
+  - `DEMO_MODE=true npm run build` OK.
+  - `audit-docs.sh`: 0 fail; the one warning is the pre-existing ADR window.
+- **Playwright, local.** `e2e/deck.spec.ts` passed 10/10 against a production `DEMO_MODE` build on a disposable local
+  Postgres 16, run with the preinstalled Chromium. The 10th case is new: `/panduan#5` → `/guide#5` and
+  `/panduan/orang-tua` → `/guide/parents`.
+- **Visual loop.** Every slide of both decks was captured at 1440×900 and 390×844 (reduced motion), with no sideways
+  overflow, and I reviewed all of them. The only fix after review was aligning the parent's name across mocks.
+  Each mock was also checked in isolation by its worker, at 560px and 366px, with a static render harness using the
+  real compiled app CSS.
 
 ## Ship Notes
+
+- Not auth-impacting: a route rename with redirects, plus static presentation components. It touches user flows (the
+  guides and the parent Profil link), so the PR carries `e2e`.
+- The owner approved the three samples and asked to merge on green; this PR self-merges to `staging` once
+  `Checks`, `Test & Build` and `E2E` are green on the head.
