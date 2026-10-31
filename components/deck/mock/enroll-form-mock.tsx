@@ -40,19 +40,26 @@ export function EnrollFormMock() {
             <div className="h-1.5 overflow-hidden rounded-full bg-border">
               <div className="h-full rounded-full bg-primary-text" style={{ width: `${((CURRENT + 1) / ENROLLMENT_FORM_STEPS.length) * 100}%` }} />
             </div>
-            <ol className="flex flex-wrap gap-1.5">
-              {ENROLLMENT_FORM_STEPS.map((label, i) => (
-                <li
-                  key={label}
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-[0.6875rem] whitespace-nowrap",
-                    i === CURRENT ? "bg-primary-text font-medium text-white" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {i + 1}. {label}
-                </li>
+            <div className="space-y-1">
+              {[ENROLLMENT_FORM_STEPS.slice(0, 4), ENROLLMENT_FORM_STEPS.slice(4)].map((row, r) => (
+                <ol key={r} className="flex gap-1">
+                  {row.map((label, j) => {
+                    const i = r * 4 + j;
+                    return (
+                      <li
+                        key={label}
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[0.6875rem] whitespace-nowrap",
+                          i === CURRENT ? "bg-primary-text font-medium text-white" : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {i + 1}. {label}
+                      </li>
+                    );
+                  })}
+                </ol>
               ))}
-            </ol>
+            </div>
           </div>
 
           <div className="mt-2.5 rounded-2xl border border-border bg-card p-3 shadow-sm">
@@ -73,7 +80,7 @@ export function EnrollFormMock() {
         </div>
       </Phone>
 
-      <Float className="left-[384px] top-[48px] w-[276px] space-y-3 p-3">
+      <Float className="left-[376px] top-[48px] w-[288px] space-y-3 p-3">
         <div className="rounded-xl border border-border bg-card p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-medium">Tanda tangan Ayah</span>
@@ -92,11 +99,11 @@ export function EnrollFormMock() {
               />
             </svg>
           </div>
-          <div className="mt-2 flex gap-2">
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium">
+          <div className="mt-2 flex gap-1.5">
+            <span className="inline-flex h-8 items-center whitespace-nowrap gap-1 rounded-lg border border-border bg-background px-2 text-[0.8125rem] font-medium">
               <Eraser size={14} /> Hapus
             </span>
-            <span className="inline-flex h-8 items-center rounded-lg bg-primary-text px-2.5 text-sm font-medium text-white">Simpan tanda tangan</span>
+            <span className="inline-flex h-8 items-center whitespace-nowrap rounded-lg bg-primary-text px-2 text-[0.8125rem] font-medium text-white">Simpan tanda tangan</span>
           </div>
         </div>
 
@@ -106,10 +113,10 @@ export function EnrollFormMock() {
             Jika Ibu berada di tempat lain, bagikan link formulir ini. Data yang sudah diisi tersimpan otomatis.
           </p>
           <div className="mt-2 flex gap-2">
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium">
+            <span className="inline-flex h-8 items-center whitespace-nowrap gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium">
               <Copy size={14} /> Salin link
             </span>
-            <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium">
+            <span className="inline-flex h-8 items-center whitespace-nowrap gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium">
               <RefreshCw size={14} /> Periksa lagi
             </span>
           </div>

@@ -20,7 +20,7 @@ export function Stage({
 }: {
   width?: number;
   height?: number;
-  /** Test hook, like the SVG art's data-art. */
+  /** Names the mock in the DOM, for tests and for finding it in devtools. */
   label?: string;
   children: ReactNode;
 }) {

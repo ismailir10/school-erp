@@ -1,13 +1,13 @@
-import { ContactArt } from "./art/contact-art";
-import { EnrollFormArt } from "./art/enroll-form-art";
-import { GrowthArt } from "./art/growth-art";
-import { ParentAttendanceArt } from "./art/parent-attendance-art";
-import { ParentHomeArt } from "./art/parent-home-art";
-import { ParentInvoiceArt } from "./art/parent-invoice-art";
-import { ParentJournalArt } from "./art/parent-journal-art";
-import { PayFlowArt } from "./art/pay-flow-art";
-import { ReportArt } from "./art/report-art";
-import { SignInArt } from "./art/sign-in-art";
+import { EnrollFormMock } from "./mock/enroll-form-mock";
+import { GrowthMock } from "./mock/growth-mock";
+import { ParentAttendanceMock } from "./mock/parent-attendance-mock";
+import { ParentHomeMock } from "./mock/parent-home-mock";
+import { ParentInvoiceMock } from "./mock/parent-invoice-mock";
+import { ParentJournalMock } from "./mock/parent-journal-mock";
+import { ParentReportMock } from "./mock/parent-report-mock";
+import { PayResultMock } from "./mock/pay-result-mock";
+import { ProfileMock } from "./mock/profile-mock";
+import { SignInMock } from "./mock/sign-in-mock";
 import { ParentCoverArt } from "./parent-cover-art";
 import { ParentMap } from "./parent-map";
 import type { Slide } from "./types";
@@ -49,7 +49,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Belum bisa masuk?", text: "Hubungi tata usaha untuk memeriksa atau mengganti email yang terdaftar." },
       { title: "Simpan di layar utama", text: "Tambahkan Talib ke layar utama ponsel supaya terbuka seperti aplikasi." },
     ],
-    art: <SignInArt />,
+    art: <SignInMock />,
   },
   {
     id: "beranda",
@@ -61,7 +61,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Lima tab di bawah layar", text: "Beranda, Tagihan, Kehadiran, Jurnal, dan Lainnya untuk Perkembangan, Rapor, dan Profil." },
       { title: "Tagihan keluarga", text: "Total tagihan semua anak. Bila semuanya sudah dibayar, tertulis Lunas semua." },
     ],
-    art: <ParentHomeArt />,
+    art: <ParentHomeMock />,
   },
   {
     id: "kehadiran",
@@ -73,7 +73,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Pekan demi pekan", text: "Hari ini ditandai; ketuk panah untuk melihat pekan sebelumnya." },
       { title: "Ananda berhalangan?", text: "Kabari Bu Guru lewat catatan di Jurnal atau lewat tata usaha, supaya dicatat sakit atau izin." },
     ],
-    art: <ParentAttendanceArt />,
+    art: <ParentAttendanceMock />,
   },
   {
     id: "jurnal",
@@ -86,7 +86,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Di rumah", text: "Centang kebiasaan ananda di rumah." },
       { title: "Catatan", text: "Tulis catatan untuk Bu Guru; catatan sendiri bisa diubah atau dihapus." },
     ],
-    art: <ParentJournalArt />,
+    art: <ParentJournalMock />,
   },
   {
     id: "perkembangan",
@@ -99,7 +99,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Mampu Belum Konsisten", text: "Sudah bisa, masih perlu diulang." },
       { title: "Perlu Penguatan", text: "Bagian yang bisa didampingi bersama di rumah, bukan tanda bahaya." },
     ],
-    art: <GrowthArt />,
+    art: <GrowthMock />,
   },
   {
     id: "rapor",
@@ -111,7 +111,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Baca di ponsel", text: "Lainnya, lalu Rapor. Rapor yang belum terbit tertulis Rapor belum terbit." },
       { title: "Unduh PDF", text: "Untuk dicetak atau disimpan." },
     ],
-    art: <ReportArt />,
+    art: <ParentReportMock />,
   },
   {
     id: "tagihan",
@@ -123,7 +123,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Cari dengan mudah", text: "Saring Belum dibayar, Lewat tempo, atau Lunas, atau cari periode dan nomor tagihan." },
       { title: "Bayar sekarang", text: "Halaman pembayaran DOKU terbuka di tab baru." },
     ],
-    art: <ParentInvoiceArt />,
+    art: <ParentInvoiceMock />,
   },
   {
     id: "setelah-bayar",
@@ -136,7 +136,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Link tidak bisa dibuka?", text: "Ketuk Minta link baru. Tagihan tetap ada, tidak hilang." },
       { title: "Kuitansi", text: "Unduh kuitansi PDF dari Bukti pembayaran." },
     ],
-    art: <PayFlowArt />,
+    art: <PayResultMock />,
   },
   {
     id: "bantuan",
@@ -148,7 +148,7 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Hubungi sekolah", text: "Chat WhatsApp atau Telepon sekolah, dari Lainnya lalu Profil." },
       { title: "Panduan Talib", text: "Panduan ini bisa dibuka lagi dari Profil kapan saja." },
     ],
-    art: <ContactArt />,
+    art: <ProfileMock />,
   },
   {
     id: "daftar",
@@ -161,6 +161,6 @@ export const PARENT_SLIDES: Slide[] = [
       { title: "Tanda tangan dari ponsel", text: "Ayah dan ibu masing-masing menandatangani, bisa lewat tautan yang dibagikan." },
       { title: "Bayar setelah dikirim", text: "Biaya pendaftaran dibayar lewat DOKU setelah Kirim Formulir." },
     ],
-    art: <EnrollFormArt />,
+    art: <EnrollFormMock />,
   },
 ];

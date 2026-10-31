@@ -12,7 +12,7 @@ const NAV = [
   { label: "Lainnya", icon: MoreHorizontal },
 ];
 
-const ENTRIES: { element: string; indicator: string; level: Level; date: string }[] = [
+const ENTRIES: { element: string; indicator: string; level: Level }[] = [
   { element: "Nilai Agama & Budi Pekerti", indicator: "Berdoa sebelum makan", level: "CONSISTENT" },
   { element: "Jati Diri", indicator: "Menyebutkan perasaan", level: "EMERGING" },
   { element: "STEAM / Literasi", indicator: "Menyusun balok tinggi", level: "NEEDS_REINFORCEMENT" },

@@ -1,21 +1,21 @@
 import { AccessMatrix } from "./access-matrix";
-import { AssessArt } from "./art/assess-art";
-import { BillingArt } from "./art/billing-art";
-import { DashboardArt } from "./art/dashboard-art";
-import { DayArt } from "./art/day-art";
-import { FeesArt } from "./art/fees-art";
-import { JournalArt } from "./art/journal-art";
-import { JourneyArt } from "./art/journey-art";
-import { ParentHomeArt } from "./art/parent-home-art";
-import { PaymentArt } from "./art/payment-art";
-import { ReportArt } from "./art/report-art";
-import { SpineArt } from "./art/spine-art";
-import { StructureArt } from "./art/structure-art";
-import { StudentArt } from "./art/student-art";
-import { TeacherHomeArt } from "./art/teacher-home-art";
-import { TeamArt } from "./art/team-art";
 import { CoverArt } from "./cover-art";
 import { FirstSteps } from "./first-steps";
+import { AdmissionsMock } from "./mock/admissions-mock";
+import { AssessmentMock } from "./mock/assessment-mock";
+import { BillingRunMock } from "./mock/billing-run-mock";
+import { ClassAttendanceMock } from "./mock/class-attendance-mock";
+import { ClassesMock } from "./mock/classes-mock";
+import { CurriculumMock } from "./mock/curriculum-mock";
+import { DashboardMock } from "./mock/dashboard-mock";
+import { FeesMock } from "./mock/fees-mock";
+import { HrMock } from "./mock/hr-mock";
+import { InvoicesMock } from "./mock/invoices-mock";
+import { JournalMock } from "./mock/journal-mock";
+import { ParentHomeMock } from "./mock/parent-home-mock";
+import { ReportCardMock } from "./mock/report-card-mock";
+import { StudentDetailMock } from "./mock/student-detail-mock";
+import { TeacherHomeMock } from "./mock/teacher-home-mock";
 import { ModuleMap } from "./module-map";
 import type { Slide } from "./types";
 
@@ -62,7 +62,7 @@ export const SLIDES: Slide[] = [
       { title: "Analitik", text: "Kehadiran 30 hari, kelas yang perlu perhatian, Buku Penghubung yang tertinggal, tagihan vs terkumpul." },
     ],
     who: ["admin"],
-    art: <DashboardArt />,
+    art: <DashboardMock />,
   },
   {
     id: "pendaftaran",
@@ -83,7 +83,7 @@ export const SLIDES: Slide[] = [
       { title: "Terima & Jadikan Siswa", text: "Admin memeriksa berkas, lalu satu ketukan membuat data siswa dan wali." },
     ],
     who: ["admin"],
-    art: <JourneyArt />,
+    art: <AdmissionsMock />,
   },
   {
     id: "siswa",
@@ -97,7 +97,7 @@ export const SLIDES: Slide[] = [
       { title: "Wali murid", text: "Anak terdaftar, tagihan keluarga, dan Ingatkan via WhatsApp dari satu halaman." },
     ],
     who: ["admin"],
-    art: <StudentArt />,
+    art: <StudentDetailMock />,
   },
   {
     id: "akademik",
@@ -112,7 +112,7 @@ export const SLIDES: Slide[] = [
       { title: "Naik Kelas Massal", text: "Pindahkan banyak siswa sekaligus; yang tidak dicentang tinggal kelas." },
     ],
     who: ["admin"],
-    art: <StructureArt />,
+    art: <ClassesMock />,
   },
   {
     id: "absensi",
@@ -125,7 +125,7 @@ export const SLIDES: Slide[] = [
       { title: "Di kantor", text: "Kehadiran Siswa: harian dan rekap bulanan, Timpa Kehadiran bila perlu koreksi, Ekspor CSV." },
     ],
     who: ["admin", "guru"],
-    art: <DayArt />,
+    art: <ClassAttendanceMock />,
   },
   {
     id: "buku-penghubung",
@@ -139,7 +139,7 @@ export const SLIDES: Slide[] = [
       { title: "Catatan", text: "Guru dan orang tua saling menulis catatan; balasan baru muncul di Beranda guru." },
     ],
     who: ["admin", "guru"],
-    art: <JournalArt />,
+    art: <JournalMock />,
   },
   {
     id: "kurikulum",
@@ -153,7 +153,7 @@ export const SLIDES: Slide[] = [
       { title: "Impor PROMES", text: "Unggah xlsx, periksa pratinjaunya, lalu simpan." },
     ],
     who: ["admin", "guru"],
-    art: <SpineArt />,
+    art: <CurriculumMock />,
   },
   {
     id: "penilaian",
@@ -168,7 +168,7 @@ export const SLIDES: Slide[] = [
       { title: "Pemantauan", text: "Admin melihat kelengkapan per kelas, dan bisa menimpa penilaian yang keliru." },
     ],
     who: ["admin", "guru"],
-    art: <AssessArt />,
+    art: <AssessmentMock />,
   },
   {
     id: "rapor",
@@ -183,7 +183,7 @@ export const SLIDES: Slide[] = [
       { title: "Simpan & Terbitkan", text: "Orang tua membaca di portal dan bisa Unduh PDF. Penerbitan bisa ditarik." },
     ],
     who: ["admin"],
-    art: <ReportArt />,
+    art: <ReportCardMock />,
   },
   {
     id: "biaya",
@@ -197,7 +197,7 @@ export const SLIDES: Slide[] = [
       { title: "Keringanan Siswa", text: "Diskon atau tambahan per siswa." },
     ],
     who: ["admin"],
-    art: <FeesArt />,
+    art: <FeesMock />,
   },
   {
     id: "tagihan",
@@ -211,7 +211,7 @@ export const SLIDES: Slide[] = [
       { title: "Catat pembayaran di muka", text: "SPP beberapa bulan atau biaya lain yang sudah diterima. Hasilnya tagihan Lunas, tanpa link." },
     ],
     who: ["admin"],
-    art: <BillingArt />,
+    art: <BillingRunMock />,
   },
   {
     id: "pembayaran",
@@ -226,7 +226,7 @@ export const SLIDES: Slide[] = [
       { title: "Kuitansi dan koreksi", text: "Unduh kuitansi setelah lunas; pembayaran bisa dibatalkan dengan alasan, tercatat di jejak audit." },
     ],
     who: ["admin"],
-    art: <PaymentArt />,
+    art: <InvoicesMock />,
   },
   {
     id: "portal-guru",
@@ -240,7 +240,7 @@ export const SLIDES: Slide[] = [
       { title: "Lainnya", text: "Kehadiran saya, Ajukan cuti, Slip gaji, Profil saya, dan panduan ini." },
     ],
     who: ["guru"],
-    art: <TeacherHomeArt />,
+    art: <TeacherHomeMock />,
   },
   {
     id: "tim",
@@ -254,7 +254,7 @@ export const SLIDES: Slide[] = [
       { title: "Penggajian", text: "Komponen gaji per karyawan, proses bulanan, persetujuan, lalu slip muncul untuk guru." },
     ],
     who: ["admin", "guru"],
-    art: <TeamArt />,
+    art: <HrMock />,
   },
   {
     id: "portal-ortu",
@@ -269,7 +269,7 @@ export const SLIDES: Slide[] = [
       { title: "Tagihan", text: "Bayar sekarang lewat DOKU, minta link baru, unduh kuitansi." },
     ],
     who: ["admin", "guru"],
-    art: <ParentHomeArt />,
+    art: <ParentHomeMock />,
   },
   {
     id: "akses",

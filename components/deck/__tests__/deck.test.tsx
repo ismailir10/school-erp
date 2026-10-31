@@ -145,6 +145,11 @@ describe("Deck content", () => {
       expect(heading).toHaveTextContent(SLIDES[i - 1].title);
       expect(slide.textContent).toContain(SLIDES[i - 1].lead);
       expect(slide.textContent ?? "").not.toMatch(FORBIDDEN);
+      // Mock screens are pictures: hidden from assistive tech, inert, and with nothing focusable inside.
+      for (const mock of slide.querySelectorAll("[data-art]")) {
+        expect(mock).toHaveAttribute("aria-hidden", "true");
+        expect(mock.querySelector("button, a[href], input, select, textarea, [tabindex]")).toBeNull();
+      }
     }
   });
 
@@ -192,6 +197,10 @@ describe("Parent deck content", () => {
       expect(slide.textContent ?? "").not.toMatch(FORBIDDEN);
       // One audience: no "Dipakai oleh" chips repeating "Orang tua" on every slide.
       expect(slide.textContent ?? "").not.toContain("Dipakai oleh");
+      for (const mock of slide.querySelectorAll("[data-art]")) {
+        expect(mock).toHaveAttribute("aria-hidden", "true");
+        expect(mock.querySelector("button, a[href], input, select, textarea, [tabindex]")).toBeNull();
+      }
     }
   });
 

@@ -59,7 +59,8 @@ decks and asked for:
 
 - **T2 (in progress).** Mock kit `components/deck/mock/{stage,frames}.tsx`; samples land here before the owner's
   review: class attendance (teacher), parent invoice, admin dashboard. Nothing imports them yet; checkpoints are pushed while the samples are iterated (all three done; the owner approved the direction).
-- **T3 (in progress).** The remaining 21 mocks are being drawn by five Sonnet workers, grouped by portal.
+- **T3 (in progress).** The remaining 21 mocks are being drawn by five Sonnet workers, grouped by portal. Both decks
+  import the mocks; `components/deck/art/` (the SVG kit and drawings) is removed.
 
 ## Verification
 
