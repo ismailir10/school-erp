@@ -38,14 +38,14 @@ export function ParentInvoiceMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="NR" name="Bu Nur" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background">
-          <div className="border-b border-border px-4 py-2.5">
+          <div className="border-b border-border px-4 py-2">
             <p className="truncate text-sm font-medium">
               SPP November 2026<span className="ml-1 text-muted-foreground">· Aisyah Putri</span>
             </p>
           </div>
 
-          <div className="space-y-2.5 px-4 pt-2.5">
-            <div className="rounded-xl border border-border bg-card px-4 py-2.5">
+          <div className="space-y-2 px-4 pt-2.5">
+            <div className="rounded-xl border border-border bg-card px-4 py-2">
               <p className="text-xs font-medium text-muted-foreground">Sisa tagihan</p>
               <div className="flex items-center justify-between gap-2">
                 <Amount digits="850.000" size="display" />
@@ -103,7 +103,7 @@ export function ParentInvoiceMock() {
         <BottomNav items={NAV} active="Tagihan" />
       </Phone>
 
-      <Float className="left-[392px] top-[150px] w-[264px] space-y-3.5">
+      <Float className="left-[384px] top-[150px] w-[272px] space-y-3.5">
         <div className="flex items-center gap-3">
           <div className="grid size-10 shrink-0 place-items-center rounded-full bg-status-present-subtle text-status-present-text">
             <CheckCircle2 size={22} />
@@ -118,13 +118,13 @@ export function ParentInvoiceMock() {
         <p className="text-body font-medium leading-snug">Alhamdulillah, tagihan SPP November terbayar.</p>
         <div>
           <SectionLabel>Bukti pembayaran</SectionLabel>
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-background p-3">
-            <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background p-2.5">
+            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
               <FileText size={18} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">Kuitansi.pdf</p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">Diterbitkan 4 November 2026</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">Diterbitkan 4 Nov 2026</p>
             </div>
             <Download size={16} className="shrink-0 text-muted-foreground" />
           </div>
