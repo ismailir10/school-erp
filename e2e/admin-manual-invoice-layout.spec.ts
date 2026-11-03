@@ -86,10 +86,15 @@ async function openLongInvoiceForm(page: Page) {
   });
 
   await page.goto("/admin/invoices");
-  await manualInvoiceOpener(page).click();
+  const opener = manualInvoiceOpener(page);
+  const opensMenu = (await opener.getAttribute("aria-haspopup")) === "menu";
+  await opener.click();
   // Below `sm` the secondary header actions sit in the "Lainnya" menu.
   const menuItem = page.getByRole("menuitem", { name: "Tagihan Manual", exact: true });
-  if (await menuItem.isVisible().catch(() => false)) await menuItem.click();
+  if (opensMenu) {
+    await expect(menuItem).toBeVisible();
+    await menuItem.click();
+  }
   const dialog = page.getByRole("dialog", { name: "Tagihan Manual", exact: true });
   await expect(dialog).toBeVisible();
   const studentPicker = dialog.getByRole("combobox").first();
