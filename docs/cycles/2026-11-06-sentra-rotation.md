@@ -150,7 +150,7 @@ Facts found in the code and the production data (read-only):
 - [x] T3 Admin API: sentra CRUD + putaran CRUD + grid save — accept: API tests for permission, validation, tenant
       scope. (deps: T2) ∥ T5, T6
 - [x] T4 Admin UI `/admin/sentra` + putaran grid + nav entry — accept: flow 1 walkable. (deps: T3)
-- [ ] T5 Buku Penghubung access: guards use the shared helper, picker lists sentra classes with today's preselected —
+- [x] T5 Buku Penghubung access: guards use the shared helper, picker lists sentra classes with today's preselected —
       accept: guard tests + picker test; flow 2. (deps: T2) ∥ T3, T6
 - [ ] T6 Sentra Harian on campus sentra: tiles, roster default, POST writes sentra, readers label by sentra —
       accept: API + format tests; flow 3. (deps: T2) ∥ T3, T5
@@ -181,6 +181,12 @@ Facts found in the code and the production data (read-only):
   putaran table + create dialog; putaran detail with the day × class grid ("Pekan 1 · Senin"), duplicate-sentra and
   nonaktif-cell warnings, save disabled while a nonaktif cell remains; read-only without `academic.edit`.
   design-system.html cross-check is recorded under Verification.
+- T5: `lib/student-journal/guards.ts`, journal routes (`class-grid`, `entries/batch`, `students/[id]/week`,
+  `notes/unread`), new `app/api/student-journal/classes`, picker `app/teacher/student-journal/page.tsx` (+ tests;
+  existing journal/attendance test mocks gained the sentra lookup). Guru-sentra access is **opt-in per caller**
+  (`requireTeacherForClass(id, { viaSentra: true })`): journal routes pass it; attendance and `api/teacher/students`
+  share the guard and stay assignment-only (review finding — the first cut widened them; a test pins it). Picker
+  label `TK B — Program · Sentra Balok (hari ini)` / `… · via sentra`, today's sentra class preselected.
 - T7: `app/teacher/page.tsx`, `app/teacher/home-client.tsx`, `lib/teacher/home-progress.ts` (+ 2 test files) — today's
   sentra class joins the home list with the same journal/attendance/replies/day-mark summary and a "Sentra X · hari
   ini" badge; an assigned class that is also today's sentra class is tagged, not duplicated; sentra-only cards show no
