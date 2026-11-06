@@ -145,7 +145,7 @@ Facts found in the code and the production data (read-only):
 
 - [x] T1 Schema + migration + seed — accept: `prisma migrate` applies on a fresh DB, RLS script green, seed creates
       sentra for each campus, a putaran where `u_teacher` owns a sentra visiting a class she isn't assigned to. (deps: none)
-- [ ] T2 `lib/sentra` domain: rotation day math, accessible-classes + can-access helper, today's sentra per guru —
+- [x] T2 `lib/sentra` domain: rotation day math, accessible-classes + can-access helper, today's sentra per guru —
       accept: unit tests for every rule in Decisions 4–6. (deps: T1)
 - [ ] T3 Admin API: sentra CRUD + putaran CRUD + grid save — accept: API tests for permission, validation, tenant
       scope. (deps: T2) ∥ T5, T6
@@ -169,6 +169,9 @@ Facts found in the code and the production data (read-only):
   over TKIT A/B so `u_teacher` reaches TKIT B only via sentra. Note: `prisma migrate deploy` cannot run on an empty
   DB in this repo (no baseline migration, pre-existing), so the migration was proven on a DB built from the pre-cycle
   schema: `INSERT 0 16` (2 campuses × 8).
+- T2: `lib/sentra/{rotation,access}.ts` + tests (22) — calendar-aligned Mon–Fri day index (O(1)), day labels,
+  `teacherCanAccessClass` / `getStudentSentraAccess` (assignment first, then one sentra query scoped to an ACTIVE
+  putaran in an ACTIVE year of the tenant with a slot of the guru's ACTIVE sentra), `getTeacherSentraToday`.
 
 ## Verification
 
