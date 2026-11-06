@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import { getCurrentWeek, getStudentAgeGroups } from "@/lib/curriculum/week-resolver";
 import {
   formatJakartaYmd,
   parseJakartaYmd,
@@ -143,7 +143,13 @@ export async function loadStudentPerkembangan(
   // Latest-this-week preview: cheap follow-up query so the rollup math
   // above stays a single index scan.
   const todayUtc = parseJakartaYmd(getTodayInTimezone(JAKARTA_TZ));
-  const week = await getCurrentWeek(tenantId, todayUtc);
+  // The preview follows the child's own kelompok; no active class, no week.
+  const studentGroup = (await getStudentAgeGroups(tenantId, [studentId])).get(
+    studentId,
+  );
+  const week = studentGroup
+    ? await getCurrentWeek(tenantId, todayUtc, studentGroup)
+    : null;
   let latestThisWeek: LatestEntry[] = [];
   if (week) {
     const recent = await prisma.assessmentEntry.findMany({

@@ -46,6 +46,8 @@ const achievementIndicatorAggregate = vi.fn();
 
 const indicatorThemeLinkUpsert = vi.fn();
 const indicatorThemeLinkDeleteMany = vi.fn();
+const indicatorThemeLinkFindFirst = vi.fn();
+const assessmentEntryFindFirst = vi.fn();
 
 // Semester PUT fans out a reconcile over every ClassSection in the year when
 // dates change — mock the lookup + the reconcile service.
@@ -119,7 +121,9 @@ vi.mock("@/lib/db", () => ({
     indicatorThemeLink: {
       upsert: indicatorThemeLinkUpsert,
       deleteMany: indicatorThemeLinkDeleteMany,
+      findFirst: indicatorThemeLinkFindFirst,
     },
+    assessmentEntry: { findFirst: assessmentEntryFindFirst },
   },
 }));
 
@@ -183,6 +187,9 @@ beforeEach(() => {
     warnings: [],
   });
   themeFindMany.mockResolvedValue([]);
+  themeFindFirst.mockReset();
+  indicatorThemeLinkFindFirst.mockResolvedValue(null);
+  assessmentEntryFindFirst.mockResolvedValue(null);
   themeCount.mockResolvedValue(0);
   subThemeFindMany.mockResolvedValue([]);
   subThemeCount.mockResolvedValue(0);
@@ -1243,7 +1250,7 @@ describe("POST /weeks — overlap detection", () => {
     const { POST } = await import("@/app/api/admin/curriculum/weeks/route");
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(superAdmin);
-    subThemeFindFirst.mockResolvedValue({ id: "st1" });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null } });
     weekFindMany.mockResolvedValue([
       { id: "w-existing", startDate: "2026-07-13", endDate: "2026-07-17", status: "ACTIVE" },
     ]);
@@ -1266,5 +1273,171 @@ describe("POST /weeks — overlap detection", () => {
         data: expect.objectContaining({ entity: "Week", action: "create" }),
       }),
     );
+  });
+});
+
+describe("themes — kelompok scope (ageGroup)", () => {
+  const created = {
+    id: "th9", semesterId: "sem1", name: "Diriku", ageGroup: "A", order: 1,
+    status: "ACTIVE", _count: { subThemes: 0 },
+  };
+
+  it("POST rejects a duplicate name within the same scope", async () => {
+    const { POST } = await import("@/app/api/admin/curriculum/themes/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    semesterFindFirst.mockResolvedValue({ id: "sem1", status: "ACTIVE" });
+    themeFindFirst.mockResolvedValue({ id: "other" });
+    const res = await POST(
+      jsonReq({ semesterId: "sem1", name: "Diriku", order: 1, ageGroup: "A" }) as never,
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Tema "Diriku" sudah ada untuk TK A.');
+    expect(themeCreate).not.toHaveBeenCalled();
+    expect(themeFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ name: "Diriku", ageGroup: "A" }) }),
+    );
+  });
+
+  it("POST allows the same name in another scope and defaults ageGroup to null", async () => {
+    const { POST } = await import("@/app/api/admin/curriculum/themes/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    semesterFindFirst.mockResolvedValue({ id: "sem1", status: "ACTIVE" });
+    themeFindFirst.mockResolvedValue(null);
+    themeCreate.mockResolvedValue({ ...created, ageGroup: null });
+    const res = await POST(jsonReq({ semesterId: "sem1", name: "Diriku", order: 1 }) as never);
+    expect(res.status).toBe(201);
+    expect(themeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ageGroup: null }) }),
+    );
+  });
+
+  it("GET filters ?ageGroup=A to A + shared, shared to null, unknown to 400", async () => {
+    const { GET } = await import("@/app/api/admin/curriculum/themes/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    const mk = (q: string) => new Request(`http://localhost/api/admin/curriculum/themes?${q}`);
+    await GET(mk("ageGroup=A") as never);
+    expect(themeFindMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ OR: [{ ageGroup: "A" }, { ageGroup: null }] }),
+      }),
+    );
+    await GET(mk("ageGroup=shared") as never);
+    expect(themeFindMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ ageGroup: null }) }),
+    );
+    const bad = await GET(mk("ageGroup=C") as never);
+    expect(bad.status).toBe(400);
+  });
+
+  describe("PUT ageGroup change", () => {
+    const params = { params: Promise.resolve({ id: "th1" }) };
+    async function put(body: unknown) {
+      const { PUT } = await import("@/app/api/admin/curriculum/themes/[id]/route");
+      const { getSession } = await import("@/lib/auth");
+      vi.mocked(getSession).mockResolvedValue(superAdmin);
+      return PUT(jsonReq(body) as never, params as never);
+    }
+    function setup() {
+      themeFindFirst
+        .mockResolvedValueOnce({
+          id: "th1", semesterId: "sem1", name: "X", ageGroup: null, order: 0, status: "ACTIVE",
+        })
+        .mockResolvedValueOnce(null); // duplicate check
+      weekFindMany.mockResolvedValue([]);
+      themeUpdate.mockResolvedValue({ ...created, id: "th1", name: "X" });
+    }
+
+    it("rejects a duplicate in the target scope", async () => {
+      themeFindFirst
+        .mockResolvedValueOnce({ id: "th1", semesterId: "sem1", name: "X", ageGroup: null, order: 0, status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "dup" });
+      const res = await put({ ageGroup: "A" });
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe('Tema "X" sudah ada untuk TK A.');
+      expect(themeUpdate).not.toHaveBeenCalled();
+    });
+
+    it("refuses when linked to an indicator of the other kelompok", async () => {
+      setup();
+      indicatorThemeLinkFindFirst.mockResolvedValue({
+        indicator: { objective: { ageGroup: "B" } },
+      });
+      const res = await put({ ageGroup: "A" });
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toContain("indikator TK B");
+      expect(themeUpdate).not.toHaveBeenCalled();
+    });
+
+    it("refuses when non-voided assessments of the other kelompok exist", async () => {
+      setup();
+      assessmentEntryFindFirst.mockResolvedValue({
+        indicator: { objective: { ageGroup: "B" } },
+      });
+      const res = await put({ ageGroup: "A" });
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toContain("penilaian TK B");
+      expect(assessmentEntryFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ voidedAt: null }) }),
+      );
+    });
+
+    it("refuses when weeks overlap another theme visible to the new scope", async () => {
+      setup();
+      const day = (d: string) => new Date(`${d}T00:00:00.000Z`);
+      weekFindMany
+        .mockResolvedValueOnce([{ id: "w1", startDate: day("2026-09-07"), endDate: day("2026-09-11") }])
+        .mockResolvedValueOnce([
+          { id: "w9", startDate: day("2026-09-07"), endDate: day("2026-09-11"), status: "ACTIVE" },
+        ]);
+      const res = await put({ ageGroup: "A" });
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toContain("bertumpang tindih");
+      expect(themeUpdate).not.toHaveBeenCalled();
+    });
+
+    it("applies the change when nothing conflicts", async () => {
+      setup();
+      const res = await put({ ageGroup: "A" });
+      expect(res.status).toBe(200);
+      expect(themeUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ ageGroup: "A" }) }),
+      );
+    });
+  });
+});
+
+describe("POST /indicator-theme-links — kelompok scope", () => {
+  async function post(indGroup: string, themeGroup: string | null, linked = true) {
+    const { POST } = await import("@/app/api/admin/curriculum/indicator-theme-links/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    achievementIndicatorFindFirst.mockResolvedValue({
+      id: "ind1",
+      objective: { semesterId: "sem1", ageGroup: indGroup },
+    });
+    themeFindFirst.mockResolvedValue({ id: "thm1", semesterId: "sem1", ageGroup: themeGroup });
+    indicatorThemeLinkUpsert.mockResolvedValue({});
+    return POST(jsonReq({ indicatorId: "ind1", themeId: "thm1", linked }) as never);
+  }
+
+  it("rejects linking a TK A indicator to a TK B theme (422)", async () => {
+    const res = await post("A", "B");
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe(
+      "Indikator TK A hanya bisa dihubungkan ke tema TK A atau Semua kelompok.",
+    );
+    expect(indicatorThemeLinkUpsert).not.toHaveBeenCalled();
+  });
+
+  it("allows same-group and shared themes", async () => {
+    expect((await post("A", "A")).status).toBe(200);
+    expect((await post("B", null)).status).toBe(200);
+  });
+
+  it("still allows unlinking a mismatched pair", async () => {
+    expect((await post("A", "B", false)).status).toBe(200);
   });
 });

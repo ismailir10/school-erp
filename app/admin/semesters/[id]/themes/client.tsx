@@ -15,12 +15,23 @@ import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { NativeSelect } from "@/components/ui/native-select";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ChevronRight, FileUp, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
-type Theme = { id: string; semesterId: string; name: string; order: number; status: string; _count: { subThemes: number } };
+// Kelompok scope. Labels mirror lib/curriculum/age-scope.ts, which imports prisma and so cannot be used in a client component.
+type ThemeAgeGroup = "A" | "B" | null;
+const AGE_GROUP_LABEL: Record<"A" | "B", string> = { A: "TK A", B: "TK B" };
+const SHARED_LABEL = "Semua kelompok";
+function themeScopeLabel(g: ThemeAgeGroup | undefined): string {
+  return g ? AGE_GROUP_LABEL[g] : SHARED_LABEL;
+}
+type KelompokFilter = "all" | "A" | "B";
+
+type Theme = { id: string; semesterId: string; name: string; order: number; status: string; ageGroup?: ThemeAgeGroup; _count: { subThemes: number } };
 type SubTheme = { id: string; themeId: string; name: string; order: number; status: string; _count: { weeks: number } };
 type Week = { id: string; subThemeId: string; number: number; startDate: string; endDate: string; status: string };
 
@@ -202,19 +213,20 @@ export function ThemeCard({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Theme | null>(null);
-  const [form, setForm] = useState({ name: "", order: "0" });
+  const [form, setForm] = useState<{ name: string; order: string; ageGroup: "" | "A" | "B" }>({ name: "", order: "0", ageGroup: "" });
+  const [kelompokFilter, setKelompokFilter] = useState<KelompokFilter>("all");
   const [saving, setSaving] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Theme | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<Theme | null>(null);
 
   function openCreate() {
     setEditing(null);
-    setForm({ name: "", order: String(themes.length) });
+    setForm({ name: "", order: String(themes.length), ageGroup: "" });
     setOpen(true);
   }
   function openEdit(t: Theme) {
     setEditing(t);
-    setForm({ name: t.name, order: String(t.order) });
+    setForm({ name: t.name, order: String(t.order), ageGroup: t.ageGroup ?? "" });
     setOpen(true);
   }
 
@@ -225,7 +237,7 @@ export function ThemeCard({
     }
     setSaving(true);
     try {
-      const body = { name: form.name.trim(), order: Number(form.order) || 0 };
+      const body = { name: form.name.trim(), order: Number(form.order) || 0, ageGroup: form.ageGroup === "" ? null : form.ageGroup };
       const url = editing ? `/api/admin/curriculum/themes/${editing.id}` : `/api/admin/curriculum/themes`;
       const r = await mutate(url, editing ? "PUT" : "POST", editing ? body : { ...body, semesterId });
       if (r.ok) {
@@ -252,6 +264,9 @@ export function ThemeCard({
     }
   }
 
+  const visibleThemes =
+    kelompokFilter === "all" ? themes : themes.filter((t) => !t.ageGroup || t.ageGroup === kelompokFilter);
+
   return (
     <Card data-testid="theme-card">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -263,6 +278,22 @@ export function ThemeCard({
         ) : null}
       </CardHeader>
       <CardContent className="space-y-2">
+        {!loading && !loadError && themes.length > 0 ? (
+          <div className="flex items-center gap-1 pb-1" role="group" aria-label="Kelompok">
+            <span className="text-small text-muted-foreground mr-1">Kelompok:</span>
+            {([["all", "Semua"], ["A", "TK A"], ["B", "TK B"]] as const).map(([value, label]) => (
+              <Button
+                key={value}
+                size="sm"
+                variant={kelompokFilter === value ? "default" : "outline"}
+                aria-pressed={kelompokFilter === value}
+                onClick={() => setKelompokFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-9 w-full" />
@@ -278,8 +309,12 @@ export function ThemeCard({
           />
         ) : themes.length === 0 ? (
           <p className="text-small text-muted-foreground">Belum ada tema. Tambahkan untuk mulai mengisi subtema dan pekan.</p>
+        ) : visibleThemes.length === 0 ? (
+          <p className="text-small text-muted-foreground">
+            Belum ada tema untuk {kelompokFilter === "all" ? "kelompok ini" : AGE_GROUP_LABEL[kelompokFilter]}. Tambahkan tema atau pilih kelompok lain.
+          </p>
         ) : (
-          themes.map((t) => (
+          visibleThemes.map((t) => (
             <div
               key={t.id}
               className={`flex w-full items-center rounded-lg border border-border hover:bg-muted/40 ${
@@ -300,6 +335,7 @@ export function ThemeCard({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Badge variant="outline" data-testid="theme-scope-badge">{themeScopeLabel(t.ageGroup)}</Badge>
                   <StatusBadge status={t.status} />
                   <ChevronRight className="size-4 text-muted-foreground" />
                 </div>
@@ -318,9 +354,9 @@ export function ThemeCard({
             </div>
           ))
         )}
-        {canWrite && themes.length > 0 ? (
+        {canWrite && visibleThemes.length > 0 ? (
           <div className="flex flex-wrap gap-2 pt-2 text-xs">
-            {themes.map((t) =>
+            {visibleThemes.map((t) =>
               t.status === "ACTIVE" ? (
                 <Button
                   key={`d-${t.id}`}
@@ -349,7 +385,7 @@ export function ThemeCard({
         open={open}
         onOpenChange={setOpen}
         title={editing ? "Ubah Tema" : "Tambah Tema"}
-        description={editing ? "Perbarui nama atau urutan tema." : "Tambah tema baru pada semester ini."}
+        description={editing ? "Perbarui nama, urutan, atau kelompok tema." : "Tambah tema baru pada semester ini."}
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
@@ -385,6 +421,23 @@ export function ThemeCard({
               value={form.order}
               onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
             />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="theme-age-group">Kelompok</FieldLabel>
+            <NativeSelect
+              id="theme-age-group"
+              className="w-full"
+              value={form.ageGroup}
+              onChange={(e) => setForm((f) => ({ ...f, ageGroup: e.target.value as "" | "A" | "B" }))}
+              aria-describedby="theme-age-group-help"
+            >
+              <option value="">{SHARED_LABEL}</option>
+              <option value="A">{AGE_GROUP_LABEL.A}</option>
+              <option value="B">{AGE_GROUP_LABEL.B}</option>
+            </NativeSelect>
+            <p id="theme-age-group-help" className="text-small text-muted-foreground">
+              Pilih TK A atau TK B bila tema hanya untuk satu kelompok.
+            </p>
           </Field>
         </div>
       </ResponsiveFormDialog>

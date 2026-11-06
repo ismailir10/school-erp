@@ -75,10 +75,13 @@ export const themeCreateSchema = z.object({
   semesterId: z.string().min(1),
   name: z.string().min(1, "Nama tema wajib diisi").max(120),
   order: z.number().int().min(0),
+  /** A / B, or null/absent = shared "Semua kelompok". */
+  ageGroup: z.enum(["A", "B"]).nullable().optional(),
 });
 
 export const themeUpdateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
+  ageGroup: z.enum(["A", "B"]).nullable().optional(),
   order: z.number().int().min(0).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });

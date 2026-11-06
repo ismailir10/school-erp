@@ -11,6 +11,7 @@ import {
   parseJakartaYmd,
   findWeekOverlap,
 } from "@/lib/validations/curriculum";
+import { findScopedWeekOverlap, themeScopeLabel } from "@/lib/curriculum/age-scope";
 import {
   CURRICULUM_WRITE_BUDGET,
   CURRICULUM_WRITE_WINDOW_MS,
@@ -82,6 +83,30 @@ export async function POST(req: NextRequest) {
       { error: "Pekan bertumpang tindih dengan pekan lain pada subtema ini.", conflictingWeekId: overlap.id },
       { status: 409 },
     );
+  }
+
+  // Cross-subtheme check: weeks of themes visible to the same kelompok must
+  // not overlap. TK A vs TK B weeks may share dates.
+  const scope = await prisma.subTheme.findFirst({
+    where: { id: body.subThemeId, tenantId: session.tenantId },
+    select: { theme: { select: { semesterId: true, ageGroup: true } } },
+  });
+  if (scope) {
+    const scoped = await findScopedWeekOverlap({
+      tenantId: session.tenantId,
+      semesterId: scope.theme.semesterId,
+      ageGroup: scope.theme.ageGroup,
+      candidates: [{ startDate: body.startDate, endDate: body.endDate }],
+    });
+    if (scoped) {
+      return NextResponse.json(
+        {
+          error: `Pekan bertumpang tindih dengan pekan lain di ${themeScopeLabel(scope.theme.ageGroup)}.`,
+          conflictingWeekId: scoped.id,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   try {

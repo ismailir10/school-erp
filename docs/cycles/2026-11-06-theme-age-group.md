@@ -85,6 +85,9 @@ No UAT report covers curriculum admin.
 ## Implementation
 - **Plan:** driver claude-opus-5-5 (reasoning tier) does T1 (schema, migration, shared `lib/curriculum/age-scope.ts`), review and sign-off. T2+T4, T3 and T5 are delegated to claude-sonnet-5-5 subagents (dirty-work tier) in parallel. Doc/fixture sweeps go to claude-haiku-5-5.
 - **T1:** `Theme.ageGroup AgeGroup?`; migration `20261106000000_theme_age_group` adds the column and replaces the name unique index with `(tenantId, semesterId, ageGroup, name) NULLS NOT DISTINCT` (staging is Postgres 17). Tested on a disposable DB: old schema pushed, migration applied, `prisma migrate diff` against the new schema is empty. Seed passes.
+- **T2+T4:** theme create/update take `ageGroup`; null-safe per-kelompok duplicate check (409); re-scoping refused on other-group indicator links, other-group assessments, or week overlap; `?ageGroup=A|B|shared` list filter. Indicator-theme links reject an other-group theme (422). PROMES import indexes only visible themes and prefers a group-specific theme over a shared one with the same name. `themeListSelect` carries `ageGroup`.
+- **T3:** `getCurrentWeek` takes the kelompok. Walas weekly uses the homeroom's kelompok; sentra/generic entry POSTs resolve the week per student (active enrollment) and reject an indicator of the other kelompok; penilaian monitor measures each class against its own kelompok's week; parent perkembangan uses the child's kelompok. Week POST/PUT also reject overlap within the theme's kelompok scope.
+- **T5:** admin theme page has a Kelompok `NativeSelect` (Semua kelompok / TK A / TK B), a Semua · TK A · TK B filter styled like the objectives page's Kelompok filter, and an outline `Badge` per row. Checked against design-system (shadcn components only, no new colors). Tests: `themes/__tests__/age-group.test.tsx`.
 
 ## Verification
 

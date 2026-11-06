@@ -6,7 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { assessmentEntryCenterSessionSchema } from "@/lib/validations/assessment-entry";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
-import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import { getCurrentWeek, getStudentAgeGroups } from "@/lib/curriculum/week-resolver";
 import {
   PENILAIAN_WRITE_BUDGET,
   PENILAIAN_WRITE_WINDOW_MS,
@@ -64,16 +64,6 @@ export async function POST(req: NextRequest) {
   }
 
   const dateUtc = parseJakartaYmd(date);
-  const week = await getCurrentWeek(session.tenantId, dateUtc);
-  if (!week) {
-    return NextResponse.json(
-      {
-        error:
-          "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
-      },
-      { status: 422 },
-    );
-  }
 
   const studentIds = Array.from(new Set(entries.map((e) => e.studentId)));
   const indicatorIds = Array.from(new Set(entries.map((e) => e.indicatorId)));
@@ -98,7 +88,11 @@ export async function POST(req: NextRequest) {
   // PROMES spine.
   const indicators = await prisma.achievementIndicator.findMany({
     where: { tenantId: session.tenantId, id: { in: indicatorIds } },
-    select: { id: true, themeLinks: { select: { themeId: true } } },
+    select: {
+      id: true,
+      objective: { select: { ageGroup: true } },
+      themeLinks: { select: { themeId: true } },
+    },
   });
   if (indicators.length !== indicatorIds.length) {
     return NextResponse.json(
@@ -109,8 +103,51 @@ export async function POST(req: NextRequest) {
   const themesByIndicator = new Map<string, Set<string>>(
     indicators.map((i) => [i.id, new Set(i.themeLinks.map((l) => l.themeId))]),
   );
+  const objectiveGroupByIndicator = new Map(
+    indicators.map((i) => [i.id, i.objective.ageGroup]),
+  );
+
+  // A sentra session can mix TK A and TK B children. Each student resolves
+  // the week of their own kelompok, and an indicator must belong to that
+  // kelompok's objectives.
+  const groupByStudent = await getStudentAgeGroups(session.tenantId, studentIds);
+  const weekByGroup = new Map<string, { id: string; themeId: string }>();
+  for (const group of new Set(groupByStudent.values())) {
+    const wk = await getCurrentWeek(session.tenantId, dateUtc, group);
+    if (!wk) {
+      return NextResponse.json(
+        {
+          error:
+            "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
+        },
+        { status: 422 },
+      );
+    }
+    weekByGroup.set(group, { id: wk.id, themeId: wk.subTheme.theme.id });
+  }
+  if (studentIds.some((id) => !groupByStudent.has(id))) {
+    return NextResponse.json(
+      { error: "Siswa belum terdaftar di kelas aktif, kelompok tidak dapat ditentukan." },
+      { status: 422 },
+    );
+  }
+  const weekOf = (studentId: string) =>
+    weekByGroup.get(groupByStudent.get(studentId)!)!;
+
+  if (
+    entries.some(
+      (e) =>
+        objectiveGroupByIndicator.get(e.indicatorId) !==
+        groupByStudent.get(e.studentId),
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Salah satu IKTP bukan untuk kelompok siswa." },
+      { status: 400 },
+    );
+  }
   const linkBlocker = entries.find(
-    (e) => !themesByIndicator.get(e.indicatorId)?.has(week.subTheme.theme.id),
+    (e) => !themesByIndicator.get(e.indicatorId)?.has(weekOf(e.studentId).themeId),
   );
   if (linkBlocker) {
     return NextResponse.json(
@@ -139,7 +176,7 @@ export async function POST(req: NextRequest) {
         studentId: entry.studentId,
         indicatorId: entry.indicatorId,
         date: dateUtc,
-        weekId: week.id,
+        weekId: weekOf(entry.studentId).id,
         source: "CENTER",
         center,
         activity,
@@ -149,7 +186,7 @@ export async function POST(req: NextRequest) {
         recordedAt: now,
       },
       update: {
-        weekId: week.id,
+        weekId: weekOf(entry.studentId).id,
         center,
         activity,
         level: entry.level,
