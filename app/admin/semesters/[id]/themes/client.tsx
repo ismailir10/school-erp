@@ -328,14 +328,16 @@ export function ThemeCard({
                 onClick={() => onSelect(t.id)}
                 className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <div>
-                  <p className="text-sm font-medium">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Urutan {t.order} · {t._count.subThemes} subtema
-                  </p>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-pretty">{t.name}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <Badge variant="outline" data-testid="theme-scope-badge">{themeScopeLabel(t.ageGroup)}</Badge>
+                    <span>
+                      Urutan {t.order} · {t._count.subThemes} subtema
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" data-testid="theme-scope-badge">{themeScopeLabel(t.ageGroup)}</Badge>
+                <div className="flex shrink-0 items-center gap-2">
                   <StatusBadge status={t.status} />
                   <ChevronRight className="size-4 text-muted-foreground" />
                 </div>
