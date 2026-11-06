@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatLearningCenter,
+  formatEntrySentra,
   ALL_LEARNING_CENTERS,
 } from "@/lib/format";
 
@@ -37,5 +38,18 @@ describe("ALL_LEARNING_CENTERS", () => {
       "PREPARATION",
       "AREA",
     ]);
+  });
+});
+
+describe("formatEntrySentra", () => {
+  it("prefers the campus sentra name", () => {
+    expect(formatEntrySentra({ sentra: { name: "Makro" }, center: "WORSHIP" })).toBe("Sentra Makro");
+  });
+  it("does not double the Sentra prefix", () => {
+    expect(formatEntrySentra({ sentra: { name: "Sentra Balok" } })).toBe("Sentra Balok");
+  });
+  it("falls back to the legacy label, then a dash", () => {
+    expect(formatEntrySentra({ sentra: null, center: "WORSHIP" })).toBe("Sentra Ibadah");
+    expect(formatEntrySentra({})).toBe("—");
   });
 });

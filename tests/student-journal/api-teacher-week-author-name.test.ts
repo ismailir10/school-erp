@@ -23,7 +23,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     studentEnrollment: { findMany: mocks.enrollmentFindMany },
-    teachingAssignment: { findMany: mocks.assignmentFindMany },
+    teachingAssignment: { findMany: mocks.assignmentFindMany, findFirst: vi.fn().mockResolvedValue(null) },
+    sentraRotationClass: { findFirst: vi.fn().mockResolvedValue(null) },
+    sentraRotation: { findMany: vi.fn().mockResolvedValue([]) },
     studentJournalTemplate: { findUnique: mocks.templateFindUnique },
     studentJournalCategory: { findMany: mocks.categoryFindMany },
     studentJournalEntry: { findMany: mocks.entryFindMany },

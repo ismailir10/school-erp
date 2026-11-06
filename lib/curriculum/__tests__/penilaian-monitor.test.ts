@@ -70,15 +70,15 @@ describe("aggregateSentra (pure)", () => {
   it("always returns all 8 centers in canonical order", () => {
     const r = aggregateSentra([]);
     expect(r).toHaveLength(8);
-    expect(r.map((x) => x.center)).toEqual([
-      "WORSHIP",
-      "NATURAL_MATERIALS",
-      "ART",
-      "COOKING",
-      "ROLE_PLAY",
-      "BLOCKS",
-      "PREPARATION",
-      "AREA",
+    expect(r.map((x) => x.label)).toEqual([
+      "Sentra Ibadah",
+      "Sentra Bahan Alam",
+      "Sentra Seni",
+      "Sentra Memasak",
+      "Sentra Main Peran",
+      "Sentra Balok",
+      "Sentra Persiapan",
+      "Sentra Area",
     ]);
     expect(r.every((x) => x.entries === 0 && x.studentsAssessed === 0)).toBe(true);
   });
@@ -91,10 +91,20 @@ describe("aggregateSentra (pure)", () => {
       { center: "ART", studentId: "s3" },
       { center: null, studentId: "s4" }, // defensive: skipped
     ]);
-    const worship = r.find((x) => x.center === "WORSHIP")!;
-    const art = r.find((x) => x.center === "ART")!;
+    const worship = r.find((x) => x.label === "Sentra Ibadah")!;
+    const art = r.find((x) => x.label === "Sentra Seni")!;
     expect(worship).toMatchObject({ entries: 3, studentsAssessed: 2 });
     expect(art).toMatchObject({ entries: 1, studentsAssessed: 1 });
+  });
+
+  it("groups by sentra name when the entry has one, appending non-legacy sentra", () => {
+    const r = aggregateSentra([
+      { center: "WORSHIP", sentra: { name: "Ibadah" }, studentId: "s1" },
+      { center: null, sentra: { name: "Makro" }, studentId: "s2" },
+      { center: null, sentra: { name: "Makro" }, studentId: "s3" },
+    ]);
+    expect(r.find((x) => x.label === "Sentra Ibadah")).toMatchObject({ entries: 1 });
+    expect(r.at(-1)).toEqual({ label: "Sentra Makro", entries: 2, studentsAssessed: 2 });
   });
 });
 
@@ -130,7 +140,7 @@ describe("loadPenilaianMonitor (integration)", () => {
     expect(r.walas).toEqual([
       { classSectionId: "c1", className: "TK A1", programName: "TKIT", enrolled: 2, assessed: 1 },
     ]);
-    expect(r.sentra.find((x) => x.center === "WORSHIP")).toMatchObject({ entries: 1, studentsAssessed: 1 });
+    expect(r.sentra.find((x) => x.label === "Sentra Ibadah")).toMatchObject({ entries: 1, studentsAssessed: 1 });
   });
 
   it("skips the homeroom query and returns null week when no active week", async () => {

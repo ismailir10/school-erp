@@ -24,11 +24,11 @@ const twoClasses = [
   { id: "ta-2", classSection: { id: "class-2", name: "TKIT-A", program: { name: "TKIT" } } },
 ];
 
+const fetchMock = vi.fn();
 function mockAssignments(data: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => Promise.resolve({ ok: true, json: async () => data })),
-  );
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(() => Promise.resolve({ ok: true, json: async () => data }));
+  vi.stubGlobal("fetch", fetchMock);
 }
 
 describe("StudentJournalPickerPage", () => {
@@ -47,6 +47,42 @@ describe("StudentJournalPickerPage", () => {
     const target = nav.replace.mock.calls[0][0] as string;
     expect(target).toContain("/teacher/student-journal/entry?classId=class-1");
     expect(target).toMatch(/date=\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("loads classes from the journal endpoint for the requested date", async () => {
+    nav.params = new URLSearchParams("date=2026-08-03");
+    mockAssignments(twoClasses);
+    render(<PickerPage />);
+
+    await screen.findByText("Pilih kelas dan tanggal");
+    expect(fetchMock).toHaveBeenCalledWith("/api/student-journal/classes?date=2026-08-03");
+  });
+
+  it("preselects today's sentra class and labels it with the sentra", async () => {
+    mockAssignments([
+      { id: "ta-1", access: "ASSIGNED", classSection: { id: "class-1", name: "TK A 3", status: "ACTIVE", academicYear: { status: "ACTIVE" }, program: { name: "TK" } } },
+      { id: "class-2", access: "SENTRA", todaySentraName: "Balok", classSection: { id: "class-2", name: "TK B 4", status: "ACTIVE", academicYear: { status: "ACTIVE" }, program: { name: "TK" } } },
+    ]);
+    render(<PickerPage />);
+
+    const trigger = await screen.findByRole("combobox", { name: "Kelas" });
+    expect(trigger).toHaveTextContent("TK B 4 — TK · Sentra Balok (hari ini)");
+    fireEvent.click(screen.getByRole("button", { name: /Isi Buku Penghubung/ }));
+    expect(nav.push).toHaveBeenCalledWith(expect.stringContaining("classId=class-2"));
+  });
+
+  it("marks a sentra-only class as via sentra when it is not today's", async () => {
+    mockAssignments([
+      { id: "ta-1", access: "ASSIGNED", classSection: { id: "class-1", name: "TK A 3", status: "ACTIVE", academicYear: { status: "ACTIVE" }, program: { name: "TK" } } },
+      { id: "class-2", access: "SENTRA", classSection: { id: "class-2", name: "TK B 4", status: "ACTIVE", academicYear: { status: "ACTIVE" }, program: { name: "TK" } } },
+    ]);
+    render(<PickerPage />);
+
+    const trigger = await screen.findByRole("combobox", { name: "Kelas" });
+    expect(trigger).toHaveTextContent("TK A 3");
+    const user = userEvent.setup();
+    await user.click(trigger);
+    expect(await screen.findByRole("option", { name: "TK B 4 — TK · via sentra" })).toBeInTheDocument();
   });
 
   it("keeps the form for a teacher who has a real choice to make", async () => {

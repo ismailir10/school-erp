@@ -55,7 +55,7 @@ describe("POST /entries/batch bound", () => {
     mocks.indicatorFindMany.mockResolvedValue(entries(JOURNAL_BATCH_MAX_ENTRIES).map((e) => ({ id: e.indicatorId })));
     const res = await POST(req({ classSectionId: "c1", date: "2026-09-29", entries: entries(JOURNAL_BATCH_MAX_ENTRIES) }));
     expect(res.status).toBe(200);
-    expect(mocks.guard).toHaveBeenCalledWith("c1");
+    expect(mocks.guard).toHaveBeenCalledWith("c1", { viaSentra: true });
     expect(mocks.rateLimit).toHaveBeenCalledWith("sj-teacher-u1", 300, 60_000);
     expect(mocks.upsert).toHaveBeenCalledTimes(1);
   });

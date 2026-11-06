@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
+> Last audited: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -151,6 +151,24 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Publish gate is per-student inside the loop — the button is always enabled; the upfront warning only informs the operator of the scope of incomplete students.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
+### JTBD-TEACHER-ASSESS-03 — Record Sentra Harian from her own sentra
+- **Persona:** Bu Sari as guru sentra
+- **Role:** TEACHER
+- **Preconditions:** Guru sentra of Sentra Balok; an active curriculum week with IKTP for today; a weekday for the "hari ini" default
+- **Steps:**
+  1. Open Penilaian (`/teacher/assessments`); under **Sentra harian** the first tile is her own sentra with the badge **Sentra saya** (and "Hari ini: <kelas>")
+  2. Open it; the heading reads Sentra Balok and the **Kelas** switcher defaults to the class visiting today, marked "(hari ini)"; Semua TK A / Semua TK B stay available
+  3. Fill **Kegiatan**, pick an IKTP, set a level for a child and tap **Simpan**
+  4. Reload: the level is still set
+  5. As the admin, open Penilaian (`/admin/assessments`): the Sentra Harian section lists Sentra Balok
+- **Done when:** The entry is stored under the sentra, the roster started on today's class, and the admin monitor, parent view and raport show "Sentra Balok"; entries recorded before the sentra list existed keep their old label.
+- **Why this job matters:** Every sentra, including Makro, Mikro and I Love Islam, can now be assessed under its own name by its own guru.
+- **Expected perf:** tiles <1.5s; Simpan settles in <2s.
+- **Error scenarios to verify:**
+  - A sentra of another campus in the URL → not found
+  - Weekend or a date with no active week → read-only notice or "Belum ada pekan aktif untuk tanggal ini", no Simpan
+- **Known friction (from last UAT):** <filled by /uat reports>
+
 ---
 
 ## Area: own-attendance
@@ -299,6 +317,25 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Error scenarios to verify:**
   - Tap edit/delete on a parent's note → CTAs absent (client-side guard in `NoteThread`); same caveat as JTBD-PARENT-JOURNAL-03 — API does not independently 403 today
   - Note with very long body (1500+ chars) → wraps cleanly in the thread, no horizontal scroll on 375px
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-TEACHER-JOURNAL-05 — Fill Buku Penghubung for today's sentra class
+- **Persona:** Bu Sari as guru sentra (seed: u_teacher owns Sentra Balok and is Walas TKIT A)
+- **Role:** TEACHER
+- **Preconditions:**
+  - The admin set her as guru sentra and the campus has an active putaran with her sentra on a school day
+  - A weekday; the class visiting her sentra is not necessarily a class she is assigned to
+- **Steps:**
+  1. Open Jurnal (`/teacher/student-journal?pick=1`); the **Kelas** list shows the visiting class as "TKIT B — TK · Sentra Balok (hari ini)" and preselects it; other putaran classes read "via sentra"
+  2. Tap **Isi Buku Penghubung**, open a child and tick an indicator; the save status reads "Jurnal tersimpan"
+  3. Reload: the tick is still there
+  4. On Beranda the same class appears with a "Sentra Balok · hari ini" badge and its journal progress
+- **Done when:** She can tick, add a catatan, set a Hari tanpa buku penghubung and open a child's week for every class in her putaran, on any date; on a weekend or with no putaran the picker behaves as before and shows no "hari ini". A guru with neither an assignment nor a sentra in the class's putaran gets 403 from the journal API.
+- **Why this job matters:** Classes move between rooms, so the guru in the room, not the walas, is the one holding the book that day.
+- **Expected perf:** picker <1.5s; each tick saves in <800ms.
+- **Error scenarios to verify:**
+  - `GET /api/student-journal/class-grid` for a class outside her assignments and putaran → 403
+  - A Nonaktif putaran grants no access
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

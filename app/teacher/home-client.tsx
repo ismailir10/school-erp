@@ -40,12 +40,15 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const [canRetry,setCanRetry]=useState(true);
   const [saved,setSaved]=useState(false);
   const [locationMessage,setLocationMessage]=useState<string|null>(null);
-  const primary=classes.find(c => c.rosterCount > 0 && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount || !c.journal?.completed)) ?? classes[0];
+  // Attendance is assignment-only: a sentra-only card never asks for it.
+  const attendanceOpen=(c:TeacherClassSummary)=>!c.sentraOnly && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount);
+  const primary=classes.find(c => c.rosterCount > 0 && (attendanceOpen(c) || !c.journal?.completed)) ?? classes[0];
   const dateLabel=formatDate(today,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   const classHref=(id:string,journey:"attendance"|"journal")=>`/teacher/${journey==="attendance"?"class-attendance":"student-journal/entry"}?classId=${encodeURIComponent(id)}&date=${today}`;
-  const needsAttendance=primary && (primary.attendanceRecorded===null || primary.attendanceRecorded<primary.rosterCount);
+  const needsAttendance=primary && attendanceOpen(primary);
   const needsJournal=primary && (!primary.journal || !primary.journal.completed);
   const primaryHref=primary ? classHref(primary.id,needsAttendance?"attendance":"journal") : "";
+  const sentraBadge=(c:TeacherClassSummary)=>c.sentraTag?<span className="rounded-full bg-primary/10 px-2 py-0.5 text-small font-semibold text-primary-text" data-testid="sentra-tag">{c.sentraTag} · hari ini</span>:null;
   const primaryLabel=primary ? needsAttendance ? primary.attendanceRecorded===null ? "Buka absensi kelas" : `Lanjutkan absensi · ${primary.attendanceRecorded}/${primary.rosterCount}`
     : needsJournal ? "Lanjutkan jurnal harian" : "Periksa jurnal harian" : "";
   const replyRows=[...new Map(classes.flatMap(c=>(c.replies??[]).map(reply=>[reply.studentId,{...reply,className:c.name}] as const))).values()];
@@ -99,26 +102,26 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     {classesUnavailable ? <EmptyState icon={Users} title="Kelas belum bisa dimuat" description="Periksa koneksi dan coba lagi." actionLabel="Coba lagi" onAction={()=>router.refresh()}/> : primary ? (
       <Card className="gap-4 border-primary/20 bg-secondary p-card" data-testid="current-class">
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-small font-semibold text-muted-foreground">Kelas hari ini</p>{primary.slot?<span className="text-small font-semibold text-primary-text">{SLOT_LABEL[primary.slot]??primary.slot}</span>:null}</div>
-        <div><h2 className="text-h1 font-bold tracking-tight">{primary.name}</h2><p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
+        <div><h2 className="text-h1 font-bold tracking-tight">{primary.name}</h2>{sentraBadge(primary)}<p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
         {primary.rosterCount>0?<Button nativeButton={false} role="link" render={<Link href={primaryHref}/>} className="h-auto min-h-11 w-full whitespace-normal py-3"><ClipboardList aria-hidden="true"/>{primaryLabel}</Button>:<EmptyState icon={Users} title="Belum ada siswa" description="Minta admin menambahkan siswa ke kelas ini."/>}
       </Card>
     ):<EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas."/>}
     {classes.length > 0 ? <section aria-labelledby="class-tasks">
       <h2 id="class-tasks" className="mb-3 text-h2">Yang perlu diselesaikan</h2>
       <TaskList>
-        {classes.filter(c => c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount).map(c =>
+        {classes.filter(attendanceOpen).map(c =>
           <TaskRow key={`attendance-${c.id}`} title={`Absensi ${c.name}`} description={c.attendanceRecorded === null ? "Data belum tersedia · buka untuk mencoba lagi" : `${c.attendanceRecorded} dari ${c.rosterCount} siswa tercatat`} meta="Buka" href={classHref(c.id,"attendance")} icon={<CalendarDays className="size-5"/>}/>
         )}
         {classes.filter(c => !c.journal?.completed).map(c =>
-          <TaskRow key={`journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={!c.journal ? "Data belum tersedia · buka untuk mencoba lagi" : !c.journal.configured ? "Indikator sekolah belum disiapkan. Hubungi admin." : `${c.journal.completeStudents} dari ${c.journal.totalStudents} siswa lengkap${c.journal.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Buka" href={classHref(c.id,"journal")} icon={<BookHeart className="size-5"/>} tone="warm"/>
+          <TaskRow key={`journal-${c.id}`} title={`Jurnal harian ${c.name}${c.sentraTag?` · ${c.sentraTag}`:""}`} description={!c.journal ? "Data belum tersedia · buka untuk mencoba lagi" : !c.journal.configured ? "Indikator sekolah belum disiapkan. Hubungi admin." : `${c.journal.completeStudents} dari ${c.journal.totalStudents} siswa lengkap${c.journal.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Buka" href={classHref(c.id,"journal")} icon={<BookHeart className="size-5"/>} tone="warm"/>
         )}
         <TaskRow title="Buka penilaian" description={homeroomClassSectionName ? `Penilaian pekanan · ${homeroomClassSectionName}` : "Pilih penilaian kelas atau sentra"} href={homeroomClassSectionName ? "/teacher/assessments/weekly" : "/teacher/assessments"} icon={<ClipboardList className="size-5"/>} tone="purple"/>
       </TaskList>
-      {classes.some(c => c.rosterCount > 0 && (c.attendanceRecorded === c.rosterCount || c.journal?.completed)) ? <Collapsible className="mt-3">
+      {classes.some(c => c.rosterCount > 0 && ((!c.sentraOnly && c.attendanceRecorded === c.rosterCount) || c.journal?.completed)) ? <Collapsible className="mt-3">
         <CollapsibleTrigger render={<Button variant="ghost" className="min-h-11"/>}>Pekerjaan yang sudah tersimpan</CollapsibleTrigger>
         <CollapsibleContent>
         <TaskList>
-          {classes.filter(c => c.rosterCount > 0 && c.attendanceRecorded === c.rosterCount).map(c => <TaskRow key={`saved-attendance-${c.id}`} title={`Absensi ${c.name}`} description={`${c.rosterCount} siswa sudah tercatat`} meta="Periksa" href={classHref(c.id,"attendance")} icon={<CheckCircle2 className="size-5"/>}/>) }
+          {classes.filter(c => !c.sentraOnly && c.rosterCount > 0 && c.attendanceRecorded === c.rosterCount).map(c => <TaskRow key={`saved-attendance-${c.id}`} title={`Absensi ${c.name}`} description={`${c.rosterCount} siswa sudah tercatat`} meta="Periksa" href={classHref(c.id,"attendance")} icon={<CheckCircle2 className="size-5"/>}/>) }
           {classes.filter(c => c.journal?.completed).map(c => <TaskRow key={`saved-journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={c.journal?.dayMarkReason ? `Hari tanpa buku penghubung · ${c.journal.dayMarkReason}` : `${c.journal?.completeStudents??c.rosterCount} siswa lengkap${c.journal?.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Periksa" href={classHref(c.id,"journal")} icon={<CheckCircle2 className="size-5"/>}/>) }
         </TaskList>
         </CollapsibleContent>

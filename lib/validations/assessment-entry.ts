@@ -109,8 +109,8 @@ export const assessmentEntryVoidSchema = z.object({
 /**
  * Sentra (center) session schema — C5/T1.
  *
- * One sentra teacher fills one session per (center × date × ageGroup):
- * shared `center` + `activity` text, plus a list of per-(student, indicator)
+ * One sentra teacher fills one session per (sentra × date × ageGroup):
+ * shared `sentraId` + `activity` text, plus a list of per-(student, indicator)
  * level + note rows. The route handler upserts each row with
  * `source: "CENTER"` against the C4 AssessmentEntry table.
  *
@@ -121,7 +121,7 @@ export const MAX_CENTER_SESSION_ENTRIES = 80;
 
 export const assessmentEntryCenterSessionSchema = z
   .object({
-    center: learningCenterSchema,
+    sentraId: z.string().min(1, "Sentra wajib dipilih"),
     date: ymdSchema,
     // Required when there are entries; allowed empty when entries=[] so the
     // route's no-op audit branch can record "sentra teacher reviewed but

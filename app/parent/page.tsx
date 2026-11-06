@@ -22,7 +22,7 @@ import { prisma } from "@/lib/db";
 import {
   formatDate,
   formatCurriculumElement,
-  formatLearningCenter,
+  formatEntrySentra,
 } from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
@@ -416,8 +416,8 @@ export default async function ParentDashboard() {
                           <div className="min-w-0 flex-1">
                             <p className="text-xs text-muted-foreground">
                               {formatCurriculumElement(entry.element)}
-                              {entry.source === "CENTER" && entry.center && (
-                                <> · {formatLearningCenter(entry.center)}</>
+                              {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
+                                <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
                               )}
                             </p>
                             <p className="line-clamp-2 text-xs text-foreground">

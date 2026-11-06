@@ -8,7 +8,15 @@ import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
 import { getDayMark } from "@/lib/student-journal/day-marks";
 import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { minutesLate } from "@/lib/attendance/status";
+import { getTeacherSentraToday } from "@/lib/sentra/access";
+import { sentraLabel } from "@/lib/sentra/rotation";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
+
+// One include for assigned and sentra-visiting classes so both get the same summary.
+const classSectionInclude = (today: string) => ({
+  sessions:{where:{date:today},select:{id:true}},
+  enrollments:{where:{status:"ACTIVE" as const},select:{studentId:true,student:{select:{name:true,nickname:true}}}},
+});
 
 export default async function TeacherHome() {
   const session = await getSession();
@@ -17,11 +25,11 @@ export default async function TeacherHome() {
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Jakarta", hour:"2-digit", hourCycle:"h23"}).format(now));
   const greeting = hour < 12 ? "pagi" : hour < 15 ? "siang" : hour < 18 ? "sore" : "malam";
-  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult, leaveResult, orgResult] = await Promise.allSettled([
+  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult, leaveResult, orgResult, sentraResult] = await Promise.allSettled([
     session.employeeId ? prisma.attendanceRecord.findUnique({where:{employeeId_date:{employeeId:session.employeeId,date:today}}}) : Promise.resolve(null),
     session.employeeId && session.tenantId ? prisma.teachingAssignment.findMany({
       where:{employeeId:session.employeeId,classSection:{tenantId:session.tenantId,status:"ACTIVE",academicYear:{status:"ACTIVE"}}},
-      include:{classSection:{include:{sessions:{where:{date:today},select:{id:true}},enrollments:{where:{status:"ACTIVE"},select:{studentId:true,student:{select:{name:true,nickname:true}}}}}}},
+      include:{classSection:{include:classSectionInclude(today)}},
       orderBy:{classSection:{name:"asc"}},
     }) : Promise.resolve([]),
     session.employeeId && session.tenantId ? prisma.classSession.findMany({
@@ -39,14 +47,28 @@ export default async function TeacherHome() {
     }) : Promise.resolve([]),
     // Only to say how late a LATE check-in was (R2-T-3); a failed lookup just drops the number.
     session.tenantId ? prisma.orgConfig.findUnique({where:{tenantId:session.tenantId},select:{workStartTime:true,timezone:true}}) : Promise.resolve(null),
+    // Today's sentra class(es) for a guru sentra; a failure here only drops the extra cards.
+    session.employeeId && session.tenantId ? getTeacherSentraToday(session.employeeId, session.tenantId, today) : Promise.resolve([]),
   ]);
   // A failed lookup only hides this heads-up; it must never take the home page down.
   const leaveDecisions = leaveResult.status === "fulfilled" ? toLeaveDecisions(leaveResult.value, now) : [];
   const assignments = assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
   const sessions = sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
   const indicatorIds = indicatorsResult.status === "fulfilled" ? indicatorsResult.value.map(i=>i.id) : null;
-  const classes: TeacherClassSummary[] = await Promise.all(assignments.map(async assignment=>{
-    const section = assignment.classSection;
+  // Today's sentra classes: tag the ones she already has, load the rest (same tenant/active filters as assignments).
+  const sentraToday = sentraResult.status === "fulfilled" ? sentraResult.value : [];
+  const sentraTagByClass = new Map(sentraToday.map(t=>[t.classSectionId, sentraLabel(t.sentraName)]));
+  const assignedIds = new Set(assignments.map(a=>a.classSectionId));
+  const extraIds = [...sentraTagByClass.keys()].filter(id=>!assignedIds.has(id));
+  let sentraSections: Awaited<ReturnType<typeof loadSentraSections>> = [];
+  if (extraIds.length > 0 && session.tenantId) {
+    try { sentraSections = await loadSentraSections(extraIds, session.tenantId, today); } catch { sentraSections = []; }
+  }
+  const entries = [
+    ...assignments.map(a=>({section:a.classSection,isHomeroom:a.role==="HOMEROOM",sentraOnly:false})),
+    ...sentraSections.map(section=>({section,isHomeroom:false,sentraOnly:true})),
+  ];
+  const classes: TeacherClassSummary[] = await Promise.all(entries.map(async ({section,isHomeroom,sentraOnly})=>{
     const studentIds = section.enrollments.map(e=>e.studentId);
     const [attendance, journal, replies, dayMark] = await Promise.allSettled([
       prisma.studentAttendance.findMany({where:{classSectionId:section.id,date:today,isVoided:false,studentId:{in:studentIds}},select:{studentId:true,sessionId:true,status:true},orderBy:[{createdAt:"desc"},{id:"desc"}]}),
@@ -60,7 +82,7 @@ export default async function TeacherHome() {
     const absentIds = attendance.status==="fulfilled"
       ? [...classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).values()].filter(r=>isJournalAbsentStatus(r.status)).map(r=>r.studentId) : [];
     const slots = sessions.filter(s=>s.classSectionId===section.id).sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
-    return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom:assignment.role === "HOMEROOM",slot:slots[0]?.slot ?? null,
+    return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom,sentraTag:sentraTagByClass.get(section.id),sentraOnly,slot:slots[0]?.slot ?? null,
       attendanceRecorded:attendance.status==="fulfilled" ? classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).size : null,
       journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value,excludedStudentIds:absentIds,dayMarkReason}) : null,
       replies:replies.status==="fulfilled" ? section.enrollments.filter(e=>(replies.value[e.studentId]??0)>0).map(e=>({studentId:e.studentId,studentName:e.student.nickname || e.student.name,count:replies.value[e.studentId]})) : null,
@@ -76,4 +98,11 @@ export default async function TeacherHome() {
     sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes}
     leaveDecisions={leaveDecisions} homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
     todaySessions={sessions.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour)).map(s=>({id:s.id,slot:s.slot,className:s.classSection.name,rosterCount:s.classSection._count.enrollments}))} />;
+}
+
+function loadSentraSections(ids: string[], tenantId: string, today: string) {
+  return prisma.classSection.findMany({
+    where:{id:{in:ids},tenantId,status:"ACTIVE",academicYear:{status:"ACTIVE"}},
+    include:classSectionInclude(today),orderBy:{name:"asc"},
+  });
 }

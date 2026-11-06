@@ -1,3 +1,5 @@
+import { sentraLabel } from "@/lib/sentra/rotation";
+
 const NUMBER_FORMATTERS = new Map<number | undefined, Intl.NumberFormat>();
 
 /**
@@ -280,6 +282,19 @@ const LEARNING_CENTER_LABELS: Record<LearningCenterKey, string> = {
 
 export function formatLearningCenter(center: string): string {
   return LEARNING_CENTER_LABELS[center as LearningCenterKey] ?? center;
+}
+
+/**
+ * Label for where a CENTER entry was recorded: the campus Sentra name when the
+ * entry carries one, else the legacy fixed-list label, else a dash.
+ */
+export function formatEntrySentra(entry: {
+  sentra?: { name: string } | null;
+  center?: string | null;
+}): string {
+  if (entry.sentra?.name) return sentraLabel(entry.sentra.name);
+  if (entry.center) return formatLearningCenter(entry.center);
+  return "—";
 }
 
 export const ALL_LEARNING_CENTERS: ReadonlyArray<LearningCenterKey> = [

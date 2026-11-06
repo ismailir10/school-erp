@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const db = vi.hoisted(() => ({
   studentAttendance: { findUnique: vi.fn() },
   teachingAssignment: { findFirst: vi.fn() },
+  sentraRotationClass: { findFirst: vi.fn().mockResolvedValue(null) },
 }));
 const auth = vi.hoisted(() => ({ getSession: vi.fn() }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
@@ -50,6 +51,7 @@ describe("GET /api/student-attendance/[id]", () => {
         classSectionId: "class-1",
         classSection: { tenantId: "tenant-a" },
       },
+      select: { id: true },
     });
   });
 
