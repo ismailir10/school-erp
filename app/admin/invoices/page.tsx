@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { invoiceCapabilities } from "@/lib/finance/invoice-capabilities";
 import { getGateway } from "@/lib/payments/registry";
 import { INVOICE_LIST_STATUS_VALUES } from "@/lib/constants/invoice-status";
 import { InvoicesClient } from "./invoices-client";
+
+export const metadata: Metadata = { title: "Tagihan" };
 
 /**
  * Server wrapper — the invoices list is entirely client-rendered

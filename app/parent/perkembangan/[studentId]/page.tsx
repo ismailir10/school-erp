@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -22,6 +23,8 @@ import { LevelLegend } from "@/components/parent/level-legend";
 import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { ContextStrip } from "@/components/portal/context-strip";
 import { parentHref } from "@/lib/parent/navigation";
+
+export const metadata: Metadata = { title: "Perkembangan" };
 
 export default async function ParentPerkembanganDetailPage({
   params,

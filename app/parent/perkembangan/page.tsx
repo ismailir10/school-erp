@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { LineChart } from "lucide-react";
@@ -6,6 +7,8 @@ import { PageHeader } from "@/components/portal/page-header";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { resolveParentChildId } from "@/lib/parent/navigation";
+
+export const metadata: Metadata = { title: "Perkembangan" };
 
 export default async function ParentPerkembanganListPage({ searchParams }: {
   searchParams: Promise<{ child?: string }>;

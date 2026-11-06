@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { classroomAttendanceByStudent } from "@/lib/teacher/classroom-attendance";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,6 +10,8 @@ import { getDayMark } from "@/lib/student-journal/day-marks";
 import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { minutesLate } from "@/lib/attendance/status";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
+
+export const metadata: Metadata = { title: "Beranda" };
 
 export default async function TeacherHome() {
   const session = await getSession();

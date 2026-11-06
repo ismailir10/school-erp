@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -5,6 +6,8 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getVisibleAdminNav } from "@/config/admin-nav";
+
+export const metadata: Metadata = { title: "Pengaturan" };
 
 export default async function AdminSettingsPage() {
   const session = await getSession();

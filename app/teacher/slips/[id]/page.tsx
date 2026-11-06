@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
@@ -10,6 +11,8 @@ import { BackLink } from "@/components/portal/back-link";
 import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
 import { formatPeriodRange, periodMonthLabel } from "../helpers";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+
+export const metadata: Metadata = { title: "Slip Gaji" };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

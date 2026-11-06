@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { ClassDetailClient } from "./client";
+
+export const metadata: Metadata = { title: "Detail Kelas" };
 
 // Admin Kelas detail — the consolidated per-class hub that mirrors the old
 // /admin/class-sections/[id] surface and folds in roster + teaching

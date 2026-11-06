@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -12,6 +13,8 @@ import {
   ALL_LEARNING_CENTERS,
   formatLearningCenter,
 } from "@/lib/format";
+
+export const metadata: Metadata = { title: "Penilaian" };
 
 export default async function TeacherAssessmentsPage() {
   const session = await getSession();

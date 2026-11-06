@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
@@ -13,6 +14,8 @@ import { loadReceivables } from "@/lib/dashboard/receivables";
 import { getRecentActivity } from "@/lib/dashboard/activity-feed";
 import { buildAdminWorkQueue, rankUrgent, summarizeQueue, canViewAdminActivity } from "@/lib/dashboard/admin-work-queue";
 import { loadAdminQueueSources } from "@/lib/dashboard/queue-sources";
+
+export const metadata: Metadata = { title: "Dasbor" };
 
 export default async function AdminDashboard() {
   const session = await getSession();

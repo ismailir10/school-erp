@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { ThemesClient } from "./client";
+
+export const metadata: Metadata = { title: "Tema Semester" };
 
 /**
  * Theme / SubTheme / Week authoring page for a single Semester.

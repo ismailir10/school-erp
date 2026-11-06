@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { ClipboardList } from "lucide-react";
@@ -8,6 +9,8 @@ import {
   ALL_LEARNING_CENTERS,
 } from "@/lib/format";
 import { CenterSessionClient } from "./client";
+
+export const metadata: Metadata = { title: "Penilaian" };
 
 const VALID_CENTERS = new Set<string>(ALL_LEARNING_CENTERS);
 

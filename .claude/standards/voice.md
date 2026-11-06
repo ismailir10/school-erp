@@ -142,6 +142,10 @@ Expand on **first use per surface**, then abbreviate freely. `IKTP` reads as noi
 
 **The word on the tab is the word on the page.** A user who taps "Kelas" and lands on "Absensi Kelas" has to re-derive where they are; one who taps "Capaian" and lands on "Perkembangan" cannot build a map of the product at all. When a nav slot is too narrow for the full title, shorten the *title* too, or use the short form in both places — never let them diverge.
 
+### Browser-tab title
+
+**Every routable page sets its own title**, shown as `<Halaman> · Talib` (e.g. `Siswa · Talib`). The bare "Talib — by An Nisaa' Sekolahku" is only the fallback for the login screen: on any other page it makes every open tab, bookmark and history entry look identical. Use the page's nav label or `PageHeader` title; detail pages say `Detail <benda>` (`Detail Siswa`). A server `page.tsx` exports `metadata = { title: "Kelas" }`. A `"use client"` page cannot, so give its folder a `layout.tsx` with `export const metadata = pageTitle("Siswa")` from `lib/page-title.ts` — never a plain string there, which drops the ` · Talib` suffix from nested routes. `app/__tests__/page-titles.test.ts` fails on any page without one.
+
 ### Never render a caught error
 
 Raw `err.message`, vendor payloads (Xendit, DOKU), Prisma model names, HTTP status text, and Zod defaults are **log-only**. Every user-visible error is written by us, in Indonesian, and names a next action. Route caught errors through a translate-or-generic-fallback helper — the `userMessage()` pattern in `lib/api/client-errors.ts` is the model. A clean Indonesian prefix with a raw English message spliced onto the end is still a leak.

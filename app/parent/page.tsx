@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentAttendanceStatus, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -30,6 +31,8 @@ import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
+
+export const metadata: Metadata = { title: "Beranda" };
 
 const JAKARTA_TZ = "Asia/Jakarta";
 

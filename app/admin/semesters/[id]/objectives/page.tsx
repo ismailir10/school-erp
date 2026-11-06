@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { ObjectivesClient } from "./client";
+
+export const metadata: Metadata = { title: "Tujuan Pembelajaran" };
 
 /**
  * Tujuan Pembelajaran (TP) + Indikator Ketercapaian (IKTP) + theme-link
