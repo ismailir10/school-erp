@@ -162,7 +162,7 @@ describe("assessmentEntryUpdateSchema", () => {
 
 describe("assessmentEntryCenterSessionSchema", () => {
   const baseSession = {
-    center: "WORSHIP" as const,
+    sentraId: "sentra_1",
     date: "2026-05-14",
     activity: "Doa pagi + asmaul husna",
     entries: [
@@ -187,8 +187,8 @@ describe("assessmentEntryCenterSessionSchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it("rejects when center is missing", () => {
-    const { center: _ignored, ...without } = baseSession;
+  it("rejects when sentraId is missing", () => {
+    const { sentraId: _ignored, ...without } = baseSession;
     const r = assessmentEntryCenterSessionSchema.safeParse(without);
     expect(r.success).toBe(false);
   });
@@ -233,10 +233,10 @@ describe("assessmentEntryCenterSessionSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects malformed center value", () => {
+  it("rejects an empty sentraId", () => {
     const r = assessmentEntryCenterSessionSchema.safeParse({
       ...baseSession,
-      center: "FOO",
+      sentraId: "",
     });
     expect(r.success).toBe(false);
   });

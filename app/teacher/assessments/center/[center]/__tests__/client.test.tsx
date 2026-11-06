@@ -13,7 +13,7 @@ import { CenterSessionClient } from "../client";
 
 const session = (writable = true) => ({
   week: { id: "week-1", number: 3, subTheme: { name: "Aku" }, theme: { name: "Diriku" } },
-  center: "WORSHIP",
+  sentra: { id: "sentra-1", name: "Ibadah" },
   date: "2026-08-03",
   ageGroup: "A",
   students: [{ id: "student-1", name: "Aisyah", nickname: null, status: "ACTIVE" }],
@@ -26,7 +26,7 @@ const session = (writable = true) => ({
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 
 function renderClient() {
-  return render(<CenterSessionClient center="WORSHIP" centerLabel="Sentra Ibadah" />);
+  return render(<CenterSessionClient sentraId="sentra-1" centerLabel="Sentra Ibadah" />);
 }
 
 function deferred<T>() {

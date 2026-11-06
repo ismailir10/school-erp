@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { DISPLAY_TIME_ZONE, formatLearningCenter, formatDate } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, formatDate } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
@@ -23,7 +23,7 @@ type WalasRow = {
   enrolled: number;
   assessed: number;
 };
-type SentraRow = { center: string; entries: number; studentsAssessed: number };
+type SentraRow = { label: string; entries: number; studentsAssessed: number };
 type Monitor = {
   academicYear: string;
   weekDate: string;
@@ -199,8 +199,8 @@ export default function AdminPenilaianPage() {
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {data.sentra.map((row) => (
-                <Card key={row.center} className="p-card">
-                  <p className="text-sm font-semibold mb-1">{formatLearningCenter(row.center)}</p>
+                <Card key={row.label} className="p-card">
+                  <p className="text-sm font-semibold mb-1">{row.label}</p>
                   <p className="text-xs text-muted-foreground font-currency">
                     {row.entries} entri · {row.studentsAssessed} siswa dinilai
                   </p>

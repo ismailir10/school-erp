@@ -8,7 +8,7 @@ import {
   parseJakartaYmd,
   formatJakartaYmd,
 } from "@/lib/validations/curriculum";
-import { learningCenterSchema } from "@/lib/validations/assessment-entry";
+import { rotationDayIndex } from "@/lib/sentra/rotation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -27,21 +27,65 @@ export async function GET(
     );
   }
 
-  const { center: centerParam } = await params;
-  const centerParsed = learningCenterSchema.safeParse(
-    centerParam.toUpperCase(),
-  );
-  if (!centerParsed.success) {
+  // The route segment is a Sentra id (campus table); tenant-checked, 404 otherwise.
+  // Tiles are the guru's own campus (Decision 8), and only ACTIVE sentra show.
+  // Admin-role readers keep the tenant boundary but skip the campus pin.
+  const { center: sentraId } = await params;
+  let campusId: string | null = null;
+  if (session.role === "TEACHER") {
+    const employee = await prisma.employee.findFirst({
+      where: { id: session.employeeId, tenantId: session.tenantId },
+      select: { campusId: true },
+    });
+    campusId = employee?.campusId ?? null;
+    if (!campusId) {
+      return NextResponse.json(
+        { error: "Sentra tidak dikenal." },
+        { status: 404 },
+      );
+    }
+  }
+  const sentra = await prisma.sentra.findFirst({
+    where: {
+      id: sentraId,
+      tenantId: session.tenantId,
+      status: "ACTIVE",
+      ...(campusId ? { campusId } : {}),
+    },
+    select: { id: true, name: true, legacyCenter: true, campusId: true },
+  });
+  if (!sentra) {
     return NextResponse.json(
       { error: "Sentra tidak dikenal." },
       { status: 404 },
     );
   }
-  const center = centerParsed.data;
 
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date") ?? getTodayInTimezone(JAKARTA_TZ);
-  const ageGroupParam = searchParams.get("ageGroup");
+  const classSectionIdParam = searchParams.get("classSectionId");
+  let ageGroupParam = searchParams.get("ageGroup");
+  if (classSectionIdParam) {
+    // A class view carries its own age group (indicators follow it), so the
+    // ageGroup query becomes optional and the class's value wins.
+    const cls = await prisma.classSection.findFirst({
+      where: {
+        id: classSectionIdParam,
+        tenantId: session.tenantId,
+        campusId: sentra.campusId,
+        status: "ACTIVE",
+        academicYear: { status: "ACTIVE" },
+      },
+      select: { id: true, ageGroup: true },
+    });
+    if (!cls) {
+      return NextResponse.json(
+        { error: "Kelas tidak ditemukan." },
+        { status: 404 },
+      );
+    }
+    ageGroupParam = cls.ageGroup;
+  }
   if (ageGroupParam !== "A" && ageGroupParam !== "B") {
     return NextResponse.json(
       { error: "ageGroup wajib bernilai A atau B." },
@@ -58,7 +102,7 @@ export async function GET(
         error:
           "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
         reason: "no_active_week",
-        center,
+        sentra: { id: sentra.id, name: sentra.name },
         date: dateParam,
         ageGroup,
       },
@@ -66,21 +110,18 @@ export async function GET(
     );
   }
 
-  // Roster: every ACTIVE student in the tenant whose ACTIVE enrolment is
-  // in a ClassSection with the requested ageGroup. Sentra rotation is
-  // deferred so we don't yet know which students rotate to which sentra
-  // session — caller-side roster is the next-best fallback. Filtering on
-  // classSection.ageGroup happens in the DB query (schema column added
-  // 2026-05-20 in feat/curriculum-cutover-prep T1), not via name parsing.
+  // Roster: with `classSectionId`, the ACTIVE students enrolled in that class
+  // (the putaran's visiting class); otherwise every ACTIVE student in the
+  // tenant whose ACTIVE enrolment is in a ClassSection of the requested
+  // ageGroup. Filtering on classSection.ageGroup happens in the DB query, not
+  // via name parsing.
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
       student: { tenantId: session.tenantId, status: "ACTIVE" },
-      classSection: {
-        tenantId: session.tenantId,
-        status: "ACTIVE",
-        ageGroup,
-      },
+      classSection: classSectionIdParam
+        ? { id: classSectionIdParam, tenantId: session.tenantId }
+        : { tenantId: session.tenantId, status: "ACTIVE", ageGroup },
     },
     select: {
       classSection: { select: { id: true, name: true } },
@@ -146,7 +187,15 @@ export async function GET(
             weekId: week.id,
             studentId: { in: studentIds },
             source: "CENTER",
-            center,
+            // Entries recorded before the Sentra table only carry the old enum.
+            ...(sentra.legacyCenter
+              ? {
+                  OR: [
+                    { sentraId: sentra.id },
+                    { sentraId: null, center: sentra.legacyCenter },
+                  ],
+                }
+              : { sentraId: sentra.id }),
             date: targetUtcMidnight,
           },
           select: {
@@ -166,6 +215,44 @@ export async function GET(
   const lastActivity =
     existingEntries.find((e) => e.activity)?.activity ?? null;
 
+  // Putaran info: which class visits this sentra on the requested date, and
+  // every class of a putaran that includes this sentra (for the switcher).
+  const rotations = await prisma.sentraRotation.findMany({
+    where: {
+      tenantId: session.tenantId,
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+      slots: { some: { sentraId: sentra.id } },
+    },
+    select: {
+      startDate: true,
+      cycleDays: true,
+      slots: {
+        where: { sentraId: sentra.id },
+        select: { dayIndex: true, classSectionId: true },
+      },
+      classes: {
+        orderBy: { sortOrder: "asc" },
+        select: { classSection: { select: { id: true, name: true } } },
+      },
+    },
+  });
+  let todayClassSectionId: string | null = null;
+  const rotationClasses: Array<{ id: string; name: string }> = [];
+  const seenClassIds = new Set<string>();
+  for (const r of rotations) {
+    for (const c of r.classes) {
+      if (seenClassIds.has(c.classSection.id)) continue;
+      seenClassIds.add(c.classSection.id);
+      rotationClasses.push({ id: c.classSection.id, name: c.classSection.name });
+    }
+    if (todayClassSectionId) continue;
+    const idx = rotationDayIndex(r.startDate, dateParam, r.cycleDays);
+    if (idx === null) continue;
+    todayClassSectionId =
+      r.slots.find((slot) => slot.dayIndex === idx)?.classSectionId ?? null;
+  }
+
   return NextResponse.json({
     week: {
       id: week.id,
@@ -178,7 +265,9 @@ export async function GET(
         name: week.subTheme.theme.name,
       },
     },
-    center,
+    sentra: { id: sentra.id, name: sentra.name },
+    todayClassSectionId,
+    rotationClasses,
     date: dateParam,
     ageGroup,
     students,
