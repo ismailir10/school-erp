@@ -474,7 +474,7 @@ export function formatJakartaYmd(d: Date): string {
   return getYmdInTimezone(d, JAKARTA_TZ);
 }
 
-type WeekDateRange = {
+export type WeekDateRange = {
   id: string;
   startDate: Date | string;
   endDate: Date | string;

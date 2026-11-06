@@ -83,6 +83,8 @@ No UAT report covers curriculum admin.
 - [ ] T6 README + docs/uat/jobs/admin.md + e2e — accept: Playwright local (deps: T3–T5)
 
 ## Implementation
+- **Plan:** driver claude-opus-5-5 (reasoning tier) does T1 (schema, migration, shared `lib/curriculum/age-scope.ts`), review and sign-off. T2+T4, T3 and T5 are delegated to claude-sonnet-5-5 subagents (dirty-work tier) in parallel. Doc/fixture sweeps go to claude-haiku-5-5.
+- **T1:** `Theme.ageGroup AgeGroup?`; migration `20261106000000_theme_age_group` adds the column and replaces the name unique index with `(tenantId, semesterId, ageGroup, name) NULLS NOT DISTINCT` (staging is Postgres 17). Tested on a disposable DB: old schema pushed, migration applied, `prisma migrate diff` against the new schema is empty. Seed passes.
 
 ## Verification
 
