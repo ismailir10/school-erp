@@ -149,7 +149,7 @@ Facts found in the code and the production data (read-only):
       accept: unit tests for every rule in Decisions 4–6. (deps: T1)
 - [x] T3 Admin API: sentra CRUD + putaran CRUD + grid save — accept: API tests for permission, validation, tenant
       scope. (deps: T2) ∥ T5, T6
-- [ ] T4 Admin UI `/admin/sentra` + putaran grid + nav entry — accept: flow 1 walkable. (deps: T3)
+- [x] T4 Admin UI `/admin/sentra` + putaran grid + nav entry — accept: flow 1 walkable. (deps: T3)
 - [ ] T5 Buku Penghubung access: guards use the shared helper, picker lists sentra classes with today's preselected —
       accept: guard tests + picker test; flow 2. (deps: T2) ∥ T3, T6
 - [ ] T6 Sentra Harian on campus sentra: tiles, roster default, POST writes sentra, readers label by sentra —
@@ -176,6 +176,11 @@ Facts found in the code and the production data (read-only):
   GET/POST/PATCH (no delete), options, putaran POST/GET/PATCH/DELETE, grid PUT (replace-all in a transaction; cells
   must be an ACTIVE sentra of the putaran's campus and a class of the putaran). Tenant-scoped 404s, `academic.view`
   read / `academic.edit` write, mutations rate-limited like the class routes.
+- T4: `app/admin/sentra/**`, `components/admin/sentra/**`, `config/admin-nav.ts` (+ tests) — Kesiswaan › Sentra after
+  Kelas; campus select, sentra table + dialog (checkbox list of the campus's guru, Aktif/Nonaktif instead of delete),
+  putaran table + create dialog; putaran detail with the day × class grid ("Pekan 1 · Senin"), duplicate-sentra and
+  nonaktif-cell warnings, save disabled while a nonaktif cell remains; read-only without `academic.edit`.
+  design-system.html cross-check is recorded under Verification.
 
 ## Verification
 

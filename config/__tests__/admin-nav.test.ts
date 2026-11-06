@@ -49,7 +49,7 @@ describe("adminNav IA — ordering + grouping", () => {
   it("students group covers the admission → guardian funnel + Kelas, in that order", () => {
     const group = adminNav.groups.find((g) => g.id === "students")!;
     expect(group.label).toBe("Kesiswaan");
-    expect(group.items.map((i) => i.label)).toEqual(["Pendaftaran", "Siswa", "Wali Murid", "Kelas"]);
+    expect(group.items.map((i) => i.label)).toEqual(["Pendaftaran", "Siswa", "Wali Murid", "Kelas", "Sentra"]);
     const pendaftaran = group.items.find((i) => i.label === "Pendaftaran")!;
     expect(pendaftaran.href).toBe("/admin/admissions");
     expect(pendaftaran.permission).toBe("admissions.view");
@@ -57,6 +57,9 @@ describe("adminNav IA — ordering + grouping", () => {
     const kelas = group.items.find((i) => i.label === "Kelas")!;
     expect(kelas.href).toBe("/admin/classes");
     expect(kelas.permission).toBe("academic.view");
+    const sentra = group.items.find((i) => i.label === "Sentra")!;
+    expect(sentra.href).toBe("/admin/sentra");
+    expect(sentra.permission).toBe("academic.view");
   });
 
   it("no standalone Akademik group — Kelas absorbed into Kesiswaan, Tahun Ajaran/Semester moved to the settings hub", () => {
@@ -92,7 +95,7 @@ describe("adminNav IA — ordering + grouping", () => {
     expect(group.items.map((i) => i.label)).toEqual(["Karyawan", "Kehadiran", "Pengajuan Cuti", "Penggajian"]);
   });
 
-  it("sidebar entry count is 16 (incl. Pengaturan) with every permission granted", () => {
+  it("sidebar entry count is 17 (incl. Pengaturan) with every permission granted", () => {
     const fullPermissions = [
       "admissions.view",
       "students.view",
@@ -110,7 +113,7 @@ describe("adminNav IA — ordering + grouping", () => {
       nav.standalone.length +
       nav.groups.reduce((sum, g) => sum + g.items.length, 0) +
       (hasVisibleSettings(nav) ? 1 : 0);
-    expect(sidebarCount).toBe(16);
+    expect(sidebarCount).toBe(17);
   });
 });
 
@@ -286,6 +289,16 @@ describe("getBreadcrumbs", () => {
 
   it("returns 2-level trail for an exact nav item", () => {
     expect(getBreadcrumbs("/admin/employees")).toEqual([{ label: "SDM" }, { label: "Karyawan" }]);
+  });
+
+  it("labels the Sentra page and its putaran detail trail", () => {
+    expect(getBreadcrumbs("/admin/sentra")).toEqual([{ label: "Kesiswaan" }, { label: "Sentra" }]);
+    expect(getBreadcrumbs("/admin/sentra/rotations/x")).toEqual([
+      { label: "Kesiswaan" },
+      { label: "Sentra", href: "/admin/sentra" },
+      { label: "Putaran" },
+      { label: "Detail" },
+    ]);
   });
 
   it("renders [id] as Detail on depth-3 path", () => {
