@@ -7,6 +7,7 @@ import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { themeCreateSchema } from "@/lib/validations/curriculum";
+import { themeScopeLabel, themesVisibleTo } from "@/lib/curriculum/age-scope";
 import {
   CURRICULUM_WRITE_BUDGET,
   CURRICULUM_WRITE_WINDOW_MS,
@@ -14,6 +15,7 @@ import {
   isUniqueViolation,
   themeListSelect,
 } from "../_helpers";
+
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("curriculum.read");
@@ -35,6 +37,19 @@ export async function GET(req: NextRequest) {
   if (semesterId) where.semesterId = semesterId;
   const status = searchParams.get("status");
   if (status && status !== "all") where.status = status;
+  const ageGroupParam = searchParams.get("ageGroup");
+  if (ageGroupParam) {
+    if (ageGroupParam === "A" || ageGroupParam === "B") {
+      Object.assign(where, themesVisibleTo(ageGroupParam));
+    } else if (ageGroupParam === "shared") {
+      where.ageGroup = null;
+    } else {
+      return NextResponse.json(
+        { error: "ageGroup harus salah satu dari: A, B, shared." },
+        { status: 400 },
+      );
+    }
+  }
 
   const [data, total] = await Promise.all([
     prisma.theme.findMany({ where, select: themeListSelect, orderBy: sort.orderBy, skip, take }),
@@ -64,12 +79,26 @@ export async function POST(req: NextRequest) {
   const parent = await ensureActiveParent("semester", body.semesterId, session.tenantId, "Semester");
   if (parent instanceof NextResponse) return parent;
 
+  const name = body.name.trim();
+  const ageGroup = body.ageGroup ?? null;
+  const duplicate = await prisma.theme.findFirst({
+    where: { tenantId: session.tenantId, semesterId: body.semesterId, name, ageGroup },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return NextResponse.json(
+      { error: `Tema "${name}" sudah ada untuk ${themeScopeLabel(ageGroup)}.` },
+      { status: 409 },
+    );
+  }
+
   try {
     const created = await prisma.theme.create({
       data: {
         tenantId: session.tenantId,
         semesterId: body.semesterId,
-        name: body.name.trim(),
+        name,
+        ageGroup,
         order: body.order,
       },
       select: themeListSelect,
@@ -80,7 +109,7 @@ export async function POST(req: NextRequest) {
       entity: "Theme",
       entityId: created.id,
       action: "create",
-      after: { semesterId: created.semesterId, name: created.name, order: created.order },
+      after: { semesterId: created.semesterId, name: created.name, ageGroup: created.ageGroup, order: created.order },
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err) {

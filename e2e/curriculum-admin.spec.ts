@@ -124,11 +124,15 @@ test.describe("Admin curriculum", () => {
     // Select the new subtheme.
     await page.locator('[data-testid="subtheme-row"]').filter({ hasText: subThemeName }).click();
 
-    // Create a Mon–Fri week. Pick a stable far-future range so it cannot
-    // overlap with seeded weeks: Mon 2030-01-07 → Fri 2030-01-11.
+    // Create a Mon–Fri week in a far-future range clear of seeded weeks. The
+    // week varies per run: weeks of every shared theme in the semester must
+    // not overlap, so a fixed date would collide with a previous run's week
+    // on a reused DB. Mondays from 2030-01-07, within 2030–2037.
+    const monday = new Date(Date.UTC(2030, 0, 7 + 7 * (Math.floor(Date.now() / 1000) % 400)));
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
-    await page.locator("#week-start-date").fill("2030-01-07");
-    await page.locator("#week-end-date").fill("2030-01-11");
+    await page.locator("#week-start-date").fill(ymd(monday));
+    await page.locator("#week-end-date").fill(ymd(new Date(monday.getTime() + 4 * 86_400_000)));
     await page.locator('[data-testid="week-save"]').click();
     await expect(
       page.locator('[data-testid="week-row"]').filter({ hasText: /Pekan/ }),
@@ -186,5 +190,39 @@ test.describe("Admin curriculum", () => {
     await expect(page.locator('[data-testid="week-overlap-error"]')).toBeVisible({
       timeout: 5_000,
     });
+  });
+
+  test("theme kelompok: TK B badge, TK A filter hides it, same name allowed per kelompok", async ({ page }) => {
+    const { id: semesterId } = await findActiveYearSemesterOne(page);
+    test.skip(!semesterId, "seed produced no Semester 1 for the ACTIVE academic year");
+
+    await page.goto(`/admin/semesters/${semesterId}/themes`);
+    await expect(page.locator('[data-testid="theme-card"]')).toBeVisible({ timeout: 15_000 });
+
+    const themeName = `E2E Kelompok ${Date.now()}`;
+    const rows = page.locator('[data-testid="theme-row"]').filter({ hasText: themeName });
+    const createTheme = async (kelompok: "TK A" | "TK B") => {
+      await page.locator('[data-testid="theme-card"]').getByRole("button", { name: /Tambah/ }).click();
+      await page.locator('[data-testid="theme-name-input"]').fill(themeName);
+      await page.locator("#theme-age-group").selectOption({ label: kelompok });
+      await page.getByRole("button", { name: "Simpan", exact: true }).click();
+    };
+
+    await createTheme("TK B");
+    await expect(rows).toHaveCount(1, { timeout: 10_000 });
+    await expect(rows.getByTestId("theme-scope-badge")).toHaveText("TK B");
+
+    // TK A filter shows TK A + shared themes only → the TK B theme disappears.
+    await page.getByRole("button", { name: "TK A", exact: true }).click();
+    await expect(rows).toHaveCount(0);
+
+    // Same name, other kelompok → accepted (uniqueness is per kelompok scope).
+    await createTheme("TK A");
+    await expect(rows).toHaveCount(1, { timeout: 10_000 });
+    await expect(rows.getByTestId("theme-scope-badge")).toHaveText("TK A");
+
+    await page.getByRole("button", { name: "TK B", exact: true }).click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.getByTestId("theme-scope-badge")).toHaveText("TK B");
   });
 });

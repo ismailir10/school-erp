@@ -5,6 +5,7 @@ import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { indicatorThemeLinkToggleSchema } from "@/lib/validations/curriculum";
+import { themeVisibleTo } from "@/lib/curriculum/age-scope";
 import {
   CURRICULUM_WRITE_BUDGET,
   CURRICULUM_WRITE_WINDOW_MS,
@@ -50,11 +51,11 @@ export async function POST(req: NextRequest) {
   const [indicator, theme] = await Promise.all([
     prisma.achievementIndicator.findFirst({
       where: { id: indicatorId, tenantId: session.tenantId },
-      select: { id: true, objective: { select: { semesterId: true } } },
+      select: { id: true, objective: { select: { semesterId: true, ageGroup: true } } },
     }),
     prisma.theme.findFirst({
       where: { id: themeId, tenantId: session.tenantId },
-      select: { id: true, semesterId: true },
+      select: { id: true, semesterId: true, ageGroup: true },
     }),
   ]);
   if (!indicator) {
@@ -74,6 +75,15 @@ export async function POST(req: NextRequest) {
       {
         error:
           "Indikator dan tema harus berada di semester yang sama.",
+      },
+      { status: 422 },
+    );
+  }
+
+  if (linked && !themeVisibleTo(theme.ageGroup, indicator.objective.ageGroup)) {
+    return NextResponse.json(
+      {
+        error: `Indikator ${indicator.objective.ageGroup === "A" ? "TK A" : "TK B"} hanya bisa dihubungkan ke tema ${indicator.objective.ageGroup === "A" ? "TK A" : "TK B"} atau Semua kelompok.`,
       },
       { status: 422 },
     );

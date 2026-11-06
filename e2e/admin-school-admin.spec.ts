@@ -122,8 +122,13 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
     await subRow.click();
 
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
-    await page.locator("#week-start-date").fill("2030-02-04");
-    await page.locator("#week-end-date").fill("2030-02-08");
+    // Per-run Monday (2050–2057): weeks of every shared theme in a semester
+    // must not overlap, so a fixed date collides with an earlier run's week.
+    // Range kept apart from curriculum-admin.spec.ts (2030–2037).
+    const monday = new Date(Date.UTC(2050, 0, 3 + 7 * (Math.floor(Date.now() / 1000) % 400)));
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    await page.locator("#week-start-date").fill(ymd(monday));
+    await page.locator("#week-end-date").fill(ymd(new Date(monday.getTime() + 4 * 86_400_000)));
     await page.locator('[data-testid="week-save"]').click();
     await expect(
       page.locator('[data-testid="week-row"]').filter({ hasText: /Pekan/ }),

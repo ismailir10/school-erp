@@ -51,7 +51,7 @@ export async function GET(
   const ageGroup = ageGroupParam;
 
   const targetUtcMidnight = parseJakartaYmd(dateParam);
-  const week = await getCurrentWeek(session.tenantId, targetUtcMidnight);
+  const week = await getCurrentWeek(session.tenantId, targetUtcMidnight, ageGroup);
   if (!week) {
     return NextResponse.json(
       {

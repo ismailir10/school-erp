@@ -101,3 +101,33 @@ describe("resolveThemeNames", () => {
     expect(unmatched).toEqual([]);
   });
 });
+
+describe("indexThemes — kelompok scope", () => {
+  const themes = [
+    { id: "shared-diriku", name: "Diriku", ageGroup: null },
+    { id: "a-diriku", name: "Diriku", ageGroup: "A" as const },
+    { id: "b-only", name: "Kendaraan", ageGroup: "B" as const },
+    { id: "shared-mpls", name: "MPLS", ageGroup: null },
+  ];
+
+  it("prefers the group-specific theme over a shared one of the same name", () => {
+    const idx = indexThemes(themes, "A");
+    expect(idx.idByNormalisedName.get("diriku")).toBe("a-diriku");
+    expect(idx.idByNormalisedName.get("mpls")).toBe("shared-mpls");
+    expect(idx.duplicateNames).toEqual([]);
+  });
+
+  it("falls back to the shared theme when the group has none", () => {
+    expect(indexThemes(themes, "B").idByNormalisedName.get("diriku")).toBe("shared-diriku");
+  });
+
+  it("reports names that only match the other kelompok as unmatched", () => {
+    const res = resolveThemeNames(["Kendaraan", "MPLS"], indexThemes(themes, "A"));
+    expect(res.themeIds).toEqual(["shared-mpls"]);
+    expect(res.unmatched).toEqual(["Kendaraan"]);
+  });
+
+  it("without an ageGroup behaves as before", () => {
+    expect(indexThemes(themes).idByNormalisedName.get("diriku")).toBe("shared-diriku");
+  });
+});
