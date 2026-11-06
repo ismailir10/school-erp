@@ -277,7 +277,7 @@ export function SentraClient({
               emptyTitle="Belum ada putaran"
               emptyDescription={
                 canWrite
-                  ? "Belum ada putaran. Buat putaran untuk mengatur sentra tiap kelas dari hari ke hari."
+                  ? "Buat putaran untuk mengatur sentra tiap kelas dari hari ke hari."
                   : "Belum ada putaran di kampus ini."
               }
               emptyAction={canWrite ? { label: "Buat putaran", onClick: () => setRotationOpen(true) } : undefined}

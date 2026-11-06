@@ -208,7 +208,52 @@ Facts found in the code and the production data (read-only):
 
 ## Verification
 
+Route: **auth-impacting** (teacher access to Buku Penghubung widens to guru-sentra classes) → verify-local now, plus a
+signed-in staging check after merge (`needs-staging-verify`). Compared `origin/staging...006b5cae` (85 files: prisma
+schema/migration/seed, `lib/sentra/**`, `lib/student-journal/guards.ts`, `app/api/admin/sentra/**`,
+`app/api/student-journal/**`, `app/api/teacher/assessment-entries/center/**`, admin/teacher/parent pages, tests,
+e2e, docs) plus one empty-state copy line after it.
+
+- App: production build, demo auth + disposable local Postgres (local PG 16 on :54329, `db push` + seed). Staging
+  check: pending (needs-staging-verify).
+- Full gate on `f0040575` + fix `006b5cae`: `npm run lint` clean; `npx vitest run` **745 files, 9143 passed**;
+  `verify-api-auth.sh` 232/232; `verify-rls-coverage.sh` 51/51; `DEMO_MODE=true npm run build` ok; `npx playwright
+  test` run 1 **274 passed, 2 failed** (both this cycle: legacy tile test id, 320px picker overflow → fixed in
+  `006b5cae`), run 2 on a fresh DB **276 passed, 0 failed (6.0m)**. `audit-docs.sh` 13 ok / 1 warn (ADR age) / 0 fail.
+- Walk (Playwright script, screenshots in `docs/cycles/screenshots/2026-11-06-sentra/`):
+  - Flow 1 admin, 1366px: `/admin/sentra` loads in ~1.1 s with the 8 legacy sentra per campus and an empty-state for
+    putaran; Taman Aster → "Putaran TK" opens the grid ("Pekan 1 · Senin/Selasa" × TKIT A/B, seeded cells), save
+    disabled until dirty; no 4xx/5xx. Duplicate warning + adding a sentra covered by `e2e/sentra.spec.ts`.
+  - Flow 2 guru sentra, 390px: picker preselects "TKIT B — TK Islam Terpadu · Sentra Balok (hari ini)" for a class
+    `u_teacher` is not assigned to; home lists "Jurnal harian TKIT B · Sentra Balok" with its progress and no
+    attendance action for that class; tick → save → reload persists (e2e).
+  - Flow 3 Sentra Harian: own "Sentra Balok" tile first with "Sentra saya", roster defaults to today's class, level
+    saved and shown as "Sentra Balok" on `/admin/assessments` (e2e).
+  - Flow 4: weekend branch unit-tested (`rotationDayIndex` → null); outsider class-grid call → 403 (e2e + Vitest);
+    attendance stays assignment-only (Vitest pins it).
+  - Console: only `/_vercel/{insights,speed-insights}/script.js` 404s, which exist on Vercel only (pre-existing).
+- design-system: admin page follows the Admin List recipe (PageHeader, DataTable with Aksi column, StatusBadge,
+  EmptyState, dialog forms) and teacher surfaces the portal card/list patterns from `.claude/standards/
+  design-system.html`; status colours via tokens only (no raw hex in the diff).
+- Copy nit fixed after the walk: putaran empty-state description no longer repeats its title (unit test + lint + tsc
+  re-run green).
+
 ## Ship Notes
+
+- **Migration** `20261106000000_add_sentra` (additive: 5 tables + `AssessmentEntry.sentraId`, RLS + service policies,
+  data insert of 8 legacy sentra per existing campus). Applied automatically by `scripts/vercel-build.sh`
+  (`prisma migrate deploy`) on the staging deploy, and on main at promotion.
+- **No env vars, no new dependency.**
+- **Post-merge staging check (signed in, real auth):** (1) admin → Kesiswaan › Sentra: each staging campus shows the 8
+  legacy sentra; add one, set a guru; create a putaran with two classes and fill the grid; save → reload persists.
+  (2) That guru (signed in on staging) → Buku Penghubung picker lists the other class, labelled; open and save.
+  (3) Sentra Harian tiles show the campus list. (4) A non-guru-sentra teacher still sees only her own classes.
+  Remove `needs-staging-verify` only after this passes.
+- **Production setup after promotion** (Decision 11, not done by this cycle): admin enters Metland's 10 sentra
+  (rename "Main Peran" → "Bermain Peran Makro"; add Bermain Peran Mikro, I Love Islam, Imajinasi; deactivate Area if
+  unused), the five guru below, and one putaran (TK A 3, A 4, B 3, B 4, B 5; 10 days; start on a Monday of week 1).
+- **Rollback:** revert the squash commit. The new tables and column are harmless if left (old `center` column is
+  still written), so no down-migration is needed.
 
 **Metland Cibitung setup data** (from Kak Ismail, 2026-11-06), for the admin to enter on staging (test) and later
 production (Decision 11). Each guru owns one week-1 and one week-2 sentra; moving classes TK A 3, A 4, B 3, B 4, B 5;
