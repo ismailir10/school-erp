@@ -64,6 +64,10 @@ export type TeacherClassSummary = {
   name: string;
   rosterCount: number;
   isHomeroom?: boolean;
+  /** Set when the class hosts the guru's sentra today, e.g. "Sentra Balok". */
+  sentraTag?: string;
+  /** Visiting via sentra only (not assigned): attendance stays assignment-only. */
+  sentraOnly?: boolean;
   attendanceRecorded: number | null;
   journal: JournalProgress | null;
   replies: { studentId: string; studentName: string; count: number }[] | null;

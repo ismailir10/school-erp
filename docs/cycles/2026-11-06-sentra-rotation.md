@@ -154,7 +154,7 @@ Facts found in the code and the production data (read-only):
       accept: guard tests + picker test; flow 2. (deps: T2) ∥ T3, T6
 - [ ] T6 Sentra Harian on campus sentra: tiles, roster default, POST writes sentra, readers label by sentra —
       accept: API + format tests; flow 3. (deps: T2) ∥ T3, T5
-- [ ] T7 Teacher home: today's sentra class card — accept: home test; flow 2 home part. (deps: T5)
+- [x] T7 Teacher home: today's sentra class card — accept: home test; flow 2 home part. (deps: T5)
 - [ ] T8 e2e `sentra.spec.ts` + docs (README, uat jobs, voice glossary, counts) — accept: Playwright green, audit-docs
       green. (deps: T4–T7)
 
@@ -181,6 +181,10 @@ Facts found in the code and the production data (read-only):
   putaran table + create dialog; putaran detail with the day × class grid ("Pekan 1 · Senin"), duplicate-sentra and
   nonaktif-cell warnings, save disabled while a nonaktif cell remains; read-only without `academic.edit`.
   design-system.html cross-check is recorded under Verification.
+- T7: `app/teacher/page.tsx`, `app/teacher/home-client.tsx`, `lib/teacher/home-progress.ts` (+ 2 test files) — today's
+  sentra class joins the home list with the same journal/attendance/replies/day-mark summary and a "Sentra X · hari
+  ini" badge; an assigned class that is also today's sentra class is tagged, not duplicated; sentra-only cards show no
+  attendance actions (attendance stays assignment-only); a failing sentra lookup leaves the home rendering.
 
 ## Verification
 
