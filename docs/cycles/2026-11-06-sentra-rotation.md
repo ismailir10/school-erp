@@ -143,7 +143,7 @@ Facts found in the code and the production data (read-only):
 
 ## Tasks
 
-- [ ] T1 Schema + migration + seed — accept: `prisma migrate` applies on a fresh DB, RLS script green, seed creates
+- [x] T1 Schema + migration + seed — accept: `prisma migrate` applies on a fresh DB, RLS script green, seed creates
       sentra for each campus, a putaran where `u_teacher` owns a sentra visiting a class she isn't assigned to. (deps: none)
 - [ ] T2 `lib/sentra` domain: rotation day math, accessible-classes + can-access helper, today's sentra per guru —
       accept: unit tests for every rule in Decisions 4–6. (deps: T1)
@@ -160,6 +160,28 @@ Facts found in the code and the production data (read-only):
 
 ## Implementation
 
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (Haiku for trivial sweeps); T1 → T2 sequential (schema then
+  domain helpers everything else uses); T3, T5, T6 parallel after T2 (disjoint files); T4 after T3, T7 after T5;
+  T8 last. Driver reviews each diff and runs the gate before committing.
+- T1: `prisma/schema.prisma`, `prisma/migrations/20261106000000_add_sentra/`, `lib/sentra/legacy.ts`, `prisma/seed.ts`,
+  `lib/db.ts` (parity note) — five sentra tables + `AssessmentEntry.sentraId`, RLS + service policies, day-one insert
+  of the 8 legacy sentra per campus; seed adds Makro, guru sentra (E003 Balok, E004 Seni) and a 2-day "Putaran TK"
+  over TKIT A/B so `u_teacher` reaches TKIT B only via sentra. Note: `prisma migrate deploy` cannot run on an empty
+  DB in this repo (no baseline migration, pre-existing), so the migration was proven on a DB built from the pre-cycle
+  schema: `INSERT 0 16` (2 campuses × 8).
+
 ## Verification
 
 ## Ship Notes
+
+**Metland Cibitung setup data** (from Kak Ismail, 2026-11-06), for the admin to enter on staging (test) and later
+production (Decision 11). Each guru owns one week-1 and one week-2 sentra; moving classes TK A 3, A 4, B 3, B 4, B 5;
+putaran 10 days, week 1 starting from the schedule screenshot in Context.
+
+| Guru (account name) | Pekan 1 | Pekan 2 |
+|---|---|---|
+| Bu Ayu (Ayu Rahma Yuniska) | Bahan Alam | Memasak |
+| Bu Femi (Lutfi Femiliana) | Seni | I Love Islam |
+| Bu Fidy (Fidyah Putri Ramadhani) | Balok | Imajinasi |
+| Bu Yulia (Yulia Purbaningsih) | Bermain Peran Makro | Bermain Peran Mikro |
+| Bu Elvri (Elvriani Haziza) | Persiapan | Ibadah |

@@ -2,6 +2,7 @@ import { PrismaClient } from "../lib/generated/prisma/client";
 import { JournalStatus } from "../lib/generated/prisma/enums";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
+import { LEGACY_SENTRA } from "@/lib/sentra/legacy";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
@@ -144,6 +145,10 @@ async function main() {
   await prisma.studentAttendance.deleteMany();
   await prisma.classSession.deleteMany();
   await prisma.semester.deleteMany();
+  await prisma.sentraRotationSlot.deleteMany();
+  await prisma.sentraRotationClass.deleteMany();
+  await prisma.sentraRotation.deleteMany();
+  await prisma.sentraTeacher.deleteMany();
   await prisma.teachingAssignment.deleteMany();
   await prisma.leaveRequest.deleteMany();
   await prisma.studentEnrollment.deleteMany();
@@ -764,6 +769,66 @@ async function main() {
     }
   }
   console.log(`✅ Teaching assignments: ${assignmentCount}`);
+
+  // ── 7c-1. SENTRA + PUTARAN ────────────────────────────────
+  // Every campus gets the 8 legacy sentra (same as the migration's day-one
+  // insert). Taman Aster also gets "Makro" so the list shows a non-legacy one.
+  // Sentra id by `${campusId}|${name}`.
+  const sentraId = new Map<string, string>();
+  for (const campusId of Object.values(campusMap)) {
+    for (const l of LEGACY_SENTRA) {
+      const row = await prisma.sentra.create({
+        data: { tenantId: tenant.id, campusId, name: l.name, legacyCenter: l.legacyCenter, sortOrder: l.sortOrder },
+      });
+      sentraId.set(`${campusId}|${l.name}`, row.id);
+    }
+  }
+  const makro = await prisma.sentra.create({
+    data: { tenantId: tenant.id, campusId: campusMap["taman-aster"], name: "Makro", sortOrder: 9 },
+  });
+  sentraId.set(`${campusMap["taman-aster"]}|Makro`, makro.id);
+  const astersentra = (name: string) => sentraId.get(`${campusMap["taman-aster"]}|${name}`)!;
+
+  // Guru sentra: E003 (u_teacher) owns Balok, E004 owns Seni.
+  for (const [kode, name] of [["E003", "Balok"], ["E004", "Seni"]] as const) {
+    await prisma.sentraTeacher.create({
+      data: { tenantId: tenant.id, sentraId: astersentra(name), employeeId: employeeIds[kode] },
+    });
+  }
+
+  // Putaran TK: a 2-day rotation starting on a Monday. u_teacher (E003) reaches
+  // TKIT_B through Balok on day 1; KB_METLAND stays outside every putaran.
+  const putaran = await prisma.sentraRotation.create({
+    data: {
+      tenantId: tenant.id,
+      campusId: campusMap["taman-aster"],
+      academicYearId: academicYear.id,
+      name: "Putaran TK",
+      startDate: "2026-01-05",
+      cycleDays: 2,
+    },
+  });
+  await prisma.sentraRotationClass.createMany({
+    data: [
+      { tenantId: tenant.id, rotationId: putaran.id, classSectionId: classSectionMap["TKIT_A"], sortOrder: 0 },
+      { tenantId: tenant.id, rotationId: putaran.id, classSectionId: classSectionMap["TKIT_B"], sortOrder: 1 },
+    ],
+  });
+  await prisma.sentraRotationSlot.createMany({
+    data: [
+      { dayIndex: 0, classKey: "TKIT_A", sentra: "Balok" },
+      { dayIndex: 0, classKey: "TKIT_B", sentra: "Seni" },
+      { dayIndex: 1, classKey: "TKIT_A", sentra: "Seni" },
+      { dayIndex: 1, classKey: "TKIT_B", sentra: "Balok" },
+    ].map((c) => ({
+      tenantId: tenant.id,
+      rotationId: putaran.id,
+      dayIndex: c.dayIndex,
+      classSectionId: classSectionMap[c.classKey],
+      sentraId: astersentra(c.sentra),
+    })),
+  });
+  console.log(`✅ Sentra: ${sentraId.size}, putaran: 1`);
 
   // ── 7c-2. CLASS SESSIONS (reactive generation) ─────────────
   // Generate daily ClassSession rows for every seeded ClassSection across both
@@ -2116,7 +2181,7 @@ async function main() {
   const currentWeekIdx = allWeeks.findIndex((w) => LATEST_SCHOOL_DAY >= w.start && LATEST_SCHOOL_DAY <= w.end);
   const assessmentRows: {
     tenantId: string; studentId: string; indicatorId: string; date: Date; weekId: string;
-    source: "HOMEROOM" | "CENTER"; center: "WORSHIP" | "ART" | null; activity: string | null;
+    source: "HOMEROOM" | "CENTER"; center: "WORSHIP" | "ART" | null; sentraId: string | null; activity: string | null;
     level: "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT"; note: string | null; recordedById: string;
   }[] = [];
   const levelFor = (): "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT" => {
@@ -2150,6 +2215,7 @@ async function main() {
               weekId: week.id,
               source: "HOMEROOM",
               center: null,
+              sentraId: null,
               activity: null,
               level,
               note: level === "NEEDS_REINFORCEMENT" && rand() < 0.5 ? "Perlu diulang dengan pendampingan." : null,
@@ -2171,6 +2237,7 @@ async function main() {
                   weekId: week.id,
                   source: "CENTER",
                   center,
+                  sentraId: astersentra(center === "WORSHIP" ? "Ibadah" : "Seni"),
                   activity: ACTIVITY_BY_CENTER[center],
                   level: levelFor(),
                   note: null,
