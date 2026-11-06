@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -9,6 +10,8 @@ import { UserAvatar, getInitials } from "@/components/ui/user-avatar";
 import { SectionLabel } from "@/components/portal/section-label";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 import { SCHOOL_CONTACT_FALLBACK_TEXT, schoolContactPhone, telHref, whatsappHref } from "@/lib/contact";
+
+export const metadata: Metadata = { title: "Profil" };
 
 export default async function ParentProfilePage({ searchParams }: {
   searchParams: Promise<{ child?: string }>;

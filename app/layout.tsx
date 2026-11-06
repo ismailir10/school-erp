@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { TITLE_TEMPLATE } from "@/lib/page-title";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://talib.annisaasekolahku.com"),
   title: {
     default: "Talib — by An Nisaa' Sekolahku",
-    template: "%s · Talib",
+    template: TITLE_TEMPLATE,
   },
   description:
     "Talib adalah platform manajemen sekolah An Nisaa' Sekolahku — kehadiran, jurnal harian, tagihan, dan komunikasi orang tua dalam satu tempat.",

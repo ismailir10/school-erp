@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -15,6 +16,8 @@ import { parentAttendanceWeek } from "@/lib/parent/attendance-week";
 import { parentHref } from "@/lib/parent/navigation";
 import { ContextStrip } from "@/components/portal/context-strip";
 import { SectionCard } from "@/components/ui/section-card";
+
+export const metadata: Metadata = { title: "Kehadiran" };
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 

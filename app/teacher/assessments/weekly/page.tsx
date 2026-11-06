@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { CalendarOff, ClipboardList } from "lucide-react";
@@ -8,6 +9,8 @@ import { WeeklyClient } from "./client";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
 import { normalizeWeeklyDate, WeeklyDateRecovery } from "./date-recovery";
+
+export const metadata: Metadata = { title: "Penilaian Pekanan" };
 
 const JAKARTA_TZ = "Asia/Jakarta";
 

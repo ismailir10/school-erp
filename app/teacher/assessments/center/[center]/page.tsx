@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { ClipboardList } from "lucide-react";
@@ -6,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { sentraLabel } from "@/lib/sentra/rotation";
 import { legacyCenterFromSlug } from "@/lib/sentra/legacy-slug";
 import { CenterSessionClient } from "./client";
+
+export const metadata: Metadata = { title: "Penilaian" };
 
 export default async function TeacherCenterPage({
   params,

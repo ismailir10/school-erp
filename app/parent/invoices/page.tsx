@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
@@ -10,6 +11,8 @@ import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { InvoicesClient } from "./client";
 import { prisma } from "@/lib/db";
 import { ContextStrip } from "@/components/portal/context-strip";
+
+export const metadata: Metadata = { title: "Tagihan" };
 
 export default async function ParentInvoicesPage({
   searchParams,

@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { SentraClient } from "./client";
+
+export const metadata: Metadata = { title: "Sentra" };
 
 // Admin Sentra — sentra list + putaran list per campus.
 // Cross-checked against .claude/standards/design-system.html §Page header +

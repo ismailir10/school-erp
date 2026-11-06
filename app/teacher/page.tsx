@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { classroomAttendanceByStudent } from "@/lib/teacher/classroom-attendance";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -11,6 +12,8 @@ import { minutesLate } from "@/lib/attendance/status";
 import { getTeacherSentraToday } from "@/lib/sentra/access";
 import { sentraLabel } from "@/lib/sentra/rotation";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
+
+export const metadata: Metadata = { title: "Beranda" };
 
 // One include for assigned and sentra-visiting classes so both get the same summary.
 const classSectionInclude = (today: string) => ({

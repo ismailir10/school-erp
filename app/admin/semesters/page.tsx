@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { SemestersClient } from "./client";
+
+export const metadata: Metadata = { title: "Semester" };
 
 /**
  * Admin Semester list — entry for the curriculum authoring flow.

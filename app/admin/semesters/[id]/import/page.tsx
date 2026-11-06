@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { assertPermission } from "@/lib/auth-guards";
 import { prisma } from "@/lib/db";
 import { ImportPromesClient } from "./client";
+
+export const metadata: Metadata = { title: "Impor PROMES" };
 
 /**
  * Admin PROMES import surface (C2/T6). Server gate is `curriculum.write`

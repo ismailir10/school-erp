@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { RotationDetailClient } from "./client";
+
+export const metadata: Metadata = { title: "Detail Putaran" };
 
 // Admin Sentra — putaran detail with the grid editor.
 // Cross-checked against .claude/standards/design-system.html §Page header +
