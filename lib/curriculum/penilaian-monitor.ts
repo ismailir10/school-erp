@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { AgeGroup } from "@/lib/generated/prisma/client";
 import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
 import {
   ALL_LEARNING_CENTERS,
@@ -127,11 +128,22 @@ export async function loadPenilaianMonitor(
   weekTargetUtcMidnight: Date,
   sentraDateUtcMidnight: Date,
 ): Promise<PenilaianMonitor> {
-  const week = await getCurrentWeek(tenantId, weekTargetUtcMidnight);
+  // TK A and TK B can run different themes in the same dates, so each class
+  // is measured against the week of its own kelompok. `week` in the payload
+  // (header label) is TK A's, falling back to TK B's.
+  const weekA = await getCurrentWeek(tenantId, weekTargetUtcMidnight, "A");
+  const weekB = await getCurrentWeek(tenantId, weekTargetUtcMidnight, "B");
+  const weekByGroup: Record<AgeGroup, { id: string } | null> = { A: weekA, B: weekB };
+  const week = weekA ?? weekB;
 
   const classSections = await prisma.classSection.findMany({
     where: { tenantId, academicYearId, status: "ACTIVE" },
-    select: { id: true, name: true, program: { select: { name: true } } },
+    select: {
+      id: true,
+      name: true,
+      ageGroup: true,
+      program: { select: { name: true } },
+    },
     orderBy: { name: "asc" },
   });
   const classIds = classSections.map((c) => c.id);
@@ -147,14 +159,23 @@ export async function loadPenilaianMonitor(
       })
     : [];
 
-  let assessedStudentIds = new Set<string>();
-  if (week) {
-    const homeroomEntries = await prisma.assessmentEntry.findMany({
-      where: { tenantId, weekId: week.id, source: "HOMEROOM", voidedAt: null },
-      select: { studentId: true },
-      distinct: ["studentId"],
-    });
-    assessedStudentIds = new Set(homeroomEntries.map((e) => e.studentId));
+  const walasById = new Map<string, WalasClassCompletion>();
+  for (const group of ["A", "B"] as const) {
+    const groupClasses = classSections.filter((c) => c.ageGroup === group);
+    if (groupClasses.length === 0) continue;
+    let assessed = new Set<string>();
+    const groupWeek = weekByGroup[group];
+    if (groupWeek) {
+      const homeroomEntries = await prisma.assessmentEntry.findMany({
+        where: { tenantId, weekId: groupWeek.id, source: "HOMEROOM", voidedAt: null },
+        select: { studentId: true },
+        distinct: ["studentId"],
+      });
+      assessed = new Set(homeroomEntries.map((e) => e.studentId));
+    }
+    for (const row of aggregateWalas(groupClasses, enrollments, assessed)) {
+      walasById.set(row.classSectionId, row);
+    }
   }
 
   const centerEntries = (await prisma.assessmentEntry.findMany({
@@ -175,7 +196,7 @@ export async function loadPenilaianMonitor(
           themeName: week.subTheme.theme.name,
         }
       : null,
-    walas: aggregateWalas(classSections, enrollments, assessedStudentIds),
+    walas: classSections.map((c) => walasById.get(c.id)!),
     sentra: aggregateSentra(centerEntries),
   };
 }

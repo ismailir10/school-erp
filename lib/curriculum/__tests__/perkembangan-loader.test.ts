@@ -4,10 +4,12 @@ const {
   semesterFindFirst,
   assessmentEntryFindMany,
   weekFindFirst,
+  studentEnrollmentFindMany,
 } = vi.hoisted(() => ({
   semesterFindFirst: vi.fn(),
   assessmentEntryFindMany: vi.fn(),
   weekFindFirst: vi.fn(),
+  studentEnrollmentFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -15,6 +17,7 @@ vi.mock("@/lib/db", () => ({
     semester: { findFirst: semesterFindFirst },
     assessmentEntry: { findMany: assessmentEntryFindMany },
     week: { findFirst: weekFindFirst },
+    studentEnrollment: { findMany: studentEnrollmentFindMany },
   },
 }));
 
@@ -25,6 +28,9 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  studentEnrollmentFindMany.mockResolvedValue([
+    { studentId: "stu1", classSection: { ageGroup: "A" } },
+  ]);
 });
 
 describe("aggregateByElement (pure)", () => {

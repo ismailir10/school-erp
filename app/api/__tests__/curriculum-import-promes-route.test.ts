@@ -1099,10 +1099,37 @@ describe("POST /api/admin/curriculum/import-promes — IKTP×Tema links", () => 
     await POST(makeReq({ form }) as never);
     // IndicatorThemeLink has no tenantId column — this query is the only
     // tenant gate on every link the commit path writes.
+    // Kelompok scope: only themes visible to the import's ageGroup (A + shared).
     expect(themeFindMany).toHaveBeenCalledWith({
-      where: { tenantId: "t-import", semesterId: "sem-1", status: "ACTIVE" },
-      select: { id: true, name: true },
+      where: {
+        tenantId: "t-import",
+        semesterId: "sem-1",
+        status: "ACTIVE",
+        OR: [{ ageGroup: "A" }, { ageGroup: null }],
+      },
+      select: { id: true, name: true, ageGroup: true },
     });
+  });
+
+  it("prefers the group-specific theme over a shared one on the same name", async () => {
+    const { POST } = await import(
+      "@/app/api/admin/curriculum/import-promes/route"
+    );
+    themeFindMany.mockResolvedValue([
+      { id: "th-shared", name: "Saya Anak Sehat", ageGroup: null },
+      { id: "th-a", name: "Saya Anak Sehat", ageGroup: "A" },
+    ]);
+    wireWrittenRows();
+    indicatorThemeLinkCreateMany.mockResolvedValue({ count: 1 });
+    const form = makeForm({ file: xlsxFile(), semesterId: "sem-1", ageGroup: "A" });
+    await POST(
+      makeReq({ url: "http://l/api/admin/curriculum/import-promes?commit=true", form }) as never,
+    );
+    const linkCall = indicatorThemeLinkCreateMany.mock.calls[0]?.[0];
+    expect(linkCall).toBeDefined();
+    const ids = linkCall.data.map((r: { themeId: string }) => r.themeId);
+    expect(ids).toContain("th-a");
+    expect(ids).not.toContain("th-shared");
   });
 
   it("commit skips link writing entirely when no theme matches", async () => {

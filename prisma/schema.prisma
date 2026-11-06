@@ -1386,6 +1386,9 @@ model Theme {
   tenantId   String
   semesterId String
   name       String // Indonesian, e.g. "Saya Anak Sehat"
+  /// Kelompok the theme belongs to. null = shared by TK A and TK B (e.g. MPLS).
+  /// A class sees themes of its own ageGroup plus shared ones.
+  ageGroup   AgeGroup?
   order      Int
   status     String   @default("ACTIVE") // ACTIVE | INACTIVE
   createdAt  DateTime @default(now())
@@ -1396,7 +1399,10 @@ model Theme {
   subThemes SubTheme[]
   links     IndicatorThemeLink[]
 
-  @@unique([tenantId, semesterId, name])
+  /// Name is unique per kelompok scope. The migration creates this index
+  /// NULLS NOT DISTINCT so two shared themes cannot share a name; the theme
+  /// API also checks it before writing (db push builds a plain index).
+  @@unique([tenantId, semesterId, ageGroup, name])
   @@index([tenantId])
   @@index([tenantId, semesterId])
 }

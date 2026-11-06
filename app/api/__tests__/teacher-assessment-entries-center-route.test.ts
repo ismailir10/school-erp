@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const {
   studentFindMany,
+  studentEnrollmentFindMany,
   achievementIndicatorFindMany,
   weekFindFirst,
   assessmentEntryUpsert,
@@ -11,6 +12,7 @@ const {
   employeeFindFirst,
 } = vi.hoisted(() => ({
   studentFindMany: vi.fn(),
+  studentEnrollmentFindMany: vi.fn(),
   achievementIndicatorFindMany: vi.fn(),
   weekFindFirst: vi.fn(),
   assessmentEntryUpsert: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock("@/lib/db", () => ({
     employee: { findFirst: employeeFindFirst },
     sentra: { findFirst: sentraFindFirst },
     student: { findMany: studentFindMany },
+    studentEnrollment: { findMany: studentEnrollmentFindMany },
     achievementIndicator: { findMany: achievementIndicatorFindMany },
     week: { findFirst: weekFindFirst },
     assessmentEntry: { upsert: assessmentEntryUpsert },
@@ -88,7 +91,10 @@ const happyMocks = () => {
   sentraFindFirst.mockResolvedValue({ id: "sen1", status: "ACTIVE", legacyCenter: "WORSHIP" });
   studentFindMany.mockResolvedValue([{ id: "stu1" }]);
   achievementIndicatorFindMany.mockResolvedValue([
-    { id: "ind1", themeLinks: [{ themeId: "th1" }] },
+    { id: "ind1", objective: { ageGroup: "A" }, themeLinks: [{ themeId: "th1" }] },
+  ]);
+  studentEnrollmentFindMany.mockResolvedValue([
+    { studentId: "stu1", classSection: { ageGroup: "A" } },
   ]);
   weekFindFirst.mockResolvedValue({
     id: "wk1",
@@ -176,7 +182,7 @@ describe("POST /api/teacher/assessment-entries/center", () => {
     vi.mocked(getSession).mockResolvedValue(teacher);
     happyMocks();
     achievementIndicatorFindMany.mockResolvedValue([
-      { id: "ind1", themeLinks: [{ themeId: "DIFFERENT" }] },
+      { id: "ind1", objective: { ageGroup: "A" }, themeLinks: [{ themeId: "DIFFERENT" }] },
     ]);
     const res = await POST(jsonReq(baseSession) as never);
     expect(res.status).toBe(400);
@@ -264,5 +270,63 @@ describe("POST /api/teacher/assessment-entries/center", () => {
     const r2 = await POST(jsonReq(baseSession) as never);
     expect(r2.status).toBe(200);
     expect(assessmentEntryUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("mixed TK A / TK B submission resolves each student's own week", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happyMocks();
+    studentFindMany.mockResolvedValue([{ id: "stuA" }, { id: "stuB" }]);
+    studentEnrollmentFindMany.mockResolvedValue([
+      { studentId: "stuA", classSection: { ageGroup: "A" } },
+      { studentId: "stuB", classSection: { ageGroup: "B" } },
+    ]);
+    achievementIndicatorFindMany.mockResolvedValue([
+      { id: "indA", objective: { ageGroup: "A" }, themeLinks: [{ themeId: "thA" }] },
+      { id: "indB", objective: { ageGroup: "B" }, themeLinks: [{ themeId: "thB" }] },
+    ]);
+    weekFindFirst.mockImplementation(
+      async ({ where }: { where: { subTheme: { theme: { OR: Array<{ ageGroup: string }> } } } }) => {
+        const g = where.subTheme.theme.OR[0].ageGroup;
+        return {
+          id: `wk${g}`, number: 1,
+          startDate: new Date("2026-05-11T00:00:00Z"),
+          endDate: new Date("2026-05-15T00:00:00Z"),
+          subTheme: { id: "st", name: "S", theme: { id: `th${g}`, name: "T", semesterId: "sem1", ageGroup: g } },
+        };
+      },
+    );
+    const res = await POST(
+      jsonReq({
+        ...baseSession,
+        entries: [
+          { studentId: "stuA", indicatorId: "indA", level: "CONSISTENT" },
+          { studentId: "stuB", indicatorId: "indB", level: "CONSISTENT" },
+        ],
+      }) as never,
+    );
+    expect(res.status).toBe(200);
+    const weekIds = assessmentEntryUpsert.mock.calls.map(
+      (c) => [c[0].create.studentId, c[0].create.weekId],
+    );
+    expect(weekIds).toEqual([["stuA", "wkA"], ["stuB", "wkB"]]);
+  });
+
+  it("400 when an indicator's objective kelompok differs from the student's", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happyMocks();
+    achievementIndicatorFindMany.mockResolvedValue([
+      { id: "ind1", objective: { ageGroup: "B" }, themeLinks: [{ themeId: "th1" }] },
+    ]);
+    const res = await POST(jsonReq(baseSession) as never);
+    expect(res.status).toBe(400);
+    expect(assessmentEntryUpsert).not.toHaveBeenCalled();
+  });
+
+  it("422 when a student has no active class", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happyMocks();
+    studentEnrollmentFindMany.mockResolvedValue([]);
+    const res = await POST(jsonReq(baseSession) as never);
+    expect(res.status).toBe(422);
   });
 });

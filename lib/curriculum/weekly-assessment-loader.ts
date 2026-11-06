@@ -91,7 +91,7 @@ export async function loadWeeklyAssessment(
 
   const ageGroup = homeroom.ageGroup;
   const targetUtcMidnight = parseJakartaYmd(jakartaYmd);
-  const week = await getCurrentWeek(tenantId, targetUtcMidnight);
+  const week = await getCurrentWeek(tenantId, targetUtcMidnight, ageGroup);
   if (!week) {
     return {
       ok: false,

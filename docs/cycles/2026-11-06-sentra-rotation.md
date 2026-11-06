@@ -163,7 +163,7 @@ Facts found in the code and the production data (read-only):
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (Haiku for trivial sweeps); T1 → T2 sequential (schema then
   domain helpers everything else uses); T3, T5, T6 parallel after T2 (disjoint files); T4 after T3, T7 after T5;
   T8 last. Driver reviews each diff and runs the gate before committing.
-- T1: `prisma/schema.prisma`, `prisma/migrations/20261106000000_add_sentra/`, `lib/sentra/legacy.ts`, `prisma/seed.ts`,
+- T1: `prisma/schema.prisma`, `prisma/migrations/20261106010000_add_sentra/`, `lib/sentra/legacy.ts`, `prisma/seed.ts`,
   `lib/db.ts` (parity note) — five sentra tables + `AssessmentEntry.sentraId`, RLS + service policies, day-one insert
   of the 8 legacy sentra per campus; seed adds Makro, guru sentra (E003 Balok, E004 Seni) and a 2-day "Putaran TK"
   over TKIT A/B so `u_teacher` reaches TKIT B only via sentra. Note: `prisma migrate deploy` cannot run on an empty
@@ -240,7 +240,7 @@ e2e, docs) plus one empty-state copy line after it.
 
 ## Ship Notes
 
-- **Migration** `20261106000000_add_sentra` (additive: 5 tables + `AssessmentEntry.sentraId`, RLS + service policies,
+- **Migration** `20261106010000_add_sentra` (additive: 5 tables + `AssessmentEntry.sentraId`, RLS + service policies,
   data insert of 8 legacy sentra per existing campus). Applied automatically by `scripts/vercel-build.sh`
   (`prisma migrate deploy`) on the staging deploy, and on main at promotion.
 - **No env vars, no new dependency.**

@@ -124,7 +124,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Network drop during autosave → indicator shows "error", retry on next tap; no silent loss
   - Two browser tabs editing the same student → last write wins, but neither tab hangs
   - Tap a rubric button rapidly 5× across 200ms → exactly one autosave fires, final value is the 5th tap
-  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end
+  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end. The week shown follows the class's kelompok (TK A or TK B), so a TK A and a TK B class can show different themes on the same date
   - A center assessment load failure → visible `Coba lagi` recovery; a read-only assessment has no sticky save footer or writable controls
 - **Known friction (from last UAT):** <filled by /uat reports>
 

@@ -28,6 +28,8 @@ export function normaliseThemeName(name: string): string {
 export interface ThemeRef {
   id: string;
   name: string;
+  /** A / B / null (shared). Optional for callers that do not scope by kelompok. */
+  ageGroup?: "A" | "B" | null;
 }
 
 export interface ThemeMatchResult {
@@ -41,14 +43,33 @@ export interface ThemeMatchResult {
   duplicateNames: string[];
 }
 
-/** Index a semester's themes for lookup. */
-export function indexThemes(themes: ThemeRef[]): ThemeMatchResult {
+/**
+ * Index a semester's themes for lookup.
+ *
+ * With `ageGroup`, only themes visible to that kelompok (same group or shared)
+ * are indexed, and a group-specific theme beats a shared one of the same name.
+ * Themes of the other kelompok are skipped, so their names stay unmatched.
+ */
+export function indexThemes(
+  allThemes: ThemeRef[],
+  ageGroup?: "A" | "B",
+): ThemeMatchResult {
   const idByNormalisedName = new Map<string, string>();
   const duplicateNames: string[] = [];
+  const themes = ageGroup
+    ? allThemes
+        .filter((t) => t.ageGroup == null || t.ageGroup === ageGroup)
+        // group-specific first so it wins the "first occurrence" rule
+        .sort((a, b) => Number(a.ageGroup == null) - Number(b.ageGroup == null))
+    : allThemes;
+  const specificKeys = new Set<string>();
   for (const theme of themes) {
     const key = normaliseThemeName(theme.name);
     if (!key) continue;
+    if (ageGroup && theme.ageGroup != null) specificKeys.add(key);
     if (idByNormalisedName.has(key)) {
+      // A shared theme shadowed by a group-specific one is intended, not a data error.
+      if (ageGroup && theme.ageGroup == null && specificKeys.has(key)) continue;
       if (!duplicateNames.includes(theme.name)) duplicateNames.push(theme.name);
       continue;
     }
