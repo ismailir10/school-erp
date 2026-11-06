@@ -68,13 +68,23 @@ type Entry = {
   activity: string | null;
 };
 
-type Payload =
+type RosterSelection =
+  | { mode: "visitingClass" }
+  | { mode: "ageGroup"; ageGroup: "A" | "B" }
+  | { mode: "class"; classSectionId: string };
+
+type RosterMetadata = {
+  classSectionId?: string | null;
+  todayClassSectionId?: string | null;
+  rotationClasses?: Array<{ id: string; name: string }>;
+  ageGroup?: "A" | "B";
+};
+
+type Payload = RosterMetadata & (
   | {
       ok: true;
       week: { id: string; number: number; subTheme: { name: string }; theme: { name: string } };
       sentra?: { id: string; name: string };
-      todayClassSectionId?: string | null;
-      rotationClasses?: Array<{ id: string; name: string }>;
       date: string;
       ageGroup: "A" | "B";
       students: Student[];
@@ -84,7 +94,8 @@ type Payload =
       lastActivity: string | null;
       writable: boolean;
     }
-  | { ok: false; status: number; error: string; reason?: string };
+  | { ok: false; status: number; error: string; reason?: string }
+);
 
 type Cell = { level: Level | null; note: string };
 
@@ -103,11 +114,7 @@ export function CenterSessionClient({
   const [date, setDate] = useState<string>(() =>
     getTodayInTimezone(JAKARTA_TZ),
   );
-  const [ageGroup, setAgeGroup] = useState<"A" | "B">("A");
-  // Putaran class view. null = the age-group roster. Defaults to today's
-  // visiting class (from the payload) until the teacher picks something.
-  const [classSectionId, setClassSectionId] = useState<string | null>(null);
-  const classChosen = useRef(false);
+  const [selection, setSelection] = useState<RosterSelection>({ mode: "visitingClass" });
   const [activity, setActivity] = useState<string>("");
   const [activityError, setActivityError] = useState("");
   const [pickedIndicatorIds, setPickedIndicatorIds] = useState<string[]>([]);
@@ -130,7 +137,8 @@ export function CenterSessionClient({
   const guard = useUnsavedChangesGuard(dirty);
   const today = getTodayInTimezone(JAKARTA_TZ);
 
-  // Fetch payload whenever date/ageGroup changes.
+  // Fetch the selected roster for each date. The server resolves the visiting
+  // class and its age group together before loading that day's curriculum.
   useEffect(() => {
     let cancelled = false;
     const requestId = ++loadRequestId.current;
@@ -146,8 +154,21 @@ export function CenterSessionClient({
       setOpenNotes(new Set());
       setDirty(false);
       try {
+        const query = new URLSearchParams({ date });
+        switch (selection.mode) {
+          case "visitingClass":
+            query.set("ageGroup", "A");
+            query.set("defaultToVisitingClass", "true");
+            break;
+          case "ageGroup":
+            query.set("ageGroup", selection.ageGroup);
+            break;
+          case "class":
+            query.set("classSectionId", selection.classSectionId);
+            break;
+        }
         const res = await fetch(
-          `/api/teacher/assessment-entries/center/${sentraId}?date=${date}&ageGroup=${ageGroup}${classSectionId ? `&classSectionId=${classSectionId}` : ""}`,
+          `/api/teacher/assessment-entries/center/${sentraId}?${query}`,
         );
         const body = await res.json();
         if (cancelled || requestId !== loadRequestId.current) return;
@@ -157,12 +178,13 @@ export function CenterSessionClient({
             status: res.status,
             error: body.error ?? "Gagal memuat data sentra.",
             reason: body.reason,
+            classSectionId: body.classSectionId,
+            todayClassSectionId: body.todayClassSectionId,
+            rotationClasses: body.rotationClasses,
+            ageGroup: body.ageGroup,
           });
         } else {
           setPayload({ ok: true, ...body });
-          if (!classChosen.current && !classSectionId && body.todayClassSectionId) {
-            setClassSectionId(body.todayClassSectionId);
-          }
           // Hydrate cells + activity from existing entries (shared activity
           // for all entries in a session). When no entries yet, fall back to
           // lastActivity (server-supplied prefill) or keep the user's draft.
@@ -197,7 +219,7 @@ export function CenterSessionClient({
     return () => {
       cancelled = true;
     };
-  }, [sentraId, date, ageGroup, classSectionId, reloadKey]);
+  }, [sentraId, date, selection, reloadKey]);
 
   /**
    * Changing date or age group reloads the grid and drops every unsaved pick,
@@ -213,20 +235,12 @@ export function CenterSessionClient({
     // `max` stops the native picker; this covers typed input. An empty value
     // (field cleared mid-typing) keeps the current date.
     if (!value || value > today || value === date) return;
-    switchGrid(() => {
-      // Re-default to that day's visiting class unless the teacher chose one.
-      if (!classChosen.current) setClassSectionId(null);
-      setDate(value);
-    });
+    switchGrid(() => setDate(value));
   }
 
   function handleAgeGroupChange(next: "A" | "B"): void {
     if (next === effectiveAgeGroup && !classSectionId) return;
-    switchGrid(() => {
-      classChosen.current = true;
-      setClassSectionId(null);
-      setAgeGroup(next);
-    });
+    switchGrid(() => setSelection({ mode: "ageGroup", ageGroup: next }));
   }
 
   function handleClassViewChange(value: string | null): void {
@@ -236,19 +250,17 @@ export function CenterSessionClient({
       return;
     }
     if (value === classSectionId) return;
-    switchGrid(() => {
-      classChosen.current = true;
-      setClassSectionId(value);
-    });
+    switchGrid(() => setSelection({ mode: "class", classSectionId: value }));
   }
 
   const indicators = useMemo(() => (payload?.ok ? payload.indicators : []), [payload]);
   const students = useMemo(() => (payload?.ok ? payload.students : []), [payload]);
+  const classSectionId = selection.mode === "class" ? selection.classSectionId
+    : selection.mode === "visitingClass" ? payload?.classSectionId ?? null : null;
   // A class view carries its own age group; the toggle mirrors it.
-  const effectiveAgeGroup: "A" | "B" =
-    classSectionId && payload?.ok ? payload.ageGroup : ageGroup;
-  const rotationClasses = payload?.ok ? (payload.rotationClasses ?? []) : [];
-  const todayClassId = payload?.ok ? (payload.todayClassSectionId ?? null) : null;
+  const effectiveAgeGroup = selection.mode === "ageGroup" ? selection.ageGroup : payload?.ageGroup ?? "A";
+  const rotationClasses = payload?.rotationClasses ?? [];
+  const todayClassId = payload?.todayClassSectionId ?? null;
   const isWritable = payload?.ok && payload.writable;
   const myClassIds = useMemo(
     () => new Set(payload?.ok ? (payload.myClassSectionIds ?? []) : []),

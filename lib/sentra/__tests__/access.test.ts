@@ -21,6 +21,20 @@ import {
   teacherCanAccessClass,
 } from "../access";
 
+const campusScope = {
+  tenantId: "t1",
+  campus: { tenantId: "t1", employees: { some: { id: "e1", tenantId: "t1" } } },
+};
+const ownedSlot = {
+  tenantId: "t1",
+  classSection: campusScope,
+  sentra: {
+    ...campusScope,
+    status: "ACTIVE",
+    teachers: { some: { tenantId: "t1", employeeId: "e1" } },
+  },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.assignmentFindFirst.mockResolvedValue(null);
@@ -40,21 +54,17 @@ describe("teacherCanAccessClass", () => {
     });
   });
 
-  it("allows via sentra with active/tenant/year scoping", async () => {
+  it("checks the employee's current campus as part of the sentra grant", async () => {
     mocks.rotationClassFindFirst.mockResolvedValue({ id: "rc" });
     expect(await teacherCanAccessClass("e1", "t1", "c1")).toBe(true);
     const where = mocks.rotationClassFindFirst.mock.calls[0][0].where;
     expect(where.classSectionId).toBe("c1");
-    expect(where.classSection).toEqual({ tenantId: "t1" });
+    expect(where.classSection).toEqual(campusScope);
     expect(where.rotation).toMatchObject({
+      ...campusScope,
       status: "ACTIVE",
-      tenantId: "t1",
       academicYear: { status: "ACTIVE" },
-      slots: {
-        some: {
-          sentra: { status: "ACTIVE", teachers: { some: { employeeId: "e1" } } },
-        },
-      },
+      slots: { some: ownedSlot },
     });
   });
 
@@ -79,8 +89,10 @@ describe("getStudentSentraAccess", () => {
   it("falls back to sentra with an `in` filter", async () => {
     mocks.rotationClassFindFirst.mockResolvedValue({ id: "rc" });
     expect(await getStudentSentraAccess("e1", "t1", ["c1", "c2"])).toBe(true);
-    expect(mocks.rotationClassFindFirst.mock.calls[0][0].where.classSectionId).toEqual({
-      in: ["c1", "c2"],
+    expect(mocks.rotationClassFindFirst.mock.calls[0][0].where).toMatchObject({
+      classSectionId: { in: ["c1", "c2"] },
+      classSection: campusScope,
+      rotation: { ...campusScope, slots: { some: ownedSlot } },
     });
   });
   it("is false for an outsider", async () => {
@@ -95,11 +107,14 @@ describe("getSentraClassIds", () => {
       { classes: [{ classSectionId: "c2" }, { classSectionId: "c3" }] },
     ]);
     expect(await getSentraClassIds("e1", "t1")).toEqual(["c1", "c2", "c3"]);
-    expect(mocks.rotationFindMany.mock.calls[0][0].where).toMatchObject({
-      status: "ACTIVE",
-      tenantId: "t1",
-      academicYear: { status: "ACTIVE" },
-      slots: { some: { sentra: { status: "ACTIVE" } } },
+    expect(mocks.rotationFindMany.mock.calls[0][0]).toMatchObject({
+      where: {
+        ...campusScope,
+        status: "ACTIVE",
+        academicYear: { status: "ACTIVE" },
+        slots: { some: ownedSlot },
+      },
+      select: { classes: { where: { tenantId: "t1", classSection: campusScope } } },
     });
   });
 });
@@ -136,5 +151,13 @@ describe("getTeacherSentraToday", () => {
   it("returns [] on Saturday and before start", async () => {
     expect(await getTeacherSentraToday("e1", "t1", "2026-11-07")).toEqual([]);
     expect(await getTeacherSentraToday("e1", "t1", "2026-10-30")).toEqual([]);
+  });
+
+  it("filters old-campus ownership out of both the rotation and returned slots", async () => {
+    await getTeacherSentraToday("e1", "t1", "2026-11-02");
+    expect(mocks.rotationFindMany.mock.calls[0][0]).toMatchObject({
+      where: { ...campusScope, slots: { some: ownedSlot } },
+      select: { slots: { where: ownedSlot } },
+    });
   });
 });

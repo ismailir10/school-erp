@@ -158,11 +158,15 @@ Facts found in the code and the production data (read-only):
 - [x] T8 e2e `sentra.spec.ts` + docs (README, uat jobs, voice glossary, counts) — accept: Playwright green, audit-docs
       green. (deps: T4–T7)
 
+- [x] T9 Resolve PR #722 review findings for roster selection, campus transfers, and concurrent putaran edits.
+
 ## Implementation
 
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5 (Haiku for trivial sweeps); T1 → T2 sequential (schema then
   domain helpers everything else uses); T3, T5, T6 parallel after T2 (disjoint files); T4 after T3, T7 after T5;
   T8 last. Driver reviews each diff and runs the gate before committing.
+- PR #722 follow-up plan. GPT-6.1 Sol drives verification while three workers fix roster selection, campus access,
+  and rotation writes in parallel.
 - T1: `prisma/schema.prisma`, `prisma/migrations/20261106010000_add_sentra/`, `lib/sentra/legacy.ts`, `prisma/seed.ts`,
   `lib/db.ts` (parity note) — five sentra tables + `AssessmentEntry.sentraId`, RLS + service policies, day-one insert
   of the 8 legacy sentra per campus; seed adds Makro, guru sentra (E003 Balok, E004 Seni) and a 2-day "Putaran TK"
@@ -205,6 +209,11 @@ Facts found in the code and the production data (read-only):
   `hub-center-<slug>` test id (`teacher-assessments-weekly.spec.ts` looks for `hub-center-worship`); the picker
   trigger wraps to two lines so "TKIT B — Program · Sentra Balok (hari ini)" no longer spills past the card at
   320px (`mobile-stress.spec.ts`).
+
+- T9 review fixes. Sentra Harian resolves the visiting class before the curriculum week and preserves manual
+  roster selections. Sentra grants follow the teacher’s current campus. Rotation edits and grid saves lock the
+  same row before validation, so a stale request cannot restore an invalid slot. The Sentra Harian browser test
+  requires a saved assessment on a seeded school day and checks the monitor count.
 
 ## Verification
 

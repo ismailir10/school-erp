@@ -1,18 +1,29 @@
 import { prisma } from "@/lib/db";
 import { rotationDayIndex } from "./rotation";
 
-/** Rotation filter shared by every query: ACTIVE rotation, ACTIVE year, this tenant. */
-function activeRotation(tenantId: string) {
-  return { status: "ACTIVE", tenantId, academicYear: { status: "ACTIVE" } };
-}
-
-/** Rotation has a slot whose sentra is ACTIVE and owned by this employee. */
-function ownsSentraSlot(employeeId: string) {
+/** Scope a putaran grant to the teacher's current campus, even if an old SentraTeacher row survives a transfer. */
+function teacherRotationAccess(employeeId: string, tenantId: string) {
+  const campusScope = {
+    tenantId,
+    campus: { tenantId, employees: { some: { id: employeeId, tenantId } } },
+  };
+  const classMembership = { tenantId, classSection: campusScope };
+  const ownedSlot = {
+    ...classMembership,
+    sentra: {
+      ...campusScope,
+      status: "ACTIVE",
+      teachers: { some: { tenantId, employeeId } },
+    },
+  };
   return {
-    slots: {
-      some: {
-        sentra: { status: "ACTIVE", teachers: { some: { employeeId } } },
-      },
+    classMembership,
+    ownedSlot,
+    rotation: {
+      ...campusScope,
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+      slots: { some: ownedSlot },
     },
   };
 }
@@ -22,9 +33,12 @@ export async function getSentraClassIds(
   employeeId: string,
   tenantId: string,
 ): Promise<string[]> {
+  const access = teacherRotationAccess(employeeId, tenantId);
   const rotations = await prisma.sentraRotation.findMany({
-    where: { ...activeRotation(tenantId), ...ownsSentraSlot(employeeId) },
-    select: { classes: { select: { classSectionId: true } } },
+    where: access.rotation,
+    select: {
+      classes: { where: access.classMembership, select: { classSectionId: true } },
+    },
   });
   return [
     ...new Set(rotations.flatMap((r) => r.classes.map((c) => c.classSectionId))),
@@ -69,11 +83,12 @@ async function sentraReaches(
   tenantId: string,
   classFilter: { classSectionId: string | { in: string[] } },
 ): Promise<boolean> {
+  const access = teacherRotationAccess(employeeId, tenantId);
   const hit = await prisma.sentraRotationClass.findFirst({
     where: {
       ...classFilter,
-      classSection: { tenantId },
-      rotation: { ...activeRotation(tenantId), ...ownsSentraSlot(employeeId) },
+      ...access.classMembership,
+      rotation: access.rotation,
     },
     select: { id: true },
   });
@@ -94,16 +109,15 @@ export async function getTeacherSentraToday(
   tenantId: string,
   todayYmd: string,
 ): Promise<TeacherSentraToday[]> {
+  const access = teacherRotationAccess(employeeId, tenantId);
   const rotations = await prisma.sentraRotation.findMany({
-    where: { ...activeRotation(tenantId), ...ownsSentraSlot(employeeId) },
+    where: access.rotation,
     select: {
       id: true,
       startDate: true,
       cycleDays: true,
       slots: {
-        where: {
-          sentra: { status: "ACTIVE", teachers: { some: { employeeId } } },
-        },
+        where: access.ownedSlot,
         select: {
           dayIndex: true,
           sentra: { select: { id: true, name: true } },

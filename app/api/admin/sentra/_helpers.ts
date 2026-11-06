@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import type { Prisma, SentraRotation } from "@/lib/generated/prisma/client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { isUniqueViolation } from "../classes/_helpers";
 
@@ -26,6 +27,19 @@ export function notFound(what: string) {
 
 export function badRequest(error: string) {
   return NextResponse.json({ error }, { status: 400 });
+}
+
+/** Both grid replacement and rotation edits lock the parent before reading its children. */
+export async function lockRotation(tx: Prisma.TransactionClient, id: string, tenantId: string) {
+  const [rotation] = await tx.$queryRaw<
+    Pick<SentraRotation, "campusId" | "academicYearId" | "cycleDays">[]
+  >`
+    SELECT "campusId", "academicYearId", "cycleDays"
+    FROM "SentraRotation"
+    WHERE id = ${id} AND "tenantId" = ${tenantId}
+    FOR UPDATE
+  `;
+  return rotation;
 }
 
 export async function findCampus(campusId: string, tenantId: string) {

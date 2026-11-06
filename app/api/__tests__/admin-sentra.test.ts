@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { requirePermission, db, txMock } = vi.hoisted(() => {
   const txMock = {
-    sentra: { update: vi.fn() },
+    $queryRaw: vi.fn(),
+    classSection: { findMany: vi.fn() },
+    sentra: { findMany: vi.fn(), update: vi.fn() },
     sentraTeacher: { deleteMany: vi.fn(), createMany: vi.fn() },
+    sentraRotation: { findFirst: vi.fn(), update: vi.fn() },
+    sentraRotationClass: { findMany: vi.fn() },
     sentraRotationSlot: { deleteMany: vi.fn(), createMany: vi.fn() },
   };
   const db = {
@@ -29,7 +33,7 @@ import { GET as listGet, POST as sentraPost } from "@/app/api/admin/sentra/route
 import { PATCH as sentraPatch } from "@/app/api/admin/sentra/[id]/route";
 import { GET as optionsGet } from "@/app/api/admin/sentra/options/route";
 import { POST as rotationPost } from "@/app/api/admin/sentra/rotations/route";
-import { GET as rotationGet } from "@/app/api/admin/sentra/rotations/[id]/route";
+import { GET as rotationGet, PATCH as rotationPatch } from "@/app/api/admin/sentra/rotations/[id]/route";
 import { PUT as slotsPut } from "@/app/api/admin/sentra/rotations/[id]/slots/route";
 
 const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
@@ -96,8 +100,10 @@ describe("tenant scope", () => {
   it("404 for another tenant's sentra and rotation", async () => {
     db.sentra.findFirst.mockResolvedValue(null);
     db.sentraRotation.findFirst.mockResolvedValue(null);
+    txMock.$queryRaw.mockResolvedValue([]);
     expect((await sentraPatch(req("PATCH", { name: "x" }), params("s9"))).status).toBe(404);
     expect((await rotationGet(req("GET"), params("r9"))).status).toBe(404);
+    expect((await rotationPatch(req("PATCH", { name: "x" }), params("r9"))).status).toBe(404);
     expect((await slotsPut(req("PUT", { slots: [] }), params("r9"))).status).toBe(404);
   });
 });
@@ -197,46 +203,77 @@ describe("POST /api/admin/sentra/rotations", () => {
   });
 });
 
+const rotationRow = { id: "r1", campusId: "c1", academicYearId: "y1", cycleDays: 10 };
+
+function expectRotationLock() {
+  const [sql, id, tenantId] = txMock.$queryRaw.mock.calls[0];
+  expect(sql.join("?")).toMatch(/WHERE id = \? AND "tenantId" = \?\s+FOR UPDATE/);
+  expect([id, tenantId]).toEqual(["r1", "t1"]);
+}
+
+describe("PATCH rotations/[id]", () => {
+  it("locks the rotation before updating and prunes slots using the requested length", async () => {
+    db.sentraRotation.findFirst.mockResolvedValue(rotationRow);
+    txMock.$queryRaw.mockResolvedValue([{ ...rotationRow, cycleDays: 15 }]);
+    const res = await rotationPatch(req("PATCH", { cycleDays: 10 }), params("r1"));
+
+    expect(res.status).toBe(200);
+    expectRotationLock();
+    expect(txMock.$queryRaw).toHaveBeenCalledBefore(txMock.sentraRotation.update);
+    expect(txMock.sentraRotationSlot.deleteMany).toHaveBeenCalledWith({
+      where: { rotationId: "r1", tenantId: "t1", dayIndex: { gte: 10 } },
+    });
+  });
+});
+
 describe("PUT rotations/[id]/slots", () => {
   beforeEach(() => {
-    db.sentraRotation.findFirst.mockResolvedValue({
-      id: "r1",
-      campusId: "c1",
-      cycleDays: 10,
-      classes: [{ classSectionId: "k1" }, { classSectionId: "k2" }],
-    });
+    const classes = [
+      { classSectionId: "k1" },
+      { classSectionId: "k2" },
+    ];
+    db.sentraRotation.findFirst.mockResolvedValue({ ...rotationRow, classes });
     db.sentra.findMany.mockResolvedValue([{ id: "s1" }]);
+    txMock.$queryRaw.mockResolvedValue([rotationRow]);
+    txMock.sentraRotationClass.findMany.mockResolvedValue(classes);
+    txMock.sentra.findMany.mockResolvedValue([{ id: "s1" }]);
   });
 
-  it("400 when dayIndex is out of range", async () => {
+  it("rejects a stale grid when the locked rotation was shortened", async () => {
+    txMock.$queryRaw.mockResolvedValue([{ ...rotationRow, cycleDays: 5 }]);
     const res = await slotsPut(
-      req("PUT", { slots: [{ dayIndex: 10, classSectionId: "k1", sentraId: "s1" }] }),
+      req("PUT", { slots: [{ dayIndex: 5, classSectionId: "k1", sentraId: "s1" }] }),
       params("r1"),
     );
     expect(res.status).toBe(400);
+    expectRotationLock();
     expect(txMock.sentraRotationSlot.deleteMany).not.toHaveBeenCalled();
   });
 
   it("400 when the sentra is not an active sentra of the campus", async () => {
-    db.sentra.findMany.mockResolvedValue([]);
+    txMock.sentra.findMany.mockResolvedValue([]);
     const res = await slotsPut(
       req("PUT", { slots: [{ dayIndex: 0, classSectionId: "k1", sentraId: "sX" }] }),
       params("r1"),
     );
     expect(res.status).toBe(400);
-    expect(db.sentra.findMany.mock.calls[0][0].where).toMatchObject({
+    expect(txMock.sentra.findMany.mock.calls[0][0].where).toMatchObject({
       campusId: "c1",
       status: "ACTIVE",
       tenantId: "t1",
     });
   });
 
-  it("400 for a class outside the rotation", async () => {
+  it("reads class membership after locking and rejects a stale grid when a class was removed", async () => {
+    txMock.sentraRotationClass.findMany.mockResolvedValue([{ classSectionId: "k1" }]);
     const res = await slotsPut(
-      req("PUT", { slots: [{ dayIndex: 0, classSectionId: "zz", sentraId: "s1" }] }),
+      req("PUT", { slots: [{ dayIndex: 0, classSectionId: "k2", sentraId: "s1" }] }),
       params("r1"),
     );
     expect(res.status).toBe(400);
+    expectRotationLock();
+    expect(txMock.$queryRaw).toHaveBeenCalledBefore(txMock.sentraRotationClass.findMany);
+    expect(txMock.sentraRotationSlot.deleteMany).not.toHaveBeenCalled();
   });
 
   it("drops null cells and allows the same sentra twice on a day", async () => {
@@ -252,8 +289,9 @@ describe("PUT rotations/[id]/slots", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ saved: 2 });
+    expect(txMock.$queryRaw).toHaveBeenCalledBefore(txMock.sentraRotationSlot.deleteMany);
     expect(txMock.sentraRotationSlot.deleteMany).toHaveBeenCalledWith({
-      where: { rotationId: "r1" },
+      where: { rotationId: "r1", tenantId: "t1" },
     });
     expect(txMock.sentraRotationSlot.createMany.mock.calls[0][0].data).toHaveLength(2);
   });

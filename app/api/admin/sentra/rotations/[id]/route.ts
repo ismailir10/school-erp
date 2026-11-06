@@ -9,6 +9,7 @@ import {
   DUP_ROTATION,
   isUniqueViolation,
   limitWrites,
+  lockRotation,
   notFound,
 } from "../../_helpers";
 
@@ -78,57 +79,51 @@ export async function PATCH(
   const limited = limitWrites(req, "sentra-rotation-update");
   if (limited) return limited;
 
-  const existing = await prisma.sentraRotation.findFirst({
-    where: { id, tenantId: session.tenantId },
-    select: {
-      id: true,
-      campusId: true,
-      academicYearId: true,
-      cycleDays: true,
-    },
-  });
-  if (!existing) return notFound("Putaran");
-
   const parsed = await validateBody(rotationUpdateSchema, await req.json());
   if (parsed.error) return parsed.error;
   const { name, startDate, cycleDays, status, classSectionIds } = parsed.data;
+  const { tenantId } = session;
 
   const uniqueClasses = classSectionIds ? [...new Set(classSectionIds)] : null;
-  if (uniqueClasses) {
-    const found = await prisma.classSection.findMany({
-      where: {
-        id: { in: uniqueClasses },
-        tenantId: session.tenantId,
-        campusId: existing.campusId,
-        academicYearId: existing.academicYearId,
-      },
-      select: { id: true },
-    });
-    if (found.length !== uniqueClasses.length) {
-      return badRequest(
-        "Semua kelas harus berada di kampus dan tahun ajaran putaran ini.",
-      );
-    }
-  }
-
-  if (name !== undefined) {
-    const dup = await prisma.sentraRotation.findFirst({
-      where: {
-        tenantId: session.tenantId,
-        campusId: existing.campusId,
-        academicYearId: existing.academicYearId,
-        id: { not: id },
-        name: { equals: name, mode: "insensitive" },
-      },
-      select: { id: true },
-    });
-    if (dup) return NextResponse.json({ error: DUP_ROTATION }, { status: 409 });
-  }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
+      const existing = await lockRotation(tx, id, tenantId);
+      if (!existing) return notFound("Putaran");
+
+      if (uniqueClasses) {
+        const found = await tx.classSection.findMany({
+          where: {
+            id: { in: uniqueClasses },
+            tenantId,
+            campusId: existing.campusId,
+            academicYearId: existing.academicYearId,
+          },
+          select: { id: true },
+        });
+        if (found.length !== uniqueClasses.length) {
+          return badRequest(
+            "Semua kelas harus berada di kampus dan tahun ajaran putaran ini.",
+          );
+        }
+      }
+
+      if (name !== undefined) {
+        const dup = await tx.sentraRotation.findFirst({
+          where: {
+            tenantId,
+            campusId: existing.campusId,
+            academicYearId: existing.academicYearId,
+            id: { not: id },
+            name: { equals: name, mode: "insensitive" },
+          },
+          select: { id: true },
+        });
+        if (dup) return NextResponse.json({ error: DUP_ROTATION }, { status: 409 });
+      }
+
       await tx.sentraRotation.update({
-        where: { id },
+        where: { id, tenantId },
         data: {
           ...(name !== undefined && { name }),
           ...(startDate !== undefined && {
@@ -141,10 +136,10 @@ export async function PATCH(
 
       if (uniqueClasses) {
         await tx.sentraRotationClass.deleteMany({
-          where: { rotationId: id, classSectionId: { notIn: uniqueClasses } },
+          where: { rotationId: id, tenantId, classSectionId: { notIn: uniqueClasses } },
         });
         const current = await tx.sentraRotationClass.findMany({
-          where: { rotationId: id },
+          where: { rotationId: id, tenantId },
           select: { classSectionId: true },
         });
         const have = new Set(current.map((c) => c.classSectionId));
@@ -152,7 +147,7 @@ export async function PATCH(
         if (toAdd.length > 0) {
           await tx.sentraRotationClass.createMany({
             data: toAdd.map((classSectionId) => ({
-              tenantId: session.tenantId,
+              tenantId,
               rotationId: id,
               classSectionId,
             })),
@@ -161,30 +156,30 @@ export async function PATCH(
         // Re-apply requested order.
         for (let i = 0; i < uniqueClasses.length; i++) {
           await tx.sentraRotationClass.updateMany({
-            where: { rotationId: id, classSectionId: uniqueClasses[i] },
+            where: { rotationId: id, tenantId, classSectionId: uniqueClasses[i] },
             data: { sortOrder: i },
           });
         }
         // Slots of removed classes are now orphans.
         await tx.sentraRotationSlot.deleteMany({
-          where: { rotationId: id, classSectionId: { notIn: uniqueClasses } },
+          where: { rotationId: id, tenantId, classSectionId: { notIn: uniqueClasses } },
         });
       }
 
-      if (cycleDays !== undefined && cycleDays < existing.cycleDays) {
+      if (cycleDays !== undefined) {
         await tx.sentraRotationSlot.deleteMany({
-          where: { rotationId: id, dayIndex: { gte: cycleDays } },
+          where: { rotationId: id, tenantId, dayIndex: { gte: cycleDays } },
         });
       }
-    });
+
+      return NextResponse.json({ ok: true });
+    }, { isolationLevel: "ReadCommitted" });
   } catch (err) {
     if (isUniqueViolation(err)) {
       return NextResponse.json({ error: DUP_ROTATION }, { status: 409 });
     }
     throw err;
   }
-
-  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(

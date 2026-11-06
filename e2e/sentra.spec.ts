@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { getTodayInTimezone } from "../lib/attendance/timezone";
-import { isSchoolWeekday, rotationDayIndex } from "../lib/sentra/rotation";
+import { rotationDayIndex } from "../lib/sentra/rotation";
+import { academicYearFor, latestSchoolDay } from "../prisma/data/calendar";
+import { allHolidays } from "../prisma/data/holidays";
 
 // Sentra as data (cycle 2026-11-06-sentra-rotation), condensed to three
 // cross-module flows. Demo-mode cookie auth, as the other portal specs.
@@ -15,9 +17,11 @@ const CYCLE_DAYS = 2;
 const CLASS_BY_DAY_FOR_BALOK = ["TKIT A", "TKIT B"]; // class visiting Balok on day 0 / day 1
 
 const today = getTodayInTimezone("Asia/Jakarta");
-const weekday = isSchoolWeekday(today);
-const todayIndex = rotationDayIndex(ROTATION_START, today, CYCLE_DAYS);
-const expectedTodayClass = todayIndex === null ? null : CLASS_BY_DAY_FOR_BALOK[todayIndex];
+const recentSchoolDay = latestSchoolDay(today, new Set(allHolidays.map((holiday) => holiday.date)));
+const academicStart = academicYearFor(today).start;
+const assessmentDate = recentSchoolDay < academicStart ? academicStart : recentSchoolDay;
+const dayIndex = rotationDayIndex(ROTATION_START, assessmentDate, CYCLE_DAYS);
+const expectedClass = dayIndex === null ? null : CLASS_BY_DAY_FOR_BALOK[dayIndex];
 
 function cookie(userId: string) {
   return [{ name: "school-erp-session", value: userId, domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" as const }];
@@ -138,18 +142,34 @@ test.describe("Sentra", () => {
     const first = tiles.first();
     await expect(first).toContainText("Balok");
     await expect(first.getByText("Sentra saya")).toBeVisible();
+    const initialSession = waitForCenterSession(today);
     await first.click();
     await page.waitForURL("**/teacher/assessments/center/*");
     await expect(page.getByRole("heading", { name: "Sentra Balok", level: 1 })).toBeVisible();
 
-    if (weekday && expectedTodayClass) {
-      await expect(page.getByTestId("center-class-switcher")).toContainText(expectedTodayClass);
+    function waitForCenterSession(date: string) {
+      return page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return url.pathname.startsWith("/api/teacher/assessment-entries/center/")
+          && url.searchParams.get("date") === date;
+      });
     }
 
-    // Record one level when this week has an IKTP picker (the seed's curriculum weeks cover the active semester).
+    async function openAssessmentDate() {
+      if (assessmentDate !== today) {
+        const selectedSession = waitForCenterSession(assessmentDate);
+        await page.getByTestId("center-date").fill(assessmentDate);
+        expect((await selectedSession).ok()).toBeTruthy();
+      }
+      if (expectedClass) {
+        await expect(page.getByTestId("center-class-switcher")).toContainText(expectedClass);
+      }
+    }
+
+    await initialSession;
+    await openAssessmentDate();
     const picker = page.getByTestId("center-indicator-picker");
-    const writable = await picker.waitFor({ state: "visible", timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!writable, "no writable Sentra Harian session with IKTP for today in the seed");
+    await expect(picker).toBeVisible();
 
     await page.getByTestId("center-activity").fill(`Balok E2E ${Date.now()}`);
     const indicatorBtn = picker.getByRole("button").first();
@@ -161,10 +181,20 @@ test.describe("Sentra", () => {
     const levelLabel = await level.getAttribute("aria-label");
     await level.click();
     await expect(level).toHaveAttribute("aria-checked", "true");
+    const saved = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/teacher/assessment-entries/center"
+      && response.request().method() === "POST",
+    );
     await page.getByTestId("center-save").click();
+    const saveResponse = await saved;
+    expect(saveResponse.ok()).toBeTruthy();
+    expect((await saveResponse.json()).written).toBeGreaterThan(0);
     await expect(page.getByText(/Penilaian tersimpan/)).toBeVisible();
 
+    const reloadedSession = waitForCenterSession(today);
     await page.reload();
+    await reloadedSession;
+    await openAssessmentDate();
     await expect(page.getByTestId("center-roster").getByRole("radio", { name: levelLabel! }).first()).toHaveAttribute("aria-checked", "true");
 
     // Admin monitor names the sentra.
@@ -173,6 +203,10 @@ test.describe("Sentra", () => {
     const admin = await adminPage.newPage();
     await admin.goto("/admin/assessments");
     await expect(admin.getByText("Sentra Balok").first()).toBeVisible();
+    const monitor = await admin.request.get(`/api/admin/assessments?week=${assessmentDate}&day=${assessmentDate}`);
+    expect(monitor.ok()).toBeTruthy();
+    const { data } = (await monitor.json()) as { data: { sentra: Array<{ label: string; entries: number }> } };
+    expect(data.sentra.find((row) => row.label === "Sentra Balok")?.entries).toBeGreaterThan(0);
     await adminPage.close();
   });
 });

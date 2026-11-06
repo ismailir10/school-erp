@@ -65,22 +65,24 @@ function req(
   );
 }
 
+const activeWeek = {
+  id: "wk1",
+  number: 3,
+  startDate: new Date("2026-05-11T00:00:00Z"),
+  endDate: new Date("2026-05-15T00:00:00Z"),
+  subTheme: {
+    id: "st1",
+    name: "Sub",
+    theme: { id: "th1", name: "Theme", semesterId: "sem1" },
+  },
+};
+
 const happy = () => {
   employeeFindFirst.mockResolvedValue({ campusId: "cam1" });
   sentraFindFirst.mockResolvedValue({ id: "sen1", name: "Ibadah", legacyCenter: "WORSHIP", campusId: "cam1" });
   classSectionFindFirst.mockResolvedValue({ id: "cs1", ageGroup: "A" });
   sentraRotationFindMany.mockResolvedValue([]);
-  weekFindFirst.mockResolvedValue({
-    id: "wk1",
-    number: 3,
-    startDate: new Date("2026-05-11T00:00:00Z"),
-    endDate: new Date("2026-05-15T00:00:00Z"),
-    subTheme: {
-      id: "st1",
-      name: "Sub",
-      theme: { id: "th1", name: "Theme", semesterId: "sem1" },
-    },
-  });
+  weekFindFirst.mockResolvedValue(activeWeek);
   // ClassSection.ageGroup is now a DB-side filter (column added
   // 2026-05-20 in feat/curriculum-cutover-prep T1). The route's where
   // clause already constrains classSection.ageGroup === requested
@@ -304,12 +306,54 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
         classes: [{ classSection: { id: "cs1", name: "TK A 1" } }],
       },
     ]);
-    const res = await GET(req("sen1", "date=2026-05-16&ageGroup=A") as never, {
+    const res = await GET(req("sen1", "date=2026-05-16&ageGroup=A&defaultToVisitingClass=true") as never, {
       params: Promise.resolve({ center: "sen1" }),
     });
     const body = await res.json();
     expect(body.todayClassSectionId).toBeNull();
+    expect(body.classSectionId).toBeNull();
+    expect(body.ageGroup).toBe("A");
     expect(body.rotationClasses).toHaveLength(1);
+  });
+
+  it("loads the visiting TK B class when only TK B has an active week", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happy();
+    weekFindFirst.mockImplementation(({ where }) =>
+      where.subTheme.theme.OR[0].ageGroup === "B" ? activeWeek : null,
+    );
+    sentraRotationFindMany.mockResolvedValue([
+      {
+        startDate: "2026-05-11",
+        cycleDays: 10,
+        slots: [{ dayIndex: 3, classSectionId: "cs2" }],
+        classes: [{ classSection: { id: "cs2", name: "TK B 1", ageGroup: "B" } }],
+      },
+    ]);
+    studentEnrollmentFindMany.mockResolvedValue([
+      {
+        classSection: { id: "cs2", name: "TK B 1" },
+        student: { id: "stu2", name: "Aisyah", nickname: null, status: "ACTIVE" },
+      },
+    ]);
+
+    const res = await GET(
+      req("sen1", "date=2026-05-14&ageGroup=A&defaultToVisitingClass=true") as never,
+      { params: Promise.resolve({ center: "sen1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ageGroup: "B",
+      classSectionId: "cs2",
+      todayClassSectionId: "cs2",
+      students: [{ id: "stu2" }],
+    });
+    expect(weekFindFirst).toHaveBeenCalledTimes(1);
+    expect(studentEnrollmentFindMany.mock.calls[0][0].where.classSection).toEqual({
+      id: "cs2",
+      tenantId: "t1",
+    });
   });
 
   it("404 when classSectionId is not in the tenant", async () => {

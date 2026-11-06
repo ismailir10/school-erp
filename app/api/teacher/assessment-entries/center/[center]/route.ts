@@ -63,14 +63,15 @@ export async function GET(
 
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date") ?? getTodayInTimezone(JAKARTA_TZ);
-  const classSectionIdParam = searchParams.get("classSectionId");
+  const requestedClassId = searchParams.get("classSectionId");
+  const defaultToVisitingClass = searchParams.get("defaultToVisitingClass") === "true";
   let ageGroupParam = searchParams.get("ageGroup");
-  if (classSectionIdParam) {
+  if (requestedClassId) {
     // A class view carries its own age group (indicators follow it), so the
     // ageGroup query becomes optional and the class's value wins.
     const cls = await prisma.classSection.findFirst({
       where: {
-        id: classSectionIdParam,
+        id: requestedClassId,
         tenantId: session.tenantId,
         campusId: sentra.campusId,
         status: "ACTIVE",
@@ -86,13 +87,66 @@ export async function GET(
     }
     ageGroupParam = cls.ageGroup;
   }
-  if (ageGroupParam !== "A" && ageGroupParam !== "B") {
+
+  // Resolve the visiting class before looking up the curriculum week. TK A
+  // and TK B can have different active weeks on the same date.
+  const rotations = await prisma.sentraRotation.findMany({
+    where: {
+      tenantId: session.tenantId,
+      campusId: sentra.campusId,
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+      slots: { some: { sentraId: sentra.id } },
+    },
+    select: {
+      startDate: true,
+      cycleDays: true,
+      slots: {
+        where: { sentraId: sentra.id },
+        select: { dayIndex: true, classSectionId: true },
+      },
+      classes: {
+        where: {
+          classSection: {
+            tenantId: session.tenantId,
+            campusId: sentra.campusId,
+            status: "ACTIVE",
+            academicYear: { status: "ACTIVE" },
+          },
+        },
+        orderBy: { sortOrder: "asc" },
+        select: { classSection: { select: { id: true, name: true, ageGroup: true } } },
+      },
+    },
+  });
+  const rotationClasses = new Map<string, { id: string; name: string }>();
+  let visitingClass: { id: string; ageGroup: "A" | "B" } | undefined;
+  for (const r of rotations) {
+    for (const { classSection: { id, name } } of r.classes) {
+      rotationClasses.set(id, { id, name });
+    }
+    if (visitingClass) continue;
+    const dayIndex = rotationDayIndex(r.startDate, dateParam, r.cycleDays);
+    if (dayIndex === null) continue;
+    visitingClass = r.classes.find(({ classSection }) =>
+      r.slots.some((slot) => slot.dayIndex === dayIndex && slot.classSectionId === classSection.id),
+    )?.classSection;
+  }
+  const automaticClass = defaultToVisitingClass && !requestedClassId ? visitingClass : undefined;
+  const classSectionId = requestedClassId || automaticClass?.id || null;
+  const ageGroup = automaticClass?.ageGroup ?? ageGroupParam;
+  if (ageGroup !== "A" && ageGroup !== "B") {
     return NextResponse.json(
       { error: "ageGroup wajib bernilai A atau B." },
       { status: 400 },
     );
   }
-  const ageGroup = ageGroupParam;
+  const roster = {
+    classSectionId,
+    todayClassSectionId: visitingClass?.id ?? null,
+    rotationClasses: [...rotationClasses.values()],
+    ageGroup,
+  };
 
   const targetUtcMidnight = parseJakartaYmd(dateParam);
   const week = await getCurrentWeek(session.tenantId, targetUtcMidnight, ageGroup);
@@ -104,7 +158,7 @@ export async function GET(
         reason: "no_active_week",
         sentra: { id: sentra.id, name: sentra.name },
         date: dateParam,
-        ageGroup,
+        ...roster,
       },
       { status: 422 },
     );
@@ -119,8 +173,8 @@ export async function GET(
     where: {
       status: "ACTIVE",
       student: { tenantId: session.tenantId, status: "ACTIVE" },
-      classSection: classSectionIdParam
-        ? { id: classSectionIdParam, tenantId: session.tenantId }
+      classSection: classSectionId
+        ? { id: classSectionId, tenantId: session.tenantId }
         : { tenantId: session.tenantId, status: "ACTIVE", ageGroup },
     },
     select: {
@@ -215,44 +269,6 @@ export async function GET(
   const lastActivity =
     existingEntries.find((e) => e.activity)?.activity ?? null;
 
-  // Putaran info: which class visits this sentra on the requested date, and
-  // every class of a putaran that includes this sentra (for the switcher).
-  const rotations = await prisma.sentraRotation.findMany({
-    where: {
-      tenantId: session.tenantId,
-      status: "ACTIVE",
-      academicYear: { status: "ACTIVE" },
-      slots: { some: { sentraId: sentra.id } },
-    },
-    select: {
-      startDate: true,
-      cycleDays: true,
-      slots: {
-        where: { sentraId: sentra.id },
-        select: { dayIndex: true, classSectionId: true },
-      },
-      classes: {
-        orderBy: { sortOrder: "asc" },
-        select: { classSection: { select: { id: true, name: true } } },
-      },
-    },
-  });
-  let todayClassSectionId: string | null = null;
-  const rotationClasses: Array<{ id: string; name: string }> = [];
-  const seenClassIds = new Set<string>();
-  for (const r of rotations) {
-    for (const c of r.classes) {
-      if (seenClassIds.has(c.classSection.id)) continue;
-      seenClassIds.add(c.classSection.id);
-      rotationClasses.push({ id: c.classSection.id, name: c.classSection.name });
-    }
-    if (todayClassSectionId) continue;
-    const idx = rotationDayIndex(r.startDate, dateParam, r.cycleDays);
-    if (idx === null) continue;
-    todayClassSectionId =
-      r.slots.find((slot) => slot.dayIndex === idx)?.classSectionId ?? null;
-  }
-
   return NextResponse.json({
     week: {
       id: week.id,
@@ -266,10 +282,8 @@ export async function GET(
       },
     },
     sentra: { id: sentra.id, name: sentra.name },
-    todayClassSectionId,
-    rotationClasses,
+    ...roster,
     date: dateParam,
-    ageGroup,
     students,
     myClassSectionIds,
     indicators,
