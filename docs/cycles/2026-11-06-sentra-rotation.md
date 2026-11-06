@@ -155,7 +155,7 @@ Facts found in the code and the production data (read-only):
 - [x] T6 Sentra Harian on campus sentra: tiles, roster default, POST writes sentra, readers label by sentra —
       accept: API + format tests; flow 3. (deps: T2) ∥ T3, T5
 - [x] T7 Teacher home: today's sentra class card — accept: home test; flow 2 home part. (deps: T5)
-- [ ] T8 e2e `sentra.spec.ts` + docs (README, uat jobs, voice glossary, counts) — accept: Playwright green, audit-docs
+- [x] T8 e2e `sentra.spec.ts` + docs (README, uat jobs, voice glossary, counts) — accept: Playwright green, audit-docs
       green. (deps: T4–T7)
 
 ## Implementation
@@ -198,6 +198,9 @@ Facts found in the code and the production data (read-only):
   sentra class joins the home list with the same journal/attendance/replies/day-mark summary and a "Sentra X · hari
   ini" badge; an assigned class that is also today's sentra class is tagged, not duplicated; sentra-only cards show no
   attendance actions (attendance stays assignment-only); a failing sentra lookup leaves the home rendering.
+- T8: `e2e/sentra.spec.ts` (admin setup + duplicate warning, guru sentra fills TKIT B + outsider 403, Sentra Harian
+  own tile → record → admin monitor), `docs/uat/jobs/{admin,teacher}.md`, voice glossary (Sentra, Guru sentra,
+  Putaran), CLAUDE.md counts via `audit-docs.sh --write`.
 
 ## Verification
 
