@@ -175,7 +175,9 @@ export default function StudentJournalPickerPage() {
           }} items={assignments.map((a) => ({ label: classOptionLabel(a), value: a.classSection.id }))}>
             <SelectTrigger
               id="journal-class"
-              className="tap-target w-full"
+              // Sentra labels run long ("TKIT B — Program · Sentra Balok (hari ini)");
+              // let the trigger wrap to two lines instead of spilling past the card on a 320px phone.
+              className="tap-target h-auto w-full whitespace-normal text-left *:data-[slot=select-value]:line-clamp-2"
               aria-invalid={classError ? true : undefined}
               aria-describedby={classError ? "journal-class-error" : undefined}
             >

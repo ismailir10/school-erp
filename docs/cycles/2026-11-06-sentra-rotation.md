@@ -201,6 +201,10 @@ Facts found in the code and the production data (read-only):
 - T8: `e2e/sentra.spec.ts` (admin setup + duplicate warning, guru sentra fills TKIT B + outsider 403, Sentra Harian
   own tile → record → admin monitor), `docs/uat/jobs/{admin,teacher}.md`, voice glossary (Sentra, Guru sentra,
   Putaran), CLAUDE.md counts via `audit-docs.sh --write`.
+- Verify fix (full Playwright run 1: 274 passed, 2 failed, both from this cycle): legacy sentra tiles keep their old
+  `hub-center-<slug>` test id (`teacher-assessments-weekly.spec.ts` looks for `hub-center-worship`); the picker
+  trigger wraps to two lines so "TKIT B — Program · Sentra Balok (hari ini)" no longer spills past the card at
+  320px (`mobile-stress.spec.ts`).
 
 ## Verification
 
