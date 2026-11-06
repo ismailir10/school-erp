@@ -147,7 +147,7 @@ Facts found in the code and the production data (read-only):
       sentra for each campus, a putaran where `u_teacher` owns a sentra visiting a class she isn't assigned to. (deps: none)
 - [x] T2 `lib/sentra` domain: rotation day math, accessible-classes + can-access helper, today's sentra per guru —
       accept: unit tests for every rule in Decisions 4–6. (deps: T1)
-- [ ] T3 Admin API: sentra CRUD + putaran CRUD + grid save — accept: API tests for permission, validation, tenant
+- [x] T3 Admin API: sentra CRUD + putaran CRUD + grid save — accept: API tests for permission, validation, tenant
       scope. (deps: T2) ∥ T5, T6
 - [ ] T4 Admin UI `/admin/sentra` + putaran grid + nav entry — accept: flow 1 walkable. (deps: T3)
 - [ ] T5 Buku Penghubung access: guards use the shared helper, picker lists sentra classes with today's preselected —
@@ -172,6 +172,10 @@ Facts found in the code and the production data (read-only):
 - T2: `lib/sentra/{rotation,access}.ts` + tests (22) — calendar-aligned Mon–Fri day index (O(1)), day labels,
   `teacherCanAccessClass` / `getStudentSentraAccess` (assignment first, then one sentra query scoped to an ACTIVE
   putaran in an ACTIVE year of the tenant with a slot of the guru's ACTIVE sentra), `getTeacherSentraToday`.
+- T3: `app/api/admin/sentra/**`, `lib/validations/sentra.ts`, `app/api/__tests__/admin-sentra.test.ts` (15) — sentra
+  GET/POST/PATCH (no delete), options, putaran POST/GET/PATCH/DELETE, grid PUT (replace-all in a transaction; cells
+  must be an ACTIVE sentra of the putaran's campus and a class of the putaran). Tenant-scoped 404s, `academic.view`
+  read / `academic.edit` write, mutations rate-limited like the class routes.
 
 ## Verification
 
