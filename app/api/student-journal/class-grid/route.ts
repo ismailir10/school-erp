@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const guard = await requireTeacherForClass(classSectionId);
+  const guard = await requireTeacherForClass(classSectionId, { viaSentra: true });
   if (guard.error) return guard.error;
   const { session } = guard;
 

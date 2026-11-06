@@ -9,10 +9,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/portal/page-header";
 import { SectionLabel } from "@/components/portal/section-label";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
-import {
-  ALL_LEARNING_CENTERS,
-  formatLearningCenter,
-} from "@/lib/format";
+import { sentraLabel } from "@/lib/sentra/rotation";
+import { getTeacherSentraToday } from "@/lib/sentra/access";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "Penilaian" };
 
@@ -71,6 +71,41 @@ export default async function TeacherAssessmentsPage() {
   // assignment — so the notice sits above them instead of replacing them.
   const hasNoClass = assignmentCount === 0 && !homeroom;
 
+  // Sentra tiles: active sentra of the teacher's campus, her own first.
+  const employee = await prisma.employee.findFirst({
+    where: { id: session.employeeId, tenantId: session.tenantId },
+    select: { campusId: true },
+  });
+  const campusSentra = employee?.campusId
+    ? await prisma.sentra.findMany({
+        where: {
+          tenantId: session.tenantId,
+          campusId: employee.campusId,
+          status: "ACTIVE",
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          legacyCenter: true,
+          name: true,
+          teachers: {
+            where: { employeeId: session.employeeId },
+            select: { id: true },
+          },
+        },
+      })
+    : [];
+  const todayItems = await getTeacherSentraToday(
+    session.employeeId,
+    session.tenantId,
+    getTodayInTimezone("Asia/Jakarta"),
+  );
+  const todayBySentra = new Map(todayItems.map((i) => [i.sentraId, i.className]));
+  const tiles = [
+    ...campusSentra.filter((x) => x.teachers.length > 0),
+    ...campusSentra.filter((x) => x.teachers.length === 0),
+  ];
+
   return (
     <div>
       <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
@@ -115,28 +150,54 @@ export default async function TeacherAssessmentsPage() {
         )}
         <div data-testid="hub-center-grid">
           <SectionLabel>Sentra harian</SectionLabel>
-          <div className="grid grid-cols-2 gap-2">
-            {ALL_LEARNING_CENTERS.map((center) => (
-              <Link
-                key={center}
-                href={`/teacher/assessments/center/${center.toLowerCase()}`}
-                data-testid={`hub-center-${center.toLowerCase()}`}
-                className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Building2 className="size-4 text-primary" />
-                </div>
-                {/*
-                  The eyebrow above already says "Sentra", and repeating it
-                  eight times in a 2-column grid at 390px truncated half the
-                  tiles ("Sentra Bahan Al…"). Strip the redundant prefix.
-                */}
-                <span className="min-w-0 truncate text-xs font-medium">
-                  {formatLearningCenter(center).replace(/^Sentra /, "")}
-                </span>
-              </Link>
-            ))}
-          </div>
+          {tiles.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title="Belum ada sentra di kampus ini."
+              description="Minta admin menambahkannya di menu Sentra."
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {tiles.map((sentra) => {
+                const mine = sentra.teachers.length > 0;
+                const todayClass = todayBySentra.get(sentra.id);
+                return (
+                  <Link
+                    key={sentra.id}
+                    href={`/teacher/assessments/center/${sentra.id}`}
+                    // Legacy sentra keep their old slug as test id (hub-center-worship …) so
+                    // existing specs stay stable; admin-added sentra use their id.
+                    data-testid={`hub-center-${sentra.legacyCenter ? sentra.legacyCenter.toLowerCase() : sentra.id}`}
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Building2 className="size-4 text-primary" />
+                    </div>
+                    {/*
+                      The eyebrow above already says "Sentra", and repeating it
+                      in a 2-column grid at 390px truncated half the tiles.
+                      Strip the redundant prefix.
+                    */}
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium">
+                        {sentraLabel(sentra.name).replace(/^Sentra /, "")}
+                      </span>
+                      {mine && (
+                        <Badge variant="secondary" className="mt-1" data-testid="hub-center-mine">
+                          Sentra saya
+                        </Badge>
+                      )}
+                      {mine && todayClass && (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Hari ini: {todayClass}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

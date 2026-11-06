@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getSentraClassIds } from "@/lib/sentra/access";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
 import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
 
@@ -19,7 +20,7 @@ const MAX_STUDENT_IDS = 20;
  * load, and per-id guarding would be three queries per child. The rule it
  * enforces is the same one that guard applies — guardians see students they
  * hold an ACTIVE link to, teachers see students enrolled in a class they are
- * assigned to, admins see their own tenant — reduced to one query per role.
+ * assigned to or reach as guru sentra, admins see their own tenant — reduced to one query per role.
  */
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -56,13 +57,17 @@ export async function GET(req: NextRequest) {
     if (!session.employeeId) {
       return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
     }
+    const sentraIds = await getSentraClassIds(session.employeeId, session.tenantId);
     const enrollments = await prisma.studentEnrollment.findMany({
       where: {
         studentId: { in: requested },
         status: "ACTIVE",
         classSection: {
           tenantId: session.tenantId,
-          teachingAssignments: { some: { employeeId: session.employeeId } },
+          OR: [
+            { teachingAssignments: { some: { employeeId: session.employeeId } } },
+            { id: { in: sentraIds } },
+          ],
         },
       },
       select: { studentId: true },

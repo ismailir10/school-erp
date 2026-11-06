@@ -15,7 +15,7 @@ import { getParentChildById, getParentWithChildren } from "@/lib/parent-helpers"
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
   formatDate,
-  formatLearningCenter,
+  formatEntrySentra,
   formatCurriculumElement,
 } from "@/lib/format";
 import { ElementProgressRow } from "@/components/parent/element-progress-row";
@@ -128,8 +128,8 @@ export default async function ParentPerkembanganDetailPage({
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-muted-foreground">
                           {formatCurriculumElement(entry.element)}
-                          {entry.source === "CENTER" && entry.center && (
-                            <> · {formatLearningCenter(entry.center)}</>
+                          {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
+                            <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
                           )}
                         </p>
                         <p className="text-sm text-foreground mt-0.5">

@@ -44,7 +44,35 @@ export async function POST(req: NextRequest) {
     await req.json(),
   );
   if (result.error) return result.error;
-  const { center, date, activity, entries } = result.data;
+  const { sentraId, date, activity, entries } = result.data;
+
+  // The sentra must be this tenant's (404 otherwise, never revealing another
+  // tenant's row) and still ACTIVE (400: deactivated sentra take no new entries).
+  // It must also sit on the teacher's own campus (foreign campus reads as 404).
+  const employee = await prisma.employee.findFirst({
+    where: { id: session.employeeId, tenantId: session.tenantId },
+    select: { campusId: true },
+  });
+  const sentra = employee?.campusId
+    ? await prisma.sentra.findFirst({
+        where: {
+          id: sentraId,
+          tenantId: session.tenantId,
+          campusId: employee.campusId,
+        },
+        select: { id: true, status: true, legacyCenter: true },
+      })
+    : null;
+  if (!sentra) {
+    return NextResponse.json({ error: "Sentra tidak ditemukan." }, { status: 404 });
+  }
+  if (sentra.status !== "ACTIVE") {
+    return NextResponse.json(
+      { error: "Sentra ini sudah tidak aktif. Pilih sentra lain." },
+      { status: 400 },
+    );
+  }
+  const center = sentra.legacyCenter;
 
   // Empty session — no rows to write. Audit the no-op so the activity feed
   // still records that a sentra teacher reviewed the roster + saved.
@@ -55,7 +83,7 @@ export async function POST(req: NextRequest) {
       entity: "AssessmentEntry",
       entityId: "bulk",
       action: "CENTER_SESSION",
-      after: { center, date, activity, count: 0 },
+      after: { sentraId, center, date, activity, count: 0 },
     });
     return NextResponse.json(
       { written: 0, ids: [], reason: "empty_session" },
@@ -178,6 +206,7 @@ export async function POST(req: NextRequest) {
         date: dateUtc,
         weekId: weekOf(entry.studentId).id,
         source: "CENTER",
+        sentraId,
         center,
         activity,
         level: entry.level,
@@ -187,6 +216,7 @@ export async function POST(req: NextRequest) {
       },
       update: {
         weekId: weekOf(entry.studentId).id,
+        sentraId,
         center,
         activity,
         level: entry.level,
@@ -205,7 +235,7 @@ export async function POST(req: NextRequest) {
     entity: "AssessmentEntry",
     entityId: written.length === 1 ? written[0].id : "bulk",
     action: "CENTER_SESSION",
-    after: { center, date, activity, count: written.length },
+    after: { sentraId, center, date, activity, count: written.length },
   });
 
   return NextResponse.json(

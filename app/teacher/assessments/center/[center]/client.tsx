@@ -29,6 +29,13 @@ import {
   type Level,
 } from "@/lib/curriculum/level-presentation";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 const MAX_PICKED_INDICATORS = 4;
@@ -61,11 +68,23 @@ type Entry = {
   activity: string | null;
 };
 
-type Payload =
+type RosterSelection =
+  | { mode: "visitingClass" }
+  | { mode: "ageGroup"; ageGroup: "A" | "B" }
+  | { mode: "class"; classSectionId: string };
+
+type RosterMetadata = {
+  classSectionId?: string | null;
+  todayClassSectionId?: string | null;
+  rotationClasses?: Array<{ id: string; name: string }>;
+  ageGroup?: "A" | "B";
+};
+
+type Payload = RosterMetadata & (
   | {
       ok: true;
       week: { id: string; number: number; subTheme: { name: string }; theme: { name: string } };
-      center: string;
+      sentra?: { id: string; name: string };
       date: string;
       ageGroup: "A" | "B";
       students: Student[];
@@ -75,7 +94,8 @@ type Payload =
       lastActivity: string | null;
       writable: boolean;
     }
-  | { ok: false; status: number; error: string; reason?: string };
+  | { ok: false; status: number; error: string; reason?: string }
+);
 
 type Cell = { level: Level | null; note: string };
 
@@ -84,17 +104,17 @@ function cellKey(studentId: string, indicatorId: string): string {
 }
 
 export function CenterSessionClient({
-  center,
+  sentraId,
   centerLabel,
 }: {
-  center: string;
+  sentraId: string;
   centerLabel: string;
 }) {
   const router = useRouter();
   const [date, setDate] = useState<string>(() =>
     getTodayInTimezone(JAKARTA_TZ),
   );
-  const [ageGroup, setAgeGroup] = useState<"A" | "B">("A");
+  const [selection, setSelection] = useState<RosterSelection>({ mode: "visitingClass" });
   const [activity, setActivity] = useState<string>("");
   const [activityError, setActivityError] = useState("");
   const [pickedIndicatorIds, setPickedIndicatorIds] = useState<string[]>([]);
@@ -117,7 +137,8 @@ export function CenterSessionClient({
   const guard = useUnsavedChangesGuard(dirty);
   const today = getTodayInTimezone(JAKARTA_TZ);
 
-  // Fetch payload whenever date/ageGroup changes.
+  // Fetch the selected roster for each date. The server resolves the visiting
+  // class and its age group together before loading that day's curriculum.
   useEffect(() => {
     let cancelled = false;
     const requestId = ++loadRequestId.current;
@@ -133,8 +154,21 @@ export function CenterSessionClient({
       setOpenNotes(new Set());
       setDirty(false);
       try {
+        const query = new URLSearchParams({ date });
+        switch (selection.mode) {
+          case "visitingClass":
+            query.set("ageGroup", "A");
+            query.set("defaultToVisitingClass", "true");
+            break;
+          case "ageGroup":
+            query.set("ageGroup", selection.ageGroup);
+            break;
+          case "class":
+            query.set("classSectionId", selection.classSectionId);
+            break;
+        }
         const res = await fetch(
-          `/api/teacher/assessment-entries/center/${center}?date=${date}&ageGroup=${ageGroup}`,
+          `/api/teacher/assessment-entries/center/${sentraId}?${query}`,
         );
         const body = await res.json();
         if (cancelled || requestId !== loadRequestId.current) return;
@@ -144,6 +178,10 @@ export function CenterSessionClient({
             status: res.status,
             error: body.error ?? "Gagal memuat data sentra.",
             reason: body.reason,
+            classSectionId: body.classSectionId,
+            todayClassSectionId: body.todayClassSectionId,
+            rotationClasses: body.rotationClasses,
+            ageGroup: body.ageGroup,
           });
         } else {
           setPayload({ ok: true, ...body });
@@ -181,7 +219,7 @@ export function CenterSessionClient({
     return () => {
       cancelled = true;
     };
-  }, [center, date, ageGroup, reloadKey]);
+  }, [sentraId, date, selection, reloadKey]);
 
   /**
    * Changing date or age group reloads the grid and drops every unsaved pick,
@@ -201,12 +239,28 @@ export function CenterSessionClient({
   }
 
   function handleAgeGroupChange(next: "A" | "B"): void {
-    if (next === ageGroup) return;
-    switchGrid(() => setAgeGroup(next));
+    if (next === effectiveAgeGroup && !classSectionId) return;
+    switchGrid(() => setSelection({ mode: "ageGroup", ageGroup: next }));
+  }
+
+  function handleClassViewChange(value: string | null): void {
+    if (!value) return;
+    if (value === "all-A" || value === "all-B") {
+      handleAgeGroupChange(value === "all-A" ? "A" : "B");
+      return;
+    }
+    if (value === classSectionId) return;
+    switchGrid(() => setSelection({ mode: "class", classSectionId: value }));
   }
 
   const indicators = useMemo(() => (payload?.ok ? payload.indicators : []), [payload]);
   const students = useMemo(() => (payload?.ok ? payload.students : []), [payload]);
+  const classSectionId = selection.mode === "class" ? selection.classSectionId
+    : selection.mode === "visitingClass" ? payload?.classSectionId ?? null : null;
+  // A class view carries its own age group; the toggle mirrors it.
+  const effectiveAgeGroup = selection.mode === "ageGroup" ? selection.ageGroup : payload?.ageGroup ?? "A";
+  const rotationClasses = payload?.rotationClasses ?? [];
+  const todayClassId = payload?.todayClassSectionId ?? null;
   const isWritable = payload?.ok && payload.writable;
   const myClassIds = useMemo(
     () => new Set(payload?.ok ? (payload.myClassSectionIds ?? []) : []),
@@ -215,6 +269,7 @@ export function CenterSessionClient({
   // The class filter only means something when the teacher has a class and the
   // roster actually has children outside it.
   const hasClassFilter =
+    !classSectionId &&
     myClassIds.size > 0 &&
     students.some((s) => !s.classSectionId || !myClassIds.has(s.classSectionId));
   const visibleStudents = useMemo(() => {
@@ -235,7 +290,7 @@ export function CenterSessionClient({
     event: KeyboardEvent<HTMLInputElement>,
   ): void {
     const values: Array<"A" | "B"> = ["A", "B"];
-    const currentIndex = values.indexOf(ageGroup);
+    const currentIndex = values.indexOf(effectiveAgeGroup);
     let nextIndex = currentIndex;
     switch (event.key) {
       case "ArrowRight":
@@ -398,12 +453,12 @@ export function CenterSessionClient({
         });
       }
     }
-    await submit({ center, date, activity: activity.trim(), entries });
+    await submit({ sentraId, date, activity: activity.trim(), entries });
   }
 
   /** POSTs one session payload. A failure keeps the payload so "Coba lagi" re-sends exactly it. */
   async function submit(body: {
-    center: string;
+    sentraId: string;
     date: string;
     activity: string;
     entries: unknown[];
@@ -486,7 +541,7 @@ export function CenterSessionClient({
                 className={cn(
                   "flex min-h-11 cursor-pointer items-center justify-center rounded-lg border text-sm transition-colors",
                   "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
-                  ageGroup === g
+                  effectiveAgeGroup === g
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-background text-foreground border-input",
                 )}
@@ -496,7 +551,7 @@ export function CenterSessionClient({
                   type="radio"
                   name="center-age-group"
                   value={g}
-                  checked={ageGroup === g}
+                  checked={effectiveAgeGroup === g}
                   onChange={() => handleAgeGroupChange(g)}
                   onKeyDown={handleAgeGroupKeyDown}
                   data-testid={`agegroup-${g}`}
@@ -508,6 +563,30 @@ export function CenterSessionClient({
           </div>
         </Field>
       </div>
+
+      {rotationClasses.length > 0 && (
+        <Field>
+          <FieldLabel>Kelas</FieldLabel>
+          <Select
+            value={classSectionId ?? `all-${effectiveAgeGroup}`}
+            onValueChange={handleClassViewChange}
+          >
+            <SelectTrigger aria-label="Kelas" data-testid="center-class-switcher" className="tap-target">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {rotationClasses.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                  {c.id === todayClassId ? " (hari ini)" : ""}
+                </SelectItem>
+              ))}
+              <SelectItem value="all-A">Semua TK A</SelectItem>
+              <SelectItem value="all-B">Semua TK B</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
       <Field>
         <FieldLabel htmlFor="center-activity" required>
@@ -787,7 +866,7 @@ export function CenterSessionClient({
           {students.length === 0 && (
             <EmptyState
               icon={Users}
-              title={`Belum ada siswa TK ${ageGroup}`}
+              title={`Belum ada siswa ${classSectionId ? "di kelas ini" : `TK ${effectiveAgeGroup}`}`}
               description="Belum ada siswa kelompok usia ini yang terdaftar pada tahun ajaran aktif."
             />
           )}

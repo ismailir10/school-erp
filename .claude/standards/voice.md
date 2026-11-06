@@ -119,6 +119,9 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Perencanaan (academic-year status pre-launch) | Planning |
 | Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
 | Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |
+| Sentra (a learning center room run by one guru; the campus's own list, e.g. "Sentra Balok") | Center, Pusat belajar, Main Peran as one name for Makro and Mikro |
+| Guru sentra (the guru who holds a sentra; she may fill Buku Penghubung and Sentra Harian for the classes that visit it) | Pemilik sentra, Wali sentra, Walas (Walas is the class's own homeroom guru) |
+| Putaran (the rotation that moves classes through the sentra, a grid of days × classes: "Putaran TK", "Pekan 1 · Senin") | Rotasi, Jadwal sentra, Rotation |
 
 ### Assessment skala (3-level)
 

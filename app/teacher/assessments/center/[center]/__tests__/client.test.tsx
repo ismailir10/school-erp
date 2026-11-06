@@ -13,7 +13,7 @@ import { CenterSessionClient } from "../client";
 
 const session = (writable = true) => ({
   week: { id: "week-1", number: 3, subTheme: { name: "Aku" }, theme: { name: "Diriku" } },
-  center: "WORSHIP",
+  sentra: { id: "sentra-1", name: "Ibadah" },
   date: "2026-08-03",
   ageGroup: "A",
   students: [{ id: "student-1", name: "Aisyah", nickname: null, status: "ACTIVE" }],
@@ -26,7 +26,7 @@ const session = (writable = true) => ({
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
 
 function renderClient() {
-  return render(<CenterSessionClient center="WORSHIP" centerLabel="Sentra Ibadah" />);
+  return render(<CenterSessionClient sentraId="sentra-1" centerLabel="Sentra Ibadah" />);
 }
 
 function deferred<T>() {
@@ -42,6 +42,36 @@ describe("CenterSessionClient", () => {
     push.mockClear();
     replace.mockClear();
     toastError.mockClear();
+  });
+
+  it("loads the visiting class in one request and keeps manual age selection on date changes", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok({
+        ...session(),
+        ageGroup: "B",
+        classSectionId: "cs-b",
+        todayClassSectionId: "cs-b",
+        rotationClasses: [{ id: "cs-b", name: "TK B 1" }],
+      }))
+      .mockResolvedValue(ok(session()));
+    vi.stubGlobal("fetch", fetchMock);
+    renderClient();
+
+    expect(await screen.findByTestId("center-class-switcher")).toHaveTextContent("TK B 1 (hari ini)");
+    expect(screen.getByRole("radio", { name: "TK B" })).toBeChecked();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("ageGroup=A&defaultToVisitingClass=true");
+
+    fireEvent.click(screen.getByRole("radio", { name: "TK A" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toMatch(/&ageGroup=A$/);
+
+    const dateInput = screen.getByTestId("center-date") as HTMLInputElement;
+    const previousDay = new Date(`${dateInput.value}T00:00:00Z`);
+    previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+    fireEvent.change(dateInput, { target: { value: previousDay.toISOString().slice(0, 10) } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[2][0]).toMatch(/&ageGroup=A$/);
   });
 
   it("uses keyboard-operable native age-group radios with 44px focus targets", async () => {

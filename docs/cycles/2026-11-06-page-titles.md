@@ -49,6 +49,9 @@ had no title either. No UAT report covers this.
   - parent: Beranda, Tagihan, Kehadiran, Jurnal, Perkembangan, Profil.
   - First run caught the nested-template bug (`Pemantauan Buku Penghubung` without suffix), fixed by `pageTitle()`.
 - Playwright suite not run: no user flow changed (document title only). Server stopped, throwaway DB removed.
+- Merged `staging` (#722) before shipping: it added `/admin/sentra` and `/admin/sentra/rotations/[id]` without titles; the
+  guard test caught both, now "Sentra" and "Detail Putaran". Conflicts in `teacher/page.tsx` and the sentra center page
+  were adjacent edits, both kept.
 
 ## Ship Notes
 Nothing to migrate. Follow-up (not done): record-specific titles on detail pages (`Siswa: Aisyah`).

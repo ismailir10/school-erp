@@ -23,6 +23,7 @@ import {
   Palette,
   School,
   Settings,
+  Shapes,
   type LucideIcon,
 } from "lucide-react";
 import type { PermissionCode } from "@/lib/permissions";
@@ -103,6 +104,7 @@ export const adminNav: NavConfig = {
         { label: "Siswa", href: "/admin/students", icon: GraduationCap, permission: "students.view" },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart, permission: "students.view" },
         { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
+        { label: "Sentra", href: "/admin/sentra", icon: Shapes, permission: "academic.view" },
       ],
     },
     {
@@ -469,6 +471,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   // and /admin/student-journal/students/[id] used to render "Detail › Detail"
   // because neither "classes" nor "students" had a label of its own.
   classes: "Kelas",
+  sentra: "Sentra",
+  rotations: "Putaran",
   students: "Siswa",
   // Semester detail sub-routes: /admin/semesters/[id]/{themes,objectives,import}.
   themes: "Tema",

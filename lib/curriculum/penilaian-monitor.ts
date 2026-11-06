@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db";
 import type { AgeGroup } from "@/lib/generated/prisma/client";
 import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
-import { ALL_LEARNING_CENTERS } from "@/lib/format";
+import {
+  ALL_LEARNING_CENTERS,
+  formatEntrySentra,
+  formatLearningCenter,
+} from "@/lib/format";
 
 /**
  * Admin penilaian monitoring roll-up (read-only).
@@ -34,7 +38,7 @@ export type WalasClassCompletion = {
 };
 
 export type SentraCenterCompletion = {
-  center: Center;
+  label: string;
   entries: number;
   studentsAssessed: number;
 };
@@ -84,27 +88,38 @@ export function aggregateWalas(
 }
 
 /**
- * Pure: entries-made counts per center for one day. Always returns all 8
- * centers in canonical order so the UI renders a stable grid.
+ * Pure: entries-made counts per sentra for one day, grouped by display label
+ * (campus sentra name when the entry has one, else the legacy fixed-list
+ * label). The 8 legacy labels are always listed first so the grid stays
+ * stable; any other sentra (e.g. "Makro") follows in order of appearance.
  */
 export function aggregateSentra(
-  centerEntries: { center: Center | null; studentId: string }[],
+  centerEntries: {
+    center?: Center | null;
+    sentra?: { name: string } | null;
+    studentId: string;
+  }[],
 ): SentraCenterCompletion[] {
-  const byCenter = new Map<Center, { entries: number; students: Set<string> }>();
+  const byLabel = new Map<string, { entries: number; students: Set<string> }>();
   for (const c of ALL_LEARNING_CENTERS) {
-    byCenter.set(c, { entries: 0, students: new Set<string>() });
+    byLabel.set(formatLearningCenter(c), { entries: 0, students: new Set<string>() });
   }
   for (const e of centerEntries) {
-    if (!e.center) continue;
-    const b = byCenter.get(e.center);
-    if (!b) continue;
+    if (!e.sentra && !e.center) continue;
+    const label = formatEntrySentra(e);
+    let b = byLabel.get(label);
+    if (!b) {
+      b = { entries: 0, students: new Set<string>() };
+      byLabel.set(label, b);
+    }
     b.entries += 1;
     b.students.add(e.studentId);
   }
-  return ALL_LEARNING_CENTERS.map((c) => {
-    const b = byCenter.get(c)!;
-    return { center: c, entries: b.entries, studentsAssessed: b.students.size };
-  });
+  return Array.from(byLabel, ([label, b]) => ({
+    label,
+    entries: b.entries,
+    studentsAssessed: b.students.size,
+  }));
 }
 
 export async function loadPenilaianMonitor(
@@ -165,8 +180,12 @@ export async function loadPenilaianMonitor(
 
   const centerEntries = (await prisma.assessmentEntry.findMany({
     where: { tenantId, source: "CENTER", date: sentraDateUtcMidnight, voidedAt: null },
-    select: { center: true, studentId: true },
-  })) as { center: Center | null; studentId: string }[];
+    select: { center: true, sentra: { select: { name: true } }, studentId: true },
+  })) as {
+    center: Center | null;
+    sentra: { name: string } | null;
+    studentId: string;
+  }[];
 
   return {
     week: week

@@ -10,6 +10,7 @@ import {
   JOURNAL_FORBIDDEN_MSG,
   JOURNAL_NOT_ENROLLED_MSG,
 } from "@/lib/student-journal/messages";
+import { getSentraClassIds, getStudentSentraAccess } from "@/lib/sentra/access";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 export async function GET(
@@ -57,7 +58,8 @@ export async function GET(
 
   // 5. Verify teacher is assigned to one of the student's classes. findMany,
   //    not findFirst: the ids are needed again below, because a link into the
-  //    fill grid must target a class this teacher may actually fill.
+  //    fill grid must target a class this teacher may actually fill (assigned
+  //    or reachable via sentra).
   const assignments = await prisma.teachingAssignment.findMany({
     where: {
       employeeId: session.employeeId,
@@ -66,10 +68,24 @@ export async function GET(
     },
     select: { classSectionId: true },
   });
-  if (assignments.length === 0) {
-    return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
-  }
+  const enrolledClassIds = enrollments.map((e) => e.classSectionId);
   const assignedClassIds = new Set(assignments.map((a) => a.classSectionId));
+  if (assignments.length === 0) {
+    // No assignment: a guru sentra of a putaran containing one of these classes
+    // may still open the week, and fill those classes.
+    const viaSentra = await getStudentSentraAccess(
+      session.employeeId,
+      session.tenantId,
+      enrolledClassIds,
+    );
+    if (!viaSentra) {
+      return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
+    }
+  }
+  if (assignedClassIds.size < new Set(enrolledClassIds).size) {
+    const sentraIds = new Set(await getSentraClassIds(session.employeeId, session.tenantId));
+    for (const id of enrolledClassIds) if (sentraIds.has(id)) assignedClassIds.add(id);
+  }
 
   // 6. Identity for the page header. A student may hold several ACTIVE
   //    enrollments (day-care + school), so the class list is de-duplicated
