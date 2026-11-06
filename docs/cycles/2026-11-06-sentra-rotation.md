@@ -252,6 +252,23 @@ e2e, docs) plus one empty-state copy line after it.
 - Copy nit fixed after the walk: putaran empty-state description no longer repeats its title (unit test + lint + tsc
   re-run green).
 
+### Verified locally — d83e2f78, 2026-11-07
+
+- Gate. ESLint passed. Vitest with three workers passed 9180 tests. RLS coverage 51/51, API auth coverage 232/232,
+  docs audit 13 ok, 1 ADR-age warning, 0 failures. The production build and TypeScript passed with a 4 GiB Node
+  heap after the default local heap was exhausted.
+- App. Production build with demo auth and disposable Postgres. Playwright reported 277 passed and one admissions
+  test that passed on retry after missing its response event. All three Sentra flows passed on the first attempt.
+- Walked. Balok opened the visiting TKIT B class with TK B indicators at 390px and 1440px. The browser test saved
+  an assessment, confirmed it after reload, and checked the admin monitor. The focused GET test covers TK B with
+  no TK A week. The live campus transfer revoked TKIT B journal access while preserving the assigned TKIT A class.
+  Concurrent PATCH and PUT requests queued on the same row. The stale PUT returned 400 and restored no slot.
+- Console and network. No page errors or 5xx in the roster smoke check. Expected 403 for the transferred teacher
+  and 400 for the stale grid.
+- Screenshots. [Mobile highlight](screenshots/2026-11-06-sentra/sentra-harian-mobile.png) and
+  [desktop](screenshots/2026-11-06-sentra/sentra-harian-desktop.png).
+- Signed-in staging verification is pending deployment. The `needs-staging-verify` label gates promotion.
+
 ## Ship Notes
 
 - **Migration** `20261106010000_add_sentra` (additive: 5 tables + `AssessmentEntry.sentraId`, RLS + service policies,
