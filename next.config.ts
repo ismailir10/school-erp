@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // The product tours shipped at Indonesian slugs (2026-10-09, 2026-10-31) and moved to English ones, per the
+      // English-only route rule. Shared links (/panduan#5) keep working: the browser carries the #slide across.
+      { source: "/panduan", destination: "/guide", permanent: true },
+      { source: "/panduan/orang-tua", destination: "/guide/parents", permanent: true },
       {
         source: "/admin/academic",
         destination: "/admin/academic-years",

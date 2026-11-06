@@ -486,6 +486,15 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
     ready &&
     lines.length < OTHER_FEES_MAX_LINES &&
     components.some((c) => !usedComponentIds.has(c.id));
+  // Why "Tambah biaya" is off, so a grey button never reads as a bug. The line limit wins over the component reasons.
+  const addLineHint: "limit" | "none" | "used" | null = !ready || canAddLine
+    ? null
+    : lines.length >= OTHER_FEES_MAX_LINES
+      ? "limit"
+      : components.length === 0
+        ? "none"
+        : "used";
+  const addLineHintId = "spp-prepay-add-line-hint";
 
   // Array-level errors (duplicate component, too many lines) sit under the editor. React Hook Form nests a
   // whole-array resolver error under `.root` when per-line controllers are registered (see manual-invoice-dialog.tsx).
@@ -700,12 +709,9 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
             diubah.
           </FieldDescription>
           <div className="flex flex-col gap-2 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/60 p-3">
-            {fields.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                {ready && components.length === 0
-                  ? "Belum ada komponen biaya sekali bayar yang aktif."
-                  : "Belum ada biaya lainnya."}
-              </p>
+            {/* With no one-time component at all, the hint under "Tambah biaya" says so (and where to add one). */}
+            {fields.length === 0 && !(ready && components.length === 0) && (
+              <p className="text-sm text-muted-foreground">Belum ada biaya lainnya.</p>
             )}
             {fields.map((lineField, index) => {
               const ownId = lines[index]?.feeComponentId ?? "";
@@ -779,10 +785,35 @@ export function SppPrepayDialog({ open, onOpenChange, onRecorded }: SppPrepayDia
               size="sm"
               className="self-start"
               disabled={!canAddLine}
+              aria-describedby={addLineHint ? addLineHintId : undefined}
               onClick={() => append({ feeComponentId: "", amount: null })}
             >
               <Plus size={14} className="mr-1.5" /> Tambah biaya
             </Button>
+            {addLineHint && (
+              <FieldDescription id={addLineHintId}>
+                {addLineHint === "limit" ? (
+                  `Maksimal ${OTHER_FEES_MAX_LINES} biaya dalam satu pencatatan.`
+                ) : (
+                  <>
+                    {addLineHint === "none"
+                      ? "Belum ada komponen biaya sekali bayar. Tambahkan di "
+                      : "Semua komponen biaya sekali bayar sudah dipakai. Tambah komponen baru di "}
+                    <Link
+                      href="/admin/fees"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Buka halaman Biaya di tab baru"
+                      className="inline-flex items-center gap-1 text-primary-text underline underline-offset-3 hover:no-underline [@media(pointer:coarse)]:min-h-11"
+                    >
+                      halaman Biaya
+                      <ExternalLink aria-hidden="true" className="size-3.5" />
+                    </Link>
+                    .
+                  </>
+                )}
+              </FieldDescription>
+            )}
           </div>
           {linesMessage && <FieldError>{linesMessage}</FieldError>}
 

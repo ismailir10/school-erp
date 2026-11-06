@@ -240,7 +240,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<GuardedLink href="/panduan" />}
+              render={<GuardedLink href="/guide" />}
               tooltip="Panduan Talib"
             >
               <Presentation />

@@ -21,35 +21,31 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-import PanduanPage from "../page";
+import PanduanOrangTuaPage from "../page";
 
-describe("PanduanPage — who may open the tour", () => {
+describe("PanduanOrangTuaPage — who may open the parent tour", () => {
   beforeEach(() => {
     auth.session = null;
     window.history.replaceState(null, "", "/");
   });
 
   it("sends a signed-out visitor to the sign-in screen", async () => {
-    await expect(PanduanPage()).rejects.toThrow("redirect:/");
-  });
-
-  it("sends a parent to their own portal, never rendering a slide", async () => {
-    auth.session = { role: "GUARDIAN" };
-    await expect(PanduanPage()).rejects.toThrow("redirect:/parent");
+    await expect(PanduanOrangTuaPage()).rejects.toThrow("redirect:/");
   });
 
   it.each([
-    ["SUPER_ADMIN", "/admin"],
-    ["SCHOOL_ADMIN", "/admin"],
-    ["TEACHER", "/teacher"],
-  ])("lets %s in and returns them to %s", async (role, home) => {
+    ["GUARDIAN", "/parent", "Beranda orang tua"],
+    ["SUPER_ADMIN", "/admin", "Dasbor admin"],
+    ["SCHOOL_ADMIN", "/admin", "Dasbor admin"],
+    ["TEACHER", "/teacher", "Beranda guru"],
+  ])("lets %s in and returns them to %s", async (role, home, label) => {
     auth.session = { role };
-    const element = (await PanduanPage()) as ReactElement<{ homeHref: string; slides: unknown[] }>;
+    const element = (await PanduanOrangTuaPage()) as ReactElement<{ homeHref: string; title: string }>;
     expect(element.props.homeHref).toBe(home);
-    expect(element.props.slides).toHaveLength(10);
+    expect(element.props.title).toBe("Panduan orang tua");
 
     render(element);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Cara Talib bekerja/);
-    expect(screen.getAllByRole("link", { name: /Kembali/ })[0]).toHaveAttribute("href", home);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Bapak dan Ibu/);
+    expect(screen.getByRole("link", { name: `Kembali ke ${label}` })).toHaveAttribute("href", home);
   });
 });

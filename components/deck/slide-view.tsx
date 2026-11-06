@@ -5,9 +5,10 @@ import { cn } from "@/lib/utils";
 import { FitHeight } from "./fit-height";
 import type { Slide, Who } from "./types";
 
-const WHO_LABEL: Record<Who, string> = { admin: "Admin", guru: "Guru" };
+const WHO_LABEL: Record<Who, string> = { admin: "Admin", guru: "Guru", ortu: "Orang tua" };
 
-function WhoChips({ who }: { who: Who[] }) {
+function WhoChips({ who }: { who?: Who[] }) {
+  if (!who?.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground">Dipakai oleh</span>
@@ -125,9 +126,11 @@ function CoverView({ slide }: { slide: Slide }) {
           <p className="mt-6 max-w-[46ch] text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
             {slide.lead}
           </p>
-          <div className="mt-8">
-            <WhoChips who={slide.who} />
-          </div>
+          {slide.who && (
+            <div className="mt-8">
+              <WhoChips who={slide.who} />
+            </div>
+          )}
         </div>
         <div className="min-w-0">{slide.art}</div>
       </div>

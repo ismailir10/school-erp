@@ -30,8 +30,8 @@ describe("TeacherMoreSheet", () => {
 
     const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
     const tour = within(menu).getByRole("link", { name: /^Panduan Talib/ });
-    expect(tour).toHaveAttribute("href", "/panduan");
-    // /panduan is not under /teacher, so it never reads as the current page from a teacher route.
+    expect(tour).toHaveAttribute("href", "/guide");
+    // /guide is not under /teacher, so it never reads as the current page from a teacher route.
     expect(tour).not.toHaveAttribute("aria-current");
   });
 
