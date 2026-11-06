@@ -235,6 +235,11 @@ e2e, docs) plus one empty-state copy line after it.
 - design-system: admin page follows the Admin List recipe (PageHeader, DataTable with Aksi column, StatusBadge,
   EmptyState, dialog forms) and teacher surfaces the portal card/list patterns from `.claude/standards/
   design-system.html`; status colours via tokens only (no raw hex in the diff).
+- **Re-verified after merging `origin/staging` (#721 TK A/TK B themes) at `ef4c6df0`:** migration renamed to
+  `20261106010000_add_sentra` so it sorts after #721's `20261106000000_theme_age_group`, and proven on the staging
+  schema (`INSERT 0 16` for 2 campuses); POST conflict resolved to #721's per-student week + this cycle's `sentraId`.
+  Fresh DB full gate: lint clean, Vitest **9176 passed**, RLS 51/51, API-auth 232/232, `DEMO_MODE` build ok,
+  Playwright **278 passed, 0 failed (6.4m)**.
 - Copy nit fixed after the walk: putaran empty-state description no longer repeats its title (unit test + lint + tsc
   re-run green).
 
