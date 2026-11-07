@@ -140,3 +140,6 @@ Facts (code survey):
 - Not checked: Docker path in verify.md (daemon not running, used local PostgreSQL); `needs-staging-verify` is for ship. Note for follow-up: on a non-school day the Gerbang tap answers "Belum ada sesi kelas hari ini" with a Coba lagi action that cannot succeed.
 
 ## Ship Notes
+- Gerbang: a refused tap (4xx, e.g. no class session on a non-school day) no longer offers a "Coba lagi" that cannot succeed; only server errors do.
+- Found in verify: `lib/security/headers.ts` sent `Permissions-Policy: geolocation=()`, so check-in has never received a location in production. Now `geolocation=(self)`. After deploy, expect real distances on new check-ins.
+- Follow-ups: parent QR self check-in (option 2); Flow 3 needs an owner account (HR pages are owner-only), not `u_school_admin`.

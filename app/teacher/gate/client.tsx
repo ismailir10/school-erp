@@ -93,7 +93,7 @@ export function GateClient() {
       body: JSON.stringify({ ...body, campusId }),
     });
     const d = await res.json().catch(() => ({}));
-    return { ok: res.ok, data: d as { error?: string; time?: string; alreadyDone?: boolean } };
+    return { ok: res.ok, status: res.status, data: d as { error?: string; time?: string; alreadyDone?: boolean } };
   }
 
   async function record(
@@ -113,16 +113,19 @@ export function GateClient() {
     setBusy((b) => new Set(b).add(s.studentId));
     setPickerFor(null);
     try {
-      const { ok, data } = await post({
+      const { ok, status, data } = await post({
         studentId: s.studentId,
         action,
         relation,
         name: name || undefined,
       });
       if (!ok) {
-        toastError(data.error ?? MESSAGES.saveFailed, {
-          retry: () => void record(s, action, relation, name),
-        });
+        // A 4xx (e.g. no class session on a non-school day) cannot succeed on
+        // retry, so only server errors offer "Coba lagi".
+        toastError(
+          data.error ?? MESSAGES.saveFailed,
+          status >= 500 ? { retry: () => void record(s, action, relation, name) } : undefined,
+        );
         return;
       }
       const time = data.time ?? new Date().toISOString();
