@@ -121,4 +121,22 @@ Facts (code survey):
 
 ## Verification
 
+### Verified locally — 679a1812, 2026-11-07
+- Gate: `npm run lint` → exit 0 (max-warnings 0); `npx vitest run` (no DEMO_MODE) → Test Files 756 passed | 2 skipped (758), Tests 9271 passed | 42 todo; `verify-rls-coverage.sh` → 51/51; `verify-api-auth.sh` → 239/239; `audit-docs.sh` → 13 ok, 1 warn (ADR 60-day window, pre-existing), 0 fail after `--write` refreshed the e2e count; `DEMO_MODE=true npm run build` → ok (rebuilt after the two fixes below).
+- E2E: whole suite `npx playwright test --trace off` → 282 passed, 1 failed (`mobile-layout` `/admin/employee-attendance`, page scrolled sideways 27 px, caused by this cycle's new header button; fixed). After the fix `mobile-layout.spec.ts` + `attendance-geofence-gate.spec.ts` → 56 passed. New spec: 5 tests (inside one tap, outside note then Menunggu persetujuan, admin approves, Absensi Staf Harian bulk + Sakit persists, Gerbang arrival).
+- App: production build, demo auth + disposable local Postgres (Docker daemon was unavailable, so a throwaway local PostgreSQL 16 cluster on :5432 with a fresh `schoolerp` database, `prisma db push` + seed; stopped afterwards). Saturday, so class sessions for today were added by a pg fixture where the calendar had none.
+- Walked (Playwright Chromium, DSF 1, 390x844 teacher / 1440x900 admin):
+  1. Inside → PASS, no sheet, no chip (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/1-inside-one-tap-checkin.png`).
+  2. Outside → PASS, "Anda ± 300 m dari Taman Aster…", button enabled only with a note, then "Menunggu persetujuan" (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/2-outside-note-sheet.png`).
+  3. Approve → PASS, row shows name, kode, time, ± 300 m, note; DB `APPROVED`, reviewedBy `u_super_admin`; Dasbor shows "1 absensi perlu persetujuan" (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/3-admin-pending-tab.png`, `docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/3a-dashboard-pending-badge.png`). Flow text says `u_school_admin`, but the HR pages are owner-only (spec decision), so the walk used `u_super_admin`.
+  4. Staff day → PASS, Tandai semua hadir then Sakit on one row, after reload 0 "Belum dicatat", Sakit and Hadir persist (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/4-staff-daily-after-reload.png`).
+  5. Class bulk → PASS, Semua hadir + Semua pulang + Simpan: 19/19 rows with both times, relation PARENT (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/5-session-all-present-and-picked-up.png`).
+  6. Gate → PASS, a child of another class: Masuk then Pulang, one StudentAttendance row on that class's session with both times (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/6-gate-arrival-toast.png`).
+  7. Edge → PASS, location denied opens the same sheet with "Lokasi tidak terbaca…" (`docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/7a-location-denied-sheet.png`); all campus pins cleared → plain one-tap check-in, no sheet (pins restored).
+- Console/network: clean apart from the expected 422 (`OUTSIDE_GEOFENCE`) and localhost 404s for the Vercel insights scripts; no 5xx.
+- design-system.html review: touch targets at least 44 px (Gerbang rows 56 px, mode toggle 48 px, admin Setujui/Tolak 44 px), copy follows voice.md, empty and pending states read correctly; no layout defects after the header wrap fix.
+- Screenshots: `docs/cycles/screenshots/2026-11-07-attendance-geofence-gate/` (8 PNG; phone for teacher flows, desktop for admin).
+- Rounds: 2. Fixed: (1) `Permissions-Policy: geolocation=()` in `lib/security/headers.ts` blocked every location fix, now `(self)`; (2) staff attendance header actions overflowed at 390 px, now `flex-wrap`.
+- Not checked: Docker path in verify.md (daemon not running, used local PostgreSQL); `needs-staging-verify` is for ship. Note for follow-up: on a non-school day the Gerbang tap answers "Belum ada sesi kelas hari ini" with a Coba lagi action that cannot succeed.
+
 ## Ship Notes
