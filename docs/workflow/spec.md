@@ -27,3 +27,4 @@ Run before the shared preflight. The user never runs any of this by hand, and se
   `## Implementation`, `## Verification` and `## Ship Notes`. No sibling markdown (`pre-commit` rejects it).
 - Claude Code: refine a vague request with `superpowers:brainstorming` and write `## Tasks` with
   `superpowers:writing-plans`, redirected into the cycle doc (CLAUDE.md § One-File-Per-Cycle Rule).
+- **Tap count.** `## UX notes` states the tap count of the main task (CLAUDE.md § Product principle). A change that adds taps or decisions explains why in `## Decisions`.
