@@ -114,9 +114,8 @@ describe("WeekGrid — legibility", () => {
     );
 
     const badge = screen.getByRole("button", { name: /Entri ini diedit oleh admin pada/ });
-    // 16px look (w-4 h-4) + after:-inset-3.5 (14px each side) = 44px square.
-    expect(badge.className).toContain("w-4");
-    expect(badge.className).toContain("h-4");
+    // 16px look (size-4) + after:-inset-3.5 (14px each side) = 44px square.
+    expect(badge.className).toMatch(/\bsize-4\b/);
     expect(badge.className).toContain("after:absolute");
     expect(badge.className).toContain("after:-inset-3.5");
 

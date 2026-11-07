@@ -237,7 +237,7 @@ export default async function ParentAttendancePage({
                       key={d}
                       className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
                     >
-                      <span className="inline-flex h-9 w-9 items-center justify-center">
+                      <span className="inline-flex size-9 items-center justify-center">
                         {status === "MIXED" ? (
                           <>
                             <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>

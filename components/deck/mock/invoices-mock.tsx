@@ -58,7 +58,7 @@ export function InvoicesMock() {
           <div className="min-w-0 flex-1 overflow-hidden bg-background px-3.5 pt-3">
             <div className="flex items-center justify-between gap-2">
               <div className="shrink-0">
-                <h1 className="text-h1 font-bold leading-tight tracking-tight">Tagihan</h1>
+                <h1 className="text-h1 tracking-tight">Tagihan</h1>
                 <p className="text-small text-muted-foreground">310 tagihan</p>
               </div>
               <div className="flex min-w-0 gap-1.5">

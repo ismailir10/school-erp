@@ -48,7 +48,7 @@ export function ErrorState({
       <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-destructive-subtle">
         <Icon size={24} aria-hidden="true" className="text-destructive" />
       </div>
-      <h2 className="text-h2 font-semibold text-foreground text-balance">{title}</h2>
+      <h2 className="text-h2 text-foreground text-balance">{title}</h2>
       {description && (
         <p className="mt-1 text-small leading-relaxed text-muted-foreground text-pretty">{description}</p>
       )}

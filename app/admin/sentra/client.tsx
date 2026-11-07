@@ -26,7 +26,7 @@ type Campus = { id: string; name: string };
 const EMPTY_OPTIONS: SentraOptions = { employees: [], classes: [], academicYears: [] };
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-h2 font-semibold text-foreground">{children}</h2>;
+  return <h2 className="text-h2 text-foreground">{children}</h2>;
 }
 
 export function SentraClient({

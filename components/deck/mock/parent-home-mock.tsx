@@ -50,7 +50,7 @@ export function ParentHomeMock() {
         <PortalHeader initials="NR" name="Bu Nur" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-2">
           <p className="text-sm text-muted-foreground">Assalamu&apos;alaikum, Bu Nur</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">Kabar keluarga hari ini</h1>
+          <h1 className="mt-0.5 text-h1 tracking-tight">Kabar keluarga hari ini</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">Selamat siang · Kamis, 29 Oktober 2026</p>
 
           <div className="mt-2">

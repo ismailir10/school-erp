@@ -60,7 +60,7 @@ export function DashboardMock() {
             <div className="px-4 pt-3">
               <p className="text-xs text-muted-foreground">Dasbor</p>
               <div className="mb-2 mt-0.5 flex items-baseline justify-between gap-3">
-                <h1 className="text-h1 font-bold leading-tight tracking-tight">Perlu ditangani</h1>
+                <h1 className="text-h1 tracking-tight">Perlu ditangani</h1>
                 <p className="shrink-0 text-xs text-muted-foreground">Sabtu, 31 Oktober 2026</p>
               </div>
 

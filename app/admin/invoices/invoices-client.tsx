@@ -89,7 +89,7 @@ const columns: ColumnDef<Invoice>[] = [
       const inv = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="hidden w-8 h-8 rounded-full bg-muted items-center justify-center shrink-0 md:flex">
+          <div className="hidden size-8 rounded-full bg-muted items-center justify-center shrink-0 md:flex">
             <FileText size={14} className="text-primary" />
           </div>
           <DataTableLinkCell

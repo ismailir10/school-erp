@@ -36,7 +36,7 @@ export default function DesignSystemPage() {
                 />
               }
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
+              <ExternalLink className="mr-2 size-4" />
               Buka di tab baru
             </Button>
             <Button
@@ -44,13 +44,13 @@ export default function DesignSystemPage() {
               size="sm"
               render={
                 <a
-                  href="https://github.com/ismailir10/annisaa-erp-v3/blob/main/.claude/standards/design-system.html"
+                  href="https://github.com/ismailir10/school-erp/blob/staging/.claude/standards/design-system.html"
                   target="_blank"
                   rel="noopener noreferrer"
                 />
               }
             >
-              <FileCode2 className="mr-2 h-4 w-4" />
+              <FileCode2 className="mr-2 size-4" />
               Sumber di GitHub
             </Button>
           </div>

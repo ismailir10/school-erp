@@ -287,7 +287,7 @@ export default async function ParentDashboard() {
     <div className="space-y-6">
       <header>
         <p className="text-sm text-muted-foreground">{greetingTitle}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Kabar keluarga hari ini</h1>
+        <h1 className="mt-1 text-h1 tracking-tight text-foreground">Kabar keluarga hari ini</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           Selamat {tod} · {dateLine}
           {hijri ? (

@@ -27,7 +27,7 @@ export function FeesMock() {
         <div className="flex h-[calc(100%-32px)]">
           <AdminRail active={3} />
           <div className="min-w-0 flex-1 overflow-hidden bg-background px-4 pt-3">
-            <h1 className="text-h1 font-bold leading-tight tracking-tight">Biaya</h1>
+            <h1 className="text-h1 tracking-tight">Biaya</h1>
             <p className="mb-2.5 text-small text-muted-foreground">Daftar komponen → tarif per program → keringanan per siswa.</p>
 
             <div className="inline-flex h-8 items-center rounded-lg bg-muted p-[3px]">

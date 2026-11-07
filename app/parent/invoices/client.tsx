@@ -340,7 +340,7 @@ export function InvoicesClient({
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <AlertCircle className="mx-auto size-12 text-destructive mb-4" />
           <p className="text-sm text-muted-foreground">
             Tagihan belum bisa dimuat. Coba lagi sebentar ya.
           </p>
