@@ -29,14 +29,14 @@ fails. The owner asked to verify and adjust before promoting #721–#725 to main
 - No data migration. Archived-year enrollments are left as they are; Gerbang just stops looking at them.
 
 ## Acceptance criteria
-- [ ] Gerbang's list and the Beranda Gerbang count exclude children whose only ACTIVE enrollment is in a class of a
+- [x] Gerbang's list and the Beranda Gerbang count exclude children whose only ACTIVE enrollment is in a class of a
       non-ACTIVE academic year.
-- [ ] A child with ACTIVE enrollments in an archived-year class and an active-year class with a session today: tapping
+- [x] A child with ACTIVE enrollments in an archived-year class and an active-year class with a session today: tapping
       Masuk records arrival on the active-year session (no 409).
-- [ ] A child in two active-year placements, only one of which has a session today, lands on the one with the session.
-- [ ] `OrgConfig.workingDays = "MON,TUE,WED,THU,FRI"` no longer makes session reconcile throw. A value that is
+- [x] A child in two active-year placements, only one of which has a session today, lands on the one with the session.
+- [x] `OrgConfig.workingDays = "MON,TUE,WED,THU,FRI"` no longer makes session reconcile throw. A value that is
       neither JSON nor CSV day codes still fails loudly.
-- [ ] `GET /api/teacher/gate` response shape and its auth/tenant checks are unchanged.
+- [x] `GET /api/teacher/gate` response shape and its auth/tenant checks are unchanged.
 
 ## Verify flows
 1. Teacher → `/teacher/gate` → tap a child enrolled in both an archived-year and an active-year class (with a session
@@ -65,11 +65,12 @@ No UI change. Main task tap count unchanged: 1 tap per child.
 None (no schema, no new route, no auth change; `app/api/**` touched, so a security reviewer runs).
 
 ## Tasks
-- [ ] T1 Active-year scope + session-aware placement choice in Gerbang (helper + POST) and the tolerant session
+- [x] T1 Active-year scope + session-aware placement choice in Gerbang (helper + POST) and the tolerant session
       working-days parser, with tests — accept: AC 1–5, task gate green.
 
 ## Implementation
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1 sequential (single slice).
+- T1: lib/attendance/gate-summary.ts, app/api/teacher/gate/route.ts, lib/sessions/dates.ts (+ tests: lib/sessions/__tests__/dates.test.ts, lib/attendance/__tests__/gate-summary.test.ts, app/api/__tests__/teacher-gate.test.ts) — roster and tap scoped to ACTIVE academic year; POST fetches all placements (findMany by classSectionId) and picks the one with a session today, else reconciles the first; parseWorkingDays accepts JSON or legacy CSV.
 
 ## Verification
 

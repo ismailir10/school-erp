@@ -124,8 +124,9 @@ export async function POST(req: NextRequest) {
   const { studentId, action, campusId, relation, name } = result.data;
 
   // Student must belong to the tenant and be ACTIVE-enrolled in an ACTIVE
-  // class on the (requested) campus.
-  const enrollment = await prisma.studentEnrollment.findFirst({
+  // class of the ACTIVE academic year on the (requested) campus. A child can
+  // hold several such placements, so fetch them all (stable order).
+  const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       studentId,
       status: "ACTIVE",
@@ -133,27 +134,30 @@ export async function POST(req: NextRequest) {
       classSection: {
         tenantId,
         status: "ACTIVE",
+        academicYear: { status: "ACTIVE" },
         ...(campusId ? { campusId } : {}),
       },
     },
     select: { classSectionId: true },
+    orderBy: { classSectionId: "asc" },
   });
-  if (!enrollment) {
+  if (enrollments.length === 0) {
     return NextResponse.json(
       { error: "Siswa tidak ditemukan di kampus ini" },
       { status: 404 },
     );
   }
-  const { classSectionId } = enrollment;
+  const placementIds = enrollments.map((e) => e.classSectionId);
   const date = getTodayInTimezone(TZ);
 
   // Reuse the session this child already has a row on today (so pickup lands
   // beside the arrival); otherwise pick by slot.
   const existing = await prisma.studentAttendance.findFirst({
-    where: { studentId, date, sessionId: { not: null }, session: { classSectionId } },
+    where: { studentId, date, sessionId: { not: null }, session: { classSectionId: { in: placementIds } } },
     select: {
       id: true,
       sessionId: true,
+      classSectionId: true,
       status: true,
       checkInTime: true,
       checkOutTime: true,
@@ -162,11 +166,22 @@ export async function POST(req: NextRequest) {
     orderBy: { createdAt: "asc" },
   });
 
+  let classSectionId = existing?.classSectionId ?? placementIds[0];
   let sessionId = existing?.sessionId ?? null;
   if (!sessionId) {
     const wanted = action === "pickup" || action === "undo_pickup" ? "pickup" : "arrive";
-    let sessions = await findSessions(classSectionId, date);
+    // Prefer the placement whose class already has a session today.
+    let sessions: Awaited<ReturnType<typeof findSessions>> = [];
+    for (const id of placementIds) {
+      const found = await findSessions(id, date);
+      if (found.length > 0) {
+        classSectionId = id;
+        sessions = found;
+        break;
+      }
+    }
     if (sessions.length === 0) {
+      // None has one: reconcile the first placement once before giving up.
       await reconcileSessions(classSectionId);
       sessions = await findSessions(classSectionId, date);
     }
