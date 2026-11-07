@@ -160,6 +160,8 @@ None. No schema, dependency, auth, PII, production write or paid API.
   landing hero, deck mocks) and square icon sizing → `size-N` (19 files, incl. `components/ui/chart.tsx`,
   `navigation-menu.tsx`). A driver script confirmed all 66 changed lines differ only by those classes. I and J had
   zero offenders. Guard + parity suites 30/30, lint clean, `tsc --noEmit` clean.
+- Fix: `components/portal/__tests__/week-grid-legibility.test.tsx` asserted the literal `w-4`/`h-4`; rule K made it
+  `size-4` (same 16px), so the assertion now matches `size-4`. Found by the full Vitest run.
 
 ## Verification
 
