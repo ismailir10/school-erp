@@ -74,4 +74,24 @@ None (no schema, no new route, no auth change; `app/api/**` touched, so a securi
 
 ## Verification
 
+### Verified locally — c5ab4032, 2026-11-07
+- Compared: `origin/staging...HEAD` (staging 1a27cdc4). Changed paths: `app/api/__tests__/teacher-gate.test.ts`, `app/api/teacher/gate/route.ts`, `docs/cycles/2026-11-07-gate-active-year.md`, `lib/attendance/__tests__/gate-summary.test.ts`, `lib/attendance/gate-summary.ts`, `lib/sessions/__tests__/dates.test.ts`, `lib/sessions/dates.ts`.
+- Ship route: other code (no auth/session/cookie change; app/api touched -> security-reviewed in diff review).
+- Gate `npm run lint` -> exit 0, no warnings (`--max-warnings=0`).
+- Gate `npx vitest run` (no DEMO_MODE) -> Run 1: `Test Files  1 failed | 757 passed | 2 skipped (760)`, `Tests  1 failed | 9292 passed | 42 todo (9335)` (spp-prepay-dialog, "names the line limit instead of the component reasons at 20 lines"). Run 2 (full suite, machine loaded by a concurrent server/browser walk): `Test Files  2 failed | 756 passed | 2 skipped (760)`, `Tests  2 failed | 9291 passed | 42 todo (9335)` (spp-prepay-dialog same test + `app/pendaftaran/[token]/__tests__/client-validation.test.tsx` "blocks Lanjut on Ayah"). Both files re-run alone -> `Test Files  2 passed (2)`, `Tests  56 passed (56)`. Known jsdom load flakes; none touches this diff.
+- Gate `bash scripts/verify-rls-coverage.sh` -> `RLS coverage OK: 51 / 51 tenant-scoped models have ENABLE + policy.`
+- Gate `bash scripts/verify-api-auth.sh` -> `API auth coverage OK: 239 / 239 routes have session helper or @public sentinel.`
+- Gate `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build` -> succeeded (route table printed, exit 0).
+- Gate `npx playwright test` -> NOT RUN: every spec fails at launch with `browserType.launch: Executable doesn't exist at .../ms-playwright/chromium_headless_shell-1248/...` (installed Playwright wants build 1248; cache holds 1243/1254). Summary line of the failed attempt: `7 passed (11.3m)`, 25 did not run, remainder failed at browser launch (not a product result). Needs `npx playwright install chromium` (download) then re-run. Not deferred to CI.
+- App: production build on http://localhost:3000, demo auth (`u_teacher`) + disposable local Postgres (postgres:15, seed). Phone 390x844.
+- Walked (u_teacher): /teacher Gerbang row "0 dari 85 sudah masuk" -> /teacher/gate; error case: Saturday, no session, non-working day -> Masuk tap on Ahmad Zafran Hidayat (TKIT A) POST 409 "Belum ada sesi kelas hari ini" (existing copy). Seed has no sessions for 2026-11-07 (a Saturday) so the disposable DB OrgConfig.workingDays was set to the legacy CSV `MON,TUE,WED,THU,FRI,SAT` (this also exercises the tolerant parser): Masuk tap on the same child -> POST 200, toast "Ahmad Zafran Hidayat masuk", count "Sudah masuk 1 dari 85" (+1); Pulang tap on the same child -> POST 200 (pickup recorded, row shows time 15.19, "Sudah pulang 1 dari 85"; no Orang tua picker appeared); /teacher -> "1 dari 85 sudah masuk · 1 pulang". The seed has a single ACTIVE academic year, so archived-year edge and two-placement choice are covered by unit/route tests only, not walked.
+- Console/network: /api/teacher/gate GET 200 x2, POST 409 (expected), 200 x2. Console errors are local-env only: `/_vercel/insights` and `/_vercel/speed-insights` script 404, `manifest.webmanifest` syntax error.
+- Screenshots: /tmp/gate-beranda-phone.png (phone). Highlight: n/a (no UI change).
+- Design-system: no frontend file changed.
+- Rounds: 1, no fixes. Not checked: Playwright suite (above); archived-year placement in a live browser.
+
 ## Ship Notes
+- No migration, no env var.
+- Staging `OrgConfig.workingDays` was normalised to JSON on 2026-11-07 (prod already JSON); the parser now also tolerates legacy CSV.
+- Post-merge: Chrome re-check of Gerbang arrive/pickup on staging.
+- Rollback: revert the merge commit.
