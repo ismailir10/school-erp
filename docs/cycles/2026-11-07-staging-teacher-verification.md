@@ -13,13 +13,14 @@ Verify staging after #721–#726 following a teacher report of broken workflows.
 ## Tasks
 
 - [x] Distinguish Sentra, Slip Gaji and Perkembangan details and cover the browser transitions.
-- [ ] Correct Gerbang attendance scoping and aggregation and cover duplicate-placement cases.
+- [x] Correct Gerbang attendance scoping and aggregation and cover duplicate-placement cases.
 - [ ] Match Sentra score validation to eligible age groups and cover a dual-enrollment student.
 
 ## Implementation
 
 - Plan: title fixes and Gerbang attendance scoping developed in parallel, with separate standards and spec review. The Sentra scoring fix followed after the live reproduction.
 - T1: Sentra and salary-slip details share a request-cached record lookup with metadata. Perkembangan uses a distinct generic detail title. Added assertions to three existing Playwright flows.
+- T2: Gerbang and Beranda share the exact active-placement scope and aggregate the first arrival and last pickup per child, including the corresponding pickup details.
 
 ## Verification
 
