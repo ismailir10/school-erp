@@ -23,13 +23,13 @@ main promotion.
 - **Removed from Lainnya.** One home only. The feature is not on production yet, so no habit is broken.
 
 ## Acceptance criteria
-- [ ] A teacher's Beranda shows a "Gerbang" row directly below "Kehadiran pribadi"; tapping it opens the Gerbang page.
-- [ ] The row's description shows today's arrived / picked-up counts for the teacher's campus, matching what the
+- [x] A teacher's Beranda shows a "Gerbang" row directly below "Kehadiran pribadi"; tapping it opens the Gerbang page.
+- [x] The row's description shows today's arrived / picked-up counts for the teacher's campus, matching what the
       Gerbang page shows.
-- [ ] With no children on the campus, the row reads `Catat anak masuk dan pulang di gerbang` (no "0 dari 0").
-- [ ] If the count cannot be loaded, the row still appears with that plain description and Beranda renders normally.
-- [ ] The Lainnya sheet no longer lists Gerbang.
-- [ ] Any defects from the staging Chrome walk are fixed (listed in Tasks once known).
+- [x] With no children on the campus, the row reads `Catat anak masuk dan pulang di gerbang` (no "0 dari 0").
+- [x] If the count cannot be loaded, the row still appears with that plain description and Beranda renders normally.
+- [x] The Lainnya sheet no longer lists Gerbang.
+- [x] Any defects from the staging Chrome walk are fixed (listed in Tasks once known).
 
 ## Verify flows
 1. Teacher (`u_teacher`) → `/teacher` → Gerbang row under Kehadiran pribadi shows counts → tap → Gerbang page lists
@@ -94,6 +94,8 @@ None (no schema, no new route, no auth change).
 - Highlight: same file.
 - Rounds: 1 — no fixes needed.
 - Not checked: desktop width (teacher portal is phone-first); edge/error flows in the browser.
+
+- Ship route: **other code** (no auth, session, cookie or OAuth path). Diff `origin/staging` (67ae31e3)...HEAD: `lib/attendance/gate-summary.ts`, `app/api/teacher/gate/route.ts` (refactor onto the helper), `app/teacher/{page,home-client}.tsx`, `components/teacher/more-sheet.tsx`, tests, e2e, docs. Soft-skip delta: 0.
 
 ## Ship Notes
 - No migration, no env var, no new route.
