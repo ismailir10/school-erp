@@ -35,6 +35,15 @@ Verify staging after #721–#726 following a teacher report of broken workflows.
 - Chrome on staging: verified that Semua hadir and Semua pulang populated the DCARE session draft. Reload discarded the unsaved bulk changes.
 - design-system: this change affects the tab title and attendance data. Existing page layouts and controls were retained.
 
+### Verified locally — 2258b7c5, 2026-11-07
+
+- Compared with staging `36d49c22`. Runtime paths are Sentra GET/POST, Sentra detail, salary-slip detail, Perkembangan detail, and the shared Gerbang roster helper. Ship route is auth-sensitive tenant/placement logic, with a signed-in staging check after merge.
+- Production build, lint, RLS guard (51/51), API auth guard (239/239), hooks (32/32), and docs audit passed. Vitest: 9,296 passed, 42 todo.
+- Playwright on a disposable localhost Postgres: 281 passed on first attempt and 2 passed on retry, exit 0. The retries were in admissions fee and sibling chip tests. All 283 had passed in the previous run before the Sentra save fix. Curriculum separation, Sentra rotation/journal/score, simulated geofence and staff approvals, and Gerbang passed.
+- Browser walk on final demo-auth production build at phone and desktop widths: Sentra Balok resolved its configured week and group, detail titles were distinct, and the Metland gate count loaded. No uncaught browser exceptions or 5xx during the targeted walk.
+- Highlights: `sentra-detail-390.png` and `gerbang-metland-390.png` from the disposable local app. Desktop captures use the same filenames with `1440`.
+- Live staging verification used the teacher session. The staging admin and parent roles, fresh location check-in, and the already-normalized legacy working-day format were covered locally. The available staging teacher was already checked in and had no guru Sentra assignment.
+
 ## Ship Notes
 
 - Deploy through the staging PR. No migration or environment change required.
