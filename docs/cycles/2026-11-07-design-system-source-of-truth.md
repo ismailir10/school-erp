@@ -128,13 +128,23 @@ None. No schema, dependency, auth, PII, production write or paid API.
 - [ ] T3 Standards: resolve the contradictions, strip hand-copied values to names + purpose, add icon / chart /
       breakpoint / focus-ring rules, fix stale counts — accept: a re-run of the coherence audit finds no
       contradiction (parallel with T1–T2)
-- [ ] T4 Reference HTML (both copies): drop dark palette, fix title/button specimens, remove `--primary-hover` and
+- [x] T4 Reference HTML (both copies): drop dark palette, fix title/button specimens, remove `--primary-hover` and
       stale notes, add the component inventory; guard tests for value parity and inventory coverage; fix the repo
       link on the in-app page — accept: tests green, `/admin/design-system` renders (deps: T3 wording)
 - [ ] T5 Design critique of key screens (admin, teacher, parent, reference) at 390 and 1440 — accept: token/standards
       findings fixed or recorded; component findings listed for cycle B (deps: T1–T4)
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5 (haiku for sweeps); T1→T2 sequential in one worker (same
+  test file), T3 and T4 parallel workers (disjoint files; T4's tests live in a new suite to avoid the T1/T2 file),
+  T5 a worker running the design-critique skill on screenshots; driver reviews every diff and commits.
+- T4: `.claude/standards/design-system.html` (+ byte-identical `public/` copy), `lib/__tests__/design-reference-parity.test.ts`,
+  `app/admin/design-system/page.tsx` — dark palette/toggle and type switchers removed (light-only note added),
+  `--primary-hover` dropped (hover = `color-mix` 80%), stale proposal + roadmap replaced by a 74-row component
+  inventory, title specimen = `text-h1`/600/1.25, buttons 32/28/36px + 44px coarse-pointer floor; parity test checks
+  shared literal tokens against `globals.css`, inventory coverage and absence of dark rules. All shared values
+  already matched. Repo link → `school-erp@staging`.
 
 ## Verification
 
