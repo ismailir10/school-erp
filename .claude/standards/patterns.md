@@ -258,3 +258,14 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 - **Currency via `formatRupiah()`, dates via `formatDate()` / `formatDateShort()`.** Never inline `.toLocaleString()`.
 - **Spacing from tokens.** `p-page-x`, `py-page-y`, `gap-section`, `p-card`, `space-y-field` — never ad-hoc `p-4` / `p-8` for page chrome.
 - **Typography from tokens.** `text-h1`, `text-h2`, `text-body`, `text-small`, `text-caption` — never ad-hoc `text-lg` / `text-base` for page chrome.
+
+## Don't make me think
+
+Product principle from CLAUDE.md § Product principle. Each rule has one Talib example; the goal is the fewest decisions and taps the task allows.
+
+- **Defaults over choices.** Guardian pickup relation defaults to "Orang tua"; the user changes it only for other relations.
+- **Exceptions only.** Staff daily attendance opens with "Tandai semua hadir" in one tap; the admin then taps only the staff who are sick, on leave or absent.
+- **Detect, don't ask.** Teacher check-in is one tap, with location read automatically; campus comes from the signed-in employee, never a dropdown.
+- **One primary action per screen.** Each screen has one filled primary button (for example "Simpan"); bulk and export actions are outline or ghost buttons.
+- **Undo over "are you sure?"** Soft-deleting a reversible record removes it at once and shows an undo toast. Only irreversible or destructive actions get a confirm dialog.
+- **Count the taps.** A spec's `## UX notes` states the main task's tap count, for example "Teacher check-in: 1 tap". A change that adds taps says why in `## Decisions` (`docs/workflow/spec.md` § Rules).

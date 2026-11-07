@@ -22,6 +22,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { formatDate, formatTime } from "@/lib/format";
+import { applyAllArrived, applyAllPickedUp } from "@/lib/attendance/bulk";
 
 const SAVE_TOAST_ID = "session-attendance-save";
 
@@ -169,6 +170,35 @@ export function SessionRosterClient({
     });
   }
 
+  // One tap fills every gap; the toast's "Urungkan" restores the exact rows
+  // from before the tap (undo over "are you sure"). Nothing is sent until
+  // "Simpan absensi", like every other tap on this screen.
+  function bulk(kind: "in" | "out") {
+    const snapshot = rows;
+    const nowIso = new Date().toISOString();
+    const { rows: next, changed } = (
+      kind === "in" ? applyAllArrived : applyAllPickedUp
+    )(rows, nowIso);
+    if (changed === 0) {
+      toast.info(
+        kind === "in"
+          ? "Semua anak yang hadir sudah punya jam masuk."
+          : "Semua anak yang hadir sudah dijemput.",
+      );
+      return;
+    }
+    setRows(next);
+    toast.success(
+      kind === "in"
+        ? `${changed} anak ditandai masuk`
+        : `${changed} anak ditandai pulang`,
+      {
+        id: "session-bulk",
+        action: { label: "Urungkan", onClick: () => setRows(snapshot) },
+      },
+    );
+  }
+
   async function handleSave() {
     if (saving) return;
 
@@ -263,6 +293,26 @@ export function SessionRosterClient({
         </div>
       ) : (
         <>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-target"
+              onClick={() => bulk("in")}
+            >
+              <LogIn size={16} aria-hidden="true" />
+              Semua hadir
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-target"
+              onClick={() => bulk("out")}
+            >
+              <LogOut size={16} aria-hidden="true" />
+              Semua pulang
+            </Button>
+          </div>
           <div className="space-y-2">
             {rows.map((r) => {
               const status = r.status as Status;

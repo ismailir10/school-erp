@@ -108,3 +108,31 @@ describe("no-class teacher empty states (R2-T-12)", () => {
     expect(document.body.textContent).toMatch(/tugas kelas di atas/);
   });
 });
+
+describe("geofence note sheet", () => {
+  const geo = (lat = -6.2, lng = 106.8) => vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition: (ok: (p: unknown) => void) => ok({ coords: { latitude: lat, longitude: lng, accuracy: 15 } }) } });
+  it("opens the sheet on OUTSIDE_GEOFENCE, then resubmits with the note and shows the pending chip", async () => {
+    geo();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({ code: "OUTSIDE_GEOFENCE", distanceMeters: 312, campusName: "Taman Aster" }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "PRESENT", checkInTime: "2026-09-25T00:10:00.000Z", checkOutTime: null, approvalStatus: "PENDING" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
+    expect(await screen.findByText("Anda ± 312 m dari Taman Aster. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ lat: -6.2, lng: 106.8, accuracy: 15 });
+    const submit = screen.getByRole("button", { name: "Kirim untuk disetujui" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Catatan untuk admin"), { target: { value: "Antar murid ke dokter" } });
+    fireEvent.click(submit);
+    expect(await screen.findByTestId("pending-approval-chip")).toHaveTextContent("Menunggu persetujuan");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ note: "Antar murid ke dokter", lat: -6.2 });
+  });
+  it("uses the no-location copy when the distance is null", async () => {
+    vi.stubGlobal("navigator", { ...navigator, geolocation: undefined });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => ({ code: "OUTSIDE_GEOFENCE", distanceMeters: null, campusName: "Taman Aster" }) }));
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
+    expect(await screen.findByText("Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+  });
+});

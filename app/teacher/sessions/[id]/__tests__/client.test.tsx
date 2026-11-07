@@ -357,3 +357,22 @@ describe("SessionRosterClient", () => {
     });
   });
 });
+
+describe("bulk taps", () => {
+  it("Semua hadir stamps only unmarked present children and keeps exceptions", () => {
+    renderRoster([
+      { ...roster[0] },
+      { ...roster[1], status: "SICK" },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /Semua hadir/ }));
+    expect(screen.getAllByText(/^Masuk /)).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Simpan absensi · 1 perubahan/ })).toBeInTheDocument();
+  });
+
+  it("Semua pulang marks present children picked up by Orang tua", () => {
+    renderRoster();
+    fireEvent.click(screen.getByRole("button", { name: /Semua pulang/ }));
+    expect(screen.getAllByText(/^Pulang /)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Simpan absensi · 2 perubahan/ })).toBeInTheDocument();
+  });
+});

@@ -24,6 +24,19 @@ const longitude = z.coerce
   .min(-180, "Longitude harus antara -180 dan 180")
   .max(180, "Longitude harus antara -180 dan 180");
 
+// Geofence radius for staff check-in, in metres. The admin form submits it as a
+// string from <Input type="number">; a blank field means "leave as is" (PUT) or
+// "use the default 50" (POST).
+const radiusMeters = z.preprocess(
+  (v) => (v === "" || v === null ? undefined : v),
+  z.coerce
+    .number({ message: "Harus berupa angka" })
+    .int("Radius harus bilangan bulat")
+    .min(10, "Radius minimal 10 meter")
+    .max(1000, "Radius maksimal 1000 meter")
+    .optional(),
+);
+
 // PUT semantics: an omitted key is left alone, an explicit `null` (or blank
 // string) clears the column.
 const nullableCoordinate = (inner: z.ZodType<number>) =>
@@ -34,6 +47,7 @@ export const updateCampusSchema = z.object({
   address: z.string().max(500).optional().nullable(),
   lat: nullableCoordinate(latitude),
   lng: nullableCoordinate(longitude),
+  radiusMeters,
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -51,6 +65,7 @@ export const createCampusSchema = z.object({
   address: optionalTrimmed(z.string().max(500, "Alamat maksimal 500 karakter")),
   lat: optionalCoordinate(latitude),
   lng: optionalCoordinate(longitude),
+  radiusMeters,
 });
 
 export type CreateCampusInput = z.infer<typeof createCampusSchema>;

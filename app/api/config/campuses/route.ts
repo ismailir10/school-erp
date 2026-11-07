@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const result = await validateBody(createCampusSchema, await req.json());
   if (result.error) return result.error;
-  const { name, address, lat, lng } = result.data;
+  const { name, address, lat, lng, radiusMeters } = result.data;
 
   const campus = await prisma.campus.create({
     data: {
@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       address: address ?? null,
       lat: lat ?? null,
       lng: lng ?? null,
+      // Omitted → the column default (50 m).
+      radiusMeters,
     },
   });
 

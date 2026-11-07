@@ -112,9 +112,55 @@ export const attendanceCheckInSchema = z
       .min(-180, "Longitude di luar rentang valid")
       .max(180, "Longitude di luar rentang valid")
       .optional(),
+    // GPS accuracy radius in metres (Position.coords.accuracy). Widens the
+    // geofence by at most 100 m — see lib/attendance/geofence.ts.
+    accuracy: z.number().finite().min(0).max(100_000).optional(),
+    // Why the teacher is outside the geofence. Length (3–500) is enforced by
+    // the route only when a note is actually needed, so inside check-ins that
+    // send a stray note are not rejected.
+    note: z.string().trim().max(500, "Catatan maksimal 500 karakter").optional(),
   })
   // Strip unknown keys silently — clients may send extra debug fields and we
   // don't want to 400 on harmless additions, but we do want to ignore them.
   .strip();
 
 export type AttendanceCheckInInput = z.infer<typeof attendanceCheckInSchema>;
+
+/** POST /api/attendance/[id]/approve | reject — the reviewer's note is optional. */
+export const attendanceReviewSchema = z.object({
+  note: z.string().trim().max(500, "Catatan maksimal 500 karakter").nullish(),
+});
+
+/** POST /api/attendance/approve-all — omit `ids` to approve every pending check-in in the tenant. */
+export const attendanceApproveAllSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(500).optional(),
+});
+
+// ── Absensi Staf Harian (admin records a whole day for staff) ─────────────
+// Four quick statuses map to the codebase's own values: Hadir=PRESENT,
+// Sakit=SICK, Izin=PERMISSION, Alpa=ABSENT.
+export const DAILY_STATUSES = ["PRESENT", "SICK", "PERMISSION", "ABSENT"] as const;
+
+/** GET /api/attendance/daily — date defaults to today in the tenant timezone. */
+export const attendanceDailyQuerySchema = z.object({
+  date: isoDateString.optional(),
+  campusId: z.string().min(1).optional(),
+});
+
+/** POST /api/attendance/daily/bulk — "Tandai semua hadir". */
+export const attendanceDailyBulkSchema = z.object({
+  date: isoDateString,
+  campusId: z.string().min(1).optional(),
+});
+
+/** PUT /api/attendance/daily — one row's quick status. */
+export const attendanceDailySetSchema = z.object({
+  employeeId: z.string().min(1),
+  date: isoDateString,
+  status: z.enum(DAILY_STATUSES),
+});
+
+/** DELETE /api/attendance/daily — undo of a bulk (ids it returned). */
+export const attendanceDailyUndoSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(1000),
+});

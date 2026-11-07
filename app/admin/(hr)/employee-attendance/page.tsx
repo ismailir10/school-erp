@@ -18,8 +18,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { AdminTabs, AdminTabsContent, AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs";
+import { PendingApprovals, type PendingCheckIn } from "./pending-approvals";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
+import { UserCheck, Clock, UserX, CalendarDays, Download, Replace, ListChecks } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import { computeAbsentCount, computeExcusedCount, isNonWorkingDay } from "./absent-stat";
@@ -30,7 +32,7 @@ type EmployeeAttendance = {
   employee: { id: string; kode: string; nama: string; jabatan: string; campusName: string };
   attendance: {
     id: string; status: string; checkInTime: string | null; checkOutTime: string | null;
-    isManualOverride: boolean; isLocked: boolean;
+    isManualOverride: boolean; isLocked: boolean; approvalStatus?: string;
   } | null;
 };
 
@@ -61,6 +63,11 @@ export default function AttendancePage() {
   // dedicated endpoint so this client page doesn't duplicate the dashboard's
   // groupBy query. Fetch failure degrades to the chart's own empty state.
   const [trend, setTrend] = useState<WeeklyTrend[]>([]);
+
+  // "Perlu persetujuan": geofence check-ins waiting for a decision (any date).
+  const [tab, setTab] = useState("hari-ini");
+  const [pending, setPending] = useState<PendingCheckIn[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
 
   // Override modal
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -93,6 +100,31 @@ export default function AttendancePage() {
   }, [date, campusId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const fetchPending = useCallback(async () => {
+    try {
+      const res = await fetch("/api/attendance/pending");
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (Array.isArray(rows)) setPending(rows);
+    } catch {
+      // Non-fatal: the tab simply shows no rows.
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchPending(); }, [fetchPending]);
+
+  // The dashboard badge links here with ?tab=pending.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "pending") setTab("pending");
+  }, []);
+
+  const reloadAfterDecision = useCallback(() => {
+    fetchPending();
+    fetchData();
+  }, [fetchPending, fetchData]);
 
   // F-20: holidays fetched once on mount; non-blocking for the table.
   useEffect(() => {
@@ -151,6 +183,7 @@ export default function AttendancePage() {
   // any open row-action menu (Cycle 3 T7).
   const columns: ColumnDef<EmployeeAttendance>[] = useMemo(() => {
     const statusBadge = (ea: EmployeeAttendance) => {
+      if (ea.attendance?.approvalStatus === "PENDING") return <StatusBadge status="PENDING" />;
       if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
       // No record on a non-working day means the school was closed, not
       // that the employee failed to show up.
@@ -247,10 +280,13 @@ export default function AttendancePage() {
         title="Kehadiran Hari Ini"
         description={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
+            <Link href="/admin/employee-attendance/daily">
+              <Button size="sm"><ListChecks size={14} className="mr-1.5" /> Absensi Staf Harian</Button>
+            </Link>
             <Link href="/admin/employee-attendance/monthly">
               <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
             </Link>
@@ -258,6 +294,22 @@ export default function AttendancePage() {
         }
       />
 
+      <AdminTabs value={tab} onValueChange={(v) => setTab(String(v))}>
+      <AdminTabsList>
+        <AdminTabsTrigger value="hari-ini">Kehadiran</AdminTabsTrigger>
+        <AdminTabsTrigger value="pending">
+          Perlu persetujuan
+          {pending.length > 0 ? (
+            <span className="ml-1.5 rounded-full bg-status-late-subtle px-1.5 text-small font-semibold tabular-nums text-status-late-text" data-testid="pending-count">{pending.length}</span>
+          ) : null}
+        </AdminTabsTrigger>
+      </AdminTabsList>
+
+      <AdminTabsContent value="pending">
+        <PendingApprovals rows={pending} loading={pendingLoading} onChanged={reloadAfterDecision} />
+      </AdminTabsContent>
+
+      <AdminTabsContent value="hari-ini">
       {/* Moved here from the admin dashboard — DMMT overhaul */}
       <AttendanceTrendChart data={trend} hideDetailLink className="mb-4" />
 
@@ -289,6 +341,8 @@ export default function AttendancePage() {
         emptyTitle="Tidak ada data kehadiran"
         emptyDescription="Belum ada karyawan yang tercatat untuk tanggal ini."
       />
+      </AdminTabsContent>
+      </AdminTabs>
 
       {/* Override Modal */}
       {overrideTarget && (

@@ -43,7 +43,7 @@ export function applySecurityHeaders<T extends NextResponse>(response: T, pathna
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()",
+    "camera=(), microphone=(), geolocation=(self)",
   );
   return response;
 }

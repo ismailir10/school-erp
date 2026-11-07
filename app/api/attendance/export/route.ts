@@ -63,19 +63,21 @@ export async function GET(req: NextRequest) {
   const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
   // Every cell goes through escapeCsvCell (always-quoted, quotes doubled,
   // formula-leading cells neutralised) — names/jabatan are admin-typed free text.
-  const header = ["Kode", "Nama", "Kampus", "Jabatan", "Hadir", "Terlambat", "Alpa", "Izin", "Total Hari"]
+  const header = ["Kode", "Nama", "Kampus", "Jabatan", "Hadir", "Terlambat", "Alpa", "Izin", "Menunggu", "Total Hari"]
     .map(escapeCsvCell)
     .join(",");
 
   const rows = employees.map((emp) => {
-    let present = 0, late = 0, absent = 0, leave = 0;
+    let present = 0, late = 0, absent = 0, leave = 0, pending = 0;
     for (const r of emp.attendanceRecords) {
+      // Geofence check-ins awaiting review are not counted as worked days yet.
+      if (r.approvalStatus === "PENDING") { pending++; continue; }
       if (r.status === "PRESENT" || r.status === "PRESENT_NO_CHECKOUT") present++;
       else if (r.status === "LATE") late++;
       else if (r.status === "ABSENT") absent++;
       else if (r.status === "LEAVE") leave++;
     }
-    return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, present + late + leave]
+    return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, pending, present + late + leave]
       .map((v) => escapeCsvCell(String(v ?? "")))
       .join(",");
   });
