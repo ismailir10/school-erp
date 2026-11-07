@@ -109,6 +109,9 @@ Facts (code survey):
 - [ ] T6 README, docs/uat/jobs, e2e — accept: Playwright local (deps: T2–T5)
 
 ## Implementation
+- **Plan:** driver=claude-opus-5-5 (spec, review, sign-off); workers=claude-sonnet-5-5 (T1–T3 one agent, sequential because they share the schema; T5 in parallel; T4 after T1), claude-haiku-5-5 (T0 docs). Driver implemented no slice.
+- **T0:** CLAUDE.md § Product principle, `.claude/standards/patterns.md` § Don't make me think, `docs/workflow/spec.md` tap-count rule.
+- **T5:** session view "Semua hadir" / "Semua pulang" are client-side over the existing Simpan, with an "Urungkan" toast; they never overwrite exceptions or existing times (`lib/attendance/bulk.ts`). Gerbang: `app/teacher/gate`, linked from the "Lainnya" sheet (portal.md: new destinations go there). `GET/POST /api/teacher/gate` (TEACHER or admin with an employee, tenant + campus scoped, rate-limited); POST actions arrive / pickup / undo_arrive / undo_pickup. The session comes from the child's existing row today, else the class's FULL_DAY → MORNING/AFTERNOON session, else one `reconcileSessions` pass, else 409; upsert on (studentId, sessionId) so the class view sees the same row. Touch targets ≥ 48 px per design-system.html.
 
 ## Verification
 

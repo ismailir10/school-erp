@@ -26,3 +26,8 @@ export const ATTENDANCE_TAP_WINDOW_MS = 60_000 as const;
 // Session attendance posts the whole roster in one request per "Simpan".
 export const SESSION_ATTENDANCE_SAVE_BUDGET = 30 as const;
 export const SESSION_ATTENDANCE_SAVE_WINDOW_MS = 60_000 as const;
+
+// Gerbang (gate) mode records one child per tap; a morning drop-off queue is
+// ~100 children in a few minutes on one shared tablet.
+export const GATE_TAP_BUDGET = 180 as const;
+export const GATE_TAP_WINDOW_MS = 60_000 as const;
