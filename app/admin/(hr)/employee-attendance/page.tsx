@@ -280,7 +280,7 @@ export default function AttendancePage() {
         title="Kehadiran Hari Ini"
         description={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
