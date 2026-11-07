@@ -75,6 +75,26 @@ None (no schema, no new route, no auth change).
 ## Verification
 - design-system: cross-checked Beranda row against .claude/standards/design-system.html §14 Portal Shell (TaskRow look).
 
+### Verified locally — 83b6b3de, 2026-11-07
+- Gate (disposable Postgres `localhost:54329`, `prisma db push` + seed, `DEMO_MODE` only on the app process):
+  - `npm run lint` → exit 0, no warnings (`--max-warnings=0`).
+  - `npx vitest run` → `Test Files  757 passed | 2 skipped (759)` / `Tests  9283 passed | 42 todo (9325)`.
+  - `bash scripts/verify-rls-coverage.sh` → `✓ RLS coverage OK: 51 / 51 tenant-scoped models have ENABLE + policy.`
+  - `bash scripts/verify-api-auth.sh` → `✓ API auth coverage OK: 239 / 239 routes have session helper or @public sentinel.`
+  - `DEMO_MODE=true NEXTAUTH_SECRET=local-dummy npm run build` → completed, route table printed, no errors.
+  - `npx playwright test` → `1 flaky` (`e2e/admin-student-leave.spec.ts:117`, "record on the student page → run shows Sedang cuti → cancel → billed again", failed once at line 154 `expect(row?.status, "after cancelling, the student is billed again").not.toBe("SKIPPED_ON_LEAVE")`, passed on retry; leave/billing, not touched by this diff) and `282 passed (13.6m)`, exit 0.
+- App: production build on http://localhost:3000, demo auth + disposable local Postgres, `u_teacher`, 390x844.
+- Walked:
+  - Flow 1 → PASS. Beranda shows Gerbang row directly under "Masuk 07.00 · sudah tercatat / Catat pulang" (Kehadiran pribadi), description `1 dari 85 sudah masuk · 0 pulang`; tap opens `/teacher/gate` on Taman Aster with "Sudah masuk 1 dari 85"; Masuk on Aira Hafiz Siregar (POPUP Weekend) → gate "Sudah masuk 2 dari 85"; back on Beranda the row reads `2 dari 85 sudah masuk · 0 pulang`.
+  - Flow 2 → PASS. Lainnya sheet lists Kehadiran saya, Slip gaji, Profil saya, Panduan Talib; no Gerbang.
+  - Edge (campus with no children) and error (count lookup throws) covered by Vitest component/unit tests, not walked in the browser.
+  - Seed note: tapping Masuk on a KB child returned 409 "Belum ada sesi kelas hari ini" (that class has no session on this Saturday); `POST /api/teacher/gate` is unchanged by this diff.
+- Console/network: only `/_vercel/insights` + `/_vercel/speed-insights` 404s (Vercel-only scripts, not served locally), a `manifest.webmanifest` parse error, and the 409 and 400 from my own probes above. No 5xx.
+- Screenshots: `docs/cycles/screenshots/2026-11-07-gate-on-beranda/beranda-gerbang.png` (phone 390x844).
+- Highlight: same file.
+- Rounds: 1 — no fixes needed.
+- Not checked: desktop width (teacher portal is phone-first); edge/error flows in the browser.
+
 ## Ship Notes
 - No migration, no env var, no new route.
 - Post-merge (staging): Beranda shows the Gerbang row under Kehadiran pribadi with the campus count; Lainnya no longer
