@@ -11,15 +11,15 @@
 | Need | Use | NEVER |
 |------|-----|-------|
 | Data display | `DataTable` (if >10 items) or Card list (if <10) | Custom divs with `.map()` |
-| Status display | `StatusBadge` | Inline `Badge` with hardcoded colors |
+| Status display | `StatusBadge` / `Badge` variants (see `ui.md` § Reach for) | A page-local tone map |
 | Empty state | `EmptyState` component | Plain `<p>` or `<div>` |
-| Loading state | Shadcn `Skeleton` | `animate-pulse` divs |
-| Currency | `formatRupiah()` from `@/lib/format` | Inline `.toLocaleString()` |
+| Loading state | `Skeleton` / `Spinner` (see `ui.md` § Reach for) | `animate-pulse` divs |
+| Currency, numbers | `formatRupiah()` / `formatNumber()` from `@/lib/format` (guard rule G) | Inline `.toLocaleString()` |
 | Dates | `formatDate()` / `formatDateShort()` from `@/lib/format` | Inline `new Date().toLocaleDateString()` |
 | Time | `formatTime()` from `@/lib/format` | Inline formatting |
-| Colors | CSS variables (`text-primary`, `text-destructive`, etc.) | Hardcoded hex (`text-[#5DB4B8]`, `bg-[#00B37E]`) |
-| Errors | `toast.error()` from sonner | `alert()` or `console.error()` only |
-| Confirmations | `ConfirmDialog` | `window.confirm()` |
+| Colors | Token utilities (see `colors.md`) | Hardcoded hex or raw palette classes (guard rules A, B) |
+| Errors | `toastError` / `toastCaughtError` from `lib/feedback.ts` (see `ui.md` § Feedback) | `alert()` or `console.error()` only |
+| Confirmations | `ConfirmDialog` (see `ui.md` § Overlays Rule, § Undo or confirm) | `window.confirm()`, raw `AlertDialog` |
 | Forms | `FormField` + Zod validation | Raw `Label` + `Input` |
 
 ## Portal Navigation Standard
@@ -160,7 +160,7 @@ Three distinct layers — pick the narrowest that fits. If a pattern lands in tw
 
 Shared sticky top-of-page header for parent + teacher portals. Located at `components/portal/portal-header.tsx`.
 
-**Use it** as the top-level `<header>` inside every portal layout. Logo + brand on the left, avatar + first name + logout on the right. Sticky, `h-14`, `max-w-md mx-auto`, `px-5`.
+**Use it** as the top-level `<header>` inside every portal layout. Logo + brand on the left, avatar + first name + logout on the right. Sticky, `h-14`, `max-w-md mx-auto`, `px-5` (see Spacing Scale).
 
 **Props:**
 
@@ -236,10 +236,10 @@ Shared in-content page header for portal routes (title + optional subtitle + opt
 | `actions?` | `ReactNode` | Right-aligned slot for filters, CTAs; hidden on narrow widths via shrink-0 |
 | `className?` | `string` | Merged into the outer `<header>` |
 
-**Spacing contract:**
-- Block margin: `mb-6`
-- Title: `text-2xl font-semibold tracking-tight text-foreground`
-- Subtitle: `text-sm text-muted-foreground mt-1`
+**Spacing contract** (the primitive wraps `components/admin/page-header.tsx`, so admin and portal titles are identical):
+- Block margin: `mb-section`
+- Title: `text-h1` with the token's own weight (semibold) and line-height; never add `font-*` or `leading-*` (see `ui.md` § Heading weight)
+- Subtitle: `text-body text-muted-foreground`, `mt-1` below the title
 
 **Example:**
 
@@ -253,16 +253,16 @@ Shared in-content page header for portal routes (title + optional subtitle + opt
 
 ## Spacing Scale
 
-Canonical spacing for parent + teacher portals. Pull from this table before inventing new values.
+What the portal layouts render today (token rules: `ui.md` § Design tokens; values in `app/globals.css`). The portal is one `max-w-md` column at every width, so there is no separate desktop spacing.
 
-| Surface | Mobile | Desktop |
-|---|---|---|
-| Page-level (layout) | `px-5 py-6` | `md:px-8 md:py-8` |
-| Page-header block | `mb-section` | `mb-section` |
-| Section gap inside page | `space-y-4` | `space-y-6` |
-| Card padding | `p-4` | `md:p-6` |
-| Sheet padding | `p-5` | `p-6 md:p-8` |
-| Task row | `min-h-17` | `min-h-17` |
+| Surface | Class |
+|---|---|
+| Page content (`app/teacher/layout.tsx`, `app/parent/layout.tsx`) | `max-w-md mx-auto px-page-x py-6`, wrapper `pb-20` to clear the bottom nav |
+| Sticky `PortalHeader` | `h-14`, `px-5` inside `max-w-md mx-auto` |
+| Page-header block | `mb-section` (inside `PageHeader`) |
+| Section gap inside page | `space-y-6` between blocks (what portal pages use today); `space-y-2` / `space-y-3` for rows within a block |
+| Card padding | `SectionCard` is `p-4 md:p-card`; prefer it over a hand-built card |
+| Task row | `min-h-17` |
 
 ## Error Handling Standard
 

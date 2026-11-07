@@ -8,17 +8,37 @@
 
 ## Design tokens
 
-Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, `bg-<semantic>/10` tints outside `components/ui`, and `toLocaleString` outside `lib/format.ts` (rule G: use `formatNumber` / `formatRupiah`). A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
+Values live in `app/globals.css` (`@theme` and `:root`; `:root` holds the values, `@theme inline` exposes them as utilities). This file lists names and purpose only, so a value is never written here by hand. Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
 
 | Family | Utilities | Notes |
 |---|---|---|
-| Spacing | `px-page-x` 1.5rem, `py-page-y` 2rem, `gap-section` 2rem, `p-card` 1.5rem, `gap-field` / `space-y-field` 1rem | Page padding, section gap, card padding, form row gap |
-| Type | `text-display` 2rem/1.15 bold, `text-h1` 1.5rem/1.25 semibold, `text-h2` 1.125rem/1.35 semibold, `text-body` 0.875rem/1.5, `text-small` 0.75rem/1.4, `text-caption` 0.6875rem/1.35 | Display, h1 and h2 carry their own line-height **and weight**: never add `font-semibold` / `leading-*` to them |
-| Radius | `rounded-sm` … `rounded-4xl`, all derived from `--radius` (0.625rem) | `rounded-lg` = `--radius`; cards `rounded-xl` |
+| Spacing | `px-page-x`, `py-page-y`, `gap-section`, `p-card`, `gap-field` / `space-y-field` | Page padding, section gap, card padding, form row gap. Shadcn primitives and `SectionCard` keep their own `p-4` (`md:p-card` on `SectionCard`); portal layouts use `px-page-x py-6` (see `portal.md` § Spacing Scale) |
+| Type | `text-display`, `text-h1`, `text-h2`, `text-body`, `text-small`, `text-caption` | Display, h1 and h2 carry their own line-height **and weight**: never add `font-bold` / `font-semibold` / `leading-*` to them (see Heading weight below) |
+| Radius | `rounded-sm` … `rounded-4xl`, all derived from `--radius` | `rounded-lg` = `--radius`; cards `rounded-xl` |
 | Elevation | `shadow-resting` (also `shadow-card-resting`), `shadow-raised`, `shadow-overlay`, `shadow-sticky-edge`, `shadow-card-elevated` | Resting card, hover-lifted card or sticky bar, popover/menu/dialog, sticky trailing column edge |
-| Motion | `ease-standard`, `ease-emphasized`, `duration-fast` 120ms, `duration-base` 200ms, `duration-slow` 320ms | framer-motion: `EASE_STANDARD`, `EASE_EMPHASIZED`, `DURATION` (seconds) from `lib/motion.ts`. Wrap decorative motion in `motion-safe:` |
-| Z-index | `z-base` 0, `z-sticky` 10, `z-header` 20, `z-nav` 30, `z-dropdown` 40, `z-overlay` 50, `z-toast` 60 | Shadcn primitives keep `z-50`, which equals `z-overlay`; don't rewrite them |
+| Motion | `ease-standard`, `ease-emphasized`, `duration-fast`, `duration-base`, `duration-slow` | framer-motion: `EASE_STANDARD`, `EASE_EMPHASIZED`, `DURATION` (seconds) from `lib/motion.ts`. Wrap decorative motion in `motion-safe:` |
+| Z-index | `z-base`, `z-sticky`, `z-header`, `z-nav`, `z-dropdown`, `z-overlay`, `z-toast` (low to high) | Shadcn primitives keep `z-50`, which equals `z-overlay`; don't rewrite them |
 | Colour | see [colors.md](./colors.md) | Light-only; semantic triads `success` / `warning` / `info` / `destructive` |
+
+### Guard rules
+
+`lib/__tests__/design-token-guard.test.ts` scans `app/` and `components/` and fails on:
+
+| Rule | Fails on |
+|---|---|
+| A | raw Tailwind palette colour (`bg-red-500`) |
+| B | arbitrary colour in brackets (`text-[#…]`, `bg-[rgb(…)]`) |
+| C | `hsl(var(--…))` around a hex token |
+| D | `Loader2` / `animate-spin` outside `Spinner` |
+| E | `bg-<semantic>/10` tints outside `components/ui` |
+| F | the easing cubic-bezier literal outside `lib/motion.ts` |
+| G | `toLocaleString` (use `formatNumber` / `formatRupiah` from `lib/format.ts`) |
+| H | `font-bold` / `font-semibold` next to `text-h1`, `text-h2` or `text-display` (`font-medium` stays allowed) |
+| I | importing `alert-dialog` outside `confirm-dialog.tsx` (use `ConfirmDialog`) |
+| J | `z-[…]` or `shadow-[…]` outside `components/ui` (use the z-index and elevation tokens) |
+| K | square icon sizing `h-N w-N` (use `size-N`) |
+
+Other docs link here for these bans; they do not repeat them.
 
 ## Reach for
 
@@ -32,7 +52,7 @@ Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilit
 | Person | `<UserAvatar>` (`components/ui/user-avatar.tsx`) | A hand-rolled initials circle |
 | Back navigation | `<BackLink>` (`components/portal/back-link.tsx`) | A hand-rolled `ArrowLeft` link |
 | Confirm, destructive or not | `<ConfirmDialog>` (`destructive` for delete/void/cancel) | Raw `<AlertDialog>`, `window.confirm()` |
-| Page title | `PageHeader` (`components/admin/page-header.tsx`, `components/portal/page-header.tsx`) | A hand-rolled `<h1>` |
+| Page title | `PageHeader` (`components/admin/page-header.tsx`; `components/portal/page-header.tsx` wraps it, same title and `mb-section` margin) | A hand-rolled `<h1>` |
 | Money | `formatRupiah()` + `font-currency` (admin, mono) or `font-amount` (parent, sans) | Inline formatting |
 | Plain number | `formatNumber()` (`lib/format.ts`) | `.toLocaleString()` (guard rule G) |
 | Field validation error | shadcn `<FieldError>` under the field | A toast as the only signal |
@@ -68,7 +88,7 @@ Use the installed Shadcn component; do not build custom. (Talib primitives are i
 
 ## Touch targets (phones)
 
-Every control is at least **44px** tall on a touch device (`(pointer: coarse)`), and looks exactly as before on a mouse. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after`. A control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
+Every control is at least **44px** tall on a touch device (`(pointer: coarse)`) and **32px** (`h-8`, the `Button` default) on a mouse. `xs`, `sm` and `lg` buttons keep their own mouse height and also gain the 44px touch floor; `icon` sizes gain a 44px minimum width. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after`. A control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
 
 `e2e/mobile-layout.spec.ts` walks the admin, teacher and parent routes at 390px and fails on sideways page scroll, a control under 44px, a data table that needs a sideways scroll (only the month × employee matrix is exempt), and a text field under 16px. Add a new route to its list when you add a screen.
 
@@ -81,7 +101,7 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
 
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
-- **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; `destructive` for the irreversible ones). Never import `<AlertDialog>` outside `confirm-dialog.tsx`. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), destructive-right (`variant="destructive"`).
+- **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; `destructive` for the irreversible ones). Never import `<AlertDialog>` outside `confirm-dialog.tsx` (guard rule I). Whether an action confirms at all: see Undo or confirm below. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), destructive-right (`variant="destructive"`).
 - **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
 - **Toasts stack, overlays don't.** Sonner's default 3–5s suits success; a failed save persists with a retry via `toastError` (see Feedback below).
 - **Body copy states the consequence** ("Data akan hilang selamanya" for hard delete, "Bisa diaktifkan kembali kapan saja" for soft delete); see `voice.md`.
@@ -100,6 +120,14 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 <SidebarMenuButton asChild><Link href="/admin">
 ```
 
+## Undo or confirm
+
+One rule for "are you sure?" (referenced from `patterns.md` and `crud.md`):
+
+- **In-flow reversible edits get an undo toast, not a dialog.** Marking attendance, removing a row from a list being edited, clearing a field: apply at once, and the toast carries an undo action.
+- **Deactivating or deleting a master record** (a student, class, campus, invoice void, anything in `crud.md` Category A/B/C terminal actions) **goes through `<ConfirmDialog>`**, destructive when irreversible. This is what the existing call sites do.
+- Moving master-record deactivation to undo is a separate product decision, not part of this standard.
+
 ## Feedback
 
 - **Validation shows at the field.** Shadcn `FieldError` + `aria-invalid` + `aria-describedby`; focus the first invalid field on submit; clear the error as soon as the value is fixed. A toast is never the only signal. Never disable a submit button without saying why: leave it enabled and let the tap explain. Reference: `app/teacher/student-journal/page.tsx`.
@@ -107,6 +135,49 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 - **Generic copy comes from `MESSAGES`** in `lib/feedback.ts`; caught errors go through `toastCaughtError` / `userMessage`, never raw `err.message`. Wording rules: `voice.md` § Errors.
 - **Bulk destructive one-taps confirm** through `<ConfirmDialog>` (reference: `components/student-journal/class-day-grid.tsx`).
 - **Small visual controls get an invisible ≥44px hit area**: `relative after:absolute after:-inset-N` (reference: `components/portal/week-grid.tsx`).
+
+## Heading weight
+
+`text-display`, `text-h1` and `text-h2` set their own size, line-height and weight (`text-h1` and `text-h2` are semibold, `text-display` bold). Callers never add `font-bold`, `font-semibold` or `leading-*` next to them; guard rule H enforces it. `font-medium` on a heading token is a deliberate lighter weight and stays allowed (billing wizard step numbers). Every page title, admin, teacher and parent, is `text-h1` through `PageHeader`.
+
+## Icons
+
+Lucide only. Size with `size-N`, never `h-N w-N` (guard rule K); leave the stroke at Lucide's default (`strokeWidth` only for a deliberate emphasis such as a check mark). Inside `Button`, `DropdownMenuItem`, `TabsTrigger` and similar primitives an icon without a `size-*` class already gets `size-4` (or `size-3` / `size-3.5` on `xs` / `sm` buttons), so leave it unsized there.
+
+| Size | Use |
+|---|---|
+| `size-3` | Smallest inline glyph: badge or chip icon, `xs` button icon, corner accent |
+| `size-3.5` | Icon beside `text-small` or in an `sm` button; compact row actions (edit, retry, chevron in dense UI) |
+| `size-4` | Default: beside body text, in buttons, menu items, table cells, alerts, chevrons |
+| `size-5` | Section or card-header glyph, task-row leading icon, inline error / info icon |
+| `size-6` | Rare: a large standalone glyph or a block-level `Spinner`. Above this, an icon belongs inside `EmptyState` / `ErrorState` |
+
+Empty and error states use larger glyphs inside their own primitives (`EmptyState`, `ErrorState`); don't size those by hand. Decorative icons beside visible text carry `aria-hidden`; an icon-only control needs an `aria-label`.
+
+## Chart colours
+
+Charts are Recharts through `components/ui/chart.tsx` (`ChartContainer` + a `ChartConfig`). Give each series a `color` in the config and read it back as `var(--color-<key>)`; never a hex in a chart.
+
+- **Status charts use status tokens.** Attendance present / late / absent is `var(--status-present)` / `var(--status-late)` / `var(--status-absent)` (`components/admin/dashboard/attendance-trend-chart.tsx`); the series meaning decides the colour, not the order.
+- **Single-series and brand charts use `var(--primary)`**; a muted second series (e.g. "ditagihkan" beside "terkumpul") is a `color-mix` of `var(--muted-foreground)` with transparent (`finance-trend-card.tsx`).
+- **Categorical series with no status meaning use `--chart-1` … `--chart-5` in that order**, wrapped as `var(--chart-N)`. Don't skip ahead, and don't reuse a status colour for an unrelated series. Five is the ceiling; group the tail into "Lainnya".
+- Never encode meaning by colour alone: pair with a label, legend or tooltip text.
+
+## Breakpoints
+
+Mobile-first Tailwind defaults (not overridden in `globals.css`): write the phone layout unprefixed, then widen. The product uses three:
+
+| Breakpoint | Used for |
+|---|---|
+| `sm` | Small layout steps: stacked to side-by-side rows (`sm:flex-row`), 1 to 2 column grids, `DataTableToolbar` leaving its phone grid |
+| `md` | The phone/desktop switch: `DataTable` priority columns and `DataTableMobileMeta`, `ResponsiveFormDialog` (Sheet below, Dialog above), the sidebar (`useIsMobile` is `< md`), `text-base md:text-sm` inputs, calendar-to-list |
+| `lg` | Multi-column page bodies: stat-card rows, the `DetailRail` beside a dossier, wide grids |
+
+`xl` is reserved for rare extras (the Dasbor activity rail); `2xl` is unused. Portals are a fixed `max-w-md` column and rarely need any breakpoint. Test at 390px and 1440px.
+
+## Focus ring
+
+Keyboard focus is shown with `focus-visible` only. The primitives (`Button`, `Input`, `Textarea`, `SelectTrigger`, `Checkbox`, `Switch`, `Toggle`, `TabsTrigger`) use `focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`; an invalid control swaps in `aria-invalid:border-destructive` and a destructive ring. A control built on a primitive inherits this and needs nothing extra. A hand-built interactive element (rare; prefer a primitive) must copy the same classes. Never `outline-none` or `focus:outline-none` without a `focus-visible` ring replacing it, and never `focus:` where `focus-visible:` is meant (it rings on mouse click).
 
 ## Dialog & Sheet button labels (canonical)
 

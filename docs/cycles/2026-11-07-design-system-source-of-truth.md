@@ -125,7 +125,7 @@ None. No schema, dependency, auth, PII, production write or paid API.
       tree scan green, admin/detail/teacher/deck headings use the token weight (deps: none)
 - [ ] T2 Guard rules I (AlertDialog only inside ConfirmDialog), J (no `z-[`/`shadow-[` outside `components/ui`),
       K (`size-N` not `h-N w-N`) + migrate the 21 icon sites — accept: unit cases + tree scan green (deps: T1, same file)
-- [ ] T3 Standards: resolve the contradictions, strip hand-copied values to names + purpose, add icon / chart /
+- [x] T3 Standards: resolve the contradictions, strip hand-copied values to names + purpose, add icon / chart /
       breakpoint / focus-ring rules, fix stale counts — accept: a re-run of the coherence audit finds no
       contradiction (parallel with T1–T2)
 - [x] T4 Reference HTML (both copies): drop dark palette, fix title/button specimens, remove `--primary-hover` and
@@ -145,6 +145,13 @@ None. No schema, dependency, auth, PII, production write or paid API.
   inventory, title specimen = `text-h1`/600/1.25, buttons 32/28/36px + 44px coarse-pointer floor; parity test checks
   shared literal tokens against `globals.css`, inventory coverage and absence of dark rules. All shared values
   already matched. Repo link → `school-erp@staging`.
+- T3: `.claude/standards/{ui,patterns,portal,crud,colors}.md` — ui.md owns shared rules (new § Guard rules A–K,
+  § Undo or confirm, § Heading weight, § Icons, § Chart colours, § Breakpoints, § Focus ring; buttons 32px mouse /
+  44px touch); token tables carry names + purpose, values live in `globals.css` (colors.md keeps a verified Brand facts
+  table); patterns.md AlertDialog→ConfirmDialog, `toast.error`→`toastError`, counts fixed; portal.md title = `text-h1`
+  + `mb-section`, spacing table aligned to what the layouts render (`max-w-md px-page-x py-6`, `space-y-6`);
+  duplicates replaced by links to ui.md. Found: `--chart-1..5` have no consumer yet (charts use `--primary` and
+  `--status-*`) — documented as such. CLAUDE.md counts block regenerated.
 
 ## Verification
 

@@ -4,7 +4,7 @@
 
 **Canonical reference:** `.claude/standards/design-system.html` — read the matching `§ Page Recipes` section (and the Portal Shell, Overlays, DataTable sections it cross-links) before inventing new layouts.
 
-Six recipes cover every screen in the ERP today. Pick the narrowest match; do not invent a 7th without raising it in CLAUDE.md.
+Six numbered recipes (Recipe 1 to 6; Recipe 2 has two variants, 2a and 2b) cover every screen in the ERP today. Settings Hub and Admin Dasbor above them are placement and layout rules for two specific pages, not recipes. Pick the narrowest match; do not invent a 7th recipe without raising it in CLAUDE.md.
 
 ## Settings Hub
 
@@ -61,7 +61,7 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 **Required pieces:** breadcrumb comes free from `app/admin/layout.tsx`'s `AdminBreadcrumb` — a list page's own root starts at `PageHeader` · `PageHeader` with title + static subtitle + primary CTA in `actions` (unless the CTA is tab-scoped — then it goes in the toolbar's `actions`, see `ui.md` Primary-Action Placement) · `DataTableToolbar` with search + status `filters` entry (Aktif/Tidak Aktif at minimum) · `DataTable` with sort + pagination + a `DataTableLinkCell` identity column ("name is the link", see `ui.md`) + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns `meta: { priority: "low" }` (hidden below `md`, see `ui.md` DataTable mobile contract) · EmptyState via `DataTable`'s empty slot.
 
-**Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `p-page-x` / `py-page-y` from the spacing scale).
+**Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `px-page-x` / `py-page-y`; see `ui.md` § Design tokens).
 
 **One nav entry, one list.** Pendaftaran is a single list at `/admin/admissions` (the old `/admin/enrollments` list was folded into it and redirects there); a stage-driven entity shows a derived **Tahap** column and filter instead of a second tab. Use `AdminTabs` for panels within one page.
 
@@ -131,7 +131,7 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 
 **When:** create or edit an entity from a list page. Never a separate route.
 
-**Rule:** Use `ResponsiveFormDialog` for create/edit forms: it renders Dialog on desktop and Sheet on mobile, freezing that choice while open. Destructive confirmation remains `<AlertDialog>`. One overlay at a time — toasts excepted.
+**Rule:** Use `ResponsiveFormDialog` for create/edit forms: it renders Dialog on desktop and Sheet on mobile, freezing that choice while open. Confirmation goes through `<ConfirmDialog>` (see `ui.md` § Overlays Rule). One overlay at a time — toasts excepted.
 
 The wrapper owns the viewport-height limit, shadcn `ScrollArea` body, internal focus-ring padding, and docked header/footer. Put fields in `children` and action buttons in `footer`; do not add another scrolling wrapper or viewport-height constraint. Choose width through `size`.
 
@@ -183,7 +183,7 @@ const onSubmit = form.handleSubmit(async (values) => {
 
 The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit button carries the matching `form` attribute.
 
-**Required pieces:** `useZodForm` with the route's schema (or one derived from it) · `FormField` for every control · `FormRootError` · `FormDialogFooter` (loading state, ghost-Cancel left, solid-Submit right) · `sendJson` + `applyServerErrors`. Full rules and the three pitfalls: `ui.md` → Forms.
+**Required pieces:** `useZodForm` with the route's schema (or one derived from it) · `FormField` for every control · `FormRootError` · `FormDialogFooter` (loading state, ghost-Cancel left, solid-Submit right) · `sendJson` + `applyServerErrors`. Full rules and the four pitfalls: `ui.md` → Forms.
 
 ## Recipe 4 — Portal Dashboard
 
@@ -192,7 +192,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 **Layout skeleton:**
 
 ```tsx
-<main className="mx-auto max-w-md px-5 pb-20 pt-6">
+<main className="mx-auto max-w-md px-page-x py-6">
   <PortalHeader {...} />
   <PageHeader title="Beranda" subtitle={greeting} />
   <section className="mt-section space-y-3">
@@ -204,7 +204,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 </main>
 ```
 
-**Required pieces:** `PortalHeader` · `PortalBottomNav` · clear page heading · current context and a task-first next-action area · `max-w-md` · bottom padding to clear navigation · `safe-area-bottom` on bottom nav. Quick links are optional secondary navigation; do not reserve a fixed-height three-card grid above the work.
+**Required pieces:** `PortalHeader` · `PortalBottomNav` · clear page heading · current context and a task-first next-action area · `max-w-md` · bottom padding to clear navigation (the portal layout wrapper carries `pb-20`) · `safe-area-bottom` on bottom nav. Quick links are optional secondary navigation; do not reserve a fixed-height three-card grid above the work.
 
 **Parent-specific:** show the household's children together with each child's actionable information (see `portal.md`). Do not turn absent attendance data into a claim that the child was absent, present, or late.
 
@@ -217,7 +217,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 - Top toolbar shows count of pending items.
 - Row colour hints ok (amber background for stale items >N days old).
 
-**Required pieces:** pending-count toolbar chip · per-row approve/reject with AlertDialog confirm · audit-log link on each row · EmptyState shows the "nothing pending" copy, not the generic "no data yet".
+**Required pieces:** pending-count toolbar chip · per-row approve/reject with a `ConfirmDialog` confirm · audit-log link on each row · EmptyState shows the "nothing pending" copy, not the generic "no data yet".
 
 ## Recipe 6 — Daily Data Entry
 
@@ -252,12 +252,11 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 
 - **Page-wrapper standard.** Every admin page root is a fragment starting with `PageHeader`. Multiple body blocks go in a single `<div className="space-y-section">` wrapper below it — never raw `space-y-4` / `space-y-6` at the page root.
 - **Never render nothing on empty.** Every conditional list MUST have an `<EmptyState>` branch (see `portal.md` — Empty State Contract).
-- **Loading is always `<Skeleton>`.** No `animate-pulse` divs.
+- **Loading is always `<Skeleton>`** (see `ui.md` § Reach for).
 - **Every admin route has a route-level `loading.tsx`** (cycle `2026-09-27-admin-finish-standard` filled the gaps). List/table routes copy the shared list skeleton (stat-tile row + toolbar bar + one large card skeleton — see `app/admin/guardians/loading.tsx`); entity detail `[id]` routes (Recipe 2a and 2b alike) render `<DetailPageSkeleton />` (`components/admin/detail-page-skeleton.tsx` — see `app/admin/classes/[id]/loading.tsx`); everything else (settings hub, a wizard, a config/import page) renders the root skeleton shape (title + stat row + list rows — see `app/admin/settings/loading.tsx`).
-- **Errors via `toast.error()`.** Never `alert()`, never silent catch.
-- **Currency via `formatRupiah()`, dates via `formatDate()` / `formatDateShort()`.** Never inline `.toLocaleString()`.
-- **Spacing from tokens.** `p-page-x`, `py-page-y`, `gap-section`, `p-card`, `space-y-field` — never ad-hoc `p-4` / `p-8` for page chrome.
-- **Typography from tokens.** `text-h1`, `text-h2`, `text-body`, `text-small`, `text-caption` — never ad-hoc `text-lg` / `text-base` for page chrome.
+- **Errors via `toastError` / `toastCaughtError`** (`lib/feedback.ts`; see `ui.md` § Feedback). Never `alert()`, never silent catch.
+- **Currency, numbers and dates** go through `lib/format.ts` (see `ui.md` § Reach for and guard rule G).
+- **Spacing and typography from tokens** (see `ui.md` § Design tokens): never ad-hoc `p-4` / `p-8` or `text-lg` / `text-base` for page chrome.
 
 ## Don't make me think
 
@@ -267,5 +266,5 @@ Product principle from CLAUDE.md § Product principle. Each rule has one Talib e
 - **Exceptions only.** Staff daily attendance opens with "Tandai semua hadir" in one tap; the admin then taps only the staff who are sick, on leave or absent.
 - **Detect, don't ask.** Teacher check-in is one tap, with location read automatically; campus comes from the signed-in employee, never a dropdown.
 - **One primary action per screen.** Each screen has one filled primary button (for example "Simpan"); bulk and export actions are outline or ghost buttons.
-- **Undo over "are you sure?"** Soft-deleting a reversible record removes it at once and shows an undo toast. Only irreversible or destructive actions get a confirm dialog.
+- **Undo over "are you sure?"** An in-flow reversible edit applies at once and shows an undo toast; deactivating or deleting a master record still confirms. Exact rule: `ui.md` § Undo or confirm.
 - **Count the taps.** A spec's `## UX notes` states the main task's tap count, for example "Teacher check-in: 1 tap". A change that adds taps says why in `## Decisions` (`docs/workflow/spec.md` § Rules).

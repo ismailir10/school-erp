@@ -15,7 +15,7 @@ Entities fall into **three categories**. Pick the right one before you build —
 | **Create** | Dialog form or `/new` page | `POST /api/{entity}` with Zod validation |
 | **Read** | DataTable (list) + Detail page/Sheet | `GET /api/{entity}` paginated, `GET /api/{entity}/[id]` |
 | **Update** | Edit dialog (same form as create, pre-filled) | `PUT /api/{entity}/[id]` with Zod validation |
-| **Deactivate** | ConfirmDialog via dropdown action | `PUT /api/{entity}/[id]` with `{ status: "INACTIVE" }` |
+| **Deactivate** | ConfirmDialog via dropdown action (master records always confirm; see `ui.md` § Undo or confirm) | `PUT /api/{entity}/[id]` with `{ status: "INACTIVE" }` |
 
 - **NEVER hard delete records.** Use `status` field with `ACTIVE` / `INACTIVE`.
 - All list queries default to `WHERE status IN ('ACTIVE')` unless filter says otherwise.
@@ -122,7 +122,7 @@ const [isEditing, setIsEditing] = useState(false);
 const [editForm, setEditForm] = useState({ ... });
 
 // View mode: read-only text
-<div><p className="text-[10px] text-muted-foreground">Label</p><p className="text-sm font-medium">{value}</p></div>
+<div><p className="text-small text-muted-foreground">Label</p><p className="text-body font-medium">{value}</p></div>
 
 // Edit mode: Field + Input
 <Field><FieldLabel>Label</FieldLabel><Input value={editForm.field} onChange={...} /></Field>
@@ -145,7 +145,7 @@ import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui
 
 ## Dialog Standard
 
-Every create, edit, and action dialog — including nested-entity dialogs and one-off action dialogs (approve, void, override, record payment, ...) — uses `<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`). Never hand-roll a `useIsMobile` + `Dialog`/`Sheet` branch. Confirms (destructive or not) are the one exception: they use `<ConfirmDialog>` — never a raw `<AlertDialog>` import (see `ui.md` Overlays Rule).
+Every create, edit, and action dialog — including nested-entity dialogs and one-off action dialogs (approve, void, override, record payment, ...) — uses `<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`). Never hand-roll a `useIsMobile` + `Dialog`/`Sheet` branch. Confirms (destructive or not) are the one exception: they use `<ConfirmDialog>` (see `ui.md` § Overlays Rule and § Undo or confirm).
 
 ## Edit Dialog Standard (for nested entities)
 
