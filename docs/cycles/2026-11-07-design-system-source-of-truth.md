@@ -121,9 +121,9 @@ None. No schema, dependency, auth, PII, production write or paid API.
 
 ## Tasks
 
-- [ ] T1 Guard rule H (no explicit weight on heading tokens) + fix every offender — accept: rule unit cases pass,
+- [x] T1 Guard rule H (no explicit weight on heading tokens) + fix every offender — accept: rule unit cases pass,
       tree scan green, admin/detail/teacher/deck headings use the token weight (deps: none)
-- [ ] T2 Guard rules I (AlertDialog only inside ConfirmDialog), J (no `z-[`/`shadow-[` outside `components/ui`),
+- [x] T2 Guard rules I (AlertDialog only inside ConfirmDialog), J (no `z-[`/`shadow-[` outside `components/ui`),
       K (`size-N` not `h-N w-N`) + migrate the 21 icon sites — accept: unit cases + tree scan green (deps: T1, same file)
 - [x] T3 Standards: resolve the contradictions, strip hand-copied values to names + purpose, add icon / chart /
       breakpoint / focus-ring rules, fix stale counts — accept: a re-run of the coherence audit finds no
@@ -152,6 +152,14 @@ None. No schema, dependency, auth, PII, production write or paid API.
   + `mb-section`, spacing table aligned to what the layouts render (`max-w-md px-page-x py-6`, `space-y-6`);
   duplicates replaced by links to ui.md. Found: `--chart-1..5` have no consumer yet (charts use `--primary` and
   `--status-*`) — documented as such. CLAUDE.md counts block regenerated.
+- T1+T2 (one commit — both edit the same guard suite and several of the same files, so separate commits would
+  have needed hunk-splitting for no reviewer benefit): `lib/__tests__/design-token-guard.test.ts` rules H (no
+  `font-bold`/`font-semibold` on `text-h1|h2|display`), I (AlertDialog only inside ConfirmDialog), J (no `z-[`/`shadow-[`
+  outside `components/ui`), K (`size-N`, either `h-N w-N` order), each with unit cases; 43 files under `app/` and
+  `components/` — heading weight removed (admin + detail PageHeader, ErrorState, sentra, teacher home, slip amount,
+  landing hero, deck mocks) and square icon sizing → `size-N` (19 files, incl. `components/ui/chart.tsx`,
+  `navigation-menu.tsx`). A driver script confirmed all 66 changed lines differ only by those classes. I and J had
+  zero offenders. Guard + parity suites 30/30, lint clean, `tsc --noEmit` clean.
 
 ## Verification
 

@@ -188,7 +188,7 @@ export default function MonthlyAttendancePage() {
                             onClick={() => handleCellClick(emp, d)}
                             aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}
                             disabled={record?.isLocked}
-                            className={`w-5 h-5 rounded-sm inline-block [@media(pointer:coarse)]:size-11 ${
+                            className={`size-5 rounded-sm inline-block [@media(pointer:coarse)]:size-11 ${
                               isPending
                                 ? "border border-dashed border-status-late bg-status-late-subtle"
                                 : record ? STATUS_COLORS[record.status] ?? "bg-muted" : isWeekend ? "bg-muted/30" : ""
@@ -222,12 +222,12 @@ export default function MonthlyAttendancePage() {
         <div className="flex flex-wrap gap-3 mt-3 text-xs">
           {Object.entries(STATUS_COLORS).slice(0, 5).map(([key, bg]) => (
             <div key={key} className="flex items-center gap-1">
-              <div className={`w-3 h-3 rounded-sm ${bg}`} />
+              <div className={`size-3 rounded-sm ${bg}`} />
               <span className="text-muted-foreground">{STATUS_LABELS[key] ?? key}</span>
             </div>
           ))}
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-sm border border-dashed border-status-late bg-status-late-subtle" />
+            <div className="size-3 rounded-sm border border-dashed border-status-late bg-status-late-subtle" />
             <span className="text-muted-foreground">Menunggu persetujuan</span>
           </div>
         </div>

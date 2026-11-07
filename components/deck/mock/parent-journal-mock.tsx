@@ -60,7 +60,7 @@ export function ParentJournalMock() {
             <span className="inline-flex h-8 items-center rounded-full bg-muted px-4 text-sm font-medium text-muted-foreground">Umar</span>
           </div>
 
-          <h1 className="mt-1.5 text-h1 font-bold leading-tight tracking-tight">Jurnal</h1>
+          <h1 className="mt-1.5 text-h1 tracking-tight">Jurnal</h1>
 
           <div className="mt-1 flex items-center justify-between gap-2">
             <ChevronLeft size={20} className="mx-2" />
@@ -121,7 +121,7 @@ export function ParentJournalMock() {
 
       <Float className="left-[384px] top-[104px] w-[272px] space-y-2.5 p-3.5">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-h2 font-semibold">Catatan</p>
+          <p className="text-h2">Catatan</p>
           <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-medium">
             <Plus size={14} />
             Tulis catatan

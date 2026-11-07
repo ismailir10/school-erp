@@ -148,7 +148,7 @@ export function AttendanceCalendar({
       <div className="flex flex-wrap gap-3 mt-4 text-xs">
         {(["PRESENT", "LATE", "ABSENT", "LEAVE", "HOLIDAY"] as const).map((key) => (
           <div key={key} className="flex items-center gap-1">
-            <div className={`w-2.5 h-2.5 rounded-sm ${STATUS_CELL_BG[key]}`} />
+            <div className={`size-2.5 rounded-sm ${STATUS_CELL_BG[key]}`} />
             <span className="text-muted-foreground">{getStatusConfig(key).label}</span>
           </div>
         ))}

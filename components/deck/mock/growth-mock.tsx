@@ -39,7 +39,7 @@ export function GrowthMock() {
             <p className="text-small leading-tight text-muted-foreground">TK A · Al-Fatih</p>
           </div>
 
-          <h1 className="mt-2 text-h1 font-bold leading-tight tracking-tight">Perkembangan</h1>
+          <h1 className="mt-2 text-h1 tracking-tight">Perkembangan</h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Ini tahapan perkembangan, bukan nilai. Setiap anak berkembang di waktunya masing-masing.
           </p>

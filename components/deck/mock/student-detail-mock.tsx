@@ -53,7 +53,7 @@ export function StudentDetailMock() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-h1 font-bold leading-tight tracking-tight">Aisyah Putri</h1>
+                  <h1 className="text-h1 tracking-tight">Aisyah Putri</h1>
                   <Chip tone="bg-status-present-subtle text-status-present-text">Aktif</Chip>
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">

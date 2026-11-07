@@ -41,7 +41,7 @@ export function ClassAttendanceMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="RN" name="Bu Guru Rina" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-3.5">
-          <h1 className="mb-2.5 text-h1 font-bold leading-tight tracking-tight">Absensi kelas</h1>
+          <h1 className="mb-2.5 text-h1 tracking-tight">Absensi kelas</h1>
 
           <div className="mb-2.5 flex items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-h2">

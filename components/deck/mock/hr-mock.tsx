@@ -55,7 +55,7 @@ export function HrMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="RN" name="Bu Guru Rina" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-3">
-          <h1 className="text-h1 font-bold leading-tight tracking-tight">Kehadiran saya</h1>
+          <h1 className="text-h1 tracking-tight">Kehadiran saya</h1>
 
           <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -112,7 +112,7 @@ export function HrMock() {
 
       <Float className="left-[374px] top-[128px] w-[290px] p-0">
         <div className="px-4 pb-2 pt-4">
-          <p className="text-h1 font-bold leading-tight tracking-tight">Slip gaji</p>
+          <p className="text-h1 tracking-tight">Slip gaji</p>
         </div>
         <div className="space-y-2.5 px-4 pb-4 pt-1">
           {SLIPS.map((slip) => (

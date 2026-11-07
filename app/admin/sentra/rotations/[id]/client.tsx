@@ -176,7 +176,7 @@ export function RotationDetailClient({
 
       <section aria-labelledby="grid-title" className="space-y-field">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="grid-title" className="text-h2 font-semibold text-foreground">
+          <h2 id="grid-title" className="text-h2 text-foreground">
             Sentra per kelas
           </h2>
           {canWrite && (

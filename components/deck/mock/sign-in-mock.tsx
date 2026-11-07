@@ -42,7 +42,7 @@ export function SignInMock() {
             </p>
           </div>
           <div className="bg-secondary px-6 py-3">
-            <p className="text-h2 font-semibold leading-tight tracking-tight">Sahabat belajar anak</p>
+            <p className="text-h2 tracking-tight">Sahabat belajar anak</p>
             <ul className="mt-2 grid gap-1.5">
               {CAPABILITIES.map(({ icon: Icon, title, detail }) => (
                 <li key={title} className="flex items-start gap-2.5">
@@ -60,7 +60,7 @@ export function SignInMock() {
 
       <Float className="left-[384px] top-[150px] w-[272px] space-y-3">
         <div>
-          <p className="text-h2 font-semibold leading-tight">Pilih akun</p>
+          <p className="text-h2">Pilih akun</p>
           <p className="mt-0.5 text-xs text-muted-foreground">untuk melanjutkan ke Talib</p>
         </div>
         <div className="space-y-2">

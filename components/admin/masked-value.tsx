@@ -48,7 +48,7 @@ export function MaskedValue({
         type="button"
         size="icon-sm"
         variant="ghost"
-        className="h-6 w-6 text-muted-foreground"
+        className="size-6 text-muted-foreground"
         aria-pressed={revealed}
         aria-label={revealed ? `Sembunyikan ${label}` : `Tampilkan ${label}`}
         onClick={() => setRevealed((v) => !v)}

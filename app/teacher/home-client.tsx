@@ -136,7 +136,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     {classesUnavailable ? <EmptyState icon={Users} title="Kelas belum bisa dimuat" description="Periksa koneksi dan coba lagi." actionLabel="Coba lagi" onAction={()=>router.refresh()}/> : primary ? (
       <Card className="gap-4 border-primary/20 bg-secondary p-card" data-testid="current-class">
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-small font-semibold text-muted-foreground">Kelas hari ini</p>{primary.slot?<span className="text-small font-semibold text-primary-text">{SLOT_LABEL[primary.slot]??primary.slot}</span>:null}</div>
-        <div><h2 className="text-h1 font-bold tracking-tight">{primary.name}</h2>{sentraBadge(primary)}<p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
+        <div><h2 className="text-h1 tracking-tight">{primary.name}</h2>{sentraBadge(primary)}<p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
         {primary.rosterCount>0?<Button nativeButton={false} role="link" render={<Link href={primaryHref}/>} className="h-auto min-h-11 w-full whitespace-normal py-3"><ClipboardList aria-hidden="true"/>{primaryLabel}</Button>:<EmptyState icon={Users} title="Belum ada siswa" description="Minta admin menambahkan siswa ke kelas ini."/>}
       </Card>
     ):<EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas."/>}

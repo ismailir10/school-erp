@@ -177,7 +177,7 @@ export default function StudentJournalAdminPage() {
         description="Atur kategori dan indikator untuk sekolah dan rumah."
         actions={
           <Button onClick={openCreateCategory}>
-            <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
+            <Plus className="size-4 mr-2" /> Tambah Kategori
           </Button>
         }
       />

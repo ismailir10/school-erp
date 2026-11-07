@@ -281,7 +281,7 @@ export default async function SlipDetailPage({ params }: SlipPageProps) {
             Diterima ke rekening
           </p>
         </div>
-        <p className="shrink-0 whitespace-nowrap text-h1 font-bold text-primary-foreground tabular-nums">
+        <p className="shrink-0 whitespace-nowrap text-h1 text-primary-foreground tabular-nums">
           {formatRupiah(slip.netAmount)}
         </p>
       </div>

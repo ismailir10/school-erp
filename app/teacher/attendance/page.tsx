@@ -283,7 +283,7 @@ export default function TeacherAttendancePage() {
       >
         <Card className="p-card hover:border-primary/30 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <CalendarDays size={20} className="text-primary" aria-hidden="true" />
             </div>
             <div className="flex-1">

@@ -46,7 +46,7 @@ export function PortalHeader({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const avatar = (
-    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+    <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={avatarUrl} alt="" className="w-full h-full object-cover" />

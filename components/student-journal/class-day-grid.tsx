@@ -156,7 +156,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                    className={`size-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
                       checkedCount > 0
                         ? "bg-primary"
                         : "bg-muted-foreground/40"
@@ -296,7 +296,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                                 } ${isPending ? "opacity-60 animate-pulse" : ""}`}
                               >
                                 <div
-                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                  className={`size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                                     isChecked
                                       ? "bg-primary border-primary"
                                       : "bg-transparent border-muted-foreground/40"
