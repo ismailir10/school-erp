@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { ClipboardList } from "lucide-react";
@@ -8,13 +9,41 @@ import { sentraLabel } from "@/lib/sentra/rotation";
 import { legacyCenterFromSlug } from "@/lib/sentra/legacy-slug";
 import { CenterSessionClient } from "./client";
 
-export const metadata: Metadata = { title: "Penilaian" };
+type CenterPageProps = { params: Promise<{ center: string }> };
 
-export default async function TeacherCenterPage({
-  params,
-}: {
-  params: Promise<{ center: string }>;
-}) {
+const findTeacherSentra = cache(async (segment: string, tenantId: string, employeeId: string) => {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: { campusId: true },
+  });
+  if (!employee?.campusId) return null;
+
+  const legacy = legacyCenterFromSlug(segment);
+  return prisma.sentra.findFirst({
+    where: {
+      ...(legacy ? { legacyCenter: legacy } : { id: segment }),
+      tenantId,
+      campusId: employee.campusId,
+      status: "ACTIVE",
+    },
+    select: { id: true, name: true },
+  });
+});
+
+export async function generateMetadata({ params }: CenterPageProps): Promise<Metadata> {
+  const session = await getSession();
+  if (session?.role !== "TEACHER" || !session.tenantId || !session.employeeId) {
+    return { title: "Sentra Harian" };
+  }
+
+  const { center } = await params;
+  const sentra = await findTeacherSentra(center, session.tenantId, session.employeeId);
+  if (!sentra) notFound();
+
+  return { title: sentraLabel(sentra.name) };
+}
+
+export default async function TeacherCenterPage({ params }: CenterPageProps) {
   const session = await getSession();
   if (!session || session.role !== "TEACHER") redirect("/");
   if (!session.tenantId || !session.employeeId) {
@@ -28,46 +57,14 @@ export default async function TeacherCenterPage({
   }
 
   const { center: segment } = await params;
+  const sentra = await findTeacherSentra(segment, session.tenantId, session.employeeId);
+  if (!sentra) notFound();
 
   // Legacy bookmark (`/center/worship`): hop to the teacher-campus sentra that
   // stands for that old value.
-  const legacy = legacyCenterFromSlug(segment);
-  if (legacy) {
-    const employee = await prisma.employee.findFirst({
-      where: { id: session.employeeId, tenantId: session.tenantId },
-      select: { campusId: true },
-    });
-    const match = employee?.campusId
-      ? await prisma.sentra.findFirst({
-          where: {
-            tenantId: session.tenantId,
-            campusId: employee.campusId,
-            legacyCenter: legacy,
-            status: "ACTIVE",
-          },
-          select: { id: true },
-        })
-      : null;
-    if (!match) notFound();
-    redirect(`/teacher/assessments/center/${match.id}`);
+  if (legacyCenterFromSlug(segment)) {
+    redirect(`/teacher/assessments/center/${sentra.id}`);
   }
-
-  const employee = await prisma.employee.findFirst({
-    where: { id: session.employeeId, tenantId: session.tenantId },
-    select: { campusId: true },
-  });
-  const sentra = employee?.campusId
-    ? await prisma.sentra.findFirst({
-        where: {
-          id: segment,
-          tenantId: session.tenantId,
-          campusId: employee.campusId,
-          status: "ACTIVE",
-        },
-        select: { id: true, name: true },
-      })
-    : null;
-  if (!sentra) notFound();
 
   return (
     <CenterSessionClient

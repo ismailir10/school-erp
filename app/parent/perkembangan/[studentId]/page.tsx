@@ -24,7 +24,7 @@ import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-p
 import { ContextStrip } from "@/components/portal/context-strip";
 import { parentHref } from "@/lib/parent/navigation";
 
-export const metadata: Metadata = { title: "Perkembangan" };
+export const metadata: Metadata = { title: "Perkembangan Anak" };
 
 export default async function ParentPerkembanganDetailPage({
   params,
