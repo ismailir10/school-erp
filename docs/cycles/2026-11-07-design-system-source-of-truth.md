@@ -131,7 +131,7 @@ None. No schema, dependency, auth, PII, production write or paid API.
 - [x] T4 Reference HTML (both copies): drop dark palette, fix title/button specimens, remove `--primary-hover` and
       stale notes, add the component inventory; guard tests for value parity and inventory coverage; fix the repo
       link on the in-app page — accept: tests green, `/admin/design-system` renders (deps: T3 wording)
-- [ ] T5 Design critique of key screens (admin, teacher, parent, reference) at 390 and 1440 — accept: token/standards
+- [x] T5 Design critique of key screens (admin, teacher, parent, reference) at 390 and 1440 — accept: token/standards
       findings fixed or recorded; component findings listed for cycle B (deps: T1–T4)
 
 ## Implementation
@@ -162,7 +162,50 @@ None. No schema, dependency, auth, PII, production write or paid API.
   zero offenders. Guard + parity suites 30/30, lint clean, `tsc --noEmit` clean.
 - Fix: `components/portal/__tests__/week-grid-legibility.test.tsx` asserted the literal `w-4`/`h-4`; rule K made it
   `size-4` (same 16px), so the assertion now matches `size-4`. Found by the full Vitest run.
+- T5: `design:design-critique` (Sonnet worker) on 14 screenshots (admin dashboard/students/student detail/invoices/
+  reference at 1440 + 390; teacher home/attendance and parent home/invoices at 390). Token-level fix applied here: the
+  measured parent home title was raw `text-2xl` (24px/600 but 32px leading vs 30px everywhere else), so
+  `app/parent/page.tsx`, its deck mock, and the public `daftar` / `pendaftaran/[token]` titles move to `text-h1`
+  (`sm:text-display`). Dismissed: "E2E records on the dashboard" (my own local Playwright run wrote them to the
+  disposable DB) and the US date format (headless browser locale). Carried to cycle B (component/UX, out of scope here):
+  - high: three page-header anatomies (admin PageHeader, DetailPageHeader, portal header) — one anatomy with variants;
+    student detail shows two back affordances (breadcrumb + "Kembali ke Daftar"); top-level breadcrumb "Dasbor" redundant.
+  - high: admin invoices header shows six actions in a row — one primary, the rest in a ⋯ menu.
+  - med: stat cards differ in height, label size and icon chip (dashboard vs Siswa/Tagihan); 2-col mobile grid orphans
+    an odd third card.
+  - med: three card families (stat, bordered list, tinted callout) with differing radius/border/padding — Card/Callout
+    variants; status pills need one documented status→tone map applied via StatusBadge/Badge tones.
+  - med: button hierarchy — ghost row CTAs, filled WhatsApp competing with Edit on student detail, two filled/outline
+    buttons in one parent card.
+  - med: the reference page's own header and Tweaks panel (radius/hue knobs) match no product screen.
+  - product (separate decision): admin dashboard has seven KPI tiles and a large empty "Aktivitas Terbaru"; portal
+    nav labels vary ("Kehadiran Siswa" / "Absensi" / "Kehadiran").
 
 ## Verification
 
+Local, disposable Postgres (`postgres:15` container on :54329, `prisma db push` on the empty DB + seed), production
+`DEMO_MODE=true` build. Cross-checked against `.claude/standards/design-system.html` and `ui.md` throughout.
+
+- Lint: clean. `tsc --noEmit`: clean. RLS coverage 51/51, API auth 239/239.
+- Vitest: 758 files / 9309 tests passed on the first full run except `week-grid-legibility` (literal `w-4` assertion —
+  fixed, suite 6/6); edited parent/daftar/pendaftaran suites 29 files / 351 tests passed after the title change.
+- Build: `DEMO_MODE=true` production build passed (container needed `NODE_OPTIONS=--max-old-space-size=6144`; the
+  default heap OOMs during type-check here — environment, not code).
+- Playwright: **283 passed / 0 failed** (full suite, Chromium, workers 1). The repo pins a Playwright whose headless
+  shell isn't in this container, so the run used a scratch config extending `playwright.config.ts` with
+  `executablePath: /opt/pw-browsers/chromium` — same specs, same webServer.
+- Flow 1+2 (measured with computed styles): every page title — admin dashboard, Siswa, student detail, Tagihan,
+  teacher home, teacher attendance, parent invoices, parent home (after fix) — is 24px / 600 / 30px line height.
+- Flow 3: `/admin/design-system` reference renders; no dark toggle; inventory lists 74 primitives (parity test).
+- Flow 4: at 390px with touch emulation the smallest visible product button is 44px on every page above; on a mouse
+  32px (28px `sm`).
+- Flow 5: rule unit cases prove a heading-weight violation fails the guard and the clean form passes.
+- Design critique: see T5 above.
+
 ## Ship Notes
+
+- No migrations, env vars or manual steps. Docs/tests plus class-only changes in 47 TSX files.
+- Visible change: admin and detail page titles go from bold to semibold (the heading token's 600); a few portal/public
+  titles change line height by 2px. No layout or flow change.
+- Not auth-impacting → no `needs-staging-verify`. Post-merge: staging deploy READY for the merge SHA.
+- Rollback: revert the squash commit.
