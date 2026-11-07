@@ -201,7 +201,7 @@ export function calculatePayroll(
   employees: {
     id: string;
     salaryValues: EmployeeSalaryValue[];
-    attendanceRecords: { status: string }[];
+    attendanceRecords: { status: string; approvalStatus?: string | null }[];
     variables?: AttendanceVariables;
   }[],
   components: SalaryComponent[],

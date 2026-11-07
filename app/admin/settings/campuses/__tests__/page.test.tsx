@@ -140,4 +140,19 @@ describe("CampusesPage list", () => {
     expect(screen.queryByRole("link", { name: /Lihat/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
   });
+
+  it("hints to set a campus pin when no active campus has coordinates, and hides it once one does", async () => {
+    const row = (lat: number | null, lng: number | null) => ({
+      id: "campus-1", name: "Taman Aster", address: null, lat, lng, radiusMeters: 50, status: "ACTIVE", _count: { employees: 0 },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [row(null, null)] }));
+    const { unmount } = render(<CampusesPage />);
+    expect(await screen.findByTestId("campus-pin-hint")).toHaveTextContent("Atur titik lokasi kampus agar absensi guru dapat memeriksa jarak.");
+    unmount();
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [row(-6.2, 106.8)] }));
+    render(<CampusesPage />);
+    await screen.findByText("Taman Aster");
+    expect(screen.queryByTestId("campus-pin-hint")).not.toBeInTheDocument();
+  });
 });

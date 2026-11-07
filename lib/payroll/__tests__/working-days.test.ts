@@ -120,4 +120,20 @@ describe("countAttendanceDays", () => {
     expect(daysPresent).toBe(1);
     expect(daysLeave).toBe(2);
   });
+
+  it("counts only APPROVED records; PENDING and REJECTED are not worked days", () => {
+    const records = [
+      { status: "PRESENT", approvalStatus: "APPROVED" },
+      { status: "PRESENT", approvalStatus: "PENDING" },
+      { status: "LATE", approvalStatus: "PENDING" },
+      { status: "ABSENT", approvalStatus: "REJECTED" },
+      { status: "LEAVE", approvalStatus: "PENDING" },
+    ];
+    expect(countAttendanceDays(records)).toEqual({ daysPresent: 1, daysLeave: 0 });
+  });
+
+  it("treats a missing or null approvalStatus as APPROVED", () => {
+    const records = [{ status: "PRESENT" }, { status: "LATE", approvalStatus: null }, { status: "LEAVE", approvalStatus: undefined }];
+    expect(countAttendanceDays(records)).toEqual({ daysPresent: 2, daysLeave: 1 });
+  });
 });

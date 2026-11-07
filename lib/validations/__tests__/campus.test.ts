@@ -78,4 +78,21 @@ describe("campus coordinates are range-checked (HR-9)", () => {
     expect(updateCampusSchema.parse({ status: "ACTIVE" })).toEqual({ status: "ACTIVE" });
     expect(updateCampusSchema.parse({ lat: null, lng: "" })).toEqual({ lat: null, lng: null });
   });
+
+  it("radiusMeters: optional, coerced from a string, bounded 10-1000 integers", () => {
+    expect(createCampusSchema.parse({ name: "K" }).radiusMeters).toBeUndefined();
+    expect(createCampusSchema.parse({ name: "K", radiusMeters: "" }).radiusMeters).toBeUndefined();
+    expect(createCampusSchema.parse({ name: "K", radiusMeters: "75" }).radiusMeters).toBe(75);
+    expect(createCampusSchema.parse({ name: "K", radiusMeters: 10 }).radiusMeters).toBe(10);
+    expect(createCampusSchema.parse({ name: "K", radiusMeters: 1000 }).radiusMeters).toBe(1000);
+    for (const bad of [9, 1001, 0, -5, 50.5, "abc"]) {
+      expect(createCampusSchema.safeParse({ name: "K", radiusMeters: bad }).success).toBe(false);
+    }
+    const res = updateCampusSchema.safeParse({ radiusMeters: 5 });
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error.issues[0].message).toBe("Radius minimal 10 meter");
+    expect(updateCampusSchema.parse({ radiusMeters: "120" })).toEqual({ radiusMeters: 120 });
+    // PUT { status } must not touch the radius.
+    expect(updateCampusSchema.parse({ status: "ACTIVE" })).toEqual({ status: "ACTIVE" });
+  });
 });

@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
           checkOutTime: true,
           isManualOverride: true,
           isLocked: true,
+          approvalStatus: true,
         },
       },
     },
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
             checkOutTime: record.checkOutTime?.toISOString() ?? null,
             isManualOverride: record.isManualOverride,
             isLocked: record.isLocked,
+            approvalStatus: record.approvalStatus,
           }
         : null,
     };

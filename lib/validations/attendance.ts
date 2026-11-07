@@ -112,9 +112,26 @@ export const attendanceCheckInSchema = z
       .min(-180, "Longitude di luar rentang valid")
       .max(180, "Longitude di luar rentang valid")
       .optional(),
+    // GPS accuracy radius in metres (Position.coords.accuracy). Widens the
+    // geofence by at most 100 m — see lib/attendance/geofence.ts.
+    accuracy: z.number().finite().min(0).max(100_000).optional(),
+    // Why the teacher is outside the geofence. Length (3–500) is enforced by
+    // the route only when a note is actually needed, so inside check-ins that
+    // send a stray note are not rejected.
+    note: z.string().trim().max(500, "Catatan maksimal 500 karakter").optional(),
   })
   // Strip unknown keys silently — clients may send extra debug fields and we
   // don't want to 400 on harmless additions, but we do want to ignore them.
   .strip();
 
 export type AttendanceCheckInInput = z.infer<typeof attendanceCheckInSchema>;
+
+/** POST /api/attendance/[id]/approve | reject — the reviewer's note is optional. */
+export const attendanceReviewSchema = z.object({
+  note: z.string().trim().max(500, "Catatan maksimal 500 karakter").nullish(),
+});
+
+/** POST /api/attendance/approve-all — omit `ids` to approve every pending check-in in the tenant. */
+export const attendanceApproveAllSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(500).optional(),
+});

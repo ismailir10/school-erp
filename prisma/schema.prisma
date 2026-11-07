@@ -119,6 +119,8 @@ model Campus {
   lat      Decimal? @db.Decimal(10, 8)
   lng      Decimal? @db.Decimal(11, 8)
   status   String   @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
+  // Geofence for staff check-in: metres around (lat, lng) counted as "at campus".
+  radiusMeters Int @default(50)
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employees     Employee[]
@@ -301,6 +303,18 @@ model AttendanceRecord {
   overriddenBy     String?
   overriddenAt     DateTime?
   isLocked         Boolean   @default(false)
+  // Geofenced check-in (docs/cycles/2026-11-07-attendance-geofence-gate.md).
+  // Only APPROVED rows count toward payroll; PENDING awaits admin review.
+  approvalStatus    String    @default("APPROVED") // APPROVED | PENDING | REJECTED
+  checkInNote       String?
+  checkInAccuracy   Int?
+  distanceMeters    Int?
+  nearestCampusId   String?
+  source            String    @default("SELF") // SELF | ADMIN | KIOSK
+  recordedBy        String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  reviewNote        String?
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -308,6 +322,7 @@ model AttendanceRecord {
   @@index([employeeId, date])
   @@index([date])
   @@index([status])
+  @@index([approvalStatus])
 }
 
 // ── PAYROLL ──────────────────────────────────────────────────

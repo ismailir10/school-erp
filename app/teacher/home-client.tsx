@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { FormDialogFooter } from "@/components/ui/form";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
@@ -17,7 +20,11 @@ import { LEAVE_TYPE_LABEL, type LeaveDecision } from "@/lib/teacher/leave-decisi
 import type { TeacherClassSummary, TeacherSessionSummary } from "@/lib/teacher/home-progress";
 
 /** `minutesLate`: minutes past work start for a LATE check-in; null when it cannot be derived. */
-type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null; minutesLate?: number | null };
+type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null; minutesLate?: number | null; approvalStatus?: string };
+type Gps = { lat: number; lng: number; accuracy: number };
+/** 422 OUTSIDE_GEOFENCE payload: distance is null when the phone gave no location. */
+type OutsideInfo = { distanceMeters: number | null; campusName: string | null };
+const MIN_NOTE = 3;
 const SLOT_LABEL: Record<string,string> = {FULL_DAY:"Sehari penuh",MORNING:"Pagi",AFTERNOON:"Siang"};
 
 export function nextStateAfterAction(record: TodayRecord | null, action: "check-in" | "check-out", now=new Date().toISOString()): TodayRecord {
@@ -40,6 +47,11 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const [canRetry,setCanRetry]=useState(true);
   const [saved,setSaved]=useState(false);
   const [locationMessage,setLocationMessage]=useState<string|null>(null);
+  // Geofence: set when the server answers 422 OUTSIDE_GEOFENCE; the sheet then asks for a note.
+  const [outside,setOutside]=useState<OutsideInfo|null>(null);
+  const [note,setNote]=useState("");
+  const gpsRef=useRef<Gps|null>(null);
+  const noteFormId=useId();
   // Attendance is assignment-only: a sentra-only card never asks for it.
   const attendanceOpen=(c:TeacherClassSummary)=>!c.sentraOnly && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount);
   const primary=classes.find(c => c.rosterCount > 0 && (attendanceOpen(c) || !c.journal?.completed)) ?? classes[0];
@@ -53,28 +65,37 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     : needsJournal ? "Lanjutkan jurnal harian" : "Periksa jurnal harian" : "";
   const replyRows=[...new Map(classes.flatMap(c=>(c.replies??[]).map(reply=>[reply.studentId,{...reply,className:c.name}] as const))).values()];
 
-  async function handleAction(){
+  /** `withNote`: the sheet's resubmit — reuses the first fix instead of asking the phone again. */
+  async function handleAction(withNote?:string){
     if(inFlight.current || record?.checkOutTime)return;
     inFlight.current=true;setSaving(true);setSaveError(null);setCanRetry(true);setSaved(false);
     const action=record?.checkInTime?"check-out":"check-in";
     try {
-      const gps=await new Promise<{lat:number;lng:number}|null>(resolve=>{
+      const gps=withNote!==undefined ? gpsRef.current : await new Promise<Gps|null>(resolve=>{
         if(!navigator.geolocation){setLocationMessage("Lokasi tidak tersedia; kehadiran tetap dapat dicatat.");resolve(null);return;}
-        navigator.geolocation.getCurrentPosition(p=>{setLocationMessage("Lokasi tercatat.");resolve({lat:p.coords.latitude,lng:p.coords.longitude});},()=>{setLocationMessage("Lokasi tidak tersedia; kehadiran tetap dapat dicatat.");resolve(null);},{timeout:10000,enableHighAccuracy:true});
+        navigator.geolocation.getCurrentPosition(p=>{setLocationMessage("Lokasi tercatat.");resolve({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy});},()=>{setLocationMessage("Lokasi tidak tersedia; kehadiran tetap dapat dicatat.");resolve(null);},{timeout:10000,enableHighAccuracy:true});
       });
+      gpsRef.current=gps;
       // Mapped copy only: raw API/browser text ("Failed to fetch") never reaches the teacher.
       let response:Response;
-      try{response=await fetch(`/api/attendance/${action}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(gps??{})});}
+      try{response=await fetch(`/api/attendance/${action}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...(gps??{}),...(withNote!==undefined?{note:withNote}:{})})});}
       catch{throw new FetchFailureError(describeFetchFailure({networkError:true,action:"disimpan"}));}
       const body=await response.json().catch(()=>null);
+      if(response.status===422 && body?.code==="OUTSIDE_GEOFENCE" && action==="check-in"){
+        setOutside({distanceMeters:typeof body.distanceMeters==="number"?body.distanceMeters:null,campusName:typeof body.campusName==="string"?body.campusName:null});
+        return;
+      }
       const data=response.ok?body:body?.record;
       if(!data)throw new FetchFailureError(describeFetchFailure({status:response.status,action:"disimpan",serverMessage:typeof body?.error==="string"?body.error:undefined}));
       if(!data.checkInTime || (action==="check-out"&&!data.checkOutTime))throw new FetchFailureError({kind:"server",canRetry:true,message:"Konfirmasi kehadiran belum tersedia. Coba lagi ya."});
-      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null});setSaved(true);router.refresh();
+      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null,approvalStatus:typeof data.approvalStatus==="string"?data.approvalStatus:record?.approvalStatus});setOutside(null);setNote("");setSaved(true);router.refresh();
     }catch(error){const failure=failureFromError(error,"disimpan");setSaveError(failure.kind==="forbidden"?"Akun Anda belum bisa mencatat kehadiran. Hubungi admin sekolah.":failure.message);setCanRetry(failure.canRetry);}
     finally{inFlight.current=false;setSaving(false);}
   }
   // LATE is stored by the server (work start + grace); the minutes are shown when the page could derive them.
+  const pending=record?.approvalStatus==="PENDING";
+  const trimmedNote=note.trim();
+  const outsideCopy=outside?(outside.distanceMeters===null?"Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui.":`Anda ± ${outside.distanceMeters} m dari ${outside.campusName??"kampus"}. Tambahkan catatan agar admin dapat menyetujui.`):"";
   const lateLabel=record?.status==="LATE" ? record.minutesLate ? ` · Terlambat ${record.minutesLate} menit` : " · Terlambat" : "";
   const personalAttendance=(
     <div className="space-y-2" aria-label="Kehadiran pribadi">
@@ -84,7 +105,8 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
             {record?.checkInTime ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
             {record?.checkOutTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · pulang ${formatTime(record.checkOutTime)}` : record?.checkInTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · sudah tercatat` : "Kehadiran pribadi belum dicatat"}
           </p>
-          {!record?.checkOutTime && <Button variant="outline" disabled={saving} onClick={handleAction} className="min-h-11">{saving?"Menyimpan…":saveError&&canRetry?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
+          {pending ? <span className="rounded-full bg-status-late-subtle px-2 py-0.5 text-small font-semibold text-status-late-text" data-testid="pending-approval-chip">Menunggu persetujuan</span> : null}
+          {!record?.checkOutTime && <Button variant="outline" disabled={saving} onClick={()=>handleAction()} className="min-h-11">{saving?"Menyimpan…":saveError&&canRetry?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
         </div>
       )}
       {saving||saveError||saved ? <SaveStatus state={saving?"saving":saveError?"error":"saved"} message={saveError??(saving?"Menyimpan kehadiran…":"Kehadiran tersimpan")} />:null}
@@ -92,6 +114,14 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     </div>
   );
   return <div className="space-y-6">
+    <ResponsiveFormDialog open={outside!==null} onOpenChange={o=>{if(!o&&!saving){setOutside(null);setSaveError(null);}}} title="Anda di luar area kampus" description={outsideCopy} size="md"
+      footer={<FormDialogFooter formId={noteFormId} pending={saving} disabled={trimmedNote.length<MIN_NOTE} onCancel={()=>{setOutside(null);setSaveError(null);}} submitLabel="Kirim untuk disetujui" pendingLabel="Mengirim…"/>}>
+      <form id={noteFormId} onSubmit={e=>{e.preventDefault();if(trimmedNote.length>=MIN_NOTE)void handleAction(trimmedNote);}} className="space-y-2">
+        <label htmlFor="checkin-note" className="text-small font-semibold">Catatan untuk admin</label>
+        <Textarea id="checkin-note" value={note} onChange={e=>setNote(e.target.value)} maxLength={500} rows={3} placeholder="Contoh: mengantar siswa ke dokter" className="text-base"/>
+        {saveError?<p className="text-small text-destructive">{saveError}</p>:null}
+      </form>
+    </ResponsiveFormDialog>
     <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
     {/* First in both states so the control the teacher needs on arrival never moves after the tap (R2-T-1). */}
     {personalAttendance}

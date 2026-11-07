@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import AttendancePage from "../page";
 
@@ -97,3 +98,71 @@ describe("AttendancePage — tenant that works on Saturday", () => {
   });
 });
 
+
+describe("AttendancePage — Perlu persetujuan tab", () => {
+  const PENDING = [
+    {
+      id: "att-1", date: "2026-05-02", status: "PRESENT", checkInTime: "2026-05-02T00:10:00.000Z",
+      distanceMeters: 312, accuracy: 20, note: "Antar murid ke dokter", campusName: "Taman Aster",
+      employee: { id: "e1", kode: "EMP-1", nama: "Budi Santoso", jabatan: "Guru" },
+    },
+  ];
+
+  function fetchWithPending() {
+    const base = stubFetch();
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      calls.push({ url, init });
+      if (url.includes("/api/attendance/pending")) return Promise.resolve({ ok: true, json: async () => PENDING } as Response);
+      if (url.includes("/approve")) return Promise.resolve({ ok: true, json: async () => ({ count: 1 }) } as Response);
+      return base(input);
+    });
+    return { fn, calls };
+  }
+
+  it("shows the count, the distance and note, and approves with one tap", async () => {
+    const { fn, calls } = fetchWithPending();
+    vi.stubGlobal("fetch", fn);
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+
+    expect(await screen.findByTestId("pending-count")).toHaveTextContent("1");
+    await user.click(screen.getByRole("tab", { name: /Perlu persetujuan/ }));
+    expect(await screen.findByText("± 312 m dari Taman Aster")).toBeInTheDocument();
+    expect(screen.getByText(/Antar murid ke dokter/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Setujui$/ }));
+    await vi.waitFor(() => expect(calls.some((c) => c.url === "/api/attendance/att-1/approve" && c.init?.method === "POST")).toBe(true));
+  });
+
+  it("'Setujui semua' posts the listed ids", async () => {
+    const { fn, calls } = fetchWithPending();
+    vi.stubGlobal("fetch", fn);
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+
+    await user.click(await screen.findByRole("tab", { name: /Perlu persetujuan/ }));
+    await user.click(await screen.findByRole("button", { name: /Setujui semua/ }));
+    await vi.waitFor(() => {
+      const call = calls.find((c) => c.url === "/api/attendance/approve-all");
+      expect(call && JSON.parse(String(call.init?.body))).toEqual({ ids: ["att-1"] });
+    });
+  });
+
+  it("'Tolak' asks for an optional note, then rejects", async () => {
+    const { fn, calls } = fetchWithPending();
+    vi.stubGlobal("fetch", fn);
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+
+    await user.click(await screen.findByRole("tab", { name: /Perlu persetujuan/ }));
+    await user.click(await screen.findByRole("button", { name: "Tolak" }));
+    await user.type(await screen.findByLabelText("Catatan (opsional)"), "Tidak sesuai");
+    await user.click(screen.getAllByRole("button", { name: "Tolak" }).at(-1)!);
+    await vi.waitFor(() => {
+      const call = calls.find((c) => c.url === "/api/attendance/att-1/reject");
+      expect(call && JSON.parse(String(call.init?.body))).toEqual({ note: "Tidak sesuai" });
+    });
+  });
+});

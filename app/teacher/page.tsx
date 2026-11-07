@@ -96,7 +96,7 @@ export default async function TeacherHome() {
   const org = orgResult.status === "fulfilled" ? orgResult.value : null;
   const lateBy = record?.status === "LATE" && record.checkInTime && org ? minutesLate(record.checkInTime, org.workStartTime, org.timezone ?? "Asia/Jakarta") : null;
   return <TeacherHomeClient userName={session.name ?? "Guru"} today={today} greeting={greeting}
-    todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null,minutesLate:lateBy}:null}
+    todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null,minutesLate:lateBy,approvalStatus:record.approvalStatus}:null}
     attendanceUnavailable={attendanceResult.status==="rejected"} classesUnavailable={assignmentsResult.status==="rejected"}
     sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes}
     leaveDecisions={leaveDecisions} homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
