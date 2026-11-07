@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
@@ -11,8 +12,6 @@ import { BackLink } from "@/components/portal/back-link";
 import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
 import { formatPeriodRange, periodMonthLabel } from "../helpers";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
-
-export const metadata: Metadata = { title: "Slip Gaji" };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,11 +47,16 @@ type SlipDetail = {
   lines: SlipLine[];
 };
 
+type SlipPageProps = { params: Promise<{ id: string }> };
+
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
-async function fetchSlipDetail(id: string, tenantId: string): Promise<SlipDetail | null> {
+const loadOwnSlip = cache(async (id: string): Promise<SlipDetail> => {
+  const session = await getSession();
+  if (!session || session.role !== "TEACHER" || !session.tenantId) notFound();
+
   const raw = await prisma.payrollItem.findFirst({
-    where: { id, payrollRun: { tenantId } },
+    where: { id, payrollRun: { tenantId: session.tenantId } },
     include: {
       employee: {
         select: {
@@ -87,7 +91,9 @@ async function fetchSlipDetail(id: string, tenantId: string): Promise<SlipDetail
     },
   });
 
-  if (!raw) return null;
+  if (!raw || raw.employee.id !== session.employeeId || raw.payrollRun.status === "DRAFT") {
+    notFound();
+  }
 
   return {
     id: raw.id,
@@ -103,28 +109,19 @@ async function fetchSlipDetail(id: string, tenantId: string): Promise<SlipDetail
       finalAmount: Number(l.finalAmount),
     })),
   };
-}
+});
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function SlipDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export async function generateMetadata({ params }: SlipPageProps): Promise<Metadata> {
   const { id } = await params;
+  const slip = await loadOwnSlip(id);
+  return { title: `Slip Gaji ${periodMonthLabel(slip.payrollRun.periodEnd)}` };
+}
 
-  const session = await getSession();
-  if (!session || session.role !== "TEACHER" || !session.tenantId) notFound();
-
-  const slip = await fetchSlipDetail(id, session.tenantId);
-  if (!slip) notFound();
-
-  // Auth check: teacher can only see their own slip
-  if (slip.employee.id !== session.employeeId) notFound();
-
-  // Draft block: DRAFT slips are not available yet
-  if (slip.payrollRun.status === "DRAFT") notFound();
+export default async function SlipDetailPage({ params }: SlipPageProps) {
+  const { id } = await params;
+  const slip = await loadOwnSlip(id);
 
   // Filter zero-value lines: UAT 2026-05-12 minor — Rp 0 entries (e.g. unused
   // Insentif/Tunjangan slots) added visual clutter without information value.

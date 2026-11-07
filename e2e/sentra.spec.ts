@@ -137,6 +137,7 @@ test.describe("Sentra", () => {
   test("guru opens Sentra Harian from her own sentra and the admin monitor shows it", async ({ page }) => {
     await page.context().addCookies(cookie("u_teacher"));
     await page.goto("/teacher/assessments");
+    await expect(page).toHaveTitle("Penilaian · Talib");
 
     const tiles = page.getByTestId("hub-center-grid").getByRole("link");
     const first = tiles.first();
@@ -146,6 +147,7 @@ test.describe("Sentra", () => {
     await first.click();
     await page.waitForURL("**/teacher/assessments/center/*");
     await expect(page.getByRole("heading", { name: "Sentra Balok", level: 1 })).toBeVisible();
+    await expect(page).toHaveTitle("Sentra Balok · Talib");
 
     function waitForCenterSession(date: string) {
       return page.waitForResponse((response) => {

@@ -354,6 +354,7 @@ test.describe("Teacher flows", () => {
     await expect(sheet).toBeVisible({ timeout: 10_000 });
     await sheet.getByRole("link", { name: /^Slip gaji/ }).click();
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
+    await expect(page).toHaveTitle("Slip Gaji · Talib");
 
     const detail = page.locator('a[href^="/teacher/slips/"]').first();
     await expect(detail).toBeVisible({ timeout: 10_000 });
@@ -361,6 +362,8 @@ test.describe("Teacher flows", () => {
     expect(detailHref).toMatch(/^\/teacher\/slips\/[^/]+$/);
     await detail.click();
     await page.waitForURL(/\/teacher\/slips\/[^/?#]+$/, { timeout: 15_000 });
+    const periodTitle = await page.getByRole("heading", { level: 1 }).innerText();
+    await expect(page).toHaveTitle(`Slip Gaji ${periodTitle} · Talib`);
 
     // `Tunjangan Transport` is a stable, multi-word component in the demo
     // payroll seed. Exercise the real line at both narrow supported widths,

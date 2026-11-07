@@ -179,6 +179,12 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
     expect(body.rotationClasses).toEqual([]);
     expect(body.ageGroup).toBe("A");
     expect(body.week.number).toBe(3);
+    expect(studentEnrollmentFindMany.mock.calls[0][0].where.classSection).toEqual({
+      tenantId: "t1",
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+      ageGroup: "A",
+    });
     // Only TKIT A student survived the ageGroup filter.
     expect(body.students.map((s: { id: string }) => s.id)).toEqual(["stu1"]);
     expect(body.indicators).toHaveLength(1);
@@ -291,6 +297,9 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
     expect(studentEnrollmentFindMany.mock.calls[0][0].where.classSection).toEqual({
       id: "cs1",
       tenantId: "t1",
+      campusId: "cam1",
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
     });
     expect(body.ageGroup).toBe("A");
   });
@@ -353,6 +362,9 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
     expect(studentEnrollmentFindMany.mock.calls[0][0].where.classSection).toEqual({
       id: "cs2",
       tenantId: "t1",
+      campusId: "cam1",
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
     });
   });
 

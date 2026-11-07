@@ -166,16 +166,18 @@ export async function GET(
 
   // Roster: with `classSectionId`, the ACTIVE students enrolled in that class
   // (the putaran's visiting class); otherwise every ACTIVE student in the
-  // tenant whose ACTIVE enrolment is in a ClassSection of the requested
-  // ageGroup. Filtering on classSection.ageGroup happens in the DB query, not
-  // via name parsing.
+  // tenant whose ACTIVE enrollment is in the requested kelompok. Both
+  // views use the active academic year.
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
       student: { tenantId: session.tenantId, status: "ACTIVE" },
-      classSection: classSectionId
-        ? { id: classSectionId, tenantId: session.tenantId }
-        : { tenantId: session.tenantId, status: "ACTIVE", ageGroup },
+      classSection: {
+        tenantId: session.tenantId,
+        status: "ACTIVE",
+        academicYear: { status: "ACTIVE" },
+        ...(classSectionId ? { id: classSectionId, campusId: sentra.campusId } : { ageGroup }),
+      },
     },
     select: {
       classSection: { select: { id: true, name: true } },

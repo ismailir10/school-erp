@@ -108,6 +108,7 @@ test.describe("Parent — Perkembangan (C6)", () => {
       "Demo guardian has no children — element-block test cannot run",
     );
     await page.goto(`/parent/perkembangan/${studentId}`);
+    await expect(page).toHaveTitle("Perkembangan Anak · Talib");
     const elements = page.locator('[data-testid="perkembangan-elements"] > li');
     await expect(elements).toHaveCount(5, { timeout: 15_000 });
     // Each element row carries a data-testid suffixed with the enum key.

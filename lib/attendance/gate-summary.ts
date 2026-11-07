@@ -29,16 +29,16 @@ export async function resolveDefaultGateCampusId(
 }
 
 /**
- * Every ACTIVE-enrolled student on the campus, in classes of the ACTIVE
- * academic year (one row per child even when
- * enrolled in two placements) with today's non-voided attendance row.
+ * One row per student in the campus's active-year classes, with today's
+ * arrival and pickup across that student's current placements.
  */
 export async function getGateRoster(tenantId: string, campusId: string, date: string) {
+  const classScope = { tenantId, campusId, status: "ACTIVE", academicYear: { status: "ACTIVE" } } as const;
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
       student: { tenantId, status: "ACTIVE" },
-      classSection: { tenantId, campusId, status: "ACTIVE", academicYear: { status: "ACTIVE" } },
+      classSection: classScope,
     },
     select: {
       student: { select: { id: true, name: true, nickname: true } },
@@ -47,29 +47,58 @@ export async function getGateRoster(tenantId: string, campusId: string, date: st
     orderBy: { student: { name: "asc" } },
   });
 
-  const seen = new Set<string>();
-  const unique = enrollments.filter((e) => {
-    if (seen.has(e.student.id)) return false;
-    seen.add(e.student.id);
-    return true;
-  });
+  const students: typeof enrollments = [];
+  const placements = new Map<string, Set<string>>();
+  for (const enrollment of enrollments) {
+    const { student, classSection } = enrollment;
+    const classes = placements.get(student.id);
+    if (classes) {
+      classes.add(classSection.id);
+    } else {
+      students.push(enrollment);
+      placements.set(student.id, new Set([classSection.id]));
+    }
+  }
 
   const attendance = await prisma.studentAttendance.findMany({
     where: {
       date,
       isVoided: false,
-      studentId: { in: unique.map((e) => e.student.id) },
+      studentId: { in: [...placements.keys()] },
+      classSection: classScope,
     },
     select: {
       studentId: true,
+      classSectionId: true,
       status: true,
       checkInTime: true,
       checkOutTime: true,
       pickedUpByRelation: true,
       pickedUpByName: true,
     },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
-  return { students: unique, byStudent: new Map(attendance.map((a) => [a.studentId, a])) };
+
+  const byStudent = new Map<string, (typeof attendance)[number]>();
+  for (const row of attendance) {
+    // The campus can have other active classes that this student has left.
+    if (!placements.get(row.studentId)?.has(row.classSectionId)) continue;
+    const current = byStudent.get(row.studentId);
+    if (!current) {
+      byStudent.set(row.studentId, { ...row });
+      continue;
+    }
+    if (row.status === "PRESENT") current.status = row.status;
+    if (row.checkInTime && (!current.checkInTime || row.checkInTime < current.checkInTime)) {
+      current.checkInTime = row.checkInTime;
+    }
+    if (row.checkOutTime && (!current.checkOutTime || row.checkOutTime > current.checkOutTime)) {
+      current.checkOutTime = row.checkOutTime;
+      current.pickedUpByRelation = row.pickedUpByRelation;
+      current.pickedUpByName = row.pickedUpByName;
+    }
+  }
+  return { students, byStudent };
 }
 
 export type GateSummary = { total: number; arrived: number; pickedUp: number };

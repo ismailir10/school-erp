@@ -112,6 +112,7 @@ describe("GET", () => {
     db.studentAttendance.findMany.mockResolvedValue([
       {
         studentId: "s1",
+        classSectionId: "cs1",
         status: "PRESENT",
         checkInTime: new Date("2026-11-07T00:30:00Z"),
         checkOutTime: null,

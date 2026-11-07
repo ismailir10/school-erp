@@ -272,12 +272,13 @@ describe("POST /api/teacher/assessment-entries/center", () => {
     expect(assessmentEntryUpsert).toHaveBeenCalledTimes(2);
   });
 
-  it("mixed TK A / TK B submission resolves each student's own week", async () => {
+  it("mixed TK A / TK B submission resolves the week for each eligible indicator", async () => {
     vi.mocked(getSession).mockResolvedValue(teacher);
     happyMocks();
     studentFindMany.mockResolvedValue([{ id: "stuA" }, { id: "stuB" }]);
     studentEnrollmentFindMany.mockResolvedValue([
       { studentId: "stuA", classSection: { ageGroup: "A" } },
+      { studentId: "stuB", classSection: { ageGroup: "A" } },
       { studentId: "stuB", classSection: { ageGroup: "B" } },
     ]);
     achievementIndicatorFindMany.mockResolvedValue([
@@ -301,6 +302,7 @@ describe("POST /api/teacher/assessment-entries/center", () => {
         entries: [
           { studentId: "stuA", indicatorId: "indA", level: "CONSISTENT" },
           { studentId: "stuB", indicatorId: "indB", level: "CONSISTENT" },
+          { studentId: "stuB", indicatorId: "indA", level: "CONSISTENT" },
         ],
       }) as never,
     );
@@ -308,7 +310,30 @@ describe("POST /api/teacher/assessment-entries/center", () => {
     const weekIds = assessmentEntryUpsert.mock.calls.map(
       (c) => [c[0].create.studentId, c[0].create.weekId],
     );
-    expect(weekIds).toEqual([["stuA", "wkA"], ["stuB", "wkB"]]);
+    expect(weekIds).toEqual([["stuA", "wkA"], ["stuB", "wkB"], ["stuB", "wkA"]]);
+  });
+
+  it("saves a TK B entry for a student who also has a TK A placement", async () => {
+    vi.mocked(getSession).mockResolvedValue(teacher);
+    happyMocks();
+    studentEnrollmentFindMany.mockResolvedValue([
+      { studentId: "stu1", classSection: { ageGroup: "A" } },
+      { studentId: "stu1", classSection: { ageGroup: "B" } },
+    ]);
+    achievementIndicatorFindMany.mockResolvedValue([
+      { id: "ind1", objective: { ageGroup: "B" }, themeLinks: [{ themeId: "th1" }] },
+    ]);
+    const res = await POST(jsonReq(baseSession) as never);
+    expect(res.status).toBe(200);
+    expect(studentEnrollmentFindMany.mock.calls[0][0].where).toEqual({
+      studentId: { in: ["stu1"] },
+      student: { tenantId: "t1", status: "ACTIVE" },
+      status: "ACTIVE",
+      classSection: { tenantId: "t1", status: "ACTIVE", academicYear: { status: "ACTIVE" } },
+    });
+    expect(weekFindFirst).toHaveBeenCalledTimes(1);
+    expect(weekFindFirst.mock.calls[0][0].where.subTheme.theme.OR[0]).toEqual({ ageGroup: "B" });
+    expect(assessmentEntryUpsert.mock.calls[0][0].create.weekId).toBe("wk1");
   });
 
   it("400 when an indicator's objective kelompok differs from the student's", async () => {
