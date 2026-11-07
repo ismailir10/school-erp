@@ -16,8 +16,8 @@ main promotion.
 ## Decisions
 - **Fixed row on Beranda, directly under "Kehadiran pribadi".** It follows check-in in the real morning flow. Always
   in the same place for every teacher; no time-of-day reordering, because a target that moves breaks muscle memory.
-- **Glanceable count in the row.** The row tells the teacher the gate status without opening it ("18 dari 40 anak
-  datang · 3 pulang"). Same scope and counting as the Gerbang page itself: the teacher's default campus, active
+- **Glanceable count in the row.** The row tells the teacher the gate status without opening it ("18 dari 40
+  sudah masuk · 3 pulang", the same "masuk" wording as the Gerbang page). Same scope and counting as the Gerbang page itself: the teacher's default campus, active
   enrollments, today in Asia/Jakarta, voided records ignored.
 - **Not a bottom-nav tab.** All five slots are taken, and Gerbang is a task, not a section.
 - **Removed from Lainnya.** One home only. The feature is not on production yet, so no habit is broken.
@@ -26,7 +26,7 @@ main promotion.
 - [ ] A teacher's Beranda shows a "Gerbang" row directly below "Kehadiran pribadi"; tapping it opens the Gerbang page.
 - [ ] The row's description shows today's arrived / picked-up counts for the teacher's campus, matching what the
       Gerbang page shows.
-- [ ] With no children on the campus, the row reads `Catat anak datang dan pulang di gerbang` (no "0 dari 0").
+- [ ] With no children on the campus, the row reads `Catat anak masuk dan pulang di gerbang` (no "0 dari 0").
 - [ ] If the count cannot be loaded, the row still appears with that plain description and Beranda renders normally.
 - [ ] The Lainnya sheet no longer lists Gerbang.
 - [ ] Any defects from the staging Chrome walk are fixed (listed in Tasks once known).
@@ -76,3 +76,17 @@ None (no schema, no new route, no auth change).
 - design-system: cross-checked Beranda row against .claude/standards/design-system.html §14 Portal Shell (TaskRow look).
 
 ## Ship Notes
+- No migration, no env var, no new route.
+- Post-merge (staging): Beranda shows the Gerbang row under Kehadiran pribadi with the campus count; Lainnya no longer
+  lists Gerbang.
+- Staging test data (2026-11-07, staging only, insert-only, ids prefixed `seede2e1107_`): 6 DCARE `ClassSession` rows
+  for the teacher account (7 and 9–13 Nov) and 3 PENDING out-of-radius `AttendanceRecord` rows (Andi Hakim, Arif
+  Fauzi). Cleanup after testing:
+  `DELETE FROM "StudentAttendance" WHERE "sessionId" LIKE 'seede2e1107_%';`
+  `DELETE FROM "AttendanceRecord" WHERE id LIKE 'seede2e1107_%';`
+  `DELETE FROM "ClassSession" WHERE id LIKE 'seede2e1107_%';`
+- Staging campus pins set from the Google Maps links on annisaasekolahku.com: Taman Aster `-6.2662801, 107.1046485`,
+  Metland Cibitung `-6.2613131, 107.1159319` (radius 50 m).
+- **Production, after the staging → main promotion of #724:** prod campuses have no pins, so the geofence is skipped
+  until an admin sets the same two points (Pengaturan → Kampus → Ubah).
+- Rollback: revert the merge commit.

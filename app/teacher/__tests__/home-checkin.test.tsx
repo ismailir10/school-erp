@@ -35,16 +35,16 @@ describe("Gerbang row on Beranda", () => {
   });
   it("shows today's arrived and picked-up counts", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
-    expect(gateRow()).toHaveTextContent("18 dari 40 anak datang · 3 pulang");
+    expect(gateRow()).toHaveTextContent("18 dari 40 sudah masuk · 3 pulang");
   });
   it.each([["no children on the campus", { total: 0, arrived: 0, pickedUp: 0 }], ["a failed lookup", null]])("falls back to the plain description for %s", (_label, gateSummary) => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={gateSummary} />);
-    expect(gateRow()).toHaveTextContent("Catat anak datang dan pulang di gerbang");
+    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
     expect(gateRow()).not.toHaveTextContent("0 dari 0");
   });
   it("still renders when the prop is omitted", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
-    expect(gateRow()).toHaveTextContent("Catat anak datang dan pulang di gerbang");
+    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
   });
 });
 

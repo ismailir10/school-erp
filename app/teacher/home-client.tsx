@@ -127,7 +127,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     {personalAttendance}
     {/* Next step after check-in, at both ends of the day; fixed place so it never moves. */}
     <TaskList>
-      <TaskRow title="Gerbang" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} anak datang · ${gateSummary.pickedUp} pulang`:"Catat anak datang dan pulang di gerbang"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
+      <TaskRow title="Gerbang" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} sudah masuk · ${gateSummary.pickedUp} pulang`:"Catat anak masuk dan pulang di gerbang"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
     </TaskList>
     {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2">Keputusan cuti</h2><TaskList>
       {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
