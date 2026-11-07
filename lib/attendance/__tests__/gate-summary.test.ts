@@ -52,6 +52,14 @@ describe("getGateSummary", () => {
     expect(mocks.enrollmentFindMany.mock.calls[1][0].where.classSection).toMatchObject({ campusId: "c1" });
   });
 
+  it("only counts placements in classes of the ACTIVE academic year", async () => {
+    await getGateSummary({ tenantId: "t1", employeeId: "e1" });
+    expect(mocks.enrollmentFindMany.mock.calls[0][0].where.classSection).toMatchObject({
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+    });
+  });
+
   it("falls back to the first active campus when the caller's campus is not active", async () => {
     mocks.employeeFindFirst.mockResolvedValue({ campusId: "gone" });
     await getGateSummary({ tenantId: "t1", employeeId: "e1" });

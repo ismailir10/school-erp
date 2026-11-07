@@ -79,9 +79,11 @@ export function eachDayInclusive(
 }
 
 /**
- * Parse `OrgConfig.workingDays` (a JSON string array of weekday codes) into a
- * Set. Tolerates whitespace/case; throws on non-array JSON so a corrupted
- * config fails loud rather than silently generating zero sessions.
+ * Parse `OrgConfig.workingDays` into a Set. Accepts the JSON string array
+ * ('["MON","TUE"]') and the legacy CSV form ("MON,TUE"), tolerating
+ * whitespace/case. Throws when the value is neither: JSON that is not an
+ * array, or a non-JSON string with no recognisable day code at all, so a
+ * corrupted config fails loud rather than silently generating zero sessions.
  *
  * Returns both the recognised weekday `set` and the list of `unknownCodes` —
  * entries that didn't match a known MON..SUN code (e.g. a `"MONDAY"` typo).
@@ -92,18 +94,25 @@ export function parseWorkingDays(raw: string): {
   set: Set<WeekdayCode>;
   unknownCodes: string[];
 } {
-  let parsed: unknown;
+  let items: unknown[];
   try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("org_config_working_days_invalid_json");
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error("org_config_working_days_not_array");
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error("org_config_working_days_not_array");
+    }
+    items = parsed;
+  } catch (err) {
+    if (err instanceof Error && err.message === "org_config_working_days_not_array") throw err;
+    // Legacy CSV ("MON,TUE,WED"): needs at least one real day code.
+    items = raw.split(",");
+    const hasKnown = items.some((v) =>
+      (WEEKDAY_CODES as readonly string[]).includes(String(v).trim().toUpperCase()),
+    );
+    if (!hasKnown) throw new Error("org_config_working_days_invalid_json");
   }
   const set = new Set<WeekdayCode>();
   const unknownCodes: string[] = [];
-  for (const v of parsed) {
+  for (const v of items) {
     const code = String(v).trim().toUpperCase();
     if ((WEEKDAY_CODES as readonly string[]).includes(code)) {
       set.add(code as WeekdayCode);

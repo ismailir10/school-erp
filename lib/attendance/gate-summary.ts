@@ -29,7 +29,8 @@ export async function resolveDefaultGateCampusId(
 }
 
 /**
- * Every ACTIVE-enrolled student on the campus (one row per child even when
+ * Every ACTIVE-enrolled student on the campus, in classes of the ACTIVE
+ * academic year (one row per child even when
  * enrolled in two placements) with today's non-voided attendance row.
  */
 export async function getGateRoster(tenantId: string, campusId: string, date: string) {
@@ -37,7 +38,7 @@ export async function getGateRoster(tenantId: string, campusId: string, date: st
     where: {
       status: "ACTIVE",
       student: { tenantId, status: "ACTIVE" },
-      classSection: { tenantId, campusId, status: "ACTIVE" },
+      classSection: { tenantId, campusId, status: "ACTIVE", academicYear: { status: "ACTIVE" } },
     },
     select: {
       student: { select: { id: true, name: true, nickname: true } },

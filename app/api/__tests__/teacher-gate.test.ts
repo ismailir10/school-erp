@@ -11,7 +11,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     campus: { findMany: vi.fn() },
     employee: { findFirst: vi.fn() },
-    studentEnrollment: { findMany: vi.fn(), findFirst: vi.fn() },
+    studentEnrollment: { findMany: vi.fn() },
     studentAttendance: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -74,7 +74,7 @@ function getReq(qs = "") {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getSession).mockResolvedValue(makeSession());
-  db.studentEnrollment.findFirst.mockResolvedValue({ classSectionId: "cs1" } as never);
+  db.studentEnrollment.findMany.mockResolvedValue([{ classSectionId: "cs1" }] as never);
   db.studentAttendance.findFirst.mockResolvedValue(null);
   db.classSession.findMany.mockResolvedValue([
     { id: "ses1", slot: "FULL_DAY", date: "2026-11-07" },
@@ -145,11 +145,11 @@ describe("POST arrive", () => {
   it("scopes the student by tenant and campus, then upserts on the class session", async () => {
     const res = await POST(postReq({ studentId: "s1", action: "arrive", campusId: "c1" }));
     expect(res.status).toBe(200);
-    const where = db.studentEnrollment.findFirst.mock.calls[0][0]!.where as Record<string, unknown>;
+    const where = db.studentEnrollment.findMany.mock.calls[0][0]!.where as Record<string, unknown>;
     expect(where).toMatchObject({
       studentId: "s1",
       student: { tenantId: "t1" },
-      classSection: { tenantId: "t1", campusId: "c1" },
+      classSection: { tenantId: "t1", campusId: "c1", academicYear: { status: "ACTIVE" } },
     });
     const call = db.studentAttendance.upsert.mock.calls[0][0];
     expect(call.where).toEqual({ studentId_sessionId: { studentId: "s1", sessionId: "ses1" } });
@@ -164,7 +164,7 @@ describe("POST arrive", () => {
   });
 
   it("404s a student that is not enrolled in this tenant / campus", async () => {
-    db.studentEnrollment.findFirst.mockResolvedValue(null);
+    db.studentEnrollment.findMany.mockResolvedValue([] as never);
     const res = await POST(postReq({ studentId: "x", action: "arrive" }));
     expect(res.status).toBe(404);
     expect(db.studentAttendance.upsert).not.toHaveBeenCalled();
@@ -231,6 +231,55 @@ describe("session resolution", () => {
     const res = await POST(postReq({ studentId: "s1", action: "arrive" }));
     expect(res.status).toBe(200);
     expect(db.studentAttendance.upsert.mock.calls[0][0].create.sessionId).toBe("sesNew");
+  });
+});
+
+describe("placement choice", () => {
+  it("lands on the placement whose class has a session today", async () => {
+    db.studentEnrollment.findMany.mockResolvedValue([
+      { classSectionId: "csA" },
+      { classSectionId: "csB" },
+    ] as never);
+    db.classSession.findMany.mockImplementation((async (args: { where: { classSectionId: string } }) =>
+      args.where.classSectionId === "csB"
+        ? [{ id: "sesB", slot: "FULL_DAY", date: "2026-11-07" }]
+        : []) as never);
+    const res = await POST(postReq({ studentId: "s1", action: "arrive" }));
+    expect(res.status).toBe(200);
+    const call = db.studentAttendance.upsert.mock.calls[0][0];
+    expect(call.where).toEqual({ studentId_sessionId: { studentId: "s1", sessionId: "sesB" } });
+    expect(call.create).toMatchObject({ classSectionId: "csB" });
+    expect(reconcileSessions).not.toHaveBeenCalled();
+  });
+
+  it("reconciles the first placement when none has a session today", async () => {
+    db.studentEnrollment.findMany.mockResolvedValue([
+      { classSectionId: "csA" },
+      { classSectionId: "csB" },
+    ] as never);
+    db.classSession.findMany.mockResolvedValue([] as never);
+    const res = await POST(postReq({ studentId: "s1", action: "arrive" }));
+    expect(res.status).toBe(409);
+    expect(reconcileSessions).toHaveBeenCalledWith("csA");
+  });
+
+  it("keeps the placement of an existing attendance row", async () => {
+    db.studentEnrollment.findMany.mockResolvedValue([
+      { classSectionId: "csA" },
+      { classSectionId: "csB" },
+    ] as never);
+    db.studentAttendance.findFirst.mockResolvedValue({
+      id: "a1",
+      sessionId: "sesB",
+      classSectionId: "csB",
+      status: "PRESENT",
+      checkInTime: new Date(),
+      checkOutTime: null,
+      isVoided: false,
+    } as never);
+    await POST(postReq({ studentId: "s1", action: "pickup" }));
+    expect(db.classSession.findMany).not.toHaveBeenCalled();
+    expect(db.studentAttendance.upsert.mock.calls[0][0].create).toMatchObject({ classSectionId: "csB" });
   });
 });
 
