@@ -21,7 +21,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { AdminTabs, AdminTabsContent, AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs";
 import { PendingApprovals, type PendingCheckIn } from "./pending-approvals";
 import { OverrideModal } from "@/components/attendance/override-modal";
-import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
+import { UserCheck, Clock, UserX, CalendarDays, Download, Replace, ListChecks } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import { computeAbsentCount, computeExcusedCount, isNonWorkingDay } from "./absent-stat";
@@ -284,6 +284,9 @@ export default function AttendancePage() {
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
+            <Link href="/admin/employee-attendance/daily">
+              <Button size="sm"><ListChecks size={14} className="mr-1.5" /> Absensi Staf Harian</Button>
+            </Link>
             <Link href="/admin/employee-attendance/monthly">
               <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
             </Link>

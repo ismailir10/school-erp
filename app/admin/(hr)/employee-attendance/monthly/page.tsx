@@ -14,8 +14,8 @@ import { PeriodStepper } from "@/components/ui/period-stepper";
 
 type MonthlyData = {
   employee: { id: string; kode: string; nama: string; campusName: string };
-  records: { id: string; date: string; status: string; checkInTime: string | null; checkOutTime: string | null; isLocked: boolean }[];
-  summary: { present: number; late: number; absent: number; leave: number };
+  records: { id: string; date: string; status: string; checkInTime: string | null; checkOutTime: string | null; isLocked: boolean; approvalStatus?: string }[];
+  summary: { present: number; late: number; absent: number; leave: number; pending?: number };
 };
 
 type Campus = { id: string; name: string };
@@ -174,7 +174,10 @@ export default function MonthlyAttendancePage() {
                       const record = recordMap.get(dateStr);
                       const dow = new Date(year, month - 1, d).getDay();
                       const isWeekend = dow === 0 || dow === 6;
-                      const status = record
+                      const isPending = record?.approvalStatus === "PENDING";
+                      const status = isPending
+                        ? "Menunggu persetujuan"
+                        : record
                         ? STATUS_LABELS[record.status] ?? record.status
                         : isWeekend
                           ? "Akhir pekan"
@@ -186,7 +189,9 @@ export default function MonthlyAttendancePage() {
                             aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}
                             disabled={record?.isLocked}
                             className={`w-5 h-5 rounded-sm inline-block [@media(pointer:coarse)]:size-11 ${
-                              record ? STATUS_COLORS[record.status] ?? "bg-muted" : isWeekend ? "bg-muted/30" : ""
+                              isPending
+                                ? "border border-dashed border-status-late bg-status-late-subtle"
+                                : record ? STATUS_COLORS[record.status] ?? "bg-muted" : isWeekend ? "bg-muted/30" : ""
                             } ${record?.isLocked ? "opacity-50 cursor-not-allowed" : "hover:ring-1 hover:ring-primary cursor-pointer"}`}
                             title={status}
                           />
@@ -199,6 +204,9 @@ export default function MonthlyAttendancePage() {
                         <span className="text-status-late" title="Terlambat">{emp.summary.late}</span>
                         <span className="text-destructive" title="Alpa">{emp.summary.absent}</span>
                         <span className="text-status-leave" title="Izin">{emp.summary.leave}</span>
+                        {emp.summary.pending ? (
+                          <span className="text-muted-foreground" title="Menunggu persetujuan">({emp.summary.pending})</span>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -218,6 +226,10 @@ export default function MonthlyAttendancePage() {
               <span className="text-muted-foreground">{STATUS_LABELS[key] ?? key}</span>
             </div>
           ))}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-sm border border-dashed border-status-late bg-status-late-subtle" />
+            <span className="text-muted-foreground">Menunggu persetujuan</span>
+          </div>
         </div>
       )}
 
