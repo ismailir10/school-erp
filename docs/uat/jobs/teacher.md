@@ -448,7 +448,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Role:** TEACHER (or admin with an employee record)
 - **Preconditions:** ≥1 active student on the campus; the teacher is not necessarily the child's homeroom teacher
 - **Steps:**
-  1. Open "Lainnya" → "Gerbang" (`/teacher/gate`). The campus defaults to the teacher's own; switch it if the tablet covers another.
+  1. On Beranda, tap the "Gerbang" row under Kehadiran pribadi (`/teacher/gate`; it shows "N dari M sudah masuk · K pulang"). The campus defaults to the teacher's own; switch it if the tablet covers another.
   2. With "Masuk" selected, optionally search by name or class, then tap the child's row once: toast "{nama} masuk" with "Urungkan".
   3. Switch to "Pulang" later in the day and tap the child: pickup is recorded with Orang tua; tap the relation chooser first when it was someone else (name required for Lainnya).
   4. Open the child's own class session: the same arrival and pickup times show there.

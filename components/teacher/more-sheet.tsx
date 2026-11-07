@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronRight, DoorOpen, Presentation, User, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronRight, Presentation, User, Wallet, type LucideIcon } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -25,12 +25,6 @@ export type TeacherMoreItem = {
  * live here, matching the parent portal's overflow interaction.
  */
 export const TEACHER_MORE_ITEMS: TeacherMoreItem[] = [
-  {
-    label: "Gerbang",
-    description: "Catat anak masuk dan pulang di gerbang",
-    href: "/teacher/gate",
-    icon: DoorOpen,
-  },
   {
     label: "Kehadiran saya",
     description: "Riwayat kehadiran, cuti, dan izin",

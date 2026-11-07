@@ -145,7 +145,10 @@ test.describe.serial("Geofenced check-in, staff day and gate", () => {
     test.skip(!child, "every child on the campus already has an arrival today");
     await ensureSessionToday(child!.classSectionId);
 
-    await page.goto("/teacher/gate");
+    // Gerbang lives on Beranda, directly under Kehadiran pribadi: one tap.
+    await page.goto("/teacher");
+    await page.getByRole("link", { name: /Gerbang/ }).click();
+    await expect(page).toHaveURL(/\/teacher\/gate/);
     await page.getByLabel("Cari nama anak").fill(child!.name);
     // A child can sit in two placements (school + daycare): the label carries the class.
     const tap = page.getByRole("button", { name: `Masuk: ${child!.name}, ${child!.className}`, exact: true });

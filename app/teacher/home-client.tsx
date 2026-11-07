@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, MessageCircle, Users } from "lucide-react";
+import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, DoorOpen, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
@@ -32,10 +32,10 @@ export function nextStateAfterAction(record: TodayRecord | null, action: "check-
     : {status:record?.status??"PRESENT",checkInTime:record?.checkInTime??now,checkOutTime:record?.checkOutTime??now};
 }
 
-export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",classes=[],todaySessions=[],leaveDecisions=[],homeroomClassSectionName,attendanceUnavailable=false,classesUnavailable=false,sessionsUnavailable=false}: {
+export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",classes=[],todaySessions=[],leaveDecisions=[],homeroomClassSectionName,attendanceUnavailable=false,classesUnavailable=false,sessionsUnavailable=false,gateSummary=null}: {
   userName:string; todayRecord:TodayRecord|null; today:string; greeting?:string; classes?:TeacherClassSummary[];
   todaySessions?:TeacherSessionSummary[]; leaveDecisions?:LeaveDecision[]; homeroomClassSectionName?:string|null;
-  attendanceUnavailable?:boolean; classesUnavailable?:boolean; sessionsUnavailable?:boolean;
+  attendanceUnavailable?:boolean; classesUnavailable?:boolean; sessionsUnavailable?:boolean; gateSummary?:{total:number;arrived:number;pickedUp:number}|null;
 }) {
   const router=useRouter();
   const [record,setRecord]=useState(todayRecord);
@@ -125,6 +125,10 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
     {/* First in both states so the control the teacher needs on arrival never moves after the tap (R2-T-1). */}
     {personalAttendance}
+    {/* Next step after check-in, at both ends of the day; fixed place so it never moves. */}
+    <TaskList>
+      <TaskRow title="Gerbang" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} sudah masuk · ${gateSummary.pickedUp} pulang`:"Catat anak masuk dan pulang di gerbang"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
+    </TaskList>
     {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2">Keputusan cuti</h2><TaskList>
       {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
         return <TaskRow key={d.id} title={`${LEAVE_TYPE_LABEL[d.leaveType]??d.leaveType} ${approved?"disetujui":"ditolak"}`} description={`${range}${!approved&&d.reviewNote?` · Alasan: ${d.reviewNote}`:""}`} meta="Lihat" href="/teacher/attendance?cuti=1" icon={approved?<CheckCircle2 className="size-5"/>:<CalendarX className="size-5"/>} tone={approved?"teal":"warm"}/>;})}
