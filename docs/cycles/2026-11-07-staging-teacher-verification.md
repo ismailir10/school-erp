@@ -14,13 +14,14 @@ Verify staging after #721–#726 following a teacher report of broken workflows.
 
 - [x] Distinguish Sentra, Slip Gaji and Perkembangan details and cover the browser transitions.
 - [x] Correct Gerbang attendance scoping and aggregation and cover duplicate-placement cases.
-- [ ] Match Sentra score validation to eligible age groups and cover a dual-enrollment student.
+- [x] Match Sentra score validation to eligible age groups and cover a dual-enrollment student.
 
 ## Implementation
 
 - Plan: title fixes and Gerbang attendance scoping developed in parallel, with separate standards and spec review. The Sentra scoring fix followed after the live reproduction.
 - T1: Sentra and salary-slip details share a request-cached record lookup with metadata. Perkembangan uses a distinct generic detail title. Added assertions to three existing Playwright flows.
 - T2: Gerbang and Beranda share the exact active-placement scope and aggregate the first arrival and last pickup per child, including the corresponding pickup details.
+- T3: Sentra roster uses current active-year classes. The save handler validates the indicator's group against all eligible placements, then resolves the group's week. The previous first-placement assumption reproduced the live rejection in route tests.
 
 ## Verification
 
@@ -28,6 +29,7 @@ Verify staging after #721–#726 following a teacher report of broken workflows.
 - Chrome on staging: opened Buku Penghubung and its class selector, Penilaian, Penilaian Pekanan and Sentra Ibadah. Confirmed the detail title duplicated the Penilaian title. Current teacher had only the DCARE journal assignment, and the selected Saturday had no active curriculum week.
 - Chrome on staging: Metland Gerbang incorrectly showed 1/11 arrivals and pickups. A read-only database check found one record from outside the child's active Metland placements. Both scoped counts should be 0/11.
 - Chrome on staging: TK A and TK B loaded the shared theme for 6 November. Saya Senang Berkarya had zero IKTP links, which disabled scoring. The separately scoped Saya Anak Sehat themes had no configured weeks. A fully configured demo week on 4 September rendered TK B indicators and the roster.
+- Chrome on staging: Balok chose the 6 November rotation's TK B 1 class. The group control showed A because the class is stored as A. The Metland TK B 3 class also has group A. Both assignments need school confirmation.
 - Chrome on staging: on the 4 September demo week, selecting a TK B indicator and saving only the disposable E2E student's score failed with `Salah satu IKTP bukan untuk kelompok siswa.` The student had two current placements, DCARE (A) and TK B 4 (B).
 - Chrome on staging: verified the teacher salary-slip list and March detail loaded, with duplicate titles.
 - Chrome on staging: verified that Semua hadir and Semua pulang populated the DCARE session draft. Reload discarded the unsaved bulk changes.

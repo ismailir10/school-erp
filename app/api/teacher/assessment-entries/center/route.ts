@@ -6,7 +6,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { assessmentEntryCenterSessionSchema } from "@/lib/validations/assessment-entry";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
-import { getCurrentWeek, getStudentAgeGroups } from "@/lib/curriculum/week-resolver";
+import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import type { AgeGroup } from "@/lib/generated/prisma/client";
 import {
   PENILAIAN_WRITE_BUDGET,
   PENILAIAN_WRITE_WINDOW_MS,
@@ -135,12 +136,41 @@ export async function POST(req: NextRequest) {
     indicators.map((i) => [i.id, i.objective.ageGroup]),
   );
 
-  // A sentra session can mix TK A and TK B children. Each student resolves
-  // the week of their own kelompok, and an indicator must belong to that
-  // kelompok's objectives.
-  const groupByStudent = await getStudentAgeGroups(session.tenantId, studentIds);
-  const weekByGroup = new Map<string, { id: string; themeId: string }>();
-  for (const group of new Set(groupByStudent.values())) {
+  // A child can attend more than one kelompok (e.g. daycare and TK). Use all
+  // placements eligible for the roster, and resolve each entry's week using
+  // the submitted indicator's kelompok after validating the placement.
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      studentId: { in: studentIds },
+      student: { tenantId: session.tenantId, status: "ACTIVE" },
+      status: "ACTIVE",
+      classSection: { tenantId: session.tenantId, status: "ACTIVE", academicYear: { status: "ACTIVE" } },
+    },
+    select: { studentId: true, classSection: { select: { ageGroup: true } } },
+  });
+  const groupsByStudent = new Map<string, Set<AgeGroup>>();
+  for (const { studentId, classSection } of enrollments) {
+    const groups = groupsByStudent.get(studentId);
+    if (groups) groups.add(classSection.ageGroup);
+    else groupsByStudent.set(studentId, new Set([classSection.ageGroup]));
+  }
+  if (studentIds.some((id) => !groupsByStudent.has(id))) {
+    return NextResponse.json(
+      { error: "Siswa belum terdaftar di kelas aktif, kelompok tidak dapat ditentukan." },
+      { status: 422 },
+    );
+  }
+  // Every submitted indicator was found in the tenant query above.
+  const groupOf = (entry: (typeof entries)[number]) => objectiveGroupByIndicator.get(entry.indicatorId)!;
+  if (entries.some((entry) => !groupsByStudent.get(entry.studentId)?.has(groupOf(entry)))) {
+    return NextResponse.json(
+      { error: "Salah satu IKTP bukan untuk kelompok siswa." },
+      { status: 400 },
+    );
+  }
+
+  const weekByGroup = new Map<AgeGroup, { id: string; themeId: string }>();
+  for (const group of new Set(entries.map(groupOf))) {
     const wk = await getCurrentWeek(session.tenantId, dateUtc, group);
     if (!wk) {
       return NextResponse.json(
@@ -153,29 +183,9 @@ export async function POST(req: NextRequest) {
     }
     weekByGroup.set(group, { id: wk.id, themeId: wk.subTheme.theme.id });
   }
-  if (studentIds.some((id) => !groupByStudent.has(id))) {
-    return NextResponse.json(
-      { error: "Siswa belum terdaftar di kelas aktif, kelompok tidak dapat ditentukan." },
-      { status: 422 },
-    );
-  }
-  const weekOf = (studentId: string) =>
-    weekByGroup.get(groupByStudent.get(studentId)!)!;
-
-  if (
-    entries.some(
-      (e) =>
-        objectiveGroupByIndicator.get(e.indicatorId) !==
-        groupByStudent.get(e.studentId),
-    )
-  ) {
-    return NextResponse.json(
-      { error: "Salah satu IKTP bukan untuk kelompok siswa." },
-      { status: 400 },
-    );
-  }
+  const weekOf = (entry: (typeof entries)[number]) => weekByGroup.get(groupOf(entry))!;
   const linkBlocker = entries.find(
-    (e) => !themesByIndicator.get(e.indicatorId)?.has(weekOf(e.studentId).themeId),
+    (entry) => !themesByIndicator.get(entry.indicatorId)?.has(weekOf(entry).themeId),
   );
   if (linkBlocker) {
     return NextResponse.json(
@@ -204,7 +214,7 @@ export async function POST(req: NextRequest) {
         studentId: entry.studentId,
         indicatorId: entry.indicatorId,
         date: dateUtc,
-        weekId: weekOf(entry.studentId).id,
+        weekId: weekOf(entry).id,
         source: "CENTER",
         sentraId,
         center,
@@ -215,7 +225,7 @@ export async function POST(req: NextRequest) {
         recordedAt: now,
       },
       update: {
-        weekId: weekOf(entry.studentId).id,
+        weekId: weekOf(entry).id,
         sentraId,
         center,
         activity,
