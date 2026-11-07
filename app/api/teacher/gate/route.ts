@@ -6,6 +6,7 @@ import { GATE_TAP_BUDGET, GATE_TAP_WINDOW_MS } from "@/lib/api/rate-limit-budget
 import { validateBody } from "@/lib/api/validate";
 import { gateActionSchema } from "@/lib/validations/gate";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { getGateRoster, listGateCampuses, resolveDefaultGateCampusId } from "@/lib/attendance/gate-summary";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
 
 /**
@@ -49,11 +50,7 @@ export async function GET(req: NextRequest) {
   const { session } = auth;
   const { tenantId } = session;
 
-  const campuses = await prisma.campus.findMany({
-    where: { tenantId, status: "ACTIVE" },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const campuses = await listGateCampuses(tenantId);
 
   let campusId = new URL(req.url).searchParams.get("campusId");
   if (campusId) {
@@ -61,14 +58,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Kampus tidak ditemukan" }, { status: 404 });
     }
   } else {
-    const me = await prisma.employee.findFirst({
-      where: { id: session.employeeId, tenantId },
-      select: { campusId: true },
-    });
-    campusId =
-      me && campuses.some((c) => c.id === me.campusId)
-        ? me.campusId
-        : (campuses[0]?.id ?? null);
+    campusId = await resolveDefaultGateCampusId(tenantId, session.employeeId, campuses);
   }
 
   const date = getTodayInTimezone(TZ);
@@ -76,42 +66,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ date, campusId: null, campuses, students: [] });
   }
 
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: {
-      status: "ACTIVE",
-      student: { tenantId, status: "ACTIVE" },
-      classSection: { tenantId, campusId, status: "ACTIVE" },
-    },
-    select: {
-      student: { select: { id: true, name: true, nickname: true } },
-      classSection: { select: { id: true, name: true } },
-    },
-    orderBy: { student: { name: "asc" } },
-  });
-
-  const seen = new Set<string>();
-  const unique = enrollments.filter((e) => {
-    if (seen.has(e.student.id)) return false;
-    seen.add(e.student.id);
-    return true;
-  });
-
-  const attendance = await prisma.studentAttendance.findMany({
-    where: {
-      date,
-      isVoided: false,
-      studentId: { in: unique.map((e) => e.student.id) },
-    },
-    select: {
-      studentId: true,
-      status: true,
-      checkInTime: true,
-      checkOutTime: true,
-      pickedUpByRelation: true,
-      pickedUpByName: true,
-    },
-  });
-  const byStudent = new Map(attendance.map((a) => [a.studentId, a]));
+  const { students: unique, byStudent } = await getGateRoster(tenantId, campusId, date);
 
   return NextResponse.json({
     date,

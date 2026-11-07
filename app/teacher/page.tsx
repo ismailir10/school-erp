@@ -10,6 +10,7 @@ import { getDayMark } from "@/lib/student-journal/day-marks";
 import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { minutesLate } from "@/lib/attendance/status";
 import { getTeacherSentraToday } from "@/lib/sentra/access";
+import { getGateSummary } from "@/lib/attendance/gate-summary";
 import { sentraLabel } from "@/lib/sentra/rotation";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
 
@@ -28,7 +29,7 @@ export default async function TeacherHome() {
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Jakarta", hour:"2-digit", hourCycle:"h23"}).format(now));
   const greeting = hour < 12 ? "pagi" : hour < 15 ? "siang" : hour < 18 ? "sore" : "malam";
-  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult, leaveResult, orgResult, sentraResult] = await Promise.allSettled([
+  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult, leaveResult, orgResult, sentraResult, gateResult] = await Promise.allSettled([
     session.employeeId ? prisma.attendanceRecord.findUnique({where:{employeeId_date:{employeeId:session.employeeId,date:today}}}) : Promise.resolve(null),
     session.employeeId && session.tenantId ? prisma.teachingAssignment.findMany({
       where:{employeeId:session.employeeId,classSection:{tenantId:session.tenantId,status:"ACTIVE",academicYear:{status:"ACTIVE"}}},
@@ -52,6 +53,8 @@ export default async function TeacherHome() {
     session.tenantId ? prisma.orgConfig.findUnique({where:{tenantId:session.tenantId},select:{workStartTime:true,timezone:true}}) : Promise.resolve(null),
     // Today's sentra class(es) for a guru sentra; a failure here only drops the extra cards.
     session.employeeId && session.tenantId ? getTeacherSentraToday(session.employeeId, session.tenantId, today) : Promise.resolve([]),
+    // Gerbang row count on the Beranda; a failed or missing lookup just shows the plain description.
+    session.employeeId && session.tenantId ? getGateSummary({tenantId:session.tenantId,employeeId:session.employeeId}) : Promise.resolve(null),
   ]);
   // A failed lookup only hides this heads-up; it must never take the home page down.
   const leaveDecisions = leaveResult.status === "fulfilled" ? toLeaveDecisions(leaveResult.value, now) : [];
@@ -92,13 +95,14 @@ export default async function TeacherHome() {
     };
   }));
   classes.sort((a,b)=>compareTeacherClasses(a,b,hour));
+  const gateSummary = gateResult.status === "fulfilled" ? gateResult.value : null;
   const record = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
   const org = orgResult.status === "fulfilled" ? orgResult.value : null;
   const lateBy = record?.status === "LATE" && record.checkInTime && org ? minutesLate(record.checkInTime, org.workStartTime, org.timezone ?? "Asia/Jakarta") : null;
   return <TeacherHomeClient userName={session.name ?? "Guru"} today={today} greeting={greeting}
     todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null,minutesLate:lateBy,approvalStatus:record.approvalStatus}:null}
     attendanceUnavailable={attendanceResult.status==="rejected"} classesUnavailable={assignmentsResult.status==="rejected"}
-    sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes}
+    sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes} gateSummary={gateSummary}
     leaveDecisions={leaveDecisions} homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
     todaySessions={sessions.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour)).map(s=>({id:s.id,slot:s.slot,className:s.classSection.name,rosterCount:s.classSection._count.enrollments}))} />;
 }

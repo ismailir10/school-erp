@@ -24,6 +24,30 @@ describe("check-in row placement (R2-T-1)", () => {
   });
 });
 
+describe("Gerbang row on Beranda", () => {
+  const gateRow = () => screen.getByRole("link", { name: /Gerbang/ });
+  it("sits directly below Kehadiran pribadi and opens the Gerbang page", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[cls]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
+    expect(gateRow()).toHaveAttribute("href", "/teacher/gate");
+    expect(gateRow()).toHaveTextContent("Buka");
+    expect(position(screen.getByLabelText("Kehadiran pribadi"))).toBeLessThan(position(gateRow()));
+    expect(position(gateRow())).toBeLessThan(position(screen.getByTestId("current-class")));
+  });
+  it("shows today's arrived and picked-up counts", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
+    expect(gateRow()).toHaveTextContent("18 dari 40 anak datang · 3 pulang");
+  });
+  it.each([["no children on the campus", { total: 0, arrived: 0, pickedUp: 0 }], ["a failed lookup", null]])("falls back to the plain description for %s", (_label, gateSummary) => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={gateSummary} />);
+    expect(gateRow()).toHaveTextContent("Catat anak datang dan pulang di gerbang");
+    expect(gateRow()).not.toHaveTextContent("0 dari 0");
+  });
+  it("still renders when the prop is omitted", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    expect(gateRow()).toHaveTextContent("Catat anak datang dan pulang di gerbang");
+  });
+});
+
 describe("check-in failure copy (R2-T-2)", () => {
   it("maps a thrown fetch to Indonesian copy, never 'Failed to fetch'", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));

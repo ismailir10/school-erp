@@ -59,7 +59,7 @@ main promotion.
 None (no schema, no new route, no auth change).
 
 ## Tasks
-- [ ] T1 Shared gate-summary helper + Gerbang row on Beranda + remove from Lainnya — accept: AC 1–5, Vitest green
+- [x] T1 Shared gate-summary helper + Gerbang row on Beranda + remove from Lainnya — accept: AC 1–5, Vitest green
       (reuse: `GET /api/teacher/gate` query, `TaskRow`).
 - [x] T2 Fixes from the staging Chrome walk — none needed. Walk of deploy `67ae31e3` (admin, teacher, parent) passed
       #721–#724, with no console errors and no reproducible 4xx/5xx. CSP reports seen are report-only: the Vercel
@@ -70,7 +70,9 @@ None (no schema, no new route, no auth change).
 
 ## Implementation
 - Plan: driver=claude-opus-5-5, workers=claude-sonnet-5-5; T1 sequential (single slice), T2 inline (walk report, no code).
+- T1: lib/attendance/gate-summary.ts (+test), app/api/teacher/gate/route.ts, app/teacher/page.tsx, app/teacher/home-client.tsx, components/teacher/more-sheet.tsx, component tests, e2e/attendance-geofence-gate.spec.ts — shared `getGateSummary`/`getGateRoster` helper reused by the GET route; fixed Gerbang TaskRow under Kehadiran pribadi with live arrived/picked-up counts; Gerbang removed from Lainnya.
 
 ## Verification
+- design-system: cross-checked Beranda row against .claude/standards/design-system.html §14 Portal Shell (TaskRow look).
 
 ## Ship Notes
