@@ -42,7 +42,7 @@ export function ChangelogView({
     <main className="mx-auto w-full max-w-2xl px-4 pb-16 pt-4 sm:px-6">
       <BackLink href={homeHref} label={`Kembali ke ${homeLabel}`} />
       <header className="mt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Apa yang Baru</h1>
+        <h1 className="text-h1 tracking-tight">Apa yang Baru</h1>
         <p className="mt-1 text-sm text-muted-foreground">Pembaruan Talib, dari yang terbaru.</p>
       </header>
 
@@ -83,7 +83,7 @@ export function ChangelogView({
                 <time dateTime={release.id.slice(0, 10)} className="text-xs tabular-nums text-muted-foreground">
                   {formatDate(release.id.slice(0, 10))}
                 </time>
-                <h2 id={`rel-${release.id}`} className="mt-0.5 text-lg font-semibold">
+                <h2 id={`rel-${release.id}`} className="mt-0.5 text-h2">
                   {release.headline}
                 </h2>
                 <ul className="mt-3 space-y-3">
