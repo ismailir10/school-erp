@@ -16,7 +16,7 @@ Facts found: any new top-level route is signed-in by default (`proxy.ts` only wh
 4. **Enforcement:** a promotion PR (`staging` → `main`) fails CI unless the changelog gained an entry since `main`. `/ship --to-main` ships the entry to `staging` first (own small PR), then opens the promotion. (User)
 5. **Single source:** `lib/changelog/releases.ts` typed data is the only copy; the page renders it. No `CHANGELOG.md` (it would duplicate and drift).
 6. **Release id = promotion date** (`2026-11-06`, `-2` on a same-day second). No semver: the product is not consumed as a package.
-7. **Entry shape:** `headline` (≤ 60 chars), 2-7 `items`, each `{ kind: baru | lebih-baik | diperbaiki, audience: admin | guru | orang-tua | semua, text }` with `text` ≤ 140 chars, one sentence. Promotion with nothing user-visible gets a single "Pembaruan di balik layar" item so the 1:1 rule holds without bloat.
+7. **Entry shape:** `headline` (≤ 60 chars), 1-7 `items`, each `{ kind: baru | lebih-baik | diperbaiki, audience: admin | guru | orang-tua | semua, text }` with `text` ≤ 140 chars, one sentence. Promotion with nothing user-visible gets a single "Pembaruan di balik layar" item so the 1:1 rule holds without bloat.
 8. **Page filter:** defaults to the viewer's own portal (plus "semua" items); one chip row to widen. Zero taps for the common case.
 9. **Writing guide** lives in `docs/workflow/changelog.md` (see Tasks T4); enforced limits are checked by Vitest so bloat fails the build, not review.
 
@@ -67,9 +67,9 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 ## Tasks
 
 - [x] T1 Release data module + types + shape/limit tests — accept: Vitest fails on each rule break (reuse: `lib/page-title.ts` style)
-- [ ] T2 `/changelog` page: guard, title, filter, empty state — accept: guard test + render test per role (deps: T1, reuse: `app/guide/parents/page.tsx`)
+- [x] T2 `/changelog` page: guard, title, filter, empty state — accept: guard test + render test per role (deps: T1, reuse: `app/guide/parents/page.tsx`)
 - [ ] T3 Entry points in admin sidebar, teacher more-sheet, parent profile — accept: link visible in each (deps: T2, parallel with T4-T6)
-- [ ] T4 `docs/workflow/changelog.md` writing guide; link from ship.md Promotion + CLAUDE.md; `audit-docs.sh --write` — accept: `audit-docs.sh` exits 0
+- [x] T4 `docs/workflow/changelog.md` writing guide; link from ship.md Promotion + CLAUDE.md; `audit-docs.sh --write` — accept: `audit-docs.sh` exits 0
 - [ ] T5 `scripts/check-promotion-changelog.sh` + `Checks` CI step + self-test — accept: fixtures pass/fail as expected (parallel with T2, T3)
 - [ ] T6 Backfill 23 release entries from 2026-08-08 — accept: T1 tests green, driver tone review (deps: T1, T4; fan-out one worker per ~6 entries)
 - [ ] T7 `e2e/changelog.spec.ts` — accept: passes locally on production build (deps: T2, T3)
@@ -77,7 +77,9 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 ## Implementation
 
 - Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (no cheaper tier suited to tone-sensitive Indonesian copy); T1, T4 inline (small, define the contract the workers need); T6 parallel, 3 workers, one data file each (`lib/changelog/data/part-{1,2,3}.ts`, no shared files); T2, T3, T5, T7 inline sequential after the guide lands. Deviation: built on the session-designated branch `claude/jolly-cray-h1r16u` in the main checkout, no `feat/*` worktree (Assumption 1). Task gate per task is the scoped Vitest/tsc run; the full `npm run build && npx vitest run` runs in verify-local.
-- T1: `lib/changelog/{schema,releases}.ts`, `data/part-{1,2,3}.ts` (empty stubs), `__tests__/schema.test.ts` - typed release shape, limits (headline 60, item 140, 2-7 items or the one maintenance item, newest first, no PR numbers/links/code) and `validateReleases`; 13 Vitest tests green.
+- T1: `lib/changelog/{schema,releases}.ts`, `data/part-{1,2,3}.ts` (empty stubs), `__tests__/schema.test.ts` - typed release shape, limits (headline 60, item 140, 1-7 items, newest first, no PR numbers/links/code) and `validateReleases`; 13 Vitest tests green.
+- T2: `app/changelog/page.tsx`, `components/changelog/changelog-view.tsx`, `lib/changelog/filter.ts`, tests - signed-in guard like `/guide/parents`, "Kembali ke <beranda>", "Untuk <peran>" / "Semua" toggle (default own portal), release cards with kind + audience badges, empty state. Reuses BackLink, Badge, Button, EmptyState, `formatDate`. design-system cross-check: tokens only, 44px back link, no raw hex. README gains a Portals row.
+- T4: `docs/workflow/changelog.md` - writing guide (shape, include/skip, words, examples, process); linked from ship.md and CLAUDE.md with the promotion check in T5.
 
 ## Verification
 

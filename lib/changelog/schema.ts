@@ -24,7 +24,7 @@ export interface Release {
 
 export const HEADLINE_MAX = 60;
 export const ITEM_MAX = 140;
-export const ITEMS_MIN = 2;
+export const ITEMS_MIN = 1;
 export const ITEMS_MAX = 7;
 /** A promotion with nothing user-visible carries exactly this one item. */
 export const MAINTENANCE_ITEM: ChangeItem = {
@@ -36,12 +36,6 @@ export const MAINTENANCE_ITEM: ChangeItem = {
 const ID_RE = /^\d{4}-\d{2}-\d{2}(-\d+)?$/;
 // PR numbers, links and code formatting have no place in user-facing notes.
 const LEAKS = [/#\d+/, /https?:\/\//, /`/];
-
-const isMaintenance = (items: ChangeItem[]) =>
-  items.length === 1 &&
-  items[0].kind === MAINTENANCE_ITEM.kind &&
-  items[0].audience === MAINTENANCE_ITEM.audience &&
-  items[0].text === MAINTENANCE_ITEM.text;
 
 /** Returns human-readable problems; empty array means the list is valid. */
 export function validateReleases(releases: readonly Release[]): string[] {
@@ -61,9 +55,7 @@ export function validateReleases(releases: readonly Release[]): string[] {
     if (r.headline.length > HEADLINE_MAX) errors.push(`${at}: headline over ${HEADLINE_MAX} chars`);
 
     if (r.items.length > ITEMS_MAX) errors.push(`${at}: more than ${ITEMS_MAX} items`);
-    if (r.items.length < ITEMS_MIN && !isMaintenance(r.items)) {
-      errors.push(`${at}: needs ${ITEMS_MIN}-${ITEMS_MAX} items (or the single maintenance item)`);
-    }
+    if (r.items.length < ITEMS_MIN) errors.push(`${at}: needs ${ITEMS_MIN}-${ITEMS_MAX} items`);
 
     r.items.forEach((it, i) => {
       const where = `${at} item ${i + 1}`;

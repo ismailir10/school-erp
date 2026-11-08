@@ -22,7 +22,7 @@ describe("validateReleases", () => {
     expect(validateReleases([ok("2026-11-06-2"), ok("2026-11-06"), ok("2026-10-31")])).toEqual([]);
   });
 
-  it("accepts the single maintenance item", () => {
+  it("accepts a single-item release such as the maintenance one", () => {
     expect(validateReleases([{ id: "2026-11-06", headline: "Pemeliharaan", items: [MAINTENANCE_ITEM] }])).toEqual([]);
   });
 
@@ -30,7 +30,7 @@ describe("validateReleases", () => {
     ["bad id", { ...ok("2026-11-06"), id: "6 Nov" }, "id must be"],
     ["empty headline", { ...ok("2026-11-06"), headline: " " }, "headline is empty"],
     ["long headline", { ...ok("2026-11-06"), headline: "x".repeat(HEADLINE_MAX + 1) }, "headline over"],
-    ["one ordinary item", { ...ok("2026-11-06"), items: [ok("x").items[0]] }, "needs 2-7 items"],
+    ["no items", { ...ok("2026-11-06"), items: [] }, "needs 1-7 items"],
     ["too many items", { ...ok("2026-11-06"), items: Array(8).fill(ok("x").items[0]) }, "more than 7"],
     ["long item", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], text: "x".repeat(ITEM_MAX + 1) }, ok("x").items[1]] }, "text over"],
     ["PR number", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], text: "Perbaikan (#712)." }, ok("x").items[1]] }, "no PR numbers"],
