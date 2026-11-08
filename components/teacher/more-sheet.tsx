@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, ChevronRight, Presentation, User, Wallet, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronRight, Presentation, Sparkles, User, Wallet, type LucideIcon } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -42,6 +42,12 @@ export const TEACHER_MORE_ITEMS: TeacherMoreItem[] = [
     description: "Data akun dan kontak",
     href: "/teacher/profile",
     icon: User,
+  },
+  {
+    label: "Apa yang Baru",
+    description: "Pembaruan terbaru di Talib",
+    href: "/changelog",
+    icon: Sparkles,
   },
   {
     label: "Panduan Talib",

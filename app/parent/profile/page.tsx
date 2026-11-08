@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Mail, MessageCircle, Phone, Presentation, School } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, MessageCircle, Phone, Presentation, School, Sparkles } from "lucide-react";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
@@ -137,6 +137,20 @@ export default async function ParentProfilePage({ searchParams }: {
       {/* The parent tour: the same deck the school presents at parent meetings. */}
       <section>
         <SectionLabel>Bantuan</SectionLabel>
+        <div className="space-y-3">
+        <Link
+          href="/changelog"
+          className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
+        >
+          <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles size={18} aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">Apa yang Baru</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Pembaruan terbaru di Talib</p>
+          </div>
+          <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+        </Link>
         <Link
           href="/guide/parents"
           className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
@@ -150,6 +164,7 @@ export default async function ParentProfilePage({ searchParams }: {
           </div>
           <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
         </Link>
+        </div>
       </section>
 
       {/* Akun section deferred to next cycle — destination pages
