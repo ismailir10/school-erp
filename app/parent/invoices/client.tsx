@@ -9,7 +9,7 @@ import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } fr
 import Link from "next/link";
 import { formatDate, formatInvoicePeriod, formatRupiah } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -497,7 +497,7 @@ export function InvoicesClient({
           {/* Not "Belum dibayar" again — that label already heads the summary
               card directly above, and printing it twice on one screen made the
               total and the list read as the same block. */}
-          <SectionLabel>Rincian tagihan</SectionLabel>
+          <SectionHeading>Rincian tagihan</SectionHeading>
           <TaskList>
             <ul aria-label="Tagihan belum dibayar" className="divide-y divide-border/70">
             {due.map(({ inv, isOverdue }) => (

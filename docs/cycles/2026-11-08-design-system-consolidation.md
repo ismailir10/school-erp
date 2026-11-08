@@ -141,8 +141,8 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
       header tests, invoices spec green
 - [x] T4 StatTile only: icon + count-up, migrate 12 StatCard pages, delete StatCard — accept: tests, visual check
       (parallel with T5–T6)
-- [ ] T5 SectionHeading only: `as` + children, migrate 9 SectionLabel uses, delete SectionLabel — accept: tests green
-- [ ] T6 Pills → Badge/StatusBadge (~9); calendar + week-navigator controls → Button; two hierarchy fixes — accept:
+- [x] T5 SectionHeading only: `as` + children, migrate 9 SectionLabel uses, delete SectionLabel — accept: tests green
+- [x] T6 Pills → Badge/StatusBadge (~9); calendar + week-navigator controls → Button; two hierarchy fixes — accept:
       tests green, 44px targets
 - [ ] T7 Verify: full gate, Playwright, design critique re-run on the same 14 screens — accept: proud bar, no new
       findings above low
@@ -181,6 +181,14 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
     Spotlight/hover glow dropped (Assumption 3). Employee-attendance's pending-count pill → Badge rides in this commit
     (same file).
   - Tests: 29 files / 312 green.
+- T5+T6 (one commit — class-day-grid and several parent pages carry both): SectionHeading gains `as` (default h3),
+  `children` and attribute passthrough; 9 SectionLabel users migrated (voice.md reference repointed); SectionLabel
+  deleted. Pills → Badge in teacher home, attention strip, parent journal, portal tabs, class-day grid, enrollment
+  documents, and `AmountStatus` (due/cancelled neutral, overdue danger, partial warning, paid success); primary-tinted
+  pills map to `info` (Badge has no primary-subtle tone). Calendar prev/next/close and week-navigator controls are ghost
+  icon Buttons (coarse-pointer `min-w-11` built in); navigator links stay `Link` + `buttonVariants` to keep link roles.
+  WhatsApp in `contact-actions` (student + guardian detail) → outline; parent kid-card already had one filled button.
+  Tests 187 files / 1628 green.
 
 ## Verification
 

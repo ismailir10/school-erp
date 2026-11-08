@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -410,13 +411,13 @@ export default function ParentStudentJournalPage() {
             <TabsTrigger value="notes" className="min-h-11 flex-1">
               Catatan
               {selectedUnread > 0 ? (
-                <span
+                <Badge
                   data-testid="notes-unread-badge"
-                  className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-primary-foreground"
+                  className="ml-1.5 min-w-5 tabular-nums"
                   aria-label={`${selectedUnread} catatan baru`}
                 >
                   {selectedUnread}
-                </span>
+                </Badge>
               ) : null}
             </TabsTrigger>
           </TabsList>
