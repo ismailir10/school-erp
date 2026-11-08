@@ -135,7 +135,7 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
 
 - [x] T1 Standards: visual-principles table, tone rule (Decision 1), header/stat/eyebrow rules in `ui.md`; reference
       HTML inventory + tone specimens; guard rules L/M — accept: audit-docs + guard suite green (parallel)
-- [ ] T2 Tone: solid-red Button variant, ConfirmDialog uses it; logout neutral confirm in all portals; re-tone the
+- [x] T2 Tone: solid-red Button variant, ConfirmDialog uses it; logout neutral confirm in all portals; re-tone the
       reversible confirms — accept: confirm-dialog tests, logout specs green
 - [ ] T3 Headers: breadcrumb hide rules; PageHeader primary/secondary/menu actions; invoices adopts it — accept:
       header tests, invoices spec green
@@ -160,6 +160,11 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
   SectionHeading-only, Badge/StatusBadge pills, one filled button per group, guard rules L/M listed;
   `design-system.html` (+ identical public copy) — `destructive-solid` specimen and two-step caption, confirm
   specimen uses it. CLAUDE.md counts regenerated.
+- T2: `components/ui/button.tsx` (`destructive-solid`), `confirm-dialog.tsx` (destructive commits solid red),
+  new `components/portal/logout-confirm-dialog.tsx` ("Keluar dari Talib?", teal "Keluar") used by the portal header,
+  the parent profile button (now neutral outline, one confirm) and the admin sidebar (now confirms first, same
+  sign-out call). "Tarik penerbitan rapor?" → neutral: unpublish only POSTs `/unpublish` and sets `DRAFT`, nothing
+  deleted. Deactivate already neutral. Logout e2e selectors follow the new "Keluar" label. Tests 10 files / 55 green.
 
 ## Verification
 

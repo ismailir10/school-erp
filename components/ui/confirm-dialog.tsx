@@ -87,7 +87,7 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel ref={cancelRef} disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            variant={destructive ? "destructive" : "default"}
+            variant={destructive ? "destructive-solid" : "default"}
             onClick={handleConfirm}
             disabled={busy}
           >
