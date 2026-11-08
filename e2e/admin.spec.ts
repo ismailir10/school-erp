@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // Demo mode E2E tests — discovers user ID from /api/auth/users and sets
 // session cookie directly to avoid rate-limit on repeated beforeEach calls.
@@ -758,7 +759,7 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
 
     // The header has "Buat Tagihan" (opens the Billing Run wizard — the only
     // bulk path since Task T10) and "Tagihan Manual" (single invoice).
-    await page.getByRole("button", { name: /^Tagihan Manual$/ }).click();
+    await openInvoiceHeaderMenuItem(page, "Tagihan Manual");
 
     const dialog = page.getByRole("dialog", { name: /Tagihan Manual/ });
     await expect(dialog).toBeVisible({ timeout: 10_000 });

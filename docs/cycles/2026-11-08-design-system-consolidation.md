@@ -192,6 +192,10 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
 - Guard rules (driver): `design-token-guard.test.ts` L (no import of `admin/stat-card` / `portal/section-label`), M (logout
   confirm copy only inside `LogoutConfirmDialog`), plus a check that `LogoutConfirmDialog` never says `destructive`;
   unit cases for each. Suite 29/29.
+- Fix (found by local Playwright, round 1): 9 invoice specs drove the old inline "Tagihan Manual" button / "Lainnya"
+  menu. New `e2e/helpers/invoice-header.ts` opens the ⋯ "Aksi lainnya" menu item; used by the manual-invoice layout,
+  paid-invoice prepay, school-admin reminder queue and admin tagihan specs. Focus still returns to the trigger at all
+  five viewports (assertion unchanged). 4 spec files / 43 tests green.
 
 ## Verification
 
