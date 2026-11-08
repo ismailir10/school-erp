@@ -189,12 +189,16 @@ does not exist yet; create it once with `gh label create needs-human --color B60
    [ -n "$PENDING" ] && { echo "Refusing to promote — signed-in staging check still pending for:"; echo "$PENDING"; }
    ```
    Run the signed-in staging check for each (or have the user confirm it by hand), remove the label, re-run.
-4. Open the PR `staging` → `main`, title `[<model>] Promote staging → main (<AHEAD> commits)`, labels `model:<model>`
+4. **Changelog entry.** Write this promotion's entry in `lib/changelog/data/` per
+   [changelog.md](changelog.md) (`git log --no-merges --format='%s' origin/main..origin/staging` plus the cycle docs
+   it names) and ship it to `staging` as its own small `docs(changelog)` cycle PR. Merge it, refetch, and only then
+   continue: the `Checks` job fails a PR into `main` that adds no release.
+5. Open the PR `staging` → `main`, title `[<model>] Promote staging → main (<AHEAD> commits)`, labels `model:<model>`
    and `promotion`, body: summary, the cycle docs merged since main
    (`git log --format='%s' origin/main..origin/staging -- docs/cycles/ | grep -oE 'docs/cycles/[^ ]+\.md' | sort -u`,
    falling back to the commit list), and `git log --format='- %s' origin/main..origin/staging`. Add `e2e` (required on every
    promotion) so the heavy job runs on the promotion.
-5. **Stop and hand off.** Print the PR URL and exactly:
+6. **Stop and hand off.** Print the PR URL and exactly:
    ```
    Watch CI live:
      gh pr checks <n> --watch
@@ -203,7 +207,7 @@ does not exist yet; create it once with `gh label create needs-human --color B60
    ```
    The user merges. **`--merge`, never `--squash`**: a squashed promotion makes staging stop being an ancestor of main
    and the branches diverge for good (#381 → #406, #465). No `--delete-branch`: `staging` is permanent.
-6. Drain the dependabot queue at each promotion ([CLAUDE.md § Dependency cadence](../../CLAUDE.md#dependency-cadence)).
+7. Drain the dependabot queue at each promotion ([CLAUDE.md § Dependency cadence](../../CLAUDE.md#dependency-cadence)).
 
 ## Seed-via-CRUD playbook
 

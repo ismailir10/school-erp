@@ -4,7 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, LogOut, Presentation } from "lucide-react";
+import { ChevronRight, LogOut, Presentation, Sparkles } from "lucide-react";
 
 import {
   Sidebar,
@@ -238,9 +238,18 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         )}
       </SidebarContent>
 
-      {/* Footer — product guide, then logout */}
+      {/* Footer — what's new, product guide, then logout */}
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<GuardedLink href="/changelog" />}
+              tooltip="Apa yang Baru"
+            >
+              <Sparkles />
+              <span>Apa yang Baru</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               render={<GuardedLink href="/guide" />}
