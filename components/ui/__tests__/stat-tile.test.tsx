@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+import { Users } from "lucide-react";
+
 import { StatTile } from "@/components/ui/stat-tile";
 
 describe("StatTile", () => {
@@ -43,5 +45,27 @@ describe("StatTile", () => {
     render(<StatTile label="Terlambat" value={3} valueClassName="text-status-late-text" />);
     expect(screen.getByText("3").className).toContain("text-status-late-text");
     expect(screen.getByText("3").className).not.toContain("text-foreground");
+  });
+
+  it("renders an icon chip tinted by tone", () => {
+    render(<StatTile label="Aktif" value={3} icon={Users} tone="positive" />);
+    const chip = screen.getByTestId("stat-tile-icon");
+    expect(chip.querySelector("svg")).not.toBeNull();
+    expect(chip).toHaveClass("size-8", "rounded-lg", "bg-success-subtle", "text-success-text");
+  });
+
+  it("shows no chip without an icon", () => {
+    render(<StatTile label="Aktif" value={3} />);
+    expect(screen.queryByTestId("stat-tile-icon")).toBeNull();
+  });
+
+  it("lands a numeric value on its final number (count-up)", () => {
+    render(<StatTile label="Siswa" value={12345} icon={Users} />);
+    expect(screen.getByText("12345")).toBeInTheDocument();
+  });
+
+  it("passes a string value through untouched", () => {
+    render(<StatTile label="Total" value="Rp 1.000" icon={Users} />);
+    expect(screen.getByText("Rp 1.000")).toBeInTheDocument();
   });
 });

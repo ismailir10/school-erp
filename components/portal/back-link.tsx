@@ -28,6 +28,7 @@ export function BackLink({
   return (
     <Link
       href={href}
+      data-page-back=""
       className={cn(
         "inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-sm text-muted-foreground",
         "transition-colors hover:text-foreground",

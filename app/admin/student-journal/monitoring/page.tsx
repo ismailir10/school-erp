@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -237,28 +237,33 @@ export default function MonitoringPage() {
       />
 
       <StatsCardsRow cols={4}>
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Total entri minggu ini"
           value={loading ? "—" : stats.totalEntries}
           icon={BookOpen}
-          color="primary"
-          index={0}
+          tone="default"
         />
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Kelas sudah isi"
           value={loading ? "—" : `${stats.kelasSudahIsi} / ${data.length}`}
           icon={CheckSquare}
-          color="success"
-          index={1}
+          tone="positive"
         />
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Siswa terdaftar aktif"
           value={loading ? "—" : activeStudentCount}
           icon={MessageSquare}
-          color="primary"
-          index={2}
+          tone="default"
         />
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Kelas belum isi"
           value={
             loading
@@ -266,8 +271,7 @@ export default function MonitoringPage() {
               : data.length - stats.kelasSudahIsi
           }
           icon={CalendarX}
-          color={data.length - stats.kelasSudahIsi > 0 ? "warning" : "success"}
-          index={3}
+          tone={data.length - stats.kelasSudahIsi > 0 ? "warning" : "positive"}
         />
       </StatsCardsRow>
 

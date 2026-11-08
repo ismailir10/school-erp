@@ -137,9 +137,9 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
       HTML inventory + tone specimens; guard rules L/M — accept: audit-docs + guard suite green (parallel)
 - [x] T2 Tone: solid-red Button variant, ConfirmDialog uses it; logout neutral confirm in all portals; re-tone the
       reversible confirms — accept: confirm-dialog tests, logout specs green
-- [ ] T3 Headers: breadcrumb hide rules; PageHeader primary/secondary/menu actions; invoices adopts it — accept:
+- [x] T3 Headers: breadcrumb hide rules; PageHeader primary/secondary/menu actions; invoices adopts it — accept:
       header tests, invoices spec green
-- [ ] T4 StatTile only: icon + count-up, migrate 12 StatCard pages, delete StatCard — accept: tests, visual check
+- [x] T4 StatTile only: icon + count-up, migrate 12 StatCard pages, delete StatCard — accept: tests, visual check
       (parallel with T5–T6)
 - [ ] T5 SectionHeading only: `as` + children, migrate 9 SectionLabel uses, delete SectionLabel — accept: tests green
 - [ ] T6 Pills → Badge/StatusBadge (~9); calendar + week-navigator controls → Button; two hierarchy fixes — accept:
@@ -165,6 +165,22 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
   the parent profile button (now neutral outline, one confirm) and the admin sidebar (now confirms first, same
   sign-out call). "Tarik penerbitan rapor?" → neutral: unpublish only POSTs `/unpublish` and sets `DRAFT`, nothing
   deleted. Deactivate already neutral. Logout e2e selectors follow the new "Keluar" label. Tests 10 files / 55 green.
+- Note: workers deleted `stat-card.tsx` and `section-label.tsx` with `git rm`, so both deletions were already staged and
+  rode into the T1 docs commit; T1 and T2 do not build on their own. The PR squash-merges, so only the final tree reaches
+  `staging`; the driver checks `git diff --cached` before every commit from here on.
+- T3+T4 (one commit — invoices-client needs both the new header actions and StatTile's `icon`):
+  - T3: `AdminBreadcrumb` returns null at ≤1 crumb and owns its `data-admin-breadcrumb` wrapper; `app/admin/layout.tsx`
+    hides it via `[&:has([data-page-back])_[data-admin-breadcrumb]]:hidden` (compiles to
+    `:has([data-page-back]) [data-admin-breadcrumb]{display:none}`); `data-page-back` on the DetailPageHeader back link,
+    `components/portal/back-link.tsx` and the raport editor's BackBar. New `components/admin/header-actions.tsx` (shared
+    action button + ⋯ menu) used by DetailPageHeader and by PageHeader's new `primaryAction` / `secondaryAction` /
+    `menuActions` (legacy `actions` kept). Invoices: primary "Buat Tagihan", secondary "Catat pembayaran di muka" (the
+    one cashier action), the rest in ⋯ with permissions and counts preserved.
+  - T4: StatTile gains a tone-tinted `icon` chip and count-up for numeric values; 12 list pages migrated (`size="lg"
+    mono`, color→tone, sublabel→hint); StatCard deleted; StatsCardsRow already spans an odd last tile, so no orphan.
+    Spotlight/hover glow dropped (Assumption 3). Employee-attendance's pending-count pill → Badge rides in this commit
+    (same file).
+  - Tests: 29 files / 312 green.
 
 ## Verification
 

@@ -152,4 +152,9 @@ describe("DetailPageHeader", () => {
 
     expect(screen.queryByRole("button", { name: "Aksi lainnya" })).not.toBeInTheDocument();
   });
+
+  it("marks its back link data-page-back so the layout hides the breadcrumb", () => {
+    render(<DetailPageHeader backHref="/admin/x" title="Judul" />);
+    expect(screen.getByRole("link", { name: "Kembali" })).toHaveAttribute("data-page-back");
+  });
 });

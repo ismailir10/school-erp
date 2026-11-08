@@ -1,12 +1,13 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { AttendanceTrendChart, type WeeklyTrend } from "@/components/admin/dashboard";
 import { DataTable } from "@/components/ui/data-table";
@@ -300,7 +301,7 @@ export default function AttendancePage() {
         <AdminTabsTrigger value="pending">
           Perlu persetujuan
           {pending.length > 0 ? (
-            <span className="ml-1.5 rounded-full bg-status-late-subtle px-1.5 text-small font-semibold tabular-nums text-status-late-text" data-testid="pending-count">{pending.length}</span>
+            <Badge variant="warning" className="ml-1.5 tabular-nums" data-testid="pending-count">{pending.length}</Badge>
           ) : null}
         </AdminTabsTrigger>
       </AdminTabsList>
@@ -327,10 +328,14 @@ export default function AttendancePage() {
 
       {/* Stats */}
       <StatsCardsRow cols={4}>
-        <StatCard label="Hadir" value={present} icon={UserCheck} color="success" index={0} />
-        <StatCard label="Terlambat" value={late} icon={Clock} color="warning" index={1} />
-        <StatCard label="Alpa" value={absent} icon={UserX} color="error" index={2} />
-        <StatCard label="Izin" value={leave} icon={CalendarDays} color="primary" index={3} />
+        <StatTile size="lg" mono
+          label="Hadir" value={present} icon={UserCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Terlambat" value={late} icon={Clock} tone="warning" />
+        <StatTile size="lg" mono
+          label="Alpa" value={absent} icon={UserX} tone="critical" />
+        <StatTile size="lg" mono
+          label="Izin" value={leave} icon={CalendarDays} tone="default" />
       </StatsCardsRow>
 
       {/* Table */}

@@ -20,6 +20,17 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
+// The header's secondary actions live in the ⋯ menu ("Aksi lainnya"): open it, then find the item.
+async function openMenuIfAny() {
+  const trigger = screen.queryByRole("button", { name: "Aksi lainnya" });
+  if (trigger && trigger.getAttribute("aria-expanded") !== "true") await userEvent.click(trigger);
+}
+async function menuItem(name: string) {
+  const trigger = await screen.findByRole("button", { name: "Aksi lainnya" });
+  if (trigger.getAttribute("aria-expanded") !== "true") await userEvent.click(trigger);
+  return screen.findByRole("menuitem", { name });
+}
+
 const invoice = {
   id: "inv1",
   invoiceNumber: "INV-0001",
@@ -149,10 +160,10 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
     );
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
 
-    const piutang = (await screen.findByText("Piutang")).closest("[data-slot=card]") as HTMLElement;
+    const piutang = (await screen.findByText("Piutang")).closest("div.rounded-lg") as HTMLElement;
     expect(within(piutang).getByText("Rp 1.550.000")).toBeInTheDocument();
     expect(within(piutang).getByText("4 tagihan belum lunas")).toBeInTheDocument();
-    const diterima = screen.getByText("Diterima Bulan Ini").closest("[data-slot=card]") as HTMLElement;
+    const diterima = screen.getByText("Diterima Bulan Ini").closest("div.rounded-lg") as HTMLElement;
     expect(within(diterima).getByText("Rp 1.250.000")).toBeInTheDocument();
   });
 
@@ -201,6 +212,7 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
     await screen.findByRole("link", { name: /Overdue Bayar/ });
     await user.click(screen.getByRole("button", { name: /Buka menu aksi|Aksi untuk/ }));
     await screen.findByRole("menuitem", { name: "Catat Pembayaran" });
+    await openMenuIfAny();
     expect(screen.queryByRole("menuitem", { name: "Batalkan" })).not.toBeInTheDocument();
   });
 });
@@ -314,6 +326,7 @@ describe("InvoicesClient — Cek status pembayaran row action", () => {
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
     await openMenu(user);
     await screen.findByRole("menuitem", { name: "Catat Pembayaran" });
+    await openMenuIfAny();
     expect(screen.queryByRole("menuitem", { name: "Cek status pembayaran" })).not.toBeInTheDocument();
   });
 
@@ -330,6 +343,7 @@ describe("InvoicesClient — Cek status pembayaran row action", () => {
     render(<InvoicesClient gatewayId="xendit" capabilities={{ ...caps, recordPayment: false }} />);
     await openMenu(user);
     await screen.findByRole("menuitem", { name: "Batalkan" });
+    await openMenuIfAny();
     expect(screen.queryByRole("menuitem", { name: "Cek status pembayaran" })).not.toBeInTheDocument();
   });
 
@@ -374,7 +388,7 @@ describe("InvoicesClient — Cek semua belum lunas (cycle 2026-10-17-expired-lin
     vi.mocked(toast.error).mockClear();
   });
 
-  const button = () => screen.findByRole("button", { name: "Cek semua belum lunas" });
+  const button = () => menuItem("Cek semua belum lunas");
 
   it("POSTs the batch endpoint, toasts the tally and reloads list + stats", async () => {
     const f = stubFetch();
@@ -455,7 +469,8 @@ describe("InvoicesClient — Cek semua belum lunas (cycle 2026-10-17-expired-lin
     vi.stubGlobal("fetch", stubFetch());
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: true, recordPayment: false, void: false }} />);
     await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(screen.queryByRole("button", { name: "Cek semua belum lunas" })).not.toBeInTheDocument();
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: "Cek semua belum lunas" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Buat Tagihan/ })).toBeInTheDocument();
   });
 
@@ -468,7 +483,7 @@ describe("InvoicesClient — Cek semua belum lunas (cycle 2026-10-17-expired-lin
 });
 
 describe("InvoicesClient — Pengingat WhatsApp (cycle 2026-10-17-payment-link-reminders, T8)", () => {
-  const reminderButton = () => screen.findByRole("button", { name: "Pengingat WhatsApp" });
+  const reminderButton = () => menuItem("Pengingat WhatsApp");
 
   it("is offered with the recordPayment capability and opens the reminder queue", async () => {
     vi.stubGlobal(
@@ -506,7 +521,8 @@ describe("InvoicesClient — Pengingat WhatsApp (cycle 2026-10-17-payment-link-r
     vi.stubGlobal("fetch", stubFetch());
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: true, recordPayment: false, void: false }} />);
     await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(screen.queryByRole("button", { name: "Pengingat WhatsApp" })).not.toBeInTheDocument();
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: "Pengingat WhatsApp" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Buat Tagihan/ })).toBeInTheDocument();
   });
 });
@@ -525,21 +541,23 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
   it("shows the count of unpaid invoices without a link in the label", async () => {
     vi.stubGlobal("fetch", stubFetch({ stats: withLinksMissing }));
     render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
-    expect(await screen.findByRole("button", { name: "Buat link baru (12)" })).toBeInTheDocument();
+    expect(await menuItem("Buat link baru (12)")).toBeInTheDocument();
   });
 
   it("is absent when every unpaid invoice has a link", async () => {
     vi.stubGlobal("fetch", stubFetch({ stats: { unpaidWithoutLink: 0 } }));
     render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
     await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
   });
 
   it("is absent without the create capability", async () => {
     vi.stubGlobal("fetch", stubFetch({ stats: withLinksMissing }));
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: true, void: false }} />);
-    await screen.findByRole("button", { name: "Cek semua belum lunas" });
-    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+    await menuItem("Cek semua belum lunas");
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
   });
 
   it("POSTs the batch endpoint, toasts how many were made and reloads list + stats", async () => {
@@ -552,7 +570,7 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     const listBefore = count("/api/invoices?");
     const statsBefore = count("/api/invoices/stats");
 
-    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await user.click(await menuItem("Buat link baru (12)"));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("12 link dibuat."));
     const post = f.mock.calls.find((c) => String(c[0]) === "/api/invoices/create-missing-links");
@@ -570,7 +588,7 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     );
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
-    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await user.click(await menuItem("Buat link baru (12)"));
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("25 link dibuat. Masih ada 60 tagihan, tekan lagi untuk melanjutkan."),
     );
@@ -583,7 +601,7 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     );
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
-    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await user.click(await menuItem("Buat link baru (12)"));
     await waitFor(() =>
       expect(toast.warning).toHaveBeenCalledWith(
         "5 link dibuat. Masih ada 2 tagihan, tekan lagi untuk melanjutkan. 2 gagal dibuat, coba lagi nanti.",
@@ -598,7 +616,7 @@ describe("InvoicesClient — Buat link baru (cycle 2026-10-17-payment-link-on-de
     );
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="doku" capabilities={caps} />);
-    await user.click(await screen.findByRole("button", { name: "Buat link baru (12)" }));
+    await user.click(await menuItem("Buat link baru (12)"));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Terlalu sering membuat link. Tunggu sebentar lalu coba lagi."),
     );
@@ -679,7 +697,7 @@ describe("InvoicesClient — Status filter, five questions (cycle 2026-10-20-pay
     vi.stubGlobal("fetch", stubFetch({ stats: counted }));
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
-    await screen.findByRole("button", { name: "Buat link baru (3)" });
+    await menuItem("Buat link baru (3)");
     const options = await openStatus(user);
     expect(options.map((o) => o.textContent)).toContain("Perlu link (5)");
   });
@@ -776,15 +794,17 @@ describe("InvoicesClient — Catat pembayaran di muka button (gate)", () => {
   it("is hidden without payments.record", async () => {
     vi.stubGlobal("fetch", stubFetch());
     render(<InvoicesClient gatewayId="xendit" capabilities={{ create: true, recordPayment: false, void: false }} />);
-    await screen.findByRole("button", { name: "Tagihan Manual" });
-    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+    await menuItem("Tagihan Manual");
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
   });
 
   it("is hidden without invoices.create", async () => {
     vi.stubGlobal("fetch", stubFetch());
     render(<InvoicesClient gatewayId="xendit" capabilities={{ create: false, recordPayment: true, void: false }} />);
-    await screen.findByRole("button", { name: "Cek semua belum lunas" });
-    expect(screen.queryByRole("button", { name: label })).not.toBeInTheDocument();
+    await menuItem("Cek semua belum lunas");
+    await openMenuIfAny();
+    expect(screen.queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
   });
 });
 
@@ -796,7 +816,7 @@ describe("InvoicesClient — Tagihan Manual no longer offers Sudah dibayar (cycl
     vi.stubGlobal("fetch", stubFetch());
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="xendit" capabilities={capabilities} />);
-    await user.click(await screen.findByRole("button", { name: "Tagihan Manual" }));
+    await user.click(await menuItem("Tagihan Manual"));
     const dialog = await screen.findByRole("dialog", { name: "Tagihan Manual" });
     expect(within(dialog).queryByRole("checkbox", { name: /Sudah dibayar/ })).not.toBeInTheDocument();
   });
@@ -804,25 +824,27 @@ describe("InvoicesClient — Tagihan Manual no longer offers Sudah dibayar (cycl
 
 describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-mobile-stress, T2)", () => {
   const full = { create: true, recordPayment: true, void: true };
-  const trigger = () => screen.findByRole("button", { name: "Lainnya" });
+  const trigger = () => screen.findByRole("button", { name: "Aksi lainnya" });
 
   beforeEach(() => {
     vi.mocked(toast.success).mockClear();
   });
 
-  it("lists the five secondary actions, with the link count, when opened", async () => {
+  it("lists the folded secondary and the four menu actions, with the link count, when opened", async () => {
     vi.stubGlobal("fetch", stubFetch({ stats: { unpaidWithoutLink: 12 } }));
     const user = userEvent.setup();
     render(<InvoicesClient gatewayId="doku" capabilities={full} />);
     await user.click(await trigger());
     const menu = await screen.findByRole("menu");
     const names = within(menu).getAllByRole("menuitem").map((el) => el.textContent?.trim());
+    // The secondary ("Catat pembayaran di muka") is a visible button from `sm` up; the menu
+    // lists it first, hidden by CSS from `sm` up, so a phone header still reaches it.
     expect(names).toEqual([
+      "Catat pembayaran di muka",
       "Buat link baru (12)",
       "Cek semua belum lunas",
       "Pengingat WhatsApp",
       "Tagihan Manual",
-      "Catat pembayaran di muka",
     ]);
   });
 
@@ -852,7 +874,7 @@ describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-
     vi.stubGlobal("fetch", stubFetch());
     render(<InvoicesClient gatewayId="doku" capabilities={{ create: false, recordPayment: false, void: true }} />);
     await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(screen.queryByRole("button", { name: "Lainnya" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aksi lainnya" })).not.toBeInTheDocument();
   });
 
   it("'Tagihan Manual' in the menu opens the same dialog as the inline button", async () => {

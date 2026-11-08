@@ -28,9 +28,9 @@ describe("AdmissionsPage — one list", () => {
     render(<AdmissionsPage />);
     await screen.findByText("Aisyah");
 
-    // "Baru" is also a row chip; the card is the one inside a StatCard.
+    // "Baru" is also a row chip; the card is the one inside a StatTile.
     const card = (label: string) =>
-      within(screen.getAllByText(label).map((el) => el.closest("[data-index]")).find(Boolean) as HTMLElement);
+      within(screen.getAllByText(label).map((el) => el.closest("button[aria-pressed]")).find(Boolean) as HTMLElement);
     expect(card("Total").getByText("12")).toBeInTheDocument();
     expect(card("Baru").getByText("5")).toBeInTheDocument();
     // Same set as the Belum bayar filter (every open unpaid fee), not just sent formulirs.
@@ -76,7 +76,7 @@ describe("AdmissionsPage — one list", () => {
     serveList([leadRow()], { stats: null });
     render(<AdmissionsPage />);
     await screen.findByText("Aisyah");
-    const total = screen.getByText("Total").closest("[data-index]") as HTMLElement;
+    const total = screen.getByText("Total").closest("button[aria-pressed]") as HTMLElement;
     expect(within(total).getByText("—")).toBeInTheDocument();
   });
 

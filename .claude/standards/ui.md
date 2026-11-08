@@ -188,7 +188,7 @@ Mobile-first Tailwind defaults (not overridden in `globals.css`): write the phon
 |---|---|
 | `sm` | Small layout steps: stacked to side-by-side rows (`sm:flex-row`), 1 to 2 column grids, `DataTableToolbar` leaving its phone grid |
 | `md` | The phone/desktop switch: `DataTable` priority columns and `DataTableMobileMeta`, `ResponsiveFormDialog` (Sheet below, Dialog above), the sidebar (`useIsMobile` is `< md`), `text-base md:text-sm` inputs, calendar-to-list |
-| `lg` | Multi-column page bodies: stat-card rows, the `DetailRail` beside a dossier, wide grids |
+| `lg` | Multi-column page bodies: stat-tile rows, the `DetailRail` beside a dossier, wide grids |
 
 `xl` is reserved for rare extras (the Dasbor activity rail); `2xl` is unused. Portals are a fixed `max-w-md` column and rarely need any breakpoint. Test at 390px and 1440px.
 

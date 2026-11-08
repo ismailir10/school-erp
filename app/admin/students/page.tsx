@@ -18,7 +18,7 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
@@ -871,9 +871,12 @@ export default function StudentsPage() {
       <StudentExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       <StatsCardsRow cols={3}>
-        <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
-        <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={2} />
+        <StatTile size="lg" mono
+          label="Total Siswa" value={stats.total} icon={Users} tone="default" />
+        <StatTile size="lg" mono
+          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Lulus" value={stats.graduated} icon={GraduationCap} tone="warning" />
       </StatsCardsRow>
 
       <DataTableToolbar
