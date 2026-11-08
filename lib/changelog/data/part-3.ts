@@ -2,6 +2,47 @@ import type { Release } from "../schema";
 
 const releases: Release[] = [
   {
+    id: "2026-11-08",
+    headline: "Gerbang, absensi staf, dan putaran sentra",
+    items: [
+      {
+        kind: "baru",
+        audience: "semua",
+        text: "Buka Apa yang Baru untuk melihat pembaruan Talib yang sesuai dengan peran Anda.",
+      },
+      {
+        kind: "baru",
+        audience: "guru",
+        text: "Bu Guru bisa membuka Gerbang dari Beranda untuk mencatat kedatangan dan kepulangan anak di kampusnya.",
+      },
+      {
+        kind: "baru",
+        audience: "guru",
+        text: "Bu Guru yang absen masuk di luar area kampus bisa mengirim catatan untuk persetujuan admin.",
+      },
+      {
+        kind: "baru",
+        audience: "admin",
+        text: "Admin bisa mencatat kehadiran staf tanpa akun melalui Absensi Staf Harian.",
+      },
+      {
+        kind: "baru",
+        audience: "admin",
+        text: "Admin bisa mengatur putaran kelas dan guru sentra di tiap kampus.",
+      },
+      {
+        kind: "baru",
+        audience: "guru",
+        text: "Guru sentra bisa mengisi Buku Penghubung untuk kelas yang mengikuti putaran di sentranya.",
+      },
+      {
+        kind: "baru",
+        audience: "admin",
+        text: "Admin bisa mengatur tema semester yang berbeda untuk TK A dan TK B atau memakai tema bersama.",
+      },
+    ],
+  },
+  {
     id: "2026-11-06",
     headline: "Panduan baru untuk orang tua",
     items: [
