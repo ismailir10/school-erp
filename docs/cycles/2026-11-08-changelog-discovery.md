@@ -49,7 +49,7 @@ None expected. No new dependency, migration, auth change, or production data wri
 ## Tasks
 
 - [x] T1 Tag the release archive and require a valid module for future entries. Update the writing guide and validate the full archive. Reuse the existing release schema and data.
-- [ ] T2 Add combined audience, month, and module filters with release pagination. Reuse the existing filter, Indonesian month formatter, and shared UI controls. Depends on T1.
+- [x] T2 Add combined audience, month, and module filters with release pagination. Reuse the existing filter, Indonesian month formatter, and shared UI controls. Depends on T1.
 - [ ] T3 Update changelog help and browser coverage, then verify all three flows on the local app. Depends on T2.
 
 ## Implementation
@@ -58,8 +58,11 @@ None expected. No new dependency, migration, auth change, or production data wri
 
 - T1: release schema, three archive parts, changelog guide and fixtures. Tagged all 117 items, including maintenance, and checked that stripping tags reproduces the archive byte for byte. The focused 32 tests and production build passed. The intermediate full Vitest run was interrupted after prolonged local memory pressure and a failure marker. Full verification is run on the integrated change.
 
+- T2: changelog filter and view. Added archive-derived month options, per-item module badges, combined filters, and five-card pages with focus on the next set of results. Focused Vitest passed 38 tests. Standards and spec reviewers found no actionable issues.
+
 ## Verification
 
+- T2 design-system cross-check: uses NativeSelect, Button, Badge, and EmptyState with native keyboard behavior and shared spacing and type.
 - T1 design-system cross-check: the TSX edit updates test fixtures only.
 
 ## Ship Notes
