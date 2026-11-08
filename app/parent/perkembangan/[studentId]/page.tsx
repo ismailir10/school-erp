@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -9,12 +10,12 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { getParentChildById, getParentWithChildren } from "@/lib/parent-helpers";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
   formatDate,
-  formatLearningCenter,
+  formatEntrySentra,
   formatCurriculumElement,
 } from "@/lib/format";
 import { ElementProgressRow } from "@/components/parent/element-progress-row";
@@ -22,6 +23,8 @@ import { LevelLegend } from "@/components/parent/level-legend";
 import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { ContextStrip } from "@/components/portal/context-strip";
 import { parentHref } from "@/lib/parent/navigation";
+
+export const metadata: Metadata = { title: "Perkembangan Anak" };
 
 export default async function ParentPerkembanganDetailPage({
   params,
@@ -72,9 +75,9 @@ export default async function ParentPerkembanganDetailPage({
             aria-labelledby="perkembangan-elements-heading"
           >
             <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <SectionLabel as="h2" id="perkembangan-elements-heading" className="mb-0">
+              <SectionHeading as="h2" id="perkembangan-elements-heading" className="mb-0">
                 Capaian per elemen
-              </SectionLabel>
+              </SectionHeading>
               <span className="min-w-0 break-words text-xs text-muted-foreground">
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
@@ -104,9 +107,9 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-pekan-heading"
           >
-            <SectionLabel as="h2" id="perkembangan-pekan-heading" className="mb-0">
+            <SectionHeading as="h2" id="perkembangan-pekan-heading" className="mb-0">
               Pekan ini
-            </SectionLabel>
+            </SectionHeading>
             {!data.hasActiveWeek ? (
               <EmptyState icon={CalendarOff} title="Belum ada pekan aktif saat ini" />
             ) : data.latestThisWeek.length === 0 ? (
@@ -125,8 +128,8 @@ export default async function ParentPerkembanganDetailPage({
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-muted-foreground">
                           {formatCurriculumElement(entry.element)}
-                          {entry.source === "CENTER" && entry.center && (
-                            <> · {formatLearningCenter(entry.center)}</>
+                          {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
+                            <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
                           )}
                         </p>
                         <p className="text-sm text-foreground mt-0.5">

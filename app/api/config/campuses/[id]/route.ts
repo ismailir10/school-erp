@@ -34,6 +34,7 @@ export async function PUT(
       address: body.address === undefined ? undefined : body.address?.trim() || null,
       lat: body.lat,
       lng: body.lng,
+      radiusMeters: body.radiusMeters,
       status: body.status,
     },
   });

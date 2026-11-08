@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -9,6 +10,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { User, Mail, Phone, Building2, Briefcase, CreditCard, Wallet, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/portal/page-header";
 import { maskBankAccount } from "@/lib/format";
+
+export const metadata: Metadata = { title: "Profil Saya" };
 
 export default async function TeacherProfilePage() {
   const session = await getSession();

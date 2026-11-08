@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, ChevronUp, MessageSquarePlus } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { BULK_ABSENCE_LABELS, type BulkAbsences } from "@/components/student-journal/class-bulk-sheet";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -156,7 +156,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                    className={`size-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
                       checkedCount > 0
                         ? "bg-primary"
                         : "bg-muted-foreground/40"
@@ -190,13 +190,13 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {unreadCount > 0 ? (
-                    <span
+                    <Badge
                       data-testid="unread-badge"
-                      className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-white"
+                      className="tabular-nums"
                       aria-label={`${unreadCount} catatan baru untuk ${student.name}`}
                     >
                       {unreadCount} baru
-                    </span>
+                    </Badge>
                   ) : null}
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {checkedCount}/{totalIndicators}
@@ -277,7 +277,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                     ) : null}
                     {categories.map((category) => (
                       <div key={category.id}>
-                        <SectionLabel>{category.name}</SectionLabel>
+                        <SectionHeading>{category.name}</SectionHeading>
                         <div className="space-y-1">
                           {category.indicators.map((indicator) => {
                             const isChecked = state[student.id]?.[indicator.id] ?? false;
@@ -296,7 +296,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                                 } ${isPending ? "opacity-60 animate-pulse" : ""}`}
                               >
                                 <div
-                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                  className={`size-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                                     isChecked
                                       ? "bg-primary border-primary"
                                       : "bg-transparent border-muted-foreground/40"

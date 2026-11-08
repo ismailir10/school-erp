@@ -24,6 +24,24 @@ describe("TeacherMoreSheet", () => {
     }
   });
 
+  it("no longer lists Gerbang, which lives on Beranda", () => {
+    navigation.pathname = "/teacher";
+    render(<TeacherMoreSheet open onOpenChange={() => {}} />);
+
+    const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
+    expect(within(menu).queryByRole("link", { name: /Gerbang/ })).toBeNull();
+    expect(TEACHER_MORE_ITEMS.some((item) => item.href === "/teacher/gate")).toBe(false);
+    expect(within(menu).getAllByRole("link")).toHaveLength(5);
+  });
+
+  it("lists Apa yang Baru, which lives outside the teacher portal", () => {
+    navigation.pathname = "/teacher";
+    render(<TeacherMoreSheet open onOpenChange={() => {}} />);
+
+    const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
+    expect(within(menu).getByRole("link", { name: /Apa yang Baru/ })).toHaveAttribute("href", "/changelog");
+  });
+
   it("lists the product tour, which lives outside the teacher portal", () => {
     navigation.pathname = "/teacher";
     render(<TeacherMoreSheet open onOpenChange={() => {}} />);

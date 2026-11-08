@@ -143,14 +143,15 @@ describe("HR-14: attendance export 'Total Hari'", () => {
           { status: "LEAVE" },
           { status: "LEAVE" },
           { status: "ABSENT" },
+          { status: "PRESENT", approvalStatus: "PENDING" },
         ],
       },
     ]);
     const { GET } = await import("../attendance/export/route");
     const res = await GET(new Request("http://x/api/attendance/export?month=5&year=2026") as never);
     const lines = (await res.text()).trim().split("\r\n");
-    // Hadir 2, Terlambat 1, Alpa 1, Izin 2, Total Hari 2+1+2 = 5
+    // Hadir 2, Terlambat 1, Alpa 1, Izin 2, Menunggu 1 (not counted), Total Hari 2+1+2 = 5
     expect(lines[0]).toContain('"Total Hari"');
-    expect(lines[1]).toBe('"E1","Aisyah","Aster","Guru","2","1","1","2","5"');
+    expect(lines[1]).toBe('"E1","Aisyah","Aster","Guru","2","1","1","2","1","5"');
   });
 });

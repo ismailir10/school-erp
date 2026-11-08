@@ -108,6 +108,7 @@ export const themeListSelect = {
   id: true,
   semesterId: true,
   name: true,
+  ageGroup: true,
   order: true,
   status: true,
   createdAt: true,

@@ -18,7 +18,7 @@ import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-d
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
@@ -407,9 +407,12 @@ export default function EmployeesPage() {
 
       {/* Stats */}
       <StatsCardsRow cols={3}>
-        <StatCard label="Total Karyawan" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
-        <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="error" index={2} />
+        <StatTile size="lg" mono
+          label="Total Karyawan" value={stats.total} icon={Users} tone="default" />
+        <StatTile size="lg" mono
+          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Tidak Aktif" value={stats.inactive} icon={UserX} tone="critical" />
       </StatsCardsRow>
 
       <DataTableToolbar

@@ -8,7 +8,7 @@ import {
   parseJakartaYmd,
   formatJakartaYmd,
 } from "@/lib/validations/curriculum";
-import { learningCenterSchema } from "@/lib/validations/assessment-entry";
+import { rotationDayIndex } from "@/lib/sentra/rotation";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -27,51 +27,147 @@ export async function GET(
     );
   }
 
-  const { center: centerParam } = await params;
-  const centerParsed = learningCenterSchema.safeParse(
-    centerParam.toUpperCase(),
-  );
-  if (!centerParsed.success) {
+  // The route segment is a Sentra id (campus table); tenant-checked, 404 otherwise.
+  // Tiles are the guru's own campus (Decision 8), and only ACTIVE sentra show.
+  // Admin-role readers keep the tenant boundary but skip the campus pin.
+  const { center: sentraId } = await params;
+  let campusId: string | null = null;
+  if (session.role === "TEACHER") {
+    const employee = await prisma.employee.findFirst({
+      where: { id: session.employeeId, tenantId: session.tenantId },
+      select: { campusId: true },
+    });
+    campusId = employee?.campusId ?? null;
+    if (!campusId) {
+      return NextResponse.json(
+        { error: "Sentra tidak dikenal." },
+        { status: 404 },
+      );
+    }
+  }
+  const sentra = await prisma.sentra.findFirst({
+    where: {
+      id: sentraId,
+      tenantId: session.tenantId,
+      status: "ACTIVE",
+      ...(campusId ? { campusId } : {}),
+    },
+    select: { id: true, name: true, legacyCenter: true, campusId: true },
+  });
+  if (!sentra) {
     return NextResponse.json(
       { error: "Sentra tidak dikenal." },
       { status: 404 },
     );
   }
-  const center = centerParsed.data;
 
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date") ?? getTodayInTimezone(JAKARTA_TZ);
-  const ageGroupParam = searchParams.get("ageGroup");
-  if (ageGroupParam !== "A" && ageGroupParam !== "B") {
+  const requestedClassId = searchParams.get("classSectionId");
+  const defaultToVisitingClass = searchParams.get("defaultToVisitingClass") === "true";
+  let ageGroupParam = searchParams.get("ageGroup");
+  if (requestedClassId) {
+    // A class view carries its own age group (indicators follow it), so the
+    // ageGroup query becomes optional and the class's value wins.
+    const cls = await prisma.classSection.findFirst({
+      where: {
+        id: requestedClassId,
+        tenantId: session.tenantId,
+        campusId: sentra.campusId,
+        status: "ACTIVE",
+        academicYear: { status: "ACTIVE" },
+      },
+      select: { id: true, ageGroup: true },
+    });
+    if (!cls) {
+      return NextResponse.json(
+        { error: "Kelas tidak ditemukan." },
+        { status: 404 },
+      );
+    }
+    ageGroupParam = cls.ageGroup;
+  }
+
+  // Resolve the visiting class before looking up the curriculum week. TK A
+  // and TK B can have different active weeks on the same date.
+  const rotations = await prisma.sentraRotation.findMany({
+    where: {
+      tenantId: session.tenantId,
+      campusId: sentra.campusId,
+      status: "ACTIVE",
+      academicYear: { status: "ACTIVE" },
+      slots: { some: { sentraId: sentra.id } },
+    },
+    select: {
+      startDate: true,
+      cycleDays: true,
+      slots: {
+        where: { sentraId: sentra.id },
+        select: { dayIndex: true, classSectionId: true },
+      },
+      classes: {
+        where: {
+          classSection: {
+            tenantId: session.tenantId,
+            campusId: sentra.campusId,
+            status: "ACTIVE",
+            academicYear: { status: "ACTIVE" },
+          },
+        },
+        orderBy: { sortOrder: "asc" },
+        select: { classSection: { select: { id: true, name: true, ageGroup: true } } },
+      },
+    },
+  });
+  const rotationClasses = new Map<string, { id: string; name: string }>();
+  let visitingClass: { id: string; ageGroup: "A" | "B" } | undefined;
+  for (const r of rotations) {
+    for (const { classSection: { id, name } } of r.classes) {
+      rotationClasses.set(id, { id, name });
+    }
+    if (visitingClass) continue;
+    const dayIndex = rotationDayIndex(r.startDate, dateParam, r.cycleDays);
+    if (dayIndex === null) continue;
+    visitingClass = r.classes.find(({ classSection }) =>
+      r.slots.some((slot) => slot.dayIndex === dayIndex && slot.classSectionId === classSection.id),
+    )?.classSection;
+  }
+  const automaticClass = defaultToVisitingClass && !requestedClassId ? visitingClass : undefined;
+  const classSectionId = requestedClassId || automaticClass?.id || null;
+  const ageGroup = automaticClass?.ageGroup ?? ageGroupParam;
+  if (ageGroup !== "A" && ageGroup !== "B") {
     return NextResponse.json(
       { error: "ageGroup wajib bernilai A atau B." },
       { status: 400 },
     );
   }
-  const ageGroup = ageGroupParam;
+  const roster = {
+    classSectionId,
+    todayClassSectionId: visitingClass?.id ?? null,
+    rotationClasses: [...rotationClasses.values()],
+    ageGroup,
+  };
 
   const targetUtcMidnight = parseJakartaYmd(dateParam);
-  const week = await getCurrentWeek(session.tenantId, targetUtcMidnight);
+  const week = await getCurrentWeek(session.tenantId, targetUtcMidnight, ageGroup);
   if (!week) {
     return NextResponse.json(
       {
         error:
           "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
         reason: "no_active_week",
-        center,
+        sentra: { id: sentra.id, name: sentra.name },
         date: dateParam,
-        ageGroup,
+        ...roster,
       },
       { status: 422 },
     );
   }
 
-  // Roster: every ACTIVE student in the tenant whose ACTIVE enrolment is
-  // in a ClassSection with the requested ageGroup. Sentra rotation is
-  // deferred so we don't yet know which students rotate to which sentra
-  // session — caller-side roster is the next-best fallback. Filtering on
-  // classSection.ageGroup happens in the DB query (schema column added
-  // 2026-05-20 in feat/curriculum-cutover-prep T1), not via name parsing.
+  // Roster: with `classSectionId`, the ACTIVE students enrolled in that class
+  // (the putaran's visiting class); otherwise every ACTIVE student in the
+  // tenant whose ACTIVE enrollment is in the requested kelompok. Both
+  // views use the active academic year.
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       status: "ACTIVE",
@@ -79,7 +175,8 @@ export async function GET(
       classSection: {
         tenantId: session.tenantId,
         status: "ACTIVE",
-        ageGroup,
+        academicYear: { status: "ACTIVE" },
+        ...(classSectionId ? { id: classSectionId, campusId: sentra.campusId } : { ageGroup }),
       },
     },
     select: {
@@ -146,7 +243,15 @@ export async function GET(
             weekId: week.id,
             studentId: { in: studentIds },
             source: "CENTER",
-            center,
+            // Entries recorded before the Sentra table only carry the old enum.
+            ...(sentra.legacyCenter
+              ? {
+                  OR: [
+                    { sentraId: sentra.id },
+                    { sentraId: null, center: sentra.legacyCenter },
+                  ],
+                }
+              : { sentraId: sentra.id }),
             date: targetUtcMidnight,
           },
           select: {
@@ -178,9 +283,9 @@ export async function GET(
         name: week.subTheme.theme.name,
       },
     },
-    center,
+    sentra: { id: sentra.id, name: sentra.name },
+    ...roster,
     date: dateParam,
-    ageGroup,
     students,
     myClassSectionIds,
     indicators,

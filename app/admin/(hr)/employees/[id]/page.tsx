@@ -721,7 +721,7 @@ function EmployeeAttendanceContent({ employeeId }: { employeeId: string }) {
             {data.records.map(r => (
               <div key={r.date} className="flex items-center justify-between py-1.5 text-xs border-b border-border/50 last:border-0">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[r.status] ?? "bg-muted"}`} />
+                  <div className={`size-2 rounded-full ${STATUS_COLORS[r.status] ?? "bg-muted"}`} />
                   <span className="font-currency text-muted-foreground w-20">{formatDateShort(r.date)}</span>
                 </div>
                 <span className="font-currency">{r.checkInTime ? formatTime(r.checkInTime) : "--:--"} — {r.checkOutTime ? formatTime(r.checkOutTime) : "--:--"}</span>

@@ -42,7 +42,7 @@ export function ClassesMock() {
           <div className="min-w-0 flex-1 overflow-hidden bg-background px-4 pt-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="text-h1 font-bold leading-tight tracking-tight">Kelas</h1>
+                <h1 className="text-h1 tracking-tight">Kelas</h1>
                 <p className="text-xs text-muted-foreground">Daftar kelas per tahun ajaran.</p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">

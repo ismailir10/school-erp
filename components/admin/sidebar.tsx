@@ -4,7 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, LogOut, Presentation } from "lucide-react";
+import { ChevronRight, LogOut, Presentation, Sparkles } from "lucide-react";
 
 import {
   Sidebar,
@@ -28,6 +28,7 @@ import {
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { GuardedLink } from "@/components/admin/guarded-link";
 import { signOut } from "@/lib/sign-out";
+import { LogoutConfirmDialog } from "@/components/portal/logout-confirm-dialog";
 import {
   adminNav,
   getActiveGroup,
@@ -146,6 +147,8 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
   }, [pathname, visibleNav]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
   async function handleLogout() {
     try {
       await signOut();
@@ -235,9 +238,18 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         )}
       </SidebarContent>
 
-      {/* Footer — product guide, then logout */}
+      {/* Footer — what's new, product guide, then logout */}
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<GuardedLink href="/changelog" />}
+              tooltip="Apa yang Baru"
+            >
+              <Sparkles />
+              <span>Apa yang Baru</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               render={<GuardedLink href="/guide" />}
@@ -248,13 +260,14 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
+            <SidebarMenuButton tooltip="Keluar" onClick={() => setLogoutOpen(true)}>
               <LogOut />
               <span>Keluar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} onConfirm={handleLogout} />
     </Sidebar>
   );
 }

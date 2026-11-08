@@ -87,12 +87,15 @@ const happyMocks = () => {
       programId: "prog1",
       campusId: "campus1",
       academicYearId: "ay1",
+      ageGroup: "A",
     },
   });
   studentFindMany.mockResolvedValue([{ id: "stu1" }]);
-  studentEnrollmentFindMany.mockResolvedValue([{ studentId: "stu1" }]);
+  studentEnrollmentFindMany.mockResolvedValue([
+    { studentId: "stu1", classSection: { ageGroup: "A" } },
+  ]);
   achievementIndicatorFindMany.mockResolvedValue([
-    { id: "ind1", themeLinks: [{ themeId: "th1" }] },
+    { id: "ind1", objective: { ageGroup: "A" }, themeLinks: [{ themeId: "th1" }] },
   ]);
   weekFindFirst.mockResolvedValue({
     id: "wk1",
@@ -175,7 +178,7 @@ describe("POST /api/teacher/assessment-entries", () => {
     vi.mocked(getSession).mockResolvedValue(teacher);
     happyMocks();
     achievementIndicatorFindMany.mockResolvedValue([
-      { id: "ind1", themeLinks: [{ themeId: "DIFFERENT" }] },
+      { id: "ind1", objective: { ageGroup: "A" }, themeLinks: [{ themeId: "DIFFERENT" }] },
     ]);
     const res = await POST(jsonReq({ entries: [baseHomeroom] }) as never);
     expect(res.status).toBe(400);

@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { assessmentEntryCenterSessionSchema } from "@/lib/validations/assessment-entry";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
 import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import type { AgeGroup } from "@/lib/generated/prisma/client";
 import {
   PENILAIAN_WRITE_BUDGET,
   PENILAIAN_WRITE_WINDOW_MS,
@@ -44,7 +45,35 @@ export async function POST(req: NextRequest) {
     await req.json(),
   );
   if (result.error) return result.error;
-  const { center, date, activity, entries } = result.data;
+  const { sentraId, date, activity, entries } = result.data;
+
+  // The sentra must be this tenant's (404 otherwise, never revealing another
+  // tenant's row) and still ACTIVE (400: deactivated sentra take no new entries).
+  // It must also sit on the teacher's own campus (foreign campus reads as 404).
+  const employee = await prisma.employee.findFirst({
+    where: { id: session.employeeId, tenantId: session.tenantId },
+    select: { campusId: true },
+  });
+  const sentra = employee?.campusId
+    ? await prisma.sentra.findFirst({
+        where: {
+          id: sentraId,
+          tenantId: session.tenantId,
+          campusId: employee.campusId,
+        },
+        select: { id: true, status: true, legacyCenter: true },
+      })
+    : null;
+  if (!sentra) {
+    return NextResponse.json({ error: "Sentra tidak ditemukan." }, { status: 404 });
+  }
+  if (sentra.status !== "ACTIVE") {
+    return NextResponse.json(
+      { error: "Sentra ini sudah tidak aktif. Pilih sentra lain." },
+      { status: 400 },
+    );
+  }
+  const center = sentra.legacyCenter;
 
   // Empty session — no rows to write. Audit the no-op so the activity feed
   // still records that a sentra teacher reviewed the roster + saved.
@@ -55,7 +84,7 @@ export async function POST(req: NextRequest) {
       entity: "AssessmentEntry",
       entityId: "bulk",
       action: "CENTER_SESSION",
-      after: { center, date, activity, count: 0 },
+      after: { sentraId, center, date, activity, count: 0 },
     });
     return NextResponse.json(
       { written: 0, ids: [], reason: "empty_session" },
@@ -64,16 +93,6 @@ export async function POST(req: NextRequest) {
   }
 
   const dateUtc = parseJakartaYmd(date);
-  const week = await getCurrentWeek(session.tenantId, dateUtc);
-  if (!week) {
-    return NextResponse.json(
-      {
-        error:
-          "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
-      },
-      { status: 422 },
-    );
-  }
 
   const studentIds = Array.from(new Set(entries.map((e) => e.studentId)));
   const indicatorIds = Array.from(new Set(entries.map((e) => e.indicatorId)));
@@ -98,7 +117,11 @@ export async function POST(req: NextRequest) {
   // PROMES spine.
   const indicators = await prisma.achievementIndicator.findMany({
     where: { tenantId: session.tenantId, id: { in: indicatorIds } },
-    select: { id: true, themeLinks: { select: { themeId: true } } },
+    select: {
+      id: true,
+      objective: { select: { ageGroup: true } },
+      themeLinks: { select: { themeId: true } },
+    },
   });
   if (indicators.length !== indicatorIds.length) {
     return NextResponse.json(
@@ -109,8 +132,60 @@ export async function POST(req: NextRequest) {
   const themesByIndicator = new Map<string, Set<string>>(
     indicators.map((i) => [i.id, new Set(i.themeLinks.map((l) => l.themeId))]),
   );
+  const objectiveGroupByIndicator = new Map(
+    indicators.map((i) => [i.id, i.objective.ageGroup]),
+  );
+
+  // A child can attend more than one kelompok (e.g. daycare and TK). Use all
+  // placements eligible for the roster, and resolve each entry's week using
+  // the submitted indicator's kelompok after validating the placement.
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      studentId: { in: studentIds },
+      student: { tenantId: session.tenantId, status: "ACTIVE" },
+      status: "ACTIVE",
+      classSection: { tenantId: session.tenantId, status: "ACTIVE", academicYear: { status: "ACTIVE" } },
+    },
+    select: { studentId: true, classSection: { select: { ageGroup: true } } },
+  });
+  const groupsByStudent = new Map<string, Set<AgeGroup>>();
+  for (const { studentId, classSection } of enrollments) {
+    const groups = groupsByStudent.get(studentId);
+    if (groups) groups.add(classSection.ageGroup);
+    else groupsByStudent.set(studentId, new Set([classSection.ageGroup]));
+  }
+  if (studentIds.some((id) => !groupsByStudent.has(id))) {
+    return NextResponse.json(
+      { error: "Siswa belum terdaftar di kelas aktif, kelompok tidak dapat ditentukan." },
+      { status: 422 },
+    );
+  }
+  // Every submitted indicator was found in the tenant query above.
+  const groupOf = (entry: (typeof entries)[number]) => objectiveGroupByIndicator.get(entry.indicatorId)!;
+  if (entries.some((entry) => !groupsByStudent.get(entry.studentId)?.has(groupOf(entry)))) {
+    return NextResponse.json(
+      { error: "Salah satu IKTP bukan untuk kelompok siswa." },
+      { status: 400 },
+    );
+  }
+
+  const weekByGroup = new Map<AgeGroup, { id: string; themeId: string }>();
+  for (const group of new Set(entries.map(groupOf))) {
+    const wk = await getCurrentWeek(session.tenantId, dateUtc, group);
+    if (!wk) {
+      return NextResponse.json(
+        {
+          error:
+            "Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah pekan.",
+        },
+        { status: 422 },
+      );
+    }
+    weekByGroup.set(group, { id: wk.id, themeId: wk.subTheme.theme.id });
+  }
+  const weekOf = (entry: (typeof entries)[number]) => weekByGroup.get(groupOf(entry))!;
   const linkBlocker = entries.find(
-    (e) => !themesByIndicator.get(e.indicatorId)?.has(week.subTheme.theme.id),
+    (entry) => !themesByIndicator.get(entry.indicatorId)?.has(weekOf(entry).themeId),
   );
   if (linkBlocker) {
     return NextResponse.json(
@@ -139,8 +214,9 @@ export async function POST(req: NextRequest) {
         studentId: entry.studentId,
         indicatorId: entry.indicatorId,
         date: dateUtc,
-        weekId: week.id,
+        weekId: weekOf(entry).id,
         source: "CENTER",
+        sentraId,
         center,
         activity,
         level: entry.level,
@@ -149,7 +225,8 @@ export async function POST(req: NextRequest) {
         recordedAt: now,
       },
       update: {
-        weekId: week.id,
+        weekId: weekOf(entry).id,
+        sentraId,
         center,
         activity,
         level: entry.level,
@@ -168,7 +245,7 @@ export async function POST(req: NextRequest) {
     entity: "AssessmentEntry",
     entityId: written.length === 1 ? written[0].id : "bulk",
     action: "CENTER_SESSION",
-    after: { center, date, activity, count: written.length },
+    after: { sentraId, center, date, activity, count: written.length },
   });
 
   return NextResponse.json(

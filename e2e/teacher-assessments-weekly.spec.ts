@@ -129,4 +129,48 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     const bannerCount = await banner.count();
     expect(pickerCount + bannerCount).toBeGreaterThan(0);
   });
+
+  test("TK A homeroom sees the TK A theme, not a TK B theme on the same dates", async ({ page }) => {
+    const admin = { headers: { Cookie: `school-erp-session=${ADMIN_USER_ID}` } };
+    const yearsRes = await page.request.get("/api/academic-years", admin);
+    const years = (await yearsRes.json()) as Array<{ name: string; status: string }>;
+    const yearName = years.find((y) => y.status === "ACTIVE")?.name;
+    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=100", admin);
+    const sems = (await semRes.json()).data as Array<{ id: string; number: number; academicYear: { name: string } }>;
+    const semesterId = sems.find((s) => s.number === 1 && s.academicYear.name === yearName)?.id;
+    test.skip(!semesterId, "seed produced no Semester 1 for the ACTIVE academic year");
+
+    // Far-future Monday that varies per run, clear of the seeded (shared) weeks.
+    const monday = new Date(Date.UTC(2040, 0, 2 + 7 * (Math.floor(Date.now() / 1000) % 3000)));
+    const friday = new Date(monday.getTime() + 4 * 86_400_000);
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    const stamp = Date.now();
+
+    const seedTree = async (ageGroup: "A" | "B", label: string) => {
+      const themeName = `E2E ${label} ${stamp}`;
+      const t = await page.request.post("/api/admin/curriculum/themes", {
+        ...admin, data: { semesterId, name: themeName, order: 0, ageGroup },
+      });
+      expect(t.ok()).toBeTruthy();
+      const themeId = (await t.json()).id as string;
+      const st = await page.request.post("/api/admin/curriculum/subthemes", {
+        ...admin, data: { themeId, name: `${label} Sub ${stamp}`, order: 0 },
+      });
+      expect(st.ok()).toBeTruthy();
+      const subThemeId = (await st.json()).id as string;
+      const w = await page.request.post("/api/admin/curriculum/weeks", {
+        ...admin, data: { subThemeId, number: 1, startDate: ymd(monday), endDate: ymd(friday) },
+      });
+      expect(w.status(), await w.text()).toBe(201);
+      return themeName;
+    };
+    // TK A and TK B weeks on the same dates are both accepted.
+    const themeA = await seedTree("A", "TKA");
+    const themeB = await seedTree("B", "TKB");
+
+    await page.goto(`/teacher/assessments/weekly?date=${ymd(monday)}`);
+    await expect(page.locator("h1", { hasText: "Penilaian pekanan" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`tema ${themeA}`)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(themeB)).toHaveCount(0);
+  });
 });

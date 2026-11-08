@@ -30,7 +30,7 @@ export function JournalMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="RN" name="Bu Guru Rina" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-3.5">
-          <h1 className="text-h1 font-bold leading-tight tracking-tight">Isi Buku Penghubung</h1>
+          <h1 className="text-h1 tracking-tight">Isi Buku Penghubung</h1>
           <p className="mt-0.5 truncate text-body text-muted-foreground">TK A Al-Fatih · Sabtu, 31 Oktober 2026</p>
           <p className="mb-1.5 mt-1.5 text-xs text-muted-foreground">2/20 siswa lengkap</p>
 

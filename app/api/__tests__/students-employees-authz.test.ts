@@ -6,6 +6,7 @@ vi.mock("@/lib/db", () => ({
     student: { findMany: vi.fn(), count: vi.fn() },
     employee: { findMany: vi.fn(), count: vi.fn() },
     teachingAssignment: { findFirst: vi.fn() },
+    sentraRotationClass: { findFirst: vi.fn().mockResolvedValue(null) },
     studentEnrollment: { findMany: vi.fn() },
   },
 }));

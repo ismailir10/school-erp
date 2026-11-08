@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -5,7 +6,7 @@ import { Check, MessageCircle, Sparkles, Thermometer, CalendarClock } from "luci
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { PageHeader } from "@/components/portal/page-header";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
@@ -15,6 +16,8 @@ import { parentAttendanceWeek } from "@/lib/parent/attendance-week";
 import { parentHref } from "@/lib/parent/navigation";
 import { ContextStrip } from "@/components/portal/context-strip";
 import { SectionCard } from "@/components/ui/section-card";
+
+export const metadata: Metadata = { title: "Kehadiran" };
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 
@@ -234,7 +237,7 @@ export default async function ParentAttendancePage({
                       key={d}
                       className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
                     >
-                      <span className="inline-flex h-9 w-9 items-center justify-center">
+                      <span className="inline-flex size-9 items-center justify-center">
                         {status === "MIXED" ? (
                           <>
                             <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>
@@ -295,7 +298,7 @@ export default async function ParentAttendancePage({
       {/* Notes from school this week */}
       {notesRows.length > 0 ? (
         <section>
-          <SectionLabel>Catatan dari sekolah</SectionLabel>
+          <SectionHeading>Catatan dari sekolah</SectionHeading>
           <ul className="space-y-2">
             {notesRows.map((n) => (
               <li

@@ -23,6 +23,26 @@ const RULES: Rule[] = [
   { id: "E", why: "opacity tint on a semantic colour (use the -subtle token)", pattern: /\b(bg|text)-(success|warning|info|destructive)\/\d+/, skip: (f) => f.startsWith("components/ui/") },
   { id: "F", why: "easing literal duplicated (import from lib/motion.ts)", pattern: /0\.22,\s*1,\s*0\.36,\s*1/, skip: (f) => f === "lib/motion.ts" },
   { id: "G", why: "number formatting via toLocaleString (use formatNumber/formatRupiah from lib/format.ts)", pattern: /\.toLocaleString\(/ },
+  {
+    id: "H",
+    why: "explicit font-bold/font-semibold on a heading token (text-h1/h2/display already carry the weight)",
+    pattern: /(?:\b(?:[a-z0-9-]+:)*font-(?:bold|semibold)\b[^"'`\n]*\b(?:[a-z0-9-]+:)*text-(?:h1|h2|display)\b|\b(?:[a-z0-9-]+:)*text-(?:h1|h2|display)\b[^"'`\n]*\b(?:[a-z0-9-]+:)*font-(?:bold|semibold)\b)/,
+  },
+  {
+    id: "I",
+    why: "alert-dialog import outside confirm-dialog.tsx (use ConfirmDialog)",
+    pattern: /from\s+["'](?:@\/components\/ui\/alert-dialog|\.\/alert-dialog)["']/,
+    skip: (f) => f === "components/ui/confirm-dialog.tsx",
+  },
+  { id: "J", why: "arbitrary z-[…]/shadow-[…] value (use z-*/shadow-* theme tokens)", pattern: /\b(?:z|shadow)-\[/, skip: (f) => f.startsWith("components/ui/") },
+  { id: "K", why: "square icon sizing h-N w-N (use size-N)", pattern: /\bh-([0-9.]+) w-\1(?![0-9.])|\bw-([0-9.]+) h-\2(?![0-9.])/ },
+  { id: "L", why: "import of a removed component (StatCard → StatTile, SectionLabel → SectionHeading)", pattern: /from\s+["'][^"']*\/(?:admin\/stat-card|portal\/section-label)["']/ },
+  {
+    id: "M",
+    why: "logout confirm copy outside LogoutConfirmDialog (reuse it; logout is never destructive)",
+    pattern: /Keluar dari Talib|Yakin ingin keluar/,
+    skip: (f) => f === "components/portal/logout-confirm-dialog.tsx",
+  },
 ];
 
 /**
@@ -128,6 +148,52 @@ describe("design-token guard: matcher self-tests", () => {
     expect(hit("G", `d.toLocaleDateString("id-ID")`)).toBe(false);
     expect(hit("G", `d.toLocaleTimeString("id-ID")`)).toBe(false);
     expect(hit("G", `{formatNumber(n)}`)).toBe(false);
+  });
+
+  it("H flags font-bold/semibold on heading tokens in either order, allows font-medium", () => {
+    expect(hit("H", `className="text-h1 font-bold"`)).toBe(true);
+    expect(hit("H", `className="font-semibold lg:text-display"`)).toBe(true);
+    expect(hit("H", `className="text-h2 leading-tight font-semibold"`)).toBe(true);
+    expect(hit("H", `className="text-h1 font-medium"`)).toBe(false);
+    expect(hit("H", `className="text-h3 font-semibold"`)).toBe(false);
+  });
+
+  it("I flags alert-dialog imports outside confirm-dialog.tsx", () => {
+    expect(hit("I", `import { AlertDialog } from "@/components/ui/alert-dialog";`)).toBe(true);
+    expect(hit("I", `} from "./alert-dialog"`, "components/ui/other.tsx")).toBe(true);
+    expect(hit("I", `import { AlertDialog } from "@/components/ui/alert-dialog";`, "components/ui/confirm-dialog.tsx")).toBe(false);
+    expect(hit("I", `import { ConfirmDialog } from "@/components/ui/confirm-dialog";`)).toBe(false);
+  });
+
+  it("J flags z-[ / shadow-[ outside components/ui", () => {
+    expect(hit("J", `className="z-[60] shadow-[0_1px_2px_#000]"`)).toBe(true);
+    expect(hit("J", `className="z-[60]"`, "components/ui/dialog.tsx")).toBe(false);
+    expect(hit("J", `className="z-modal shadow-sticky-edge"`)).toBe(false);
+  });
+
+  it("K flags square h-N w-N in either order, not non-square", () => {
+    expect(hit("K", `className="h-4 w-4"`)).toBe(true);
+    expect(hit("K", `className="h-3.5 w-3.5 shrink-0"`)).toBe(true);
+    expect(hit("K", `className="w-5 h-5"`)).toBe(true);
+    expect(hit("K", `className="h-4 w-8"`)).toBe(false);
+    expect(hit("K", `className="h-4 w-48"`)).toBe(false);
+    expect(hit("K", `className="size-4"`)).toBe(false);
+  });
+
+  it("L flags imports of removed components only", () => {
+    expect(hit("L", `import { StatCard } from "@/components/admin/stat-card";`)).toBe(true);
+    expect(hit("L", `import { SectionLabel } from "@/components/portal/section-label";`)).toBe(true);
+    expect(hit("L", `import { StatTile } from "@/components/ui/stat-tile";`)).toBe(false);
+  });
+
+  it("M flags logout copy outside LogoutConfirmDialog", () => {
+    expect(hit("M", `title="Yakin ingin keluar?"`)).toBe(true);
+    expect(hit("M", `title="Keluar dari Talib?"`, "components/portal/logout-confirm-dialog.tsx")).toBe(false);
+  });
+
+  it("LogoutConfirmDialog is never destructive", () => {
+    const src = readFileSync(join(root, "components/portal/logout-confirm-dialog.tsx"), "utf8");
+    expect(src).not.toMatch(/\bdestructive\b/);
   });
 });
 

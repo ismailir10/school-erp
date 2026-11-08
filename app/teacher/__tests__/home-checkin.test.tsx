@@ -24,6 +24,30 @@ describe("check-in row placement (R2-T-1)", () => {
   });
 });
 
+describe("Gerbang row on Beranda", () => {
+  const gateRow = () => screen.getByRole("link", { name: /Gerbang/ });
+  it("sits directly below Kehadiran pribadi and opens the Gerbang page", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[cls]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
+    expect(gateRow()).toHaveAttribute("href", "/teacher/gate");
+    expect(gateRow()).toHaveTextContent("Buka");
+    expect(position(screen.getByLabelText("Kehadiran pribadi"))).toBeLessThan(position(gateRow()));
+    expect(position(gateRow())).toBeLessThan(position(screen.getByTestId("current-class")));
+  });
+  it("shows today's arrived and picked-up counts", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
+    expect(gateRow()).toHaveTextContent("18 dari 40 sudah masuk · 3 pulang");
+  });
+  it.each([["no children on the campus", { total: 0, arrived: 0, pickedUp: 0 }], ["a failed lookup", null]])("falls back to the plain description for %s", (_label, gateSummary) => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={gateSummary} />);
+    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
+    expect(gateRow()).not.toHaveTextContent("0 dari 0");
+  });
+  it("still renders when the prop is omitted", () => {
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
+  });
+});
+
 describe("check-in failure copy (R2-T-2)", () => {
   it("maps a thrown fetch to Indonesian copy, never 'Failed to fetch'", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
@@ -106,5 +130,33 @@ describe("no-class teacher empty states (R2-T-12)", () => {
   it("keeps the pointer to the class tasks for a teacher who has classes", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[{ ...cls, journal: null }]} />);
     expect(document.body.textContent).toMatch(/tugas kelas di atas/);
+  });
+});
+
+describe("geofence note sheet", () => {
+  const geo = (lat = -6.2, lng = 106.8) => vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition: (ok: (p: unknown) => void) => ok({ coords: { latitude: lat, longitude: lng, accuracy: 15 } }) } });
+  it("opens the sheet on OUTSIDE_GEOFENCE, then resubmits with the note and shows the pending chip", async () => {
+    geo();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({ code: "OUTSIDE_GEOFENCE", distanceMeters: 312, campusName: "Taman Aster" }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "PRESENT", checkInTime: "2026-09-25T00:10:00.000Z", checkOutTime: null, approvalStatus: "PENDING" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
+    expect(await screen.findByText("Anda ± 312 m dari Taman Aster. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ lat: -6.2, lng: 106.8, accuracy: 15 });
+    const submit = screen.getByRole("button", { name: "Kirim untuk disetujui" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Catatan untuk admin"), { target: { value: "Antar murid ke dokter" } });
+    fireEvent.click(submit);
+    expect(await screen.findByTestId("pending-approval-chip")).toHaveTextContent("Menunggu persetujuan");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ note: "Antar murid ke dokter", lat: -6.2 });
+  });
+  it("uses the no-location copy when the distance is null", async () => {
+    vi.stubGlobal("navigator", { ...navigator, geolocation: undefined });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => ({ code: "OUTSIDE_GEOFENCE", distanceMeters: null, campusName: "Taman Aster" }) }));
+    render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
+    expect(await screen.findByText("Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
+> Last audited: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -124,7 +124,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Network drop during autosave → indicator shows "error", retry on next tap; no silent loss
   - Two browser tabs editing the same student → last write wins, but neither tab hangs
   - Tap a rubric button rapidly 5× across 200ms → exactly one autosave fires, final value is the 5th tap
-  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end
+  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end. The week shown follows the class's kelompok (TK A or TK B), so a TK A and a TK B class can show different themes on the same date
   - A center assessment load failure → visible `Coba lagi` recovery; a read-only assessment has no sticky save footer or writable controls
 - **Known friction (from last UAT):** <filled by /uat reports>
 
@@ -149,6 +149,24 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Mid-loop network failure → some students published, some not; no rollback (acceptable but operator must be told to re-tap publish for the failed subset)
   - The pre-publish warning ("X siswa belum memiliki nilai lengkap") is informational — it does NOT block the button. UAT should assert the warning count is correct when incomplete students exist, then proceed to tap publish and verify per-student error toasts for the empty-score students.
   - Publish gate is per-student inside the loop — the button is always enabled; the upfront warning only informs the operator of the scope of incomplete students.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-TEACHER-ASSESS-03 — Record Sentra Harian from her own sentra
+- **Persona:** Bu Sari as guru sentra
+- **Role:** TEACHER
+- **Preconditions:** Guru sentra of Sentra Balok; an active curriculum week with IKTP for today; a weekday for the "hari ini" default
+- **Steps:**
+  1. Open Penilaian (`/teacher/assessments`); under **Sentra harian** the first tile is her own sentra with the badge **Sentra saya** (and "Hari ini: <kelas>")
+  2. Open it; the heading reads Sentra Balok and the **Kelas** switcher defaults to the class visiting today, marked "(hari ini)"; Semua TK A / Semua TK B stay available
+  3. Fill **Kegiatan**, pick an IKTP, set a level for a child and tap **Simpan**
+  4. Reload: the level is still set
+  5. As the admin, open Penilaian (`/admin/assessments`): the Sentra Harian section lists Sentra Balok
+- **Done when:** The entry is stored under the sentra, the roster started on today's class, and the admin monitor, parent view and raport show "Sentra Balok"; entries recorded before the sentra list existed keep their old label.
+- **Why this job matters:** Every sentra, including Makro, Mikro and I Love Islam, can now be assessed under its own name by its own guru.
+- **Expected perf:** tiles <1.5s; Simpan settles in <2s.
+- **Error scenarios to verify:**
+  - A sentra of another campus in the URL → not found
+  - Weekend or a date with no active week → read-only notice or "Belum ada pekan aktif untuk tanggal ini", no Simpan
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -301,6 +319,25 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Note with very long body (1500+ chars) → wraps cleanly in the thread, no horizontal scroll on 375px
 - **Known friction (from last UAT):** <filled by /uat reports>
 
+### JTBD-TEACHER-JOURNAL-05 — Fill Buku Penghubung for today's sentra class
+- **Persona:** Bu Sari as guru sentra (seed: u_teacher owns Sentra Balok and is Walas TKIT A)
+- **Role:** TEACHER
+- **Preconditions:**
+  - The admin set her as guru sentra and the campus has an active putaran with her sentra on a school day
+  - A weekday; the class visiting her sentra is not necessarily a class she is assigned to
+- **Steps:**
+  1. Open Jurnal (`/teacher/student-journal?pick=1`); the **Kelas** list shows the visiting class as "TKIT B — TK · Sentra Balok (hari ini)" and preselects it; other putaran classes read "via sentra"
+  2. Tap **Isi Buku Penghubung**, open a child and tick an indicator; the save status reads "Jurnal tersimpan"
+  3. Reload: the tick is still there
+  4. On Beranda the same class appears with a "Sentra Balok · hari ini" badge and its journal progress
+- **Done when:** She can tick, add a catatan, set a Hari tanpa buku penghubung and open a child's week for every class in her putaran, on any date; on a weekend or with no putaran the picker behaves as before and shows no "hari ini". A guru with neither an assignment nor a sentra in the class's putaran gets 403 from the journal API.
+- **Why this job matters:** Classes move between rooms, so the guru in the room, not the walas, is the one holding the book that day.
+- **Expected perf:** picker <1.5s; each tick saves in <800ms.
+- **Error scenarios to verify:**
+  - `GET /api/student-journal/class-grid` for a class outside her assignments and putaran → 403
+  - A Nonaktif putaran grants no access
+- **Known friction (from last UAT):** <filled by /uat reports>
+
 ---
 
 ## Area: home
@@ -340,6 +377,27 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Check-in API failure or rejected network request → recorded state is restored, an actionable error appears, and the control permits retry
 - **Known friction (from last UAT):** <filled by /uat reports>
 
+### JTBD-TEACHER-HOME-03 — Check in from outside the campus radius and wait for approval
+- **Persona:** Bu Sari
+- **Role:** TEACHER
+- **Preconditions:**
+  - Logged in as a teacher whose tenant has at least one campus with a map pin (default radius 50 m, editable per campus)
+  - No check-in record yet for today
+  - Browser location allowed (scenario A, B) or denied (scenario C)
+- **Steps:**
+  1. A. Inside the radius: open `/teacher`, tap "Catat masuk" once. "Masuk hh.mm" shows with no extra sheet and no "Menunggu persetujuan" chip.
+  2. B. Outside the radius: tap "Catat masuk". A sheet "Anda di luar area kampus" reads "Anda ± {n} m dari {campus}. Tambahkan catatan agar admin dapat menyetujui." with a "Catatan untuk admin" field.
+  3. "Kirim untuk disetujui" stays disabled until the note has at least 3 characters; submit it.
+  4. The home shows the chip "Menunggu persetujuan" next to the recorded "Masuk" time.
+  5. C. Location denied or unreadable: the same sheet opens with "Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui." and the same note path.
+- **Done when:** Inside the radius the check-in is approved at once (one tap). Outside, or with no location, the record is `PENDING` with the note, distance and nearest campus, and payroll does not count it until an admin approves (JTBD-ADMIN-ATT-01). A rejected day reads Alpa. A tenant with no campus pins checks in with one plain tap.
+- **Why this job matters:** The radius stops check-ins from home, but a teacher who is genuinely off-site (an errand for the school, a bad GPS fix) must never be blocked from recording the day.
+- **Expected perf:** tap to sheet or confirmation <2s on 4G (a location fix may add up to 10s).
+- **Error scenarios to verify:**
+  - Submitting with an empty or 1-2 character note is refused and no record is saved
+  - A second tap on "Catat masuk" after a pending check-in is not offered (the button becomes "Catat pulang")
+  - Network failure on submit keeps the sheet open with an inline error and a retry
+
 ---
 
 ## Area: daily-session
@@ -371,6 +429,33 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   2. She drives the roster page exactly like JTBD-TEACHER-SESSION-01
 - **Done when:** The sub can mark attendance + pickup on a session she does not own as homeroom; the original homeroom does NOT see this session in their list for the day; the audit trail preserves `defaultTeacherId` so reports can attribute the substitution.
 - **Why this job matters:** Absence coverage is universal in pre-K — the swap path must be invisible to the sub at the moment of need but fully auditable later.
+
+### JTBD-TEACHER-SESSION-03 — Mark the whole class present and picked up in one tap each
+- **Persona:** Bu Sari
+- **Role:** TEACHER (or admin)
+- **Preconditions:** As JTBD-TEACHER-SESSION-01, with some students not yet marked
+- **Steps:**
+  1. In the morning open `/teacher/sessions/[id]` and tap "Semua hadir": every student not yet marked turns PRESENT with the arrival time; tap only the exceptions (Sakit, Izin, Alpa).
+  2. Tap Simpan. A toast offers "Urungkan" if the tap was a mistake.
+  3. At pickup tap "Semua pulang": every present student without a pickup time gets one, with Orang tua as the default relation; change the relation only for exceptions.
+  4. Tap Simpan.
+- **Done when:** Existing statuses and times are never overwritten by either button; after Simpan and a reload every row shows both times. One tap plus exceptions replaces a tap per child.
+- **Why this job matters:** A full class used to take 20 taps at the busiest minute of the morning.
+- **Expected perf:** each button updates the roster <300ms (client side); Simpan <1.5s.
+
+### JTBD-TEACHER-GATE-01 — Record a child at the gate without opening a class
+- **Persona:** Bu Sari, or a teacher on a shared front-desk tablet
+- **Role:** TEACHER (or admin with an employee record)
+- **Preconditions:** ≥1 active student on the campus; the teacher is not necessarily the child's homeroom teacher
+- **Steps:**
+  1. On Beranda, tap the "Gerbang" row under Kehadiran pribadi (`/teacher/gate`; it shows "N dari M sudah masuk · K pulang"). The campus defaults to the teacher's own; switch it if the tablet covers another.
+  2. With "Masuk" selected, optionally search by name or class, then tap the child's row once: toast "{nama} masuk" with "Urungkan".
+  3. Switch to "Pulang" later in the day and tap the child: pickup is recorded with Orang tua; tap the relation chooser first when it was someone else (name required for Lainnya).
+  4. Open the child's own class session: the same arrival and pickup times show there.
+- **Done when:** Marked children are greyed with their time; the counter reads "Sudah masuk {n} dari {total}"; the class view shows the same record; a re-tap on a marked child writes nothing. The page works at 390 px with every row at least 48 px tall.
+- **Why this job matters:** Teachers rarely hold a phone at drop-off and pickup; the gate is where the data is created, so it has to be one tap and need no class or piket assignment.
+- **Expected perf:** list load <1.5s for a campus; tap to toast <1s.
+- **Error scenarios to verify:** a child with no session for today and no class day schedule returns a clear message instead of a silent failure; a failed save offers retry.
 
 ---
 

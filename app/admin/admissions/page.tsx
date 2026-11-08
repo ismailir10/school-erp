@@ -9,7 +9,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ClipboardCheck, Plus, UserPlus, Users, Wallet } from "lucide-react";
@@ -41,7 +41,7 @@ const CANCEL_FALLBACK = "Gagal membatalkan pendaftaran. Coba lagi.";
 
 type StatFilterKey = "all" | "BARU" | "FORMULIR_MASUK" | "unpaid";
 type StatCardSpec = {
-  label: string; value: string | number; icon: typeof Users; color: "primary" | "warning" | "success";
+  label: string; value: string | number; icon: typeof Users; tone: "default" | "warning" | "positive";
   filter: StatFilterKey; active: boolean;
 };
 
@@ -55,7 +55,7 @@ function StatFilter({
       aria-pressed={pressed}
       aria-label={`${label}: ${value}`}
       onClick={onPress}
-      className="block w-full rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary/40"
+      className="block w-full rounded-lg text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary/40"
     >
       {children}
     </button>
@@ -332,10 +332,10 @@ export default function AdmissionsPage() {
   // A card is "on" when its filter is the only one applied (the counts ignore search).
   const only = (t: string, unpaid = false) => tahap === t && unpaidOnly === unpaid && !search;
   const statCards: StatCardSpec[] = [
-    { label: "Total", value: stat(stats?.total), icon: Users, color: "primary", filter: "all", active: !isFiltered },
-    { label: "Baru", value: stat(stats?.baru), icon: UserPlus, color: "primary", filter: "BARU", active: only("BARU") },
-    { label: "Belum bayar", value: stat(stats?.belumBayar), icon: Wallet, color: "warning", filter: "unpaid", active: only("all", true) },
-    { label: "Formulir masuk", value: stat(stats?.formulirMasuk), icon: ClipboardCheck, color: "success", filter: "FORMULIR_MASUK", active: only("FORMULIR_MASUK") },
+    { label: "Total", value: stat(stats?.total), icon: Users, tone: "default", filter: "all", active: !isFiltered },
+    { label: "Baru", value: stat(stats?.baru), icon: UserPlus, tone: "default", filter: "BARU", active: only("BARU") },
+    { label: "Belum bayar", value: stat(stats?.belumBayar), icon: Wallet, tone: "warning", filter: "unpaid", active: only("all", true) },
+    { label: "Formulir masuk", value: stat(stats?.formulirMasuk), icon: ClipboardCheck, tone: "positive", filter: "FORMULIR_MASUK", active: only("FORMULIR_MASUK") },
   ];
 
   return (
@@ -351,9 +351,10 @@ export default function AdmissionsPage() {
       />
 
       <StatsCardsRow cols={4}>
-        {statCards.map((card, index) => (
+        {statCards.map((card) => (
           <StatFilter key={card.label} label={card.label} value={card.value} pressed={card.active} onPress={() => applyStat(card.active ? "all" : card.filter)}>
-            <StatCard label={card.label} value={card.value} icon={card.icon} color={card.color} index={index} />
+            <StatTile size="lg" mono
+          label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
           </StatFilter>
         ))}
       </StatsCardsRow>

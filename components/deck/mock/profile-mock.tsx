@@ -39,7 +39,7 @@ export function ProfileMock() {
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-1">
           <div className="flex items-center gap-1">
             <ChevronLeft size={20} className="-ml-1 shrink-0" />
-            <h1 className="text-h2 font-bold leading-tight tracking-tight">Profil</h1>
+            <h1 className="text-h2 tracking-tight">Profil</h1>
           </div>
 
           <div className="flex items-center gap-3 py-1">

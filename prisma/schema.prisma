@@ -119,11 +119,15 @@ model Campus {
   lat      Decimal? @db.Decimal(10, 8)
   lng      Decimal? @db.Decimal(11, 8)
   status   String   @default("ACTIVE") // ACTIVE | INACTIVE (binary soft-delete per CRUD Standard Category A)
+  // Geofence for staff check-in: metres around (lat, lng) counted as "at campus".
+  radiusMeters Int @default(50)
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employees     Employee[]
   classSections ClassSection[]
   classTracks   ClassTrack[]
+  sentras         Sentra[]
+  sentraRotations SentraRotation[]
 
   @@index([tenantId])
 }
@@ -199,6 +203,7 @@ model Employee {
   voidedAssessments        AssessmentEntry[]     @relation("AssessmentVoidedBy")
   sessionsAsTeacher        ClassSession[]        @relation("SessionTeacher")
   sessionsAsDefaultTeacher ClassSession[]        @relation("SessionDefaultTeacher")
+  sentraTeachers           SentraTeacher[]
 
   @@unique([tenantId, kode])
   @@index([tenantId, status])
@@ -298,6 +303,18 @@ model AttendanceRecord {
   overriddenBy     String?
   overriddenAt     DateTime?
   isLocked         Boolean   @default(false)
+  // Geofenced check-in (docs/cycles/2026-11-07-attendance-geofence-gate.md).
+  // Only APPROVED rows count toward payroll; PENDING awaits admin review.
+  approvalStatus    String    @default("APPROVED") // APPROVED | PENDING | REJECTED
+  checkInNote       String?
+  checkInAccuracy   Int?
+  distanceMeters    Int?
+  nearestCampusId   String?
+  source            String    @default("SELF") // SELF | ADMIN | KIOSK
+  recordedBy        String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  reviewNote        String?
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -305,6 +322,7 @@ model AttendanceRecord {
   @@index([employeeId, date])
   @@index([date])
   @@index([status])
+  @@index([approvalStatus])
 }
 
 // ── PAYROLL ──────────────────────────────────────────────────
@@ -416,6 +434,7 @@ model AcademicYear {
   feeAdjustments StudentFeeAdjustment[]
   semesters     Semester[]
   billingRuns BillingRun[]
+  sentraRotations SentraRotation[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -495,6 +514,8 @@ model ClassSection {
   teachingAssignments TeachingAssignment[]
   studentAttendances  StudentAttendance[]
   sessions            ClassSession[]
+  sentraRotationClasses SentraRotationClass[]
+  sentraRotationSlots   SentraRotationSlot[]
 
   @@unique([tenantId, academicYearId, campusId, name])
   @@index([tenantId])
@@ -1380,6 +1401,9 @@ model Theme {
   tenantId   String
   semesterId String
   name       String // Indonesian, e.g. "Saya Anak Sehat"
+  /// Kelompok the theme belongs to. null = shared by TK A and TK B (e.g. MPLS).
+  /// A class sees themes of its own ageGroup plus shared ones.
+  ageGroup   AgeGroup?
   order      Int
   status     String   @default("ACTIVE") // ACTIVE | INACTIVE
   createdAt  DateTime @default(now())
@@ -1390,7 +1414,10 @@ model Theme {
   subThemes SubTheme[]
   links     IndicatorThemeLink[]
 
-  @@unique([tenantId, semesterId, name])
+  /// Name is unique per kelompok scope. The migration creates this index
+  /// NULLS NOT DISTINCT so two shared themes cannot share a name; the theme
+  /// API also checks it before writing (db push builds a plain index).
+  @@unique([tenantId, semesterId, ageGroup, name])
   @@index([tenantId])
   @@index([tenantId, semesterId])
 }
@@ -1523,6 +1550,7 @@ model AssessmentEntry {
   weekId       String // denormalized for fast roll-up; resolved server-side via getCurrentWeek
   source       AssessmentSource
   center       LearningCenter? // required iff source = CENTER (validated app-side)
+  sentraId     String? // campus Sentra row; null on entries recorded before the Sentra table (they keep `center`)
   activity     String? // free-text kegiatan (used for sentra context, optional for HOMEROOM)
   level        AchievementLevel
   note         String?
@@ -1542,6 +1570,7 @@ model AssessmentEntry {
   week       Week                 @relation(fields: [weekId], references: [id], onDelete: Restrict)
   recordedBy Employee             @relation("AssessmentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
   voidedBy   Employee?            @relation("AssessmentVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+  sentra     Sentra?              @relation(fields: [sentraId], references: [id], onDelete: SetNull)
 
   /// NOTE: C7a adds soft-void columns (voidedAt/voidedById/voidReason) but leaves the
   /// existing @@unique([tenantId, studentId, indicatorId, date, source]) in place — so
@@ -1555,6 +1584,103 @@ model AssessmentEntry {
   @@index([tenantId, weekId, studentId])
   @@index([tenantId, studentId, date])
   @@index([voidedAt])
+  @@index([sentraId])
+}
+
+// ── SENTRA ───────────────────────────────────────────────────
+// Per-campus learning centers (replaces the fixed LearningCenter list as the
+// source for Sentra Harian) plus the putaran (rotation) grid that says which
+// class visits which sentra on which school day.
+
+/// A campus's sentra. Never hard-deleted: deactivate instead.
+model Sentra {
+  id           String          @id @default(cuid())
+  tenantId     String
+  campusId     String
+  name         String // "Balok" — UI renders "Sentra Balok"
+  legacyCenter LearningCenter? // old fixed-list value this row stands for (history labels, legacy URLs)
+  status       String          @default("ACTIVE") // ACTIVE | INACTIVE (never hard-deleted)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  campus            Campus               @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  teachers          SentraTeacher[]
+  slots             SentraRotationSlot[]
+  assessmentEntries AssessmentEntry[]
+
+  @@unique([campusId, name])
+  @@index([tenantId, campusId, status])
+}
+
+/// Guru sentra: an employee who owns a sentra.
+model SentraTeacher {
+  id         String   @id @default(cuid())
+  tenantId   String
+  sentraId   String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  sentra   Sentra   @relation(fields: [sentraId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([sentraId, employeeId])
+  @@index([tenantId, employeeId])
+}
+
+/// Putaran: a named grid of school days x classes -> sentra, anchored on a start date.
+model SentraRotation {
+  id             String   @id @default(cuid())
+  tenantId       String
+  campusId       String
+  academicYearId String
+  name           String
+  startDate      String // YYYY-MM-DD Jakarta school day, a weekday (same convention as ClassSession.date)
+  cycleDays      Int      @default(10) // school days (Mon–Fri) per cycle
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campus       Campus                @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear          @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classes      SentraRotationClass[]
+  slots        SentraRotationSlot[]
+
+  @@unique([academicYearId, campusId, name])
+  @@index([tenantId, campusId])
+}
+
+/// A class taking part in a putaran.
+model SentraRotationClass {
+  id             String @id @default(cuid())
+  tenantId       String
+  rotationId     String
+  classSectionId String
+  sortOrder      Int    @default(0)
+
+  rotation     SentraRotation @relation(fields: [rotationId], references: [id], onDelete: Cascade)
+  classSection ClassSection   @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([rotationId, classSectionId])
+  @@index([classSectionId])
+}
+
+/// One grid cell: on cycle day `dayIndex` (0-based) this class is at this sentra.
+model SentraRotationSlot {
+  id             String @id @default(cuid())
+  tenantId       String
+  rotationId     String
+  dayIndex       Int // 0-based
+  classSectionId String
+  sentraId       String
+
+  rotation     SentraRotation @relation(fields: [rotationId], references: [id], onDelete: Cascade)
+  classSection ClassSection   @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  sentra       Sentra         @relation(fields: [sentraId], references: [id], onDelete: Cascade)
+
+  @@unique([rotationId, dayIndex, classSectionId])
+  @@index([tenantId, sentraId])
+  @@index([classSectionId])
 }
 
 // ── RAPORT (C8 — Admin Raport MVP) ───────────────────────────

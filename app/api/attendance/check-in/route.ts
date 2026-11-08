@@ -7,6 +7,9 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { attendanceCheckInSchema } from "@/lib/validations/attendance";
+import { evaluateGeofence } from "@/lib/attendance/geofence";
+
+const MIN_NOTE_LENGTH = 3;
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
   const result = await validateBody(attendanceCheckInSchema, json);
   if (result.error) return result.error;
-  const { lat, lng } = result.data;
+  const { lat, lng, accuracy, note } = result.data;
 
   const now = new Date();
 
@@ -65,6 +68,37 @@ export async function POST(req: NextRequest) {
     ? minutesLate(now, orgConfig.workStartTime, timezone)
     : 0;
 
+  // Geofence: nearest ACTIVE campus with coordinates. A tenant without any
+  // pinned campus is never blocked (`skipped`).
+  const campuses = await prisma.campus.findMany({
+    where: { tenantId: session.tenantId!, status: "ACTIVE" },
+    select: { id: true, name: true, lat: true, lng: true, radiusMeters: true },
+  });
+  const hasLocation = lat !== undefined && lng !== undefined;
+  const geo = evaluateGeofence(
+    hasLocation ? { lat, lng, accuracy } : null,
+    campuses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      lat: c.lat == null ? null : Number(c.lat),
+      lng: c.lng == null ? null : Number(c.lng),
+      radiusMeters: c.radiusMeters,
+    })),
+  );
+
+  const outside = !geo.skipped && !geo.inside;
+  if (!geo.skipped && !geo.inside && (!note || note.length < MIN_NOTE_LENGTH)) {
+    return NextResponse.json(
+      {
+        error: "Anda berada di luar area kampus. Tambahkan catatan agar admin dapat menyetujui.",
+        code: "OUTSIDE_GEOFENCE",
+        distanceMeters: geo.distanceMeters,
+        campusName: geo.nearestCampus.name,
+      },
+      { status: 422 },
+    );
+  }
+
   const record = await prisma.attendanceRecord.create({
     data: {
       employeeId: session.employeeId,
@@ -73,6 +107,14 @@ export async function POST(req: NextRequest) {
       checkInLat: lat ?? null,
       checkInLng: lng ?? null,
       status,
+      ...(!geo.skipped
+        ? {
+            distanceMeters: geo.distanceMeters,
+            nearestCampusId: geo.nearestCampus.id,
+            checkInAccuracy: accuracy === undefined ? null : Math.round(accuracy),
+          }
+        : {}),
+      ...(outside ? { approvalStatus: "PENDING", checkInNote: note } : {}),
     },
   });
 

@@ -12,6 +12,14 @@ describe("AttendanceTodayStrip", () => {
     expect(screen.getByRole("link", { name: /Lihat kehadiran/ })).toHaveAttribute("href", "/admin/employee-attendance");
   });
 
+  it("links pending geofence check-ins to the approval tab only when there are some", () => {
+    const { rerender } = render(<AttendanceTodayStrip data={{ status: "ready", total: 22, present: 18, late: 2, absent: 2, pending: 3 }} />);
+    expect(screen.getByTestId("dashboard-attendance-pending")).toHaveAttribute("href", "/admin/employee-attendance?tab=pending");
+    expect(screen.getByTestId("dashboard-attendance-pending")).toHaveTextContent("3 absensi perlu persetujuan");
+    rerender(<AttendanceTodayStrip data={{ status: "ready", total: 22, present: 18, late: 2, absent: 2, pending: 0 }} />);
+    expect(screen.queryByTestId("dashboard-attendance-pending")).not.toBeInTheDocument();
+  });
+
   it("shows retry instead of a false summary when the source is unavailable", () => {
     render(<AttendanceTodayStrip data={{ status: "unavailable" }} />);
     expect(screen.getByText("Ringkasan kehadiran belum dapat dimuat.")).toBeVisible();

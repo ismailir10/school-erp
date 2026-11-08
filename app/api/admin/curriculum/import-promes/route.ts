@@ -57,6 +57,7 @@ import {
   isUniqueViolation,
 } from "../_helpers";
 import { indexThemes, resolveThemeNames } from "@/lib/curriculum/theme-match";
+import { themesVisibleTo } from "@/lib/curriculum/age-scope";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MiB
 // Row-count caps defend against parameter-exhaustion DoS: Postgres allows
@@ -350,10 +351,17 @@ export async function POST(req: NextRequest) {
   // indicator→objective→semester and theme→semester), so this query is
   // the tenant gate for every link written below.
   const semesterThemes = await prisma.theme.findMany({
-    where: { tenantId: session.tenantId, semesterId, status: "ACTIVE" },
-    select: { id: true, name: true },
+    where: {
+      tenantId: session.tenantId,
+      semesterId,
+      status: "ACTIVE",
+      ...themesVisibleTo(ageGroup),
+    },
+    select: { id: true, name: true, ageGroup: true },
   });
-  const themeIndex = indexThemes(semesterThemes);
+  // Group-specific themes win over shared ones on a name collision; themes of
+  // the other kelompok are excluded by the query and so report as unmatched.
+  const themeIndex = indexThemes(semesterThemes, ageGroup);
   const themeLinkUnmatched: string[] = [];
   let themeLinkPairCount = 0;
   for (const plan of themeLinkPlan) {

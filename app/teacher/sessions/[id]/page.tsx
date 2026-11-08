@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarX } from "lucide-react";
 import { SessionRosterClient } from "./client";
+
+export const metadata: Metadata = { title: "Sesi Kelas" };
 
 // Design-system cross-check: §16 Attendance Flows + §14 Portal Shell. Roster
 // uses the Daily Data Entry recipe from .claude/standards/portal.md — Card

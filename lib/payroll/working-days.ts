@@ -94,14 +94,19 @@ export function calculateWorkingDays(
  * PRESENT, LATE, PRESENT_NO_CHECKOUT = 1 day
  * HALF_DAY = 0.5
  * LEAVE = 1 (counts as present for pro-rating, paid leave)
+ *
+ * Only APPROVED records count: a geofence check-in still PENDING (or REJECTED)
+ * is not a worked day yet. A record without `approvalStatus` is treated as
+ * APPROVED so legacy callers and rows keep their old meaning.
  */
 export function countAttendanceDays(
-  records: { status: string }[]
+  records: { status: string; approvalStatus?: string | null }[]
 ): { daysPresent: number; daysLeave: number } {
   let daysPresent = 0;
   let daysLeave = 0;
 
   for (const r of records) {
+    if (r.approvalStatus != null && r.approvalStatus !== "APPROVED") continue;
     switch (r.status) {
       case "PRESENT":
       case "LATE":

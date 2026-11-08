@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { formatTime } from "@/lib/format";
+import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 
 type AttendanceRecord = {
@@ -85,24 +86,14 @@ export function AttendanceCalendar({
     <div>
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
-        {/* size-11 = 44px. These measured 34×34. */}
-        <button
-          type="button"
-          onClick={prevMonth}
-          aria-label="Bulan sebelumnya"
-          className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
+        {/* Button icon grows to 44px on coarse pointers. */}
+        <Button variant="ghost" size="icon" onClick={prevMonth} aria-label="Bulan sebelumnya">
           <ChevronLeft size={20} aria-hidden="true" />
-        </button>
+        </Button>
         <h2 className="text-sm font-semibold capitalize">{monthLabel}</h2>
-        <button
-          type="button"
-          onClick={nextMonth}
-          aria-label="Bulan berikutnya"
-          className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
+        <Button variant="ghost" size="icon" onClick={nextMonth} aria-label="Bulan berikutnya">
           <ChevronRight size={20} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
 
       {/* Day headers */}
@@ -148,7 +139,7 @@ export function AttendanceCalendar({
       <div className="flex flex-wrap gap-3 mt-4 text-xs">
         {(["PRESENT", "LATE", "ABSENT", "LEAVE", "HOLIDAY"] as const).map((key) => (
           <div key={key} className="flex items-center gap-1">
-            <div className={`w-2.5 h-2.5 rounded-sm ${STATUS_CELL_BG[key]}`} />
+            <div className={`size-2.5 rounded-sm ${STATUS_CELL_BG[key]}`} />
             <span className="text-muted-foreground">{getStatusConfig(key).label}</span>
           </div>
         ))}
@@ -194,9 +185,9 @@ export function AttendanceCalendar({
                     month: "long",
                   })}
                 </h3>
-                <button onClick={() => setSelectedDay(null)} aria-label="Tutup" className="p-1 rounded-lg hover:bg-accent">
+                <Button variant="ghost" size="icon" onClick={() => setSelectedDay(null)} aria-label="Tutup">
                   <X size={16} />
-                </button>
+                </Button>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm items-center">

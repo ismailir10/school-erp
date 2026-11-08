@@ -46,7 +46,7 @@ export function AssessmentMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="RN" name="Bu Guru Rina" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-3">
-          <h1 className="text-h1 font-bold leading-tight tracking-tight">Penilaian pekanan</h1>
+          <h1 className="text-h1 tracking-tight">Penilaian pekanan</h1>
           <p className="mt-0.5 truncate text-body text-muted-foreground">TK A · Pekan 3 · tema Diriku</p>
 
           <div className="mt-2 flex h-8 items-center rounded-lg border border-input bg-background px-3 text-xs">

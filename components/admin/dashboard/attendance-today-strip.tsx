@@ -4,7 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
 
 type AttendanceTodayData =
-  | { status: "ready"; total: number; present: number; late: number; absent: number }
+  | { status: "ready"; total: number; present: number; late: number; absent: number; pending?: number }
   | { status: "unavailable" };
 
 /**
@@ -27,6 +27,15 @@ export function AttendanceTodayStrip({ data }: { data: AttendanceTodayData }) {
           <DashboardRetry />
         </div>
       )}
+      {data.status === "ready" && data.pending ? (
+        <Link
+          href="/admin/employee-attendance?tab=pending"
+          data-testid="dashboard-attendance-pending"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-status-late-subtle px-3 text-small font-semibold text-status-late-text"
+        >
+          <span className="tabular-nums">{data.pending}</span> absensi perlu persetujuan
+        </Link>
+      ) : null}
       <Link href="/admin/employee-attendance" className={buttonVariants({ variant: "ghost", size: "sm", className: "shrink-0" })}>
         Lihat kehadiran
         <ArrowRight className="size-4" />

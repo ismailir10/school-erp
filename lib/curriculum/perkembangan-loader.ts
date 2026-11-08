@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import { getCurrentWeek, getStudentAgeGroups } from "@/lib/curriculum/week-resolver";
 import {
   formatJakartaYmd,
   parseJakartaYmd,
@@ -29,6 +29,8 @@ export type LatestEntry = {
   date: string; // Jakarta-tz YYYY-MM-DD
   source: "HOMEROOM" | "CENTER";
   center: string | null;
+  /** Campus sentra name, when the entry was recorded against the Sentra table. */
+  sentraName?: string | null;
   /** Free-text "Kegiatan" the walas typed at the sentra, when recorded. */
   activity: string | null;
 };
@@ -143,7 +145,13 @@ export async function loadStudentPerkembangan(
   // Latest-this-week preview: cheap follow-up query so the rollup math
   // above stays a single index scan.
   const todayUtc = parseJakartaYmd(getTodayInTimezone(JAKARTA_TZ));
-  const week = await getCurrentWeek(tenantId, todayUtc);
+  // The preview follows the child's own kelompok; no active class, no week.
+  const studentGroup = (await getStudentAgeGroups(tenantId, [studentId])).get(
+    studentId,
+  );
+  const week = studentGroup
+    ? await getCurrentWeek(tenantId, todayUtc, studentGroup)
+    : null;
   let latestThisWeek: LatestEntry[] = [];
   if (week) {
     const recent = await prisma.assessmentEntry.findMany({
@@ -159,6 +167,7 @@ export async function loadStudentPerkembangan(
         date: true,
         source: true,
         center: true,
+        sentra: { select: { name: true } },
         activity: true,
         indicator: {
           select: {
@@ -175,6 +184,7 @@ export async function loadStudentPerkembangan(
       date: formatJakartaYmd(e.date),
       source: e.source as "HOMEROOM" | "CENTER",
       center: e.center,
+      sentraName: e.sentra?.name ?? null,
       // Trim to null so a whitespace-only entry does not render an empty
       // "Kegiatan:" label on the parent card.
       activity: e.activity?.trim() ? e.activity.trim() : null,

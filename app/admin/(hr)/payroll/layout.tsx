@@ -1,4 +1,7 @@
+import { pageTitle } from "@/lib/page-title";
 import { assertPermission } from "@/lib/auth-guards";
+
+export const metadata = pageTitle("Penggajian");
 
 /**
  * Payroll subtree gate — narrower than the parent (hr) layout.

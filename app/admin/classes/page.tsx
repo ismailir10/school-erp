@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { assertPermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { ClassesClient } from "./client";
+
+export const metadata: Metadata = { title: "Kelas" };
 
 // Admin Kelas list — the consolidated per-year class management surface that
 // replaces the previous /admin/class-tracks UI and the embedded sections

@@ -230,7 +230,7 @@ function SignInPage() {
             as="h2"
             text="Sahabat belajar anak"
             delay={150}
-            className="max-w-[16ch] text-h1 leading-tight font-semibold tracking-tight text-balance lg:text-display"
+            className="max-w-[16ch] text-h1 tracking-tight text-balance lg:text-display"
           />
           <p className="mt-2 max-w-[38ch] text-body leading-relaxed text-muted-foreground text-pretty">
             Kehadiran, jurnal harian, dan tagihan sekolah dalam satu pintu.
@@ -340,7 +340,7 @@ function DemoLoginPage() {
                     disabled={loginLoading !== null}
                     className="h-auto w-full justify-start gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3 text-left hover:border-primary/40 hover:bg-primary/15"
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0">
+                    <div className="size-10 rounded-full bg-primary flex items-center justify-center shrink-0">
                       <span className="text-white text-sm font-bold">{user.name?.[0] ?? "A"}</span>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -369,7 +369,7 @@ function DemoLoginPage() {
                       disabled={loginLoading !== null}
                       className="h-auto w-full justify-start gap-3 rounded-xl p-2.5 text-left text-white/90 hover:bg-white/5"
                     >
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                      <div className="size-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                         <span className="text-white/70 text-xs font-medium">{user.name?.[0] ?? "?"}</span>
                       </div>
                       <div className="min-w-0 flex-1">

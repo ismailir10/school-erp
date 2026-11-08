@@ -24,7 +24,7 @@ export function ReportCardMock() {
         <div className="flex h-[calc(100%-32px)]">
           <AdminRail active={2} />
           <div className="min-w-0 flex-1 overflow-hidden bg-background px-4 pt-3">
-            <h1 className="text-h1 font-bold leading-tight tracking-tight">Rapor</h1>
+            <h1 className="text-h1 tracking-tight">Rapor</h1>
             <div className="mb-2.5 mt-2 flex gap-3">
               <Picker label="Triwulan" className="w-52">Triwulan 1 · 2026/2027</Picker>
               <Picker label="Kelas" className="w-44">TK A Al-Fatih</Picker>

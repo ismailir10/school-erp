@@ -25,6 +25,7 @@ the rules that bind **outside** the skills.
 - Self-merge only when the verification route selected from the actual diff is clean and every required check is green on the head — never on red or pending. App changes use local demo-auth browser verification with disposable local Postgres. Auth-impacting or uncertain changes also get a signed-in check on the **staging deployment** after merge; the PR is labelled `needs-staging-verify` before it merges and keeps it until that check passes, and `/ship --to-main` refuses to promote while any does.
 - **Vercel builds only `staging` and `main`.** `vercel.json` `ignoreCommand` → `scripts/vercel-ignore.sh` skips every other branch, so PRs get no preview deployment. This keeps the project inside the free tier; do not re-enable per-PR previews without the user's say-so.
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
+- **Every promotion adds a changelog entry** (`lib/changelog/data/`, rules in [docs/workflow/changelog.md](docs/workflow/changelog.md)), shipped to `staging` before the promotion PR opens. `Checks` fails a PR into `main` without one. The in-app page is `/changelog` ("Apa yang Baru"), signed-in only.
 - **Playwright runs locally in verify-local** for every diff that touches a user flow, and its result goes in the cycle doc's Verification. CI's `E2E` only runs on a PR labelled `e2e`, so it is never a substitute: if Playwright cannot run locally, stop and ask. Add the `e2e` label when the PR touches a user flow.
 
 ### Orchestration — you drive the loop, not the user
@@ -57,6 +58,21 @@ Neither is part of the loop; run on demand.
 
 - **`/uat <area>`** — heuristic UAT. Role-plays a fixed persona through scripted Jobs-to-be-Done via Playwright MCP against strict mobile thresholds (page >4s, API >2s, click-to-visible >3s = blocker), writing `docs/uat/reports/YYYY-MM-DD-<area>.md`. `spec` reads the latest relevant report (60-day staleness rule) into cycle Context. Heuristic, not real UAT — an LLM cannot replicate thumb reach or sunlight glare. Personas: `.claude/personas/`. Skill: [`.claude/skills/uat/SKILL.md`](.claude/skills/uat/SKILL.md).
 - **`/audit-docs`** — thin wrapper over `bash scripts/audit-docs.sh`. See [Documentation Maintenance](#documentation-maintenance).
+
+## Product principle — don't make me think
+
+Talib's users are teachers with a child on each hand and admins between meetings. Every screen should need the fewest decisions and taps the task allows.
+
+- **Defaults over choices.** Pre-fill the likely answer (today, my campus, "Orang tua"); the user changes only what differs.
+- **Exceptions only.** Bulk-mark the common case in one tap ("Semua hadir"), then tap the exceptions.
+- **Detect, don't ask.** Time, location, campus, role and the current class come from context, never a form field.
+- **One primary action per screen.** Secondary actions are visually quieter.
+- **Undo over "are you sure?"** for anything reversible; confirm only destructive or irreversible actions.
+- **Count the taps.** Every spec's `## UX notes` states the tap count of its main task; a change that adds taps says why.
+
+The rules with examples live in [.claude/standards/patterns.md § Don't make me think](.claude/standards/patterns.md#dont-make-me-think).
+
+---
 
 ## Repo profile
 
@@ -289,14 +305,14 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 225 |
-| `app/admin` pages | 45 |
-| `app/teacher` pages | 14 |
+| `app/api/**/route.ts` | 239 |
+| `app/admin` pages | 48 |
+| `app/teacher` pages | 15 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 74 |
-| `e2e/*.spec.ts` | 49 |
+| `e2e/*.spec.ts` | 52 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 136 / 233 |
+| `docs/cycles` active / archived | 147 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

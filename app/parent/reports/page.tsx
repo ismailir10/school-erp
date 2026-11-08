@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
@@ -9,6 +10,8 @@ import {
 import { ReportCardsList } from "@/app/parent/report-cards-list";
 import { PageHeader } from "@/components/portal/page-header";
 import { ContextStrip } from "@/components/portal/context-strip";
+
+export const metadata: Metadata = { title: "Rapor" };
 
 export default async function ParentReportsPage({
   searchParams,

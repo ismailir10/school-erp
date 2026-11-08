@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
@@ -13,6 +14,8 @@ import { loadReceivables } from "@/lib/dashboard/receivables";
 import { getRecentActivity } from "@/lib/dashboard/activity-feed";
 import { buildAdminWorkQueue, rankUrgent, summarizeQueue, canViewAdminActivity } from "@/lib/dashboard/admin-work-queue";
 import { loadAdminQueueSources } from "@/lib/dashboard/queue-sources";
+
+export const metadata: Metadata = { title: "Dasbor" };
 
 export default async function AdminDashboard() {
   const session = await getSession();
@@ -36,12 +39,16 @@ export default async function AdminDashboard() {
     (async () => {
       if (!canSeeAttendance) return { status: "hidden" as const };
       try {
-        const [total, rows] = await Promise.all([
+        const [total, rows, pending] = await Promise.all([
           prisma.employee.count({ where: { tenantId, status: "ACTIVE" } }),
           prisma.attendanceRecord.groupBy({ by: ["status"], where: { employee: { tenantId, status: "ACTIVE" }, date: today }, _count: true }),
+          // Geofence check-ins waiting for review (any date) — only for those who can decide them.
+          can("attendance.override")
+            ? prisma.attendanceRecord.count({ where: { approvalStatus: "PENDING", employee: { tenantId, status: "ACTIVE" } } })
+            : Promise.resolve(0),
         ]);
         const count = (status: string) => rows.find(row => row.status === status)?._count ?? 0;
-        return { status: "ready" as const, total, present: count("PRESENT") + count("PRESENT_NO_CHECKOUT"), late: count("LATE"), absent: count("ABSENT") };
+        return { status: "ready" as const, total, present: count("PRESENT") + count("PRESENT_NO_CHECKOUT"), late: count("LATE"), absent: count("ABSENT"), pending };
       } catch (error) {
         console.error("[dashboard] source unavailable", { key: "attendance", error });
         return { status: "unavailable" as const };

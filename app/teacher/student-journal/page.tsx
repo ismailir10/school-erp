@@ -19,11 +19,32 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { sentraLabel } from "@/lib/sentra/rotation";
 
 type Assignment = {
   id: string;
   classSection: { id: string; name: string; status?: string; academicYear?: {status: string}; program: { name: string } };
+  /** Present on /api/student-journal/classes: how the guru reaches the class. */
+  access?: "ASSIGNED" | "SENTRA";
+  /** Sentra visiting this class on the requested date, when her sentra hosts it. */
+  todaySentraName?: string;
 };
+
+/** "TK B 4 — TK · Sentra Balok (hari ini)" / "… · via sentra" / "name — program". */
+function classOptionLabel(a: Assignment): string {
+  const base = `${a.classSection.name} — ${a.classSection.program.name}`;
+  if (a.todaySentraName) return `${base} · ${sentraLabel(a.todaySentraName)} (hari ini)`;
+  if (a.access === "SENTRA") return `${base} · via sentra`;
+  return base;
+}
+
+function defaultClassId(data: Assignment[], requestedClass: string): string {
+  if (data.some((a) => a.classSection.id === requestedClass)) return requestedClass;
+  const visiting = data.find((a) => a.todaySentraName);
+  if (visiting) return visiting.classSection.id;
+  const active = data.find((a) => a.classSection.status === "ACTIVE" && a.classSection.academicYear?.status === "ACTIVE");
+  return (active ?? data[0]).classSection.id;
+}
 
 export default function StudentJournalPickerPage() {
   const router = useRouter();
@@ -50,7 +71,7 @@ export default function StudentJournalPickerPage() {
     // Fetch lifecycle resets recovery before the next asynchronous result.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true); setLoadError(false);
-    fetch("/api/teaching-assignments/my")
+    fetch(`/api/student-journal/classes?date=${resolveTeacherDate(requestedDate, today)}`)
       .then((r) => {
         if (cancelled) return;
         if (!r.ok) {
@@ -63,7 +84,7 @@ export default function StudentJournalPickerPage() {
       .then((data: Assignment[] | undefined) => {
         if (cancelled || !data) return;
         setAssignments(data);
-        if (data.length > 0) setSelectedClass(data.some(a => a.classSection.id === requestedClass) ? requestedClass : (data.find((a: Assignment) => a.classSection.status === "ACTIVE" && a.classSection.academicYear?.status === "ACTIVE") ?? data[0]).classSection.id);
+        if (data.length > 0) setSelectedClass(defaultClassId(data, requestedClass));
         setDate(resolveTeacherDate(requestedDate,today));
         setLoading(false);
       })
@@ -151,10 +172,12 @@ export default function StudentJournalPickerPage() {
             if (!v) return;
             setSelectedClass(v);
             setClassError("");
-          }} items={assignments.map((a) => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
+          }} items={assignments.map((a) => ({ label: classOptionLabel(a), value: a.classSection.id }))}>
             <SelectTrigger
               id="journal-class"
-              className="tap-target w-full"
+              // Sentra labels run long ("TKIT B — Program · Sentra Balok (hari ini)");
+              // let the trigger wrap to two lines instead of spilling past the card on a 320px phone.
+              className="tap-target h-auto w-full whitespace-normal text-left *:data-[slot=select-value]:line-clamp-2"
               aria-invalid={classError ? true : undefined}
               aria-describedby={classError ? "journal-class-error" : undefined}
             >
@@ -163,7 +186,7 @@ export default function StudentJournalPickerPage() {
             <SelectContent>
               {assignments.map((a) => (
                 <SelectItem key={a.classSection.id} value={a.classSection.id}>
-                  {a.classSection.name} — {a.classSection.program.name}
+                  {classOptionLabel(a)}
                 </SelectItem>
               ))}
             </SelectContent>

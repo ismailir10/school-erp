@@ -73,7 +73,7 @@ Two carve-outs, and only two:
 
 **The rule is portal-agnostic.** It was written during the parent-portal pass and then read as a parent-portal rule — the teacher portal shipped roughly forty Title Case strings on the strength of "staff surfaces are different". They are not. A teacher reads the same Indonesian as a parent. `Buku Penghubung` and `Rapor` stay capitalised because they are product surface names (the first carve-out), not because staff copy gets a looser rule.
 
-The glossary below fixes **which word** to use, not how to capitalise it. A row reading "Lewat Tempo" means *use the phrase "lewat tempo" rather than "menunggak"* — it does not license Title Case at the call site. The `SECTION LABEL` style (uppercase, letter-spaced) is a typographic treatment applied by `components/portal/section-label.tsx`, not capitalisation authored into the string.
+The glossary below fixes **which word** to use, not how to capitalise it. A row reading "Lewat Tempo" means *use the phrase "lewat tempo" rather than "menunggak"* — it does not license Title Case at the call site. The `SECTION LABEL` style (uppercase, letter-spaced) is a typographic treatment applied by `components/ui/section-heading.tsx`, not capitalisation authored into the string.
 
 **Cross-portal glossary** — the canonical term wins over the English/transliterated alternative:
 
@@ -119,6 +119,9 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Perencanaan (academic-year status pre-launch) | Planning |
 | Templat (assessment / journal template) | Template (the `t` at the end softens Indonesian — both are acceptable but Templat is the canonical loanword form) |
 | Timpa (override an attendance / data entry) | Override, Timpa (Override) (the bilingual gloss is redundant once Timpa is established) |
+| Sentra (a learning center room run by one guru; the campus's own list, e.g. "Sentra Balok") | Center, Pusat belajar, Main Peran as one name for Makro and Mikro |
+| Guru sentra (the guru who holds a sentra; she may fill Buku Penghubung and Sentra Harian for the classes that visit it) | Pemilik sentra, Wali sentra, Walas (Walas is the class's own homeroom guru) |
+| Putaran (the rotation that moves classes through the sentra, a grid of days × classes: "Putaran TK", "Pekan 1 · Senin") | Rotasi, Jadwal sentra, Rotation |
 
 ### Assessment skala (3-level)
 
@@ -141,6 +144,10 @@ Expand on **first use per surface**, then abbreviate freely. `IKTP` reads as noi
 ### Nav label ↔ page title
 
 **The word on the tab is the word on the page.** A user who taps "Kelas" and lands on "Absensi Kelas" has to re-derive where they are; one who taps "Capaian" and lands on "Perkembangan" cannot build a map of the product at all. When a nav slot is too narrow for the full title, shorten the *title* too, or use the short form in both places — never let them diverge.
+
+### Browser-tab title
+
+**Every routable page sets its own title**, shown as `<Halaman> · Talib` (e.g. `Siswa · Talib`). The bare "Talib — by An Nisaa' Sekolahku" is only the fallback for the login screen: on any other page it makes every open tab, bookmark and history entry look identical. Use the page's nav label or `PageHeader` title; detail pages say `Detail <benda>` (`Detail Siswa`). A server `page.tsx` exports `metadata = { title: "Kelas" }`. A `"use client"` page cannot, so give its folder a `layout.tsx` with `export const metadata = pageTitle("Siswa")` from `lib/page-title.ts` — never a plain string there, which drops the ` · Talib` suffix from nested routes. `app/__tests__/page-titles.test.ts` fails on any page without one.
 
 ### Never render a caught error
 

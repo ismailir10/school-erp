@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { AdminWorkQueue } from "@/components/admin/dashboard/admin-work-queue";
 import { buildAdminWorkQueue, summarizeQueue, unavailableAdminQueueSections, type AdminWorkKind } from "@/lib/dashboard/admin-work-queue";
 import { loadAdminQueueSources } from "@/lib/dashboard/queue-sources";
+
+export const metadata: Metadata = { title: "Antrean Pekerjaan" };
 
 const VALID_KINDS: readonly AdminWorkKind[] = ["inquiry", "enrollment", "leave", "invoice", "payroll"];
 

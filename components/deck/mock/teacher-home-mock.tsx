@@ -40,7 +40,7 @@ export function TeacherHomeMock() {
       <Phone className="left-6 top-3" height={476}>
         <PortalHeader initials="RN" name="Bu Guru Rina" />
         <div className="min-h-0 flex-1 overflow-hidden bg-background px-4 pt-2.5">
-          <h1 className="truncate text-h1 font-bold leading-tight tracking-tight">Selamat siang, Bu Rina</h1>
+          <h1 className="truncate text-h1 tracking-tight">Selamat siang, Bu Rina</h1>
 
           <div className="mt-2 flex items-center justify-between gap-2">
             <p className="min-w-0 text-small text-muted-foreground">Kehadiran pribadi belum dicatat</p>
@@ -52,7 +52,7 @@ export function TeacherHomeMock() {
               <p className="text-small font-semibold text-muted-foreground">Kelas hari ini</p>
               <p className="text-small text-muted-foreground">20 siswa · 31 Oktober</p>
             </div>
-            <h2 className="mt-1 text-h1 font-bold leading-tight tracking-tight">TK A Al-Fatih</h2>
+            <h2 className="mt-1 text-h1 tracking-tight">TK A Al-Fatih</h2>
             <div className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
               <ClipboardList className="size-4" />
               Lanjutkan absensi · 0/20

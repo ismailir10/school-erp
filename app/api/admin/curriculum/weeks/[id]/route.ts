@@ -10,6 +10,7 @@ import {
   findWeekOverlap,
   formatJakartaYmd,
 } from "@/lib/validations/curriculum";
+import { findScopedWeekOverlap, themeScopeLabel } from "@/lib/curriculum/age-scope";
 import { auditActionForUpdate, CURRICULUM_WRITE_BUDGET, CURRICULUM_WRITE_WINDOW_MS, isUniqueViolation, weekListSelect } from "../../_helpers";
 
 export async function PUT(
@@ -80,6 +81,33 @@ export async function PUT(
         { error: "Pekan bertumpang tindih dengan pekan lain pada subtema ini.", conflictingWeekId: overlap.id },
         { status: 409 },
       );
+    }
+
+    // Cross-subtheme check within the theme's kelompok scope (also covers a
+    // PUT that reactivates an INACTIVE week).
+    const scope = await prisma.subTheme.findFirst({
+      where: { id: before.subThemeId, tenantId: session.tenantId },
+      select: { theme: { select: { semesterId: true, ageGroup: true } } },
+    });
+    if (scope) {
+      const scoped = await findScopedWeekOverlap({
+        tenantId: session.tenantId,
+        semesterId: scope.theme.semesterId,
+        ageGroup: scope.theme.ageGroup,
+        candidates: [
+          { id, startDate: formatJakartaYmd(finalStart), endDate: formatJakartaYmd(finalEnd) },
+        ],
+        excludeWeekIds: [id],
+      });
+      if (scoped) {
+        return NextResponse.json(
+          {
+            error: `Pekan bertumpang tindih dengan pekan lain di ${themeScopeLabel(scope.theme.ageGroup)}.`,
+            conflictingWeekId: scoped.id,
+          },
+          { status: 409 },
+        );
+      }
     }
   }
 

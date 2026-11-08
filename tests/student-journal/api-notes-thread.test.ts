@@ -24,6 +24,7 @@ vi.mock("@/lib/db", () => ({
     student: { findUnique: mocks.studentFindUnique, findFirst: mocks.studentFindFirst },
     studentEnrollment: { findMany: mocks.enrollmentFindMany },
     teachingAssignment: { findFirst: mocks.assignmentFindFirst },
+    sentraRotationClass: { findFirst: vi.fn().mockResolvedValue(null) },
     studentJournalNote: { findMany: mocks.noteFindMany, count: mocks.noteCount },
     studentJournalNoteRead: {
       findUnique: mocks.readFindUnique,

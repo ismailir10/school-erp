@@ -27,6 +27,7 @@ type Campus = {
   address: string | null;
   lat: number | null;
   lng: number | null;
+  radiusMeters: number;
   status: string;
   _count: { employees: number };
 };
@@ -35,7 +36,7 @@ type Campus = {
 // the toolbar filter uses the shared "all" value, translated below.
 type StatusFilter = "all" | "ACTIVE" | "INACTIVE";
 
-const EMPTY_FORM = { name: "", address: "", lat: "", lng: "" };
+const EMPTY_FORM = { name: "", address: "", lat: "", lng: "", radiusMeters: "50" };
 
 export default function CampusesPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -92,6 +93,7 @@ export default function CampusesPage() {
       address: c.address ?? "",
       lat: c.lat?.toString() ?? "",
       lng: c.lng?.toString() ?? "",
+      radiusMeters: String(c.radiusMeters ?? 50),
     });
     setDialogOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,6 +146,9 @@ export default function CampusesPage() {
       () => toast.error("Gagal mendapatkan lokasi. Izinkan akses lokasi atau isi koordinat manual.")
     );
   }
+
+  // Staff check-in skips the distance check when no active campus has a pin.
+  const noCampusPinned = !loading && campuses.some((c) => c.status === "ACTIVE") && !campuses.some((c) => c.status === "ACTIVE" && c.lat != null && c.lng != null);
 
   const filteredCampuses = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -212,6 +217,12 @@ export default function CampusesPage() {
           </Button>
         }
       />
+
+      {noCampusPinned ? (
+        <p role="status" data-testid="campus-pin-hint" className="mb-4 rounded-lg border border-status-late/30 bg-status-late-subtle p-card text-body text-status-late-text">
+          Atur titik lokasi kampus agar absensi guru dapat memeriksa jarak.
+        </p>
+      ) : null}
 
       <DataTableToolbar
         value={query}
@@ -303,6 +314,16 @@ export default function CampusesPage() {
               )}
             />
           </div>
+          <FormField
+            control={form.control}
+            name="radiusMeters"
+            label="Radius absensi (meter)"
+            id="campus-radius"
+            description="Guru dianggap di kampus bila berada dalam jarak ini dari titik lokasi. 10–1000 m, standar 50 m."
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={(field.value as string | number | undefined) ?? ""} type="number" inputMode="numeric" min={10} max={1000} step={1} />
+            )}
+          />
           <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
             <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
           </Button>

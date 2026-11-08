@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
         salaryValues: { select: { componentDefId: true, value: true } },
         attendanceRecords: {
           where: { date: { gte: periodStart, lte: periodEnd } },
-          select: { status: true },
+          select: { status: true, approvalStatus: true },
         },
       },
     }),
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
           componentDefId: sv.componentDefId,
           value: Number(sv.value),
         })),
-        attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
+        attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status, approvalStatus: r.approvalStatus })),
       })),
       components,
       actualWorkDays,

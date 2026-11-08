@@ -28,6 +28,7 @@ const findFirstLeaveRequest = vi.fn();
 const createLeaveRequest = vi.fn();
 
 const findManyHoliday = vi.fn();
+const findManyCampus = vi.fn();
 const transactionMock = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -52,6 +53,7 @@ vi.mock("@/lib/db", () => ({
     holiday: {
       findMany: findManyHoliday,
     },
+    campus: { findMany: findManyCampus },
     $transaction: transactionMock,
   },
 }));
@@ -97,6 +99,7 @@ beforeEach(() => {
     workingDays: JSON.stringify(["MON", "TUE", "WED", "THU", "FRI"]),
   });
   findManyHoliday.mockResolvedValue([]);
+  findManyCampus.mockResolvedValue([]);
   transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
       employee: { findUnique: findUniqueEmployee, findFirst: findUniqueEmployee },

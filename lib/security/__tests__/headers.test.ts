@@ -38,7 +38,7 @@ describe("applySecurityHeaders", () => {
     );
     expect(res.headers.get("Permissions-Policy")).toContain("camera=()");
     expect(res.headers.get("Permissions-Policy")).toContain("microphone=()");
-    expect(res.headers.get("Permissions-Policy")).toContain("geolocation=()");
+    expect(res.headers.get("Permissions-Policy")).toContain("geolocation=(self)");
   });
 
   it("allows only the canonical static design reference in a same-origin frame", () => {

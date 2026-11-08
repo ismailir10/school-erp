@@ -44,6 +44,12 @@ jobs:
           fi
           echo "Docs sync OK"
 
+      # Every promotion tells users what changed: a PR into main must add a lib/changelog/data release.
+      # Writing rules: docs/workflow/changelog.md.
+      - name: Promotion changelog entry
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: bash scripts/check-promotion-changelog.sh origin/main HEAD
+
       # The presence check above only proves *a* doc was touched — README and CLAUDE.md can rot while
       # every PR stays green. This is the truth check: the docs still describe the repo.
       - name: Doc staleness audit
@@ -53,6 +59,7 @@ jobs:
         run: |
           bash scripts/test-audit-docs.sh
           bash scripts/test-hooks.sh
+          bash scripts/test-check-promotion-changelog.sh
 
       # The shared spec/build/verify-local/ship skills are vendored from agent-workflow. Offline checksum
       # check: fails when a vendored file was edited here instead of upstream.

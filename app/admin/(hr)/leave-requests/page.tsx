@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -489,10 +489,14 @@ export default function AdminLeavePage() {
       {deepLinkError && <Alert className="mb-field"><AlertTitle>Pengajuan tidak tersedia</AlertTitle><AlertDescription><p>Pengajuan tidak ditemukan atau tidak dapat dibuka dengan akses Anda.</p><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setDeepLinkRetry(value => value + 1)}>Coba lagi</Button><Button variant="ghost" onClick={closeReview}>Lihat daftar pengajuan</Button></div></AlertDescription></Alert>}
       {statsState === "error" && <Alert className="mb-field"><AlertTitle>Ringkasan izin belum tersedia</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
       {statsState === "ready" && <StatsCardsRow>
-        <StatCard label="Total Pengajuan" value={stats.total} icon={FileText} color="primary" index={0} />
-        <StatCard label="Menunggu" value={stats.pending} icon={Clock} color="warning" index={1} />
-        <StatCard label="Disetujui" value={stats.approved} icon={CheckCircle} color="success" index={2} />
-        <StatCard label="Ditolak" value={stats.rejected} icon={XCircle} color="error" index={3} />
+        <StatTile size="lg" mono
+          label="Total Pengajuan" value={stats.total} icon={FileText} tone="default" />
+        <StatTile size="lg" mono
+          label="Menunggu" value={stats.pending} icon={Clock} tone="warning" />
+        <StatTile size="lg" mono
+          label="Disetujui" value={stats.approved} icon={CheckCircle} tone="positive" />
+        <StatTile size="lg" mono
+          label="Ditolak" value={stats.rejected} icon={XCircle} tone="critical" />
       </StatsCardsRow>}
 
       <DataTableToolbar

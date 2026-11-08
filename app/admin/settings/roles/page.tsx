@@ -85,7 +85,7 @@ function SystemRoleCards() {
             className="bg-card border border-border rounded-xl p-5"
           >
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
+              <div className="size-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                 <sr.icon size={20} className={sr.color} />
               </div>
               <div className="min-w-0">

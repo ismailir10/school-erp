@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentAttendanceStatus, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -11,7 +12,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Amount } from "@/components/portal/amount";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { KidCard, type KidCardFoot, type KidCardProps } from "@/components/parent/kid-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import { prisma } from "@/lib/db";
 import {
   formatDate,
   formatCurriculumElement,
-  formatLearningCenter,
+  formatEntrySentra,
 } from "@/lib/format";
 import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
@@ -30,6 +31,8 @@ import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
+
+export const metadata: Metadata = { title: "Beranda" };
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -284,7 +287,7 @@ export default async function ParentDashboard() {
     <div className="space-y-6">
       <header>
         <p className="text-sm text-muted-foreground">{greetingTitle}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Kabar keluarga hari ini</h1>
+        <h1 className="mt-1 text-h1 tracking-tight text-foreground">Kabar keluarga hari ini</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           Selamat {tod} · {dateLine}
           {hijri ? (
@@ -294,7 +297,7 @@ export default async function ParentDashboard() {
       </header>
 
       <section aria-labelledby="household-actions-heading" className="space-y-3">
-        <SectionLabel as="h2" id="household-actions-heading">Hari ini</SectionLabel>
+        <SectionHeading as="h2" id="household-actions-heading">Hari ini</SectionHeading>
         {attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
           <Card size="sm" className="bg-status-present-subtle">
             <CardContent className="flex items-center gap-3 text-sm">
@@ -345,7 +348,7 @@ export default async function ParentDashboard() {
       </section>
 
       <section>
-        <SectionLabel>Anak saya</SectionLabel>
+        <SectionHeading>Anak saya</SectionHeading>
         <div className="space-y-3">
           {kids.map((k) => (
             <KidCard
@@ -378,7 +381,7 @@ export default async function ParentDashboard() {
         if (perkembanganKids.length === 0) return null;
         return (
           <section data-testid="home-perkembangan-section">
-            <SectionLabel>Perkembangan pekan ini</SectionLabel>
+            <SectionHeading>Perkembangan pekan ini</SectionHeading>
             <p className="-mt-1 mb-2 text-xs text-muted-foreground">Ini tahapan perkembangan, bukan nilai.</p>
             <div className="space-y-3">
               {perkembanganKids.map(({ child, data }) => {
@@ -416,8 +419,8 @@ export default async function ParentDashboard() {
                           <div className="min-w-0 flex-1">
                             <p className="text-xs text-muted-foreground">
                               {formatCurriculumElement(entry.element)}
-                              {entry.source === "CENTER" && entry.center && (
-                                <> · {formatLearningCenter(entry.center)}</>
+                              {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
+                                <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
                               )}
                             </p>
                             <p className="line-clamp-2 text-xs text-foreground">

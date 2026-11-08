@@ -35,6 +35,7 @@ vi.mock("@/lib/db", () => {
   return {
     prisma: {
       teachingAssignment: { findFirst: mocks.assignmentFindFirst },
+      sentraRotationClass: { findFirst: vi.fn().mockResolvedValue(null) },
       classSection: { findFirst: mocks.classFindFirst },
       $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
     },
@@ -214,6 +215,7 @@ describe("auth and abuse limits", () => {
     await PUT(req(valid));
     expect(mocks.assignmentFindFirst).toHaveBeenCalledWith({
       where: { employeeId: "e1", classSectionId: "c1", classSection: { tenantId: "t1" } },
+      select: { id: true },
     });
   });
 

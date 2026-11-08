@@ -51,7 +51,7 @@ export default async function DaftarPage() {
         <SchoolHero />
 
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
+          <h1 className="text-h1 text-foreground sm:text-display">
             Pendaftaran Siswa Baru
           </h1>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">

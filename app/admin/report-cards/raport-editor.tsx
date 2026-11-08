@@ -573,7 +573,6 @@ export function RaportEditor({
         title="Tarik penerbitan rapor?"
         description="Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang."
         confirmLabel="Ya, Tarik"
-        destructive
         onConfirm={() => setPublish(false)}
       />
     </div>
@@ -582,7 +581,7 @@ export function RaportEditor({
 
 function BackBar({ onBack }: { onBack: () => void }) {
   return (
-    <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={onBack}>
+    <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={onBack} data-page-back="">
       <ArrowLeft className="size-4" /> Kembali ke daftar
     </Button>
   );

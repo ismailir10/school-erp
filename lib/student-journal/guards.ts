@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, isAdminRole, type SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getStudentSentraAccess, teacherCanAccessClass } from "@/lib/sentra/access";
 import {
   JOURNAL_FORBIDDEN_MSG,
   JOURNAL_NOT_ENROLLED_MSG,
@@ -40,13 +41,22 @@ export async function requireAdmin(): Promise<
  * Returns `{ session }` when:
  * - Caller is authenticated with role TEACHER
  * - Has a tenantId
- * - Has an active TeachingAssignment for the given classSectionId
+ * - Has a TeachingAssignment for the given classSectionId, OR — only when the
+ *   caller passes `{ viaSentra: true }` — is a guru sentra of an active putaran
+ *   that contains the class (`teacherCanAccessClass`).
+ *
+ * Sentra access is opt-in per caller on purpose: Buku Penghubung routes pass it
+ * (docs/cycles/2026-11-06-sentra-rotation.md, Decision 5); attendance and the
+ * teacher student list also use this guard and stay assignment-only (non-goal).
  *
  * NOTE: TeachingAssignment has no `status` field — existence of the row
  * means the assignment is active. Cross-tenant safety is enforced by
- * checking classSection.tenantId = session.tenantId.
+ * checking classSection.tenantId = session.tenantId on both paths.
  */
-export async function requireTeacherForClass(classSectionId: string): Promise<
+export async function requireTeacherForClass(
+  classSectionId: string,
+  opts: { viaSentra?: boolean } = {},
+): Promise<
   | { session: SessionUser & { tenantId: string; employeeId: string }; error?: undefined }
   | { session?: undefined; error: NextResponse }
 > {
@@ -64,16 +74,19 @@ export async function requireTeacherForClass(classSectionId: string): Promise<
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  // Verify the teacher is assigned to this class AND the class belongs to their tenant
-  const assignment = await prisma.teachingAssignment.findFirst({
-    where: {
-      employeeId: session.employeeId,
-      classSectionId,
-      classSection: { tenantId: session.tenantId },
-    },
-  });
-
-  if (!assignment) {
+  // Assigned to this class (or, for journal callers, guru sentra of a putaran
+  // containing it). Both checks scope the class to the session tenant.
+  const allowed = opts.viaSentra
+    ? await teacherCanAccessClass(session.employeeId, session.tenantId, classSectionId)
+    : !!(await prisma.teachingAssignment.findFirst({
+        where: {
+          employeeId: session.employeeId,
+          classSectionId,
+          classSection: { tenantId: session.tenantId },
+        },
+        select: { id: true },
+      }));
+  if (!allowed) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
@@ -88,7 +101,7 @@ export async function requireTeacherForClass(classSectionId: string): Promise<
  * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): any class of their own tenant, so a
  *   past day can be corrected from the monitoring side. A class id from another
  *   tenant answers 404 — same as the rest of the admin journal routes.
- * - **Teacher**: delegates to `requireTeacherForClass` (assigned to this class).
+ * - **Teacher**: delegates to `requireTeacherForClass(…, { viaSentra: true })`.
  * - Everyone else (wali included): 403.
  */
 export async function requireDayMarkWriter(classSectionId: string): Promise<
@@ -99,7 +112,7 @@ export async function requireDayMarkWriter(classSectionId: string): Promise<
   if (!session) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  if (!isAdminRole(session.role)) return requireTeacherForClass(classSectionId);
+  if (!isAdminRole(session.role)) return requireTeacherForClass(classSectionId, { viaSentra: true });
   if (!session.tenantId) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
@@ -124,8 +137,8 @@ export async function requireDayMarkWriter(classSectionId: string): Promise<
  *
  * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): tenant scope only. Admins write on
  *   behalf of staff and are not assigned to classes.
- * - **Teacher**: must hold a TeachingAssignment for at least ONE of the
- *   student's ACTIVE enrollments. A student may sit in several (day-care plus
+ * - **Teacher**: must hold a TeachingAssignment, or be guru sentra of a putaran
+ *   (`getStudentSentraAccess`), for at least ONE of the student's ACTIVE enrollments. A student may sit in several (day-care plus
  *   school), and checking only the first 403s a guru who is legitimately
  *   assigned via the other.
  * - **Guardian**: delegates to `requireGuardianForStudent`.
@@ -178,14 +191,12 @@ export async function requireNoteAccessForStudent(studentId: string): Promise<
       };
     }
 
-    const assignment = await prisma.teachingAssignment.findFirst({
-      where: {
-        employeeId: session.employeeId,
-        classSectionId: { in: enrollments.map((e) => e.classSectionId) },
-        classSection: { tenantId: session.tenantId },
-      },
-    });
-    if (!assignment) return { error: forbidden() };
+    const allowed = await getStudentSentraAccess(
+      session.employeeId,
+      session.tenantId,
+      enrollments.map((e) => e.classSectionId),
+    );
+    if (!allowed) return { error: forbidden() };
   } else if (session.role === "GUARDIAN") {
     const guard = await requireGuardianForStudent(studentId);
     if (guard.error) return { error: guard.error };

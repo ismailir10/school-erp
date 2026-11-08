@@ -6,33 +6,69 @@
 
 **Cross-check every frontend change against `.claude/standards/design-system.html`** (brand, tokens, type, components, states, overlays, portal shells, voice). Scan the sections relevant to the change before editing; the cycle doc Verification must cite `design-system` (frontend gate, pre-commit Rule 4). Where tokens, recipes or copy disagree, `app/globals.css` wins for values and this file wins for usage. `/admin/design-system` serves a byte-identical copy at `public/admin/design-system-reference.html`: edit the canonical file, then `cp` it over (the guard test fails on drift).
 
+## Visual principles
+
+Figma's 13 [graphic design principles](https://www.figma.com/resource-library/graphic-design-principles/), grouped by how Talib enforces them. Design critiques and reviews check a screen against this table.
+
+| Principles | What it means here | Enforced by |
+|---|---|---|
+| Hierarchy, emphasis, contrast | One thing leads each screen and card; the rest is quieter | Heading tokens (`text-display` / `text-h1` / `text-h2`), one filled button per screen and per card or action group |
+| Alignment, proximity | Related things sit together on one edge | `PageHeader` / `DetailPageHeader`, `SectionCard`, `gap-field`, reading order with a back link |
+| White space, balance, proportion | Room to breathe, even weight | Spacing tokens `space-y-*` / `gap-field` / `mb-section`, breakpoints |
+| Colour | Colour carries meaning, never decoration | Semantic colour tokens only (guard rules A, B, E); red only for irreversible loss |
+| Repetition, unity | The same job looks the same everywhere | Shared primitives (`StatTile`, `SectionHeading`, `Badge` / `StatusBadge`, `ConfirmDialog`) and guard rules |
+| Rhythm, movement | Steady spacing; motion explains, never decorates | Motion tokens in `lib/motion.ts` (rule F), `prefers-reduced-motion` |
+
 ## Design tokens
 
-Values live in `app/globals.css` (`:root` for values, `@theme inline` for utilities). Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. `lib/__tests__/design-token-guard.test.ts` fails on raw palette colours, arbitrary hex/rgb, `hsl(var(--…))`, `Loader2`/`animate-spin` outside `Spinner`, `bg-<semantic>/10` tints outside `components/ui`, and `toLocaleString` outside `lib/format.ts` (rule G: use `formatNumber` / `formatRupiah`). A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
+Values live in `app/globals.css` (`@theme` and `:root`; `:root` holds the values, `@theme inline` exposes them as utilities). This file lists names and purpose only, so a value is never written here by hand. Use the utility; never hand-write `p-4`, `text-lg`, `shadow-[…]`, `z-[…]`, a cubic-bezier, or a hex for page chrome. `text-sm` / `text-xs` stay fine for dense UI (tables, chips); new page chrome uses the semantic scale. A new size, shadow or z-index token also goes in `extendTailwindMerge` in `lib/utils.ts`, or `cn()` mis-merges it (it read `text-caption` as a colour and dropped `text-muted-foreground`).
 
 | Family | Utilities | Notes |
 |---|---|---|
-| Spacing | `px-page-x` 1.5rem, `py-page-y` 2rem, `gap-section` 2rem, `p-card` 1.5rem, `gap-field` / `space-y-field` 1rem | Page padding, section gap, card padding, form row gap |
-| Type | `text-display` 2rem/1.15 bold, `text-h1` 1.5rem/1.25 semibold, `text-h2` 1.125rem/1.35 semibold, `text-body` 0.875rem/1.5, `text-small` 0.75rem/1.4, `text-caption` 0.6875rem/1.35 | Display, h1 and h2 carry their own line-height **and weight**: never add `font-semibold` / `leading-*` to them |
-| Radius | `rounded-sm` … `rounded-4xl`, all derived from `--radius` (0.625rem) | `rounded-lg` = `--radius`; cards `rounded-xl` |
+| Spacing | `px-page-x`, `py-page-y`, `gap-section`, `p-card`, `gap-field` / `space-y-field` | Page padding, section gap, card padding, form row gap. Shadcn primitives and `SectionCard` keep their own `p-4` (`md:p-card` on `SectionCard`); portal layouts use `px-page-x py-6` (see `portal.md` § Spacing Scale) |
+| Type | `text-display`, `text-h1`, `text-h2`, `text-body`, `text-small`, `text-caption` | Display, h1 and h2 carry their own line-height **and weight**: never add `font-bold` / `font-semibold` / `leading-*` to them (see Heading weight below) |
+| Radius | `rounded-sm` … `rounded-4xl`, all derived from `--radius` | `rounded-lg` = `--radius`; cards `rounded-xl` |
 | Elevation | `shadow-resting` (also `shadow-card-resting`), `shadow-raised`, `shadow-overlay`, `shadow-sticky-edge`, `shadow-card-elevated` | Resting card, hover-lifted card or sticky bar, popover/menu/dialog, sticky trailing column edge |
-| Motion | `ease-standard`, `ease-emphasized`, `duration-fast` 120ms, `duration-base` 200ms, `duration-slow` 320ms | framer-motion: `EASE_STANDARD`, `EASE_EMPHASIZED`, `DURATION` (seconds) from `lib/motion.ts`. Wrap decorative motion in `motion-safe:` |
-| Z-index | `z-base` 0, `z-sticky` 10, `z-header` 20, `z-nav` 30, `z-dropdown` 40, `z-overlay` 50, `z-toast` 60 | Shadcn primitives keep `z-50`, which equals `z-overlay`; don't rewrite them |
+| Motion | `ease-standard`, `ease-emphasized`, `duration-fast`, `duration-base`, `duration-slow` | framer-motion: `EASE_STANDARD`, `EASE_EMPHASIZED`, `DURATION` (seconds) from `lib/motion.ts`. Wrap decorative motion in `motion-safe:` |
+| Z-index | `z-base`, `z-sticky`, `z-header`, `z-nav`, `z-dropdown`, `z-overlay`, `z-toast` (low to high) | Shadcn primitives keep `z-50`, which equals `z-overlay`; don't rewrite them |
 | Colour | see [colors.md](./colors.md) | Light-only; semantic triads `success` / `warning` / `info` / `destructive` |
+
+### Guard rules
+
+`lib/__tests__/design-token-guard.test.ts` scans `app/` and `components/` and fails on:
+
+| Rule | Fails on |
+|---|---|
+| A | raw Tailwind palette colour (`bg-red-500`) |
+| B | arbitrary colour in brackets (`text-[#…]`, `bg-[rgb(…)]`) |
+| C | `hsl(var(--…))` around a hex token |
+| D | `Loader2` / `animate-spin` outside `Spinner` |
+| E | `bg-<semantic>/10` tints outside `components/ui` |
+| F | the easing cubic-bezier literal outside `lib/motion.ts` |
+| G | `toLocaleString` (use `formatNumber` / `formatRupiah` from `lib/format.ts`) |
+| H | `font-bold` / `font-semibold` next to `text-h1`, `text-h2` or `text-display` (`font-medium` stays allowed) |
+| I | importing `alert-dialog` outside `confirm-dialog.tsx` (use `ConfirmDialog`) |
+| J | `z-[…]` or `shadow-[…]` outside `components/ui` (use the z-index and elevation tokens) |
+| K | square icon sizing `h-N w-N` (use `size-N`) |
+| L | importing the removed `StatCard` or `SectionLabel` (use `StatTile`, `SectionHeading`) |
+| M | a logout `ConfirmDialog` with `destructive` (logout is never red) |
+
+Other docs link here for these bans; they do not repeat them.
 
 ## Reach for
 
 | Need | Use | Not |
 |---|---|---|
 | Status from a domain enum | `<StatusBadge>` (`components/ui/status-badge.tsx`; owns every status tone as a named key, incl. class health `Sehat` / `Perhatian` / `Kritis` / `Libur`) | A page-local tone map |
-| Count or state pill | `<Badge variant="success\|warning\|info\|danger\|neutral">` | `<Badge className="bg-status-…">`, hand-rolled `<span rounded-full …>` |
+| Count or neutral pill (`Badge`), domain status (`StatusBadge`); interactive chips are exempt | `<Badge variant="success\|warning\|info\|danger\|neutral">` | `<Badge className="bg-status-…">`, hand-rolled `<span rounded-full …>` |
 | Bordered section block (detail pages, portal sections) | `<SectionCard title description? action? footer? className contentClassName>` (`components/ui/section-card.tsx`) | `rounded-xl border bg-card p-4` divs. Plain `Card` only for custom structure |
 | Loading | `<Spinner>` (`components/ui/spinner.tsx`; `aria-hidden` beside visible text) for actions, `<Skeleton>` for layout | `Loader2` / `animate-spin` / `animate-pulse` divs |
 | Route or fetch error | `<ErrorState title onRetry>` (`components/ui/error-state.tsx`) | A hand-written error block per `error.tsx` |
 | Person | `<UserAvatar>` (`components/ui/user-avatar.tsx`) | A hand-rolled initials circle |
 | Back navigation | `<BackLink>` (`components/portal/back-link.tsx`) | A hand-rolled `ArrowLeft` link |
-| Confirm, destructive or not | `<ConfirmDialog>` (`destructive` for delete/void/cancel) | Raw `<AlertDialog>`, `window.confirm()` |
-| Page title | `PageHeader` (`components/admin/page-header.tsx`, `components/portal/page-header.tsx`) | A hand-rolled `<h1>` |
+| Confirm, destructive or not | `<ConfirmDialog>` (`destructive` only for irreversible data loss; see Tone follows consequence) | Raw `<AlertDialog>`, `window.confirm()` |
+| Section eyebrow | `<SectionHeading>` (`as`, children; the only eyebrow, `SectionLabel` is removed, guard rule L) | A hand-rolled uppercase label |
+| Page title | `PageHeader` (`components/admin/page-header.tsx`; `components/portal/page-header.tsx` wraps it, same title and `mb-section` margin) | A hand-rolled `<h1>` |
 | Money | `formatRupiah()` + `font-currency` (admin, mono) or `font-amount` (parent, sans) | Inline formatting |
 | Plain number | `formatNumber()` (`lib/format.ts`) | `.toLocaleString()` (guard rule G) |
 | Field validation error | shadcn `<FieldError>` under the field | A toast as the only signal |
@@ -53,7 +89,7 @@ Use the installed Shadcn component; do not build custom. (Talib primitives are i
 | Wide matrix / grid (not a sortable/paginated entity list) | ui/table primitives (`<Table>`, `<TableHeader>`, `<TableBody>`, ...) | raw `<table>` |
 | Admin tabs (panels within one page) | `<AdminTabs>` | raw `<Tabs>` import in `app/admin/**` |
 | Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
-| Small "label above a number" tile (dashboard, detail rail, trend strip) | `<StatTile>` (`components/ui/stat-tile.tsx`; `StatCard` stays the icon + count-up KPI card on list pages) | Hand-rolled `rounded-lg border` tile with `text-[10px]` |
+| Small "label above a number" tile (dashboard, detail rail, trend strip) | `<StatTile>` (`components/ui/stat-tile.tsx`; the only stat component: optional `icon`, numbers count up; `StatCard` is removed, guard rule L) | Hand-rolled `rounded-lg border` tile with `text-[10px]` |
 | Previous / label / next stepper for a month or week | `<PeriodStepper>` (`components/ui/period-stepper.tsx`; URL-driven week navigation with a "today" shortcut is the portal `WeekNavigator`) | `<button className="p-2">` with a chevron |
 | Icon-only button | `<Button size="icon">` / `"icon-sm"` | `size="sm" className="h-8 w-8 p-0 …"` |
 | Form field | `<FormField>` (`components/ui/form.tsx`, binds react-hook-form onto `Field` / `FieldLabel` / `FieldDescription` / `FieldError`) | Raw `<Label>` + `<Input>`, hand-wired `htmlFor`/`aria-invalid`, a `useState` form object |
@@ -68,7 +104,7 @@ Use the installed Shadcn component; do not build custom. (Talib primitives are i
 
 ## Touch targets (phones)
 
-Every control is at least **44px** tall on a touch device (`(pointer: coarse)`), and looks exactly as before on a mouse. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after`. A control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
+Every control is at least **44px** tall on a touch device (`(pointer: coarse)`) and **32px** (`h-8`, the `Button` default) on a mouse. `xs`, `sm` and `lg` buttons keep their own mouse height and also gain the 44px touch floor; `icon` sizes gain a 44px minimum width. The floor lives in the primitives, not in pages: `Button`, `Input`, `NativeSelect`, `InputGroup`, `SelectTrigger`, `AsyncCombobox`, `Toggle`, `AccordionTrigger`, `TabsTrigger` carry `[@media(pointer:coarse)]:min-h-11`, and `BreadcrumbLink` / `Checkbox` / `Switch` grow their hit area with an `::after`. A control built on these needs nothing extra; **never** pass a page-level `h-9`/`p-1` that works against them, and don't hand-roll a `<button>` or `<input>` (use `Button size="icon"`, `PeriodStepper`, `Input`). Text fields are 16px below `md` (`text-base md:text-sm`) or iOS zooms the page on focus; a caller that passes `text-sm`/`text-xs` to an input must write `text-base md:text-sm`. `.tap-target` (`app/globals.css`) is the always-on version for portal controls that are not one of the primitives above.
 
 `e2e/mobile-layout.spec.ts` walks the admin, teacher and parent routes at 390px and fails on sideways page scroll, a control under 44px, a data table that needs a sideways scroll (only the month × employee matrix is exempt), and a text field under 16px. Add a new route to its list when you add a screen.
 
@@ -81,8 +117,9 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
 
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
-- **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; `destructive` for the irreversible ones). Never import `<AlertDialog>` outside `confirm-dialog.tsx`. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), destructive-right (`variant="destructive"`).
+- **Confirms go through `<ConfirmDialog>`, always** (delete, void, cancel, deactivate, restore, approve; tone per Tone follows consequence below). Never import `<AlertDialog>` outside `confirm-dialog.tsx` (guard rule I). Whether an action confirms at all: see Undo or confirm below. A two-answer question is still a two-way `<ConfirmDialog>` (confirm or Batal, focus on Batal). Cancel-left (ghost), confirm-right (`destructive` renders the solid-red `destructive-solid` variant).
 - **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
+- **Tone follows consequence, two-step.** Red means irreversible data loss and only that. The trigger is the quiet `destructive` variant; the commit is solid red (`destructive-solid` Button variant, used by `ConfirmDialog destructive`). Reversible actions are neutral, with a primary confirm. Destructive: delete, discard unsaved edits, recalculate a draft (wipes manual edits). Neutral: deactivate (soft-delete, reversible), restore, approve, void-and-reissue where data is kept. **Logout is never red** (guard rule M): one neutral confirm, "Keluar dari Talib?" with a primary "Keluar", in every portal.
 - **Toasts stack, overlays don't.** Sonner's default 3–5s suits success; a failed save persists with a retry via `toastError` (see Feedback below).
 - **Body copy states the consequence** ("Data akan hilang selamanya" for hard delete, "Bisa diaktifkan kembali kapan saja" for soft delete); see `voice.md`.
 
@@ -100,6 +137,14 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 <SidebarMenuButton asChild><Link href="/admin">
 ```
 
+## Undo or confirm
+
+One rule for "are you sure?" (referenced from `patterns.md` and `crud.md`):
+
+- **In-flow reversible edits get an undo toast, not a dialog.** Marking attendance, removing a row from a list being edited, clearing a field: apply at once, and the toast carries an undo action.
+- **Deactivating or deleting a master record** (a student, class, campus, invoice void, anything in `crud.md` Category A/B/C terminal actions) **goes through `<ConfirmDialog>`**, destructive only when irreversible (deactivate is reversible, so neutral). This is what the existing call sites do.
+- Moving master-record deactivation to undo is a separate product decision, not part of this standard.
+
 ## Feedback
 
 - **Validation shows at the field.** Shadcn `FieldError` + `aria-invalid` + `aria-describedby`; focus the first invalid field on submit; clear the error as soon as the value is fixed. A toast is never the only signal. Never disable a submit button without saying why: leave it enabled and let the tap explain. Reference: `app/teacher/student-journal/page.tsx`.
@@ -107,6 +152,49 @@ Every control is at least **44px** tall on a touch device (`(pointer: coarse)`),
 - **Generic copy comes from `MESSAGES`** in `lib/feedback.ts`; caught errors go through `toastCaughtError` / `userMessage`, never raw `err.message`. Wording rules: `voice.md` § Errors.
 - **Bulk destructive one-taps confirm** through `<ConfirmDialog>` (reference: `components/student-journal/class-day-grid.tsx`).
 - **Small visual controls get an invisible ≥44px hit area**: `relative after:absolute after:-inset-N` (reference: `components/portal/week-grid.tsx`).
+
+## Heading weight
+
+`text-display`, `text-h1` and `text-h2` set their own size, line-height and weight (`text-h1` and `text-h2` are semibold, `text-display` bold). Callers never add `font-bold`, `font-semibold` or `leading-*` next to them; guard rule H enforces it. `font-medium` on a heading token is a deliberate lighter weight and stays allowed (billing wizard step numbers). Every page title, admin, teacher and parent, is `text-h1` through `PageHeader`.
+
+## Icons
+
+Lucide only. Size with `size-N`, never `h-N w-N` (guard rule K); leave the stroke at Lucide's default (`strokeWidth` only for a deliberate emphasis such as a check mark). Inside `Button`, `DropdownMenuItem`, `TabsTrigger` and similar primitives an icon without a `size-*` class already gets `size-4` (or `size-3` / `size-3.5` on `xs` / `sm` buttons), so leave it unsized there.
+
+| Size | Use |
+|---|---|
+| `size-3` | Smallest inline glyph: badge or chip icon, `xs` button icon, corner accent |
+| `size-3.5` | Icon beside `text-small` or in an `sm` button; compact row actions (edit, retry, chevron in dense UI) |
+| `size-4` | Default: beside body text, in buttons, menu items, table cells, alerts, chevrons |
+| `size-5` | Section or card-header glyph, task-row leading icon, inline error / info icon |
+| `size-6` | Rare: a large standalone glyph or a block-level `Spinner`. Above this, an icon belongs inside `EmptyState` / `ErrorState` |
+
+Empty and error states use larger glyphs inside their own primitives (`EmptyState`, `ErrorState`); don't size those by hand. Decorative icons beside visible text carry `aria-hidden`; an icon-only control needs an `aria-label`.
+
+## Chart colours
+
+Charts are Recharts through `components/ui/chart.tsx` (`ChartContainer` + a `ChartConfig`). Give each series a `color` in the config and read it back as `var(--color-<key>)`; never a hex in a chart.
+
+- **Status charts use status tokens.** Attendance present / late / absent is `var(--status-present)` / `var(--status-late)` / `var(--status-absent)` (`components/admin/dashboard/attendance-trend-chart.tsx`); the series meaning decides the colour, not the order.
+- **Single-series and brand charts use `var(--primary)`**; a muted second series (e.g. "ditagihkan" beside "terkumpul") is a `color-mix` of `var(--muted-foreground)` with transparent (`finance-trend-card.tsx`).
+- **Categorical series with no status meaning use `--chart-1` … `--chart-5` in that order**, wrapped as `var(--chart-N)`. Don't skip ahead, and don't reuse a status colour for an unrelated series. Five is the ceiling; group the tail into "Lainnya".
+- Never encode meaning by colour alone: pair with a label, legend or tooltip text.
+
+## Breakpoints
+
+Mobile-first Tailwind defaults (not overridden in `globals.css`): write the phone layout unprefixed, then widen. The product uses three:
+
+| Breakpoint | Used for |
+|---|---|
+| `sm` | Small layout steps: stacked to side-by-side rows (`sm:flex-row`), 1 to 2 column grids, `DataTableToolbar` leaving its phone grid |
+| `md` | The phone/desktop switch: `DataTable` priority columns and `DataTableMobileMeta`, `ResponsiveFormDialog` (Sheet below, Dialog above), the sidebar (`useIsMobile` is `< md`), `text-base md:text-sm` inputs, calendar-to-list |
+| `lg` | Multi-column page bodies: stat-tile rows, the `DetailRail` beside a dossier, wide grids |
+
+`xl` is reserved for rare extras (the Dasbor activity rail); `2xl` is unused. Portals are a fixed `max-w-md` column and rarely need any breakpoint. Test at 390px and 1440px.
+
+## Focus ring
+
+Keyboard focus is shown with `focus-visible` only. The primitives (`Button`, `Input`, `Textarea`, `SelectTrigger`, `Checkbox`, `Switch`, `Toggle`, `TabsTrigger`) use `focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`; an invalid control swaps in `aria-invalid:border-destructive` and a destructive ring. A control built on a primitive inherits this and needs nothing extra. A hand-built interactive element (rare; prefer a primitive) must copy the same classes. Never `outline-none` or `focus:outline-none` without a `focus-visible` ring replacing it, and never `focus:` where `focus-visible:` is meant (it rings on mouse click).
 
 ## Dialog & Sheet button labels (canonical)
 
@@ -118,8 +206,8 @@ Every admin form Dialog / Sheet uses these button strings (linked from `crud.md`
 | Bulk create | `Buat <Plural>` (e.g. `Buat Tagihan Bulanan`) | `Memproses...` | `Batal` | `ghost` |
 | Edit | `Simpan Perubahan` | `Menyimpan...` | `Batal` | `ghost` |
 | Domain mutation (approve, send, void, override, record payment) | Verb-only (`Setujui`, `Kirim`, `Catat Pembayaran`, `Simpan Override`, `Simpan & Hitung Ulang`) | `Memproses...` | `Batal` | `ghost` |
-| Destructive confirm (`<ConfirmDialog destructive>`) | `Ya, <Verb>` (`Ya, Hapus`, `Ya, Batalkan`, `Ya, Nonaktifkan`) | `Memproses...` | `Batal` | (`AlertDialogCancel` — no `variant=` prop) |
-| Reversible confirm (Restore / Activate) | `<Verb>` (`Aktifkan`, `Pulihkan`) | `Memproses...` | `Batal` | (`AlertDialogCancel`) |
+| Destructive confirm (`<ConfirmDialog destructive>`, solid red) | `Ya, <Verb>` (`Ya, Hapus`, `Ya, Batalkan`) | `Memproses...` | `Batal` | (`AlertDialogCancel` — no `variant=` prop) |
+| Reversible confirm (Restore / Activate / Deactivate / Logout, neutral) | `<Verb>` (`Aktifkan`, `Pulihkan`, `Nonaktifkan`, `Keluar`) | `Memproses...` | `Batal` | (`AlertDialogCancel`) |
 
 For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
 
@@ -151,7 +239,8 @@ Every admin create/edit form is built the same way (cycle `2026-09-27-admin-form
 
 One rule, no detached button rows:
 
-- **Page-level primary action** (e.g. "Tambah Siswa" on a list) → `PageHeader`'s `actions`.
+- **Page-level primary action** (e.g. "Tambah Siswa" on a list) → `PageHeader`'s `primaryAction` (at most one filled), plus `secondaryAction` (at most one outline) and `menuActions` (⋯) for the rest.
+- **One filled button per screen and per card or action group.**
 - **Tab- or section-scoped primary action** (e.g. "Tambah Komponen" on one tab of a tabbed page) → that section's `DataTableToolbar` `actions` slot, same row as search/filters.
 - Never a bare `<Button>` row floating above or beside the toolbar.
 
@@ -162,6 +251,7 @@ One rule, no detached button rows:
 - **At most two visible actions** (`primaryActions`, `variant: "outline"` by default) — a third is silently dropped, so don't pass a third.
 - At most **one** `primaryActions` entry may be `variant: "default"` (filled) — it reads as *the* primary action.
 - Everything else, and **every destructive action**, goes in `menuActions` (rendered in the `⋯` `DropdownMenu`). Destructive entries always render last, after a separator from the non-destructive ones.
+- Detail pages always render a back link (`BackLink`, 44px); the breadcrumb hides when a back link is present or it would show a single crumb.
 - The legacy `actions` prop (an arbitrary `ReactNode`) still works for callers not yet migrated, but new detail pages use `primaryActions`/`menuActions`.
 
 ## AdminTabs Layout

@@ -28,25 +28,22 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     ]);
   });
 
-  test("hub shows the 8 sentra cards", async ({ page }) => {
+  test("hub shows the campus sentra cards", async ({ page }) => {
     await page.goto("/teacher/assessments");
     await page.waitForURL("**/teacher/assessments", { timeout: 15_000 });
-    await expect(page.locator('[data-testid="hub-center-grid"]')).toBeVisible({
-      timeout: 10_000,
-    });
-    for (const slug of [
-      "worship",
-      "natural_materials",
-      "art",
-      "cooking",
-      "role_play",
-      "blocks",
-      "preparation",
-      "area",
+    const grid = page.locator('[data-testid="hub-center-grid"]');
+    await expect(grid).toBeVisible({ timeout: 10_000 });
+    for (const name of [
+      "Ibadah",
+      "Bahan Alam",
+      "Seni",
+      "Memasak",
+      "Main Peran",
+      "Balok",
+      "Persiapan",
+      "Area",
     ]) {
-      await expect(
-        page.locator(`[data-testid="hub-center-${slug}"]`),
-      ).toBeVisible();
+      await expect(grid.getByRole("link", { name: new RegExp(name) })).toBeVisible();
     }
   });
 
@@ -55,8 +52,11 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
   }) => {
     await page.goto("/teacher/assessments");
     await page.waitForURL("**/teacher/assessments", { timeout: 15_000 });
-    await page.locator('[data-testid="hub-center-worship"]').click();
-    await page.waitForURL("**/teacher/assessments/center/worship", {
+    await page
+      .locator('[data-testid="hub-center-grid"]')
+      .getByRole("link", { name: /Ibadah/ })
+      .click();
+    await page.waitForURL("**/teacher/assessments/center/*", {
       timeout: 15_000,
     });
     await expect(
@@ -100,11 +100,13 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     // The SSR date input is editable before hydration. Wait for the initial
     // client request and its rendered state so fill cannot be lost on hydrate.
     const initialResponsePromise = page.waitForResponse((response) =>
-      new URL(response.url()).pathname ===
-      "/api/teacher/assessment-entries/center/WORSHIP",
+      /^\/api\/teacher\/assessment-entries\/center\/[^/]+$/.test(
+        new URL(response.url()).pathname,
+      ),
     );
+    // Legacy slug: redirects to the campus sentra's id.
     await page.goto("/teacher/assessments/center/worship");
-    await page.waitForURL("**/teacher/assessments/center/worship", {
+    await page.waitForURL(/\/teacher\/assessments\/center\/(?!worship$)[^/]+$/, {
       timeout: 15_000,
     });
     const initialResponse = await initialResponsePromise;
@@ -126,7 +128,7 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
       ? Promise.resolve(initialResponse)
       : page.waitForResponse((response) => {
         const url = new URL(response.url());
-        return url.pathname === "/api/teacher/assessment-entries/center/WORSHIP"
+        return /^\/api\/teacher\/assessment-entries\/center\/[^/]+$/.test(url.pathname)
           && url.searchParams.get("date") === liveDate;
       });
     await dateInput.fill(liveDate!);

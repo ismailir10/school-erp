@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       employeeId: { in: employees.map((e) => e.id) },
       date: { gte: startDate, lt: endDate },
     },
-    select: { id: true, employeeId: true, date: true, status: true, checkInTime: true, checkOutTime: true, isLocked: true },
+    select: { id: true, employeeId: true, date: true, status: true, checkInTime: true, checkOutTime: true, isLocked: true, approvalStatus: true },
   });
 
   // Group records by employee
@@ -65,8 +65,10 @@ export async function GET(req: NextRequest) {
 
   const result = employees.map((emp) => {
     const empRecords = recordsByEmployee.get(emp.id) ?? [];
-    const summary = { present: 0, late: 0, absent: 0, leave: 0 };
+    const summary = { present: 0, late: 0, absent: 0, leave: 0, pending: 0 };
     for (const r of empRecords) {
+      // Waiting for admin review: not yet a present day, shown as "Menunggu".
+      if (r.approvalStatus === "PENDING") { summary.pending++; continue; }
       if (r.status === "PRESENT" || r.status === "PRESENT_NO_CHECKOUT") summary.present++;
       else if (r.status === "LATE") summary.late++;
       else if (r.status === "ABSENT") summary.absent++;
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
         checkInTime: r.checkInTime?.toISOString() ?? null,
         checkOutTime: r.checkOutTime?.toISOString() ?? null,
         isLocked: r.isLocked,
+        approvalStatus: r.approvalStatus,
       })),
       summary,
     };

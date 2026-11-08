@@ -94,7 +94,7 @@ export function CurriculumMock() {
           <div className="min-w-0 flex-1 overflow-hidden bg-background px-4 pt-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="whitespace-nowrap text-h1 font-bold leading-tight tracking-tight">2026/2027 · Semester 1</h1>
+                <h1 className="whitespace-nowrap text-h1 tracking-tight">2026/2027 · Semester 1</h1>
                 <p className="truncate text-xs text-muted-foreground">13 Jul – 18 Des 2026</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

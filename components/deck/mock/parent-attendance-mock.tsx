@@ -44,7 +44,7 @@ export function ParentAttendanceMock() {
             <p className="text-xs text-muted-foreground">TK A · Al-Fatih</p>
           </div>
 
-          <h1 className="mt-3 text-h1 font-bold leading-tight tracking-tight">Kehadiran</h1>
+          <h1 className="mt-3 text-h1 tracking-tight">Kehadiran</h1>
           <p className="mt-0.5 text-body text-muted-foreground">Pantau kehadiran harian anak</p>
 
           <div className="mt-2 flex items-center justify-between gap-2">

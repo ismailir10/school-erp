@@ -368,7 +368,7 @@
    * `text-caption` Tailwind utilities instead of ad-hoc `text-lg` / `text-sm`
    * for page chrome. See .claude/standards/design-system.html §3.
    */
-  --type-display: 2rem;      /* dashboard hero numbers, stat-card primary */
+  --type-display: 2rem;      /* dashboard hero numbers, stat-tile primary */
   --type-h1: 1.5rem;         /* page title */
   --type-h2: 1.125rem;       /* section / card title */
   --type-body: 0.875rem;     /* default body text */

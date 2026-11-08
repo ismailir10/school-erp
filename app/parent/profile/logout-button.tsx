@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
+import { LogoutConfirmDialog } from "@/components/portal/logout-confirm-dialog";
 import { signOut } from "@/lib/sign-out";
 
 export function LogoutButton() {
@@ -22,26 +23,20 @@ export function LogoutButton() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        className="w-full"
         onClick={() => setConfirmOpen(true)}
         disabled={busy}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-status-absent-subtle bg-transparent px-4 py-3 text-sm font-semibold text-status-absent-text transition-colors hover:bg-status-absent-subtle active:scale-98 disabled:opacity-60"
       >
         <LogOut size={16} />
         {busy ? "Keluar..." : "Keluar"}
-      </button>
-      {/* One tap used to end the session; a thumb brushing the red button on
-          the profile page signed the parent out with no way to undo it. */}
-      <ConfirmDialog
+      </Button>
+      <LogoutConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Keluar dari Talib?"
-        description="Anda perlu masuk lagi untuk melihat kabar anak."
-        confirmLabel="Keluar"
-        cancelLabel="Batal"
         onConfirm={handleLogout}
-        destructive
         loading={busy}
       />
     </>

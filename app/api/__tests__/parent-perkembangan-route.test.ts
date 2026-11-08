@@ -5,11 +5,13 @@ const {
   semesterFindFirst,
   assessmentEntryFindMany,
   weekFindFirst,
+  studentEnrollmentFindMany,
 } = vi.hoisted(() => ({
   parentFindFirst: vi.fn(),
   semesterFindFirst: vi.fn(),
   assessmentEntryFindMany: vi.fn(),
   weekFindFirst: vi.fn(),
+  studentEnrollmentFindMany: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/lib/db", () => ({
     semester: { findFirst: semesterFindFirst },
     assessmentEntry: { findMany: assessmentEntryFindMany },
     week: { findFirst: weekFindFirst },
+    studentEnrollment: { findMany: studentEnrollmentFindMany },
   },
 }));
 
@@ -77,6 +80,9 @@ function req(): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  studentEnrollmentFindMany.mockResolvedValue([
+    { studentId: "stu1", classSection: { ageGroup: "A" } },
+  ]);
 });
 
 describe("GET /api/parent/perkembangan/[studentId]", () => {

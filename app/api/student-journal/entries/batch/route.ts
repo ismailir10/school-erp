@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const { classSectionId, date, entries } = parsed.data;
 
-  const guard = await requireTeacherForClass(classSectionId);
+  const guard = await requireTeacherForClass(classSectionId, { viaSentra: true });
   if (guard.error) return guard.error;
   const { session } = guard;
 

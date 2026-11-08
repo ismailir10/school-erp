@@ -7,7 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { assessmentEntryBulkCreateSchema } from "@/lib/validations/assessment-entry";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
-import { getCurrentWeek } from "@/lib/curriculum/week-resolver";
+import { getCurrentWeek, getStudentAgeGroups } from "@/lib/curriculum/week-resolver";
 import {
   PENILAIAN_WRITE_BUDGET,
   PENILAIAN_WRITE_WINDOW_MS,
@@ -21,6 +21,13 @@ function rejectMissingActiveYear() {
       error:
         "Tahun ajaran aktif belum diset. Hubungi admin untuk mengaktifkan tahun ajaran.",
     },
+    { status: 422 },
+  );
+}
+
+function rejectNoClass() {
+  return NextResponse.json(
+    { error: "Siswa belum terdaftar di kelas aktif, kelompok tidak dapat ditentukan." },
     { status: 422 },
   );
 }
@@ -136,7 +143,11 @@ export async function POST(req: NextRequest) {
   // theme" check below.
   const indicators = await prisma.achievementIndicator.findMany({
     where: { tenantId: session.tenantId, id: { in: indicatorIds } },
-    select: { id: true, themeLinks: { select: { themeId: true } } },
+    select: {
+      id: true,
+      objective: { select: { ageGroup: true } },
+      themeLinks: { select: { themeId: true } },
+    },
   });
   if (indicators.length !== indicatorIds.length) {
     return NextResponse.json(
@@ -144,19 +155,54 @@ export async function POST(req: NextRequest) {
       { status: 403 },
     );
   }
+  const objectiveGroupByIndicator = new Map(
+    indicators.map((i) => [i.id, i.objective.ageGroup]),
+  );
   const themesByIndicator = new Map<string, Set<string>>(
     indicators.map((i) => [i.id, new Set(i.themeLinks.map((l) => l.themeId))]),
   );
 
-  // Resolve weekId per distinct date once — a bulk usually shares the date,
-  // and we want to fail fast if any date doesn't bracket an active week.
-  const distinctDates = Array.from(new Set(entries.map((e) => e.date)));
-  const weekByDate = new Map<string, { id: string; themeId: string }>();
-  for (const ymd of distinctDates) {
-    const dt = parseJakartaYmd(ymd);
-    const wk = await getCurrentWeek(session.tenantId, dt);
+  // Each student resolves the week of their own kelompok (TK A and TK B can
+  // run different themes on the same dates). HOMEROOM entries are already
+  // pinned to the walas's section; CENTER entries use the student's current
+  // active class.
+  const centerStudentIds = Array.from(
+    new Set(entries.filter((e) => e.source !== "HOMEROOM").map((e) => e.studentId)),
+  );
+  const groupByStudent = await getStudentAgeGroups(
+    session.tenantId,
+    centerStudentIds,
+  );
+  const groupOf = (entry: (typeof entries)[number]) =>
+    entry.source === "HOMEROOM"
+      ? homeroomSection?.ageGroup
+      : groupByStudent.get(entry.studentId);
+
+  // Resolve weekId per distinct (date, kelompok) once and fail fast if any
+  // pair doesn't bracket an active week.
+  const weekByKey = new Map<string, { id: string; themeId: string }>();
+  for (const entry of entries) {
+    const group = groupOf(entry);
+    if (!group) return rejectNoClass();
+    const key = `${entry.date}|${group}`;
+    if (weekByKey.has(key)) continue;
+    const wk = await getCurrentWeek(
+      session.tenantId,
+      parseJakartaYmd(entry.date),
+      group,
+    );
     if (!wk) return rejectMissingWeek();
-    weekByDate.set(ymd, { id: wk.id, themeId: wk.subTheme.theme.id });
+    weekByKey.set(key, { id: wk.id, themeId: wk.subTheme.theme.id });
+  }
+
+  const wrongGroup = entries.find(
+    (e) => objectiveGroupByIndicator.get(e.indicatorId) !== groupOf(e),
+  );
+  if (wrongGroup) {
+    return NextResponse.json(
+      { error: "Salah satu IKTP bukan untuk kelompok siswa." },
+      { status: 400 },
+    );
   }
 
   // Last-write-wins upsert per entry on the design-locked unique
@@ -164,7 +210,7 @@ export async function POST(req: NextRequest) {
   // single $transaction so the audit row is consistent with the writes.
   const now = new Date();
   const writes = entries.map((entry) => {
-    const week = weekByDate.get(entry.date)!;
+    const week = weekByKey.get(`${entry.date}|${groupOf(entry)}`)!;
     const indicatorThemes = themesByIndicator.get(entry.indicatorId)!;
     if (!indicatorThemes.has(week.themeId)) {
       return { kind: "skip-not-linked" as const, entry };

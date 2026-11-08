@@ -221,7 +221,7 @@ export function CategoryAccordion({
                     title="Naik"
                     aria-label={`Naikkan kategori ${cat.name}`}
                   >
-                    <ArrowUp className="h-3.5 w-3.5" />
+                    <ArrowUp className="size-3.5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -234,18 +234,18 @@ export function CategoryAccordion({
                     title="Turun"
                     aria-label={`Turunkan kategori ${cat.name}`}
                   >
-                    <ArrowDown className="h-3.5 w-3.5" />
+                    <ArrowDown className="size-3.5" />
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={<Button variant="ghost" size="icon-sm" />}
                     >
-                      <MoreVertical className="h-3.5 w-3.5" />
+                      <MoreVertical className="size-3.5" />
                       <span className="sr-only">Buka menu kategori</span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => onEditCategory(cat)}>
-                        <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                        <Pencil className="size-3.5 mr-2" /> Edit
                       </DropdownMenuItem>
                       {cat.status === "ACTIVE" ? (
                         <DropdownMenuItem
@@ -259,7 +259,7 @@ export function CategoryAccordion({
                             })
                           }
                         >
-                          <PowerOff className="h-3.5 w-3.5 mr-2" /> Nonaktifkan
+                          <PowerOff className="size-3.5 mr-2" /> Nonaktifkan
                         </DropdownMenuItem>
                       ) : (
                         <DropdownMenuItem
@@ -272,7 +272,7 @@ export function CategoryAccordion({
                             })
                           }
                         >
-                          <Power className="h-3.5 w-3.5 mr-2" /> Aktifkan
+                          <Power className="size-3.5 mr-2" /> Aktifkan
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
@@ -306,7 +306,7 @@ export function CategoryAccordion({
                         title="Naik"
                         aria-label={`Naikkan indikator ${ind.label}`}
                       >
-                        <ArrowUp className="h-3.5 w-3.5" />
+                        <ArrowUp className="size-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -316,18 +316,18 @@ export function CategoryAccordion({
                         title="Turun"
                         aria-label={`Turunkan indikator ${ind.label}`}
                       >
-                        <ArrowDown className="h-3.5 w-3.5" />
+                        <ArrowDown className="size-3.5" />
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={<Button variant="ghost" size="icon-sm" />}
                         >
-                          <MoreVertical className="h-3.5 w-3.5" />
+                          <MoreVertical className="size-3.5" />
                           <span className="sr-only">Buka menu indikator</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => onEditIndicator(ind, cat)}>
-                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                            <Pencil className="size-3.5 mr-2" /> Edit
                           </DropdownMenuItem>
                           {ind.status === "ACTIVE" ? (
                             <DropdownMenuItem
@@ -341,7 +341,7 @@ export function CategoryAccordion({
                                 })
                               }
                             >
-                              <PowerOff className="h-3.5 w-3.5 mr-2" /> Nonaktifkan
+                              <PowerOff className="size-3.5 mr-2" /> Nonaktifkan
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
@@ -354,7 +354,7 @@ export function CategoryAccordion({
                                 })
                               }
                             >
-                              <Power className="h-3.5 w-3.5 mr-2" /> Aktifkan
+                              <Power className="size-3.5 mr-2" /> Aktifkan
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -367,7 +367,7 @@ export function CategoryAccordion({
                   variant="outline"
                   onClick={() => onAddIndicator(cat)}
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Indikator
+                  <Plus className="size-3.5 mr-1" /> Tambah Indikator
                 </Button>
               </AccordionContent>
             </AccordionItem>

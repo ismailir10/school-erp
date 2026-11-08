@@ -141,10 +141,10 @@ describe("GET /api/attendance/export — CSV escaping (STR-8)", () => {
     const res = await GET(new Request("http://localhost/api/attendance/export?month=10&year=2026") as never);
     expect(res.status).toBe(200);
     const lines = (await res.text()).trimEnd().split("\r\n");
-    expect(lines[0]).toBe('"Kode","Nama","Kampus","Jabatan","Hadir","Terlambat","Alpa","Izin","Total Hari"');
+    expect(lines[0]).toBe('"Kode","Nama","Kampus","Jabatan","Hadir","Terlambat","Alpa","Izin","Menunggu","Total Hari"');
     expect(lines[1]).toBe(
-      `"AB1","'=HYPERLINK(""http://evil"",""klik"")","Aster, Utama","Guru ""Senior""","1","1","1","0","2"`,
+      `"AB1","'=HYPERLINK(""http://evil"",""klik"")","Aster, Utama","Guru ""Senior""","1","1","1","0","0","2"`,
     );
-    expect(lines[2]).toBe(`"AB2","'+1+1","'@SUM(A1)","'-2","0","0","0","0","0"`);
+    expect(lines[2]).toBe(`"AB2","'+1+1","'@SUM(A1)","'-2","0","0","0","0","0","0"`);
   });
 });

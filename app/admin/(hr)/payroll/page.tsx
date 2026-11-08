@@ -12,7 +12,7 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { PayrollGenerateBlockersAlert, type GenerateBlockers } from "@/components/admin/payroll/generate-blockers";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -268,10 +268,14 @@ export default function PayrollListPage() {
         </div>
       )}
       <StatsCardsRow>
-        <StatCard label="Total Penggajian" value={statsStatus === "ready" ? stats!.total : statsStatus === "loading" ? "…" : "—"} icon={Banknote} color="primary" index={0} />
-        <StatCard label="Draf" value={statsStatus === "ready" ? stats!.draft : statsStatus === "loading" ? "…" : "—"} icon={Clock} color="warning" index={1} />
-        <StatCard label="Disetujui" value={statsStatus === "ready" ? stats!.approved : statsStatus === "loading" ? "…" : "—"} icon={FileCheck} color="success" index={2} />
-        <StatCard label="Slip Terkirim" value={statsStatus === "ready" ? stats!.slipsSent : statsStatus === "loading" ? "…" : "—"} icon={Send} color="primary" index={3} />
+        <StatTile size="lg" mono
+          label="Total Penggajian" value={statsStatus === "ready" ? stats!.total : statsStatus === "loading" ? "…" : "—"} icon={Banknote} tone="default" />
+        <StatTile size="lg" mono
+          label="Draf" value={statsStatus === "ready" ? stats!.draft : statsStatus === "loading" ? "…" : "—"} icon={Clock} tone="warning" />
+        <StatTile size="lg" mono
+          label="Disetujui" value={statsStatus === "ready" ? stats!.approved : statsStatus === "loading" ? "…" : "—"} icon={FileCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Slip Terkirim" value={statsStatus === "ready" ? stats!.slipsSent : statsStatus === "loading" ? "…" : "—"} icon={Send} tone="default" />
       </StatsCardsRow>
 
       <DataTableToolbar

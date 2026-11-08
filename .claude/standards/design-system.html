@@ -6,7 +6,7 @@
 <title>Design System — An Nisaa ERP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
     /* Mirrors app/globals.css exactly */
@@ -20,8 +20,6 @@
     --primary-foreground: #173536;
     /* Readable teal for text/glyphs on light or tinted surfaces (5.00:1 on white) */
     --primary-text: #2F7A7D;
-    /* Doc-only: the Hover demo swatch and the accent-hue playground use it; globals.css has no --primary-hover */
-    --primary-hover: #4A9DA1;
 
     --secondary: #E8F5F6;
     --secondary-foreground: #1C1917;
@@ -113,7 +111,7 @@
     --space-card: 1.5rem;
     --space-field: 1rem;
 
-    --text-display: 2rem;    /* 1.15 leading, bold */
+    --text-display: 2rem;    /* 1.15 leading, bold: hero numbers only */
     --text-h1: 1.5rem;       /* 1.25 leading, semibold */
     --text-h2: 1.125rem;     /* 1.35 leading, semibold */
     --text-body: 0.875rem;
@@ -198,7 +196,7 @@
   .content-wrap { max-width: 1100px; margin: 0 auto; padding: var(--space-page-y) var(--space-page-x); width: 100%; }
 
   .page-header { margin-bottom: 2.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 2rem; }
-  .page-title { font-size: var(--text-display); font-weight: 700; letter-spacing: -0.025em; margin: 0 0 0.5rem; line-height: 1.1; }
+  .page-title { font-size: var(--text-h1); font-weight: 600; margin: 0 0 0.5rem; line-height: 1.25; }
   .page-subtitle { color: var(--muted-foreground); font-size: 0.9375rem; max-width: 58ch; margin: 0; line-height: 1.55; }
   .version-pill {
     display: inline-flex; align-items: center; gap: 0.5rem;
@@ -230,7 +228,7 @@
   /* Section */
   section.doc-section { margin-bottom: 4rem; scroll-margin-top: 5rem; }
   .section-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.25rem; gap: 2rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
-  .section-title { font-size: var(--text-h1); font-weight: 700; margin: 0; letter-spacing: -0.015em; display: flex; align-items: baseline; gap: 0.75rem; }
+  .section-title { font-size: var(--text-h1); font-weight: 600; line-height: 1.25; margin: 0; display: flex; align-items: baseline; gap: 0.75rem; }
   .section-num { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted-foreground); font-weight: 500; }
   .section-desc { color: var(--muted-foreground); font-size: 0.8125rem; max-width: 50ch; margin: 0; line-height: 1.5; }
 
@@ -264,28 +262,31 @@
   /* ─────────── Buttons (Shadcn-aligned) ─────────── */
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-    padding: 0 1rem; height: 36px; border-radius: var(--radius-md);
+    padding: 0 0.625rem; height: 32px; border-radius: var(--radius-md);
     font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500;
     border: 1px solid transparent; cursor: pointer; white-space: nowrap;
     transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
     text-decoration: none; line-height: 1;
   }
   .btn-primary { background: var(--primary); color: var(--primary-foreground); }
-  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:hover { background: color-mix(in oklab, var(--primary) 80%, transparent); }
   .btn-secondary { background: var(--secondary); color: var(--secondary-foreground); }
   .btn-secondary:hover { background: color-mix(in oklab, var(--secondary) 85%, var(--foreground) 5%); }
   .btn-outline { background: transparent; border-color: var(--border); color: var(--foreground); }
   .btn-outline:hover { background: var(--muted); }
   .btn-ghost { background: transparent; color: var(--foreground); }
   .btn-ghost:hover { background: var(--muted); }
-  .btn-destructive { background: var(--destructive); color: #fff; }
-  .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 88%, #000 12%); }
+  .btn-destructive { background: var(--destructive-subtle); color: var(--destructive-text); }
+  .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 20%, transparent); }
+  .btn-destructive-solid { background: var(--destructive); color: #fff; }
+  .btn-destructive-solid:hover { background: color-mix(in oklab, var(--destructive) 88%, #000 12%); }
   .btn-link { background: transparent; color: var(--primary); padding: 0; height: auto; }
   .btn-link:hover { text-decoration: underline; }
 
-  .btn-sm { height: 30px; padding: 0 0.75rem; font-size: 0.8125rem; }
-  .btn-lg { height: 42px; padding: 0 1.25rem; font-size: 0.9375rem; }
-  .btn-icon { width: 36px; padding: 0; }
+  .btn-sm { height: 28px; padding: 0 0.625rem; font-size: 0.8rem; }
+  .btn-lg { height: 36px; }
+  .btn-icon { width: 32px; padding: 0; }
+  @media (pointer: coarse) { .btn { min-height: 2.75rem; } .btn-icon { min-width: 2.75rem; } }
   .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 
   /* ─────────── Badges (match StatusBadge) ─────────── */
@@ -427,7 +428,6 @@
     padding: 1.5rem;
   }
   .overlay-stage-mobile { min-height: 440px; align-items: flex-end; padding: 0; }
-  [data-theme="dark"] .overlay-stage { background: linear-gradient(135deg, oklch(0.18 0.01 220), oklch(0.15 0.005 220)); }
   .overlay-backdrop {
     position: absolute; inset: 0;
     background: rgba(15, 23, 42, 0.45);
@@ -516,14 +516,12 @@
     display: flex; flex-direction: column;
     height: 620px;
   }
-  [data-theme="dark"] .phone { border-color: oklch(0.08 0.01 220); }
   .phone-notch {
     position: absolute; top: 0; left: 50%; transform: translateX(-50%);
     width: 96px; height: 18px;
     background: oklch(0.2 0.01 220); border-radius: 0 0 14px 14px;
     z-index: 2;
   }
-  [data-theme="dark"] .phone-notch { background: oklch(0.08 0.01 220); }
   .phone-statusbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.375rem 1.25rem 0.25rem;
@@ -846,13 +844,6 @@
   @media (max-width: 900px) {
     .mc-grid { grid-template-columns: 1fr; }
   }
-  body[data-theme="dark"] .mc-brainstorm,
-  body[data-theme="dark"] .mc-option,
-  body[data-theme="dark"] .mc-child-card,
-  body[data-theme="dark"] .mc-focus-card,
-  body[data-theme="dark"] .mc-switcher-bar,
-  body[data-theme="dark"] .mc-recommend { background: var(--card); }
-  body[data-theme="dark"] .mc-mock { background: #0F1C1D; }
 
   .avatar-circle {
     width: 44px; height: 44px; border-radius: 50%;
@@ -1207,6 +1198,7 @@
         <a href="#states"><span class="toc-num">10</span>States</a>
         <a href="#stats"><span class="toc-num">11</span>Stat Cards</a>
         <a href="#recipes"><span class="toc-num">12</span>Page Recipes</a>
+        <a href="#component-inventory"><span class="toc-num">17</span>Component inventory</a>
       </nav>
 
       <!-- ────────── 01 BRAND ────────── -->
@@ -1239,7 +1231,7 @@
       <section class="doc-section" id="colors">
         <div class="section-head">
           <h2 class="section-title"><span class="section-num">02</span>Colors</h2>
-          <p class="section-desc">All values live in <code class="mono" style="font-size: 0.75rem;">app/globals.css</code>. Never hardcode hex — always reference the token.</p>
+          <p class="section-desc">All values live in <code class="mono" style="font-size: 0.75rem;">app/globals.css</code>. Never hardcode hex — always reference the token. Talib is light-only; a dark theme starts with a <code class="mono" style="font-size: 0.75rem;">.dark</code> block in <code class="mono" style="font-size: 0.75rem;">app/globals.css</code>.</p>
         </div>
 
         <h3 class="card-title" style="margin-bottom: 0.75rem;">Core surfaces</h3>
@@ -1397,13 +1389,13 @@
         <div class="card">
           <div class="type-row">
             <div class="type-label">display</div>
-            <div style="font-size: var(--text-display); font-weight: 700; letter-spacing: -0.025em; line-height: 1.1;">Rp 12.450.000</div>
-            <div class="type-specs">32px · 700 · -2.5%</div>
+            <div style="font-size: var(--text-display); font-weight: 700; line-height: 1.15;">Rp 12.450.000</div>
+            <div class="type-specs">32px · 700 · 1.15 · hero numbers only</div>
           </div>
           <div class="type-row">
             <div class="type-label">h1 / page</div>
-            <div style="font-size: var(--text-h1); font-weight: 700; letter-spacing: -0.015em;">Daftar Siswa</div>
-            <div class="type-specs">24px · 700 · -1.5%</div>
+            <div style="font-size: var(--text-h1); font-weight: 600; line-height: 1.25;">Daftar Siswa</div>
+            <div class="type-specs">24px · 600 · 1.25 · page title</div>
           </div>
           <div class="type-row">
             <div class="type-label">h2 / section</div>
@@ -1430,10 +1422,6 @@
             <div class="font-currency" style="font-size: 1rem; font-weight: 500;">Rp 1.250.000 → Rp 9.750.000</div>
             <div class="type-specs">JetBrains · tabular</div>
           </div>
-        </div>
-
-        <div class="callout" style="margin-top: 1rem;">
-          <strong>Proposed addition →</strong> Add <code>--text-display / --text-h1 / --text-h2 / --text-body / --text-small / --text-caption</code> to <code>globals.css</code> so every page uses the same ramp. Today, Tailwind's raw <code>text-lg</code> / <code>text-2xl</code> classes are mixed across modules.
         </div>
       </section>
 
@@ -1544,6 +1532,7 @@
           <p class="section-desc">Shadcn variants only. Never invent a new color combo — if you need a different weight, it's probably <code class="mono" style="font-size: 0.75rem;">ghost</code> or <code class="mono" style="font-size: 0.75rem;">outline</code>.</p>
         </div>
 
+        <p class="card-hint" style="margin-bottom: 0.75rem;">Sizes: 32px default (<code>h-8</code>), 28px <code>sm</code>, 36px <code>lg</code> on a mouse; on touch (<code>@media (pointer: coarse)</code>) every button grows to a 44px minimum (<code>min-h-11</code>).</p>
         <div class="card">
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 1.5rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px dashed var(--border);">
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">Variants</div>
@@ -1553,9 +1542,11 @@
               <button class="btn btn-outline">Outline</button>
               <button class="btn btn-ghost">Ghost</button>
               <button class="btn btn-destructive">Destructive</button>
+              <button class="btn btn-destructive-solid">Destructive solid</button>
               <button class="btn btn-link">Link</button>
             </div>
           </div>
+          <p class="caption-note" style="margin: 0.5rem 0;">Two-step tone: the quiet <code>destructive</code> button is the trigger; the solid-red <code>destructive-solid</code> is the commit inside the confirm. Red means irreversible data loss only. Reversible actions and logout are neutral with a primary confirm.</p>
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 1.5rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px dashed var(--border);">
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">Sizes</div>
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -1577,7 +1568,7 @@
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">States</div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button class="btn btn-primary">Idle</button>
-              <button class="btn btn-primary" style="background: var(--primary-hover);">Hover</button>
+              <button class="btn btn-primary" style="background: color-mix(in oklab, var(--primary) 80%, transparent);">Hover</button>
               <button class="btn btn-primary" disabled>Disabled</button>
               <button class="btn btn-primary"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation: spin 800ms linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Menyimpan…</button>
             </div>
@@ -2220,11 +2211,11 @@
                 </div>
                 <div class="overlay-footer" style="margin-top: 1rem;">
                   <button class="btn btn-ghost btn-sm">Batal</button>
-                  <button class="btn btn-sm" style="background: var(--status-absent); color: white;">Ya, hapus</button>
+                  <button class="btn btn-destructive-solid btn-sm">Ya, hapus</button>
                 </div>
               </div>
             </div>
-            <p class="caption-note">Always for destructive actions. Red primary button. Cancel on the left.</p>
+            <p class="caption-note">Only for irreversible data loss. Solid-red commit (<code>destructive-solid</code>), Cancel on the left. Reversible confirms and logout (&ldquo;Keluar dari Talib?&rdquo;) use a neutral primary button.</p>
           </div>
 
           <!-- Toast -->
@@ -2811,174 +2802,95 @@
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════════════════════════════
-           §17 Completeness Audit & Roadmap
-           ═══════════════════════════════════════════════════════════════ -->
-      <section id="audit" class="doc-section">
+      <!-- ────────── 17 COMPONENT INVENTORY ────────── -->
+      <section class="doc-section" id="component-inventory">
         <div class="section-head">
-          <div class="section-num">17</div>
-          <h2 class="section-title">Completeness Audit & Roadmap</h2>
-          <p class="section-desc">A gap scan over every module in the app. Three columns: what patterns are standardized today, what drifts from the standard, and what's missing entirely — the next specs to write.</p>
+          <h2 class="section-title"><span class="section-num">17</span>Component inventory</h2>
+          <p class="section-desc">Every file in <code>components/ui/</code>. A guard test fails when a primitive is added without a row here. Reach for these before hand-rolling one.</p>
         </div>
 
-        <!-- Audit legend -->
-        <div class="audit-legend">
-          <span class="audit-legend-item"><span class="audit-chip audit-ok"></span>Standardized — documented, Shadcn-aligned, used consistently</span>
-          <span class="audit-legend-item"><span class="audit-chip audit-drift"></span>Drift — pattern exists but varies across pages</span>
-          <span class="audit-legend-item"><span class="audit-chip audit-gap"></span>Gap — pattern missing; spec needed</span>
-        </div>
-
-        <!-- Module × pattern matrix -->
-        <div class="audit-matrix-wrap">
-          <table class="audit-matrix">
+        <div class="table-wrap">
+          <table class="data">
             <thead>
-              <tr>
-                <th style="text-align: left; width: 180px;">Module</th>
-                <th>List (DataTable)</th>
-                <th>Detail</th>
-                <th>Create / Edit</th>
-                <th>Destructive</th>
-                <th>Empty</th>
-                <th>Loading</th>
-                <th>Errors</th>
-              </tr>
+              <tr><th>File</th><th>Purpose</th><th>Shown in</th></tr>
             </thead>
             <tbody>
-              <tr><td class="audit-mod">Siswa</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Karyawan</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Tagihan</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td></tr>
-              <tr><td class="audit-mod">Penggajian</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Pendaftaran</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Kehadiran (staff)</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Kehadiran (kelas)</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Cuti</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Akademik</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td></tr>
-              <tr><td class="audit-mod">Biaya</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td></tr>
-              <tr><td class="audit-mod">Assessments / Rapor</td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-gap"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-drift"></span></td><td><span class="audit-chip audit-drift"></span></td></tr>
-              <tr><td class="audit-mod">Settings · Kampus</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Settings · Roles</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Portal · Parent home</td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
-              <tr><td class="audit-mod">Portal · Teacher home</td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td style="text-align:center; color: var(--muted-foreground); font-size: 0.75rem;">—</td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td><td><span class="audit-chip audit-ok"></span></td></tr>
+              <tr><td><code>accordion</code></td><td>Stacked sections that expand one at a time</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>alert</code></td><td>Inline callout for info, warning or error messages</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>alert-dialog</code></td><td>Modal confirm for destructive or irreversible actions</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>aspect-ratio</code></td><td>Locks a child to a width/height ratio</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>async-combobox</code></td><td>Searchable select that loads options from the server</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>avatar</code></td><td>Image with initials fallback (primitive)</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>badge</code></td><td>Small generic label chip</td><td><a href="#status">status</a></td></tr>
+              <tr><td><code>breadcrumb</code></td><td>Trail of parent pages with 44px touch hit area</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>button</code></td><td>Button variants; 32px default, 44px minimum on touch</td><td><a href="#buttons">buttons</a></td></tr>
+              <tr><td><code>button-group</code></td><td>Joins adjacent buttons into one segmented control</td><td><a href="#buttons">buttons</a></td></tr>
+              <tr><td><code>calendar</code></td><td>Month grid date selector (react-day-picker, Indonesian labels)</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>card</code></td><td>Surface container with header, content and footer</td><td><a href="#recipes">recipes</a></td></tr>
+              <tr><td><code>carousel</code></td><td>Swipeable slide strip</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>chart</code></td><td>Recharts wrapper that reads color tokens</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>checkbox</code></td><td>Checkbox with distinct indeterminate state</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>collapsible</code></td><td>Single show/hide region</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>command</code></td><td>Command palette and filterable list</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>confirm-dialog</code></td><td>Branded replacement for window.confirm()</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>context-menu</code></td><td>Right-click menu</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>data-table</code></td><td>Canonical list table with mobile contract</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-column-header</code></td><td>Sortable column header for DataTable</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-link-cell</code></td><td>Primary cell that links into the record</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-mobile-meta</code></td><td>Secondary line shown only below md in the identity cell</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-pagination</code></td><td>Page size and page controls for DataTable</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-row-actions</code></td><td>Row action menu with per-row screen-reader labels</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>data-table-toolbar</code></td><td>Search, filters and Reset above a DataTable</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>date-picker</code></td><td>Popover date field (local-time YYYY-MM-DD)</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>dialog</code></td><td>Desktop modal dialog</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>direction</code></td><td>Text-direction (LTR/RTL) provider</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>drawer</code></td><td>Touch-draggable bottom panel</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>dropdown-menu</code></td><td>Click-to-open action menu</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>empty-state</code></td><td>Shared empty/placeholder surface for lists and details</td><td><a href="#states">states</a></td></tr>
+              <tr><td><code>error-state</code></td><td>Shared "could not load" surface for route errors</td><td><a href="#states">states</a></td></tr>
+              <tr><td><code>field</code></td><td>Label, control, hint and error layout; required asterisk</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>form</code></td><td>Form field binding, root error and dialog footer</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>hover-card</code></td><td>Preview card shown on hover</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>input</code></td><td>Single-line text input</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>input-group</code></td><td>Input with leading or trailing addons</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>input-otp</code></td><td>One-time-code digit input</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>item</code></td><td>Generic list row with media, title and actions</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>kbd</code></td><td>Keyboard shortcut chip</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>label</code></td><td>Form control label</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>menubar</code></td><td>Horizontal application menu bar</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>native-select</code></td><td>Styled native select element</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>navigation-menu</code></td><td>Top-level navigation with flyout panels</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>pagination</code></td><td>Low-level pagination links</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>period-stepper</code></td><td>Previous / label / next stepper for a month or week</td><td><a href="#recipes">recipes</a></td></tr>
+              <tr><td><code>popover</code></td><td>Anchored floating panel</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>progress</code></td><td>Determinate progress bar</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>radio-group</code></td><td>Single-choice radio set</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>resizable</code></td><td>Draggable resizable panel groups</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>responsive-form-dialog</code></td><td>Dialog on desktop, Sheet on mobile, for forms</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>rupiah-input</code></td><td>Currency input that parses and formats Rupiah</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>scroll-area</code></td><td>Custom-scrollbar scroll container</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>section-card</code></td><td>Titled card block (h2 names the region) for detail pages</td><td><a href="#recipes">recipes</a></td></tr>
+              <tr><td><code>section-heading</code></td><td>Canonical admin section heading inside detail cards</td><td><a href="#recipes">recipes</a></td></tr>
+              <tr><td><code>select</code></td><td>Custom select dropdown</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>separator</code></td><td>Horizontal or vertical divider</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>sheet</code></td><td>Side or bottom panel for mobile forms</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>sidebar</code></td><td>Portal navigation sidebar with collapse state</td><td><a href="#portal">portal</a></td></tr>
+              <tr><td><code>skeleton</code></td><td>Loading placeholder block</td><td><a href="#states">states</a></td></tr>
+              <tr><td><code>slider</code></td><td>Range slider</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>sonner</code></td><td>Toast host; top on small screens</td><td><a href="#overlays">overlays</a></td></tr>
+              <tr><td><code>spinner</code></td><td>The one loading indicator</td><td><a href="#states">states</a></td></tr>
+              <tr><td><code>stat-tile</code></td><td>KPI tile with label, value and tone</td><td><a href="#stats">stats</a></td></tr>
+              <tr><td><code>status-badge</code></td><td>Status chip with app-wide color mapping</td><td><a href="#status">status</a></td></tr>
+              <tr><td><code>switch</code></td><td>On/off toggle switch</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>table</code></td><td>Plain table primitives</td><td><a href="#datatable">datatable</a></td></tr>
+              <tr><td><code>tabs</code></td><td>Tabbed content switcher</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>textarea</code></td><td>Multi-line text input</td><td><a href="#forms">forms</a></td></tr>
+              <tr><td><code>toggle</code></td><td>Two-state pressed button</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>toggle-group</code></td><td>Single or multi-select toggle button set</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>tooltip</code></td><td>Hover/focus hint label</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>user-avatar</code></td><td>Person avatar: photo or initials</td><td><a href="#portal">portal</a></td></tr>
             </tbody>
           </table>
-        </div>
-
-        <!-- Cross-cutting concerns — things that cut across modules -->
-        <div class="audit-xcut-grid">
-          <div class="audit-card">
-            <div class="audit-card-head">
-              <span class="audit-chip audit-ok"></span>
-              <h4>Standardized</h4>
-              <span class="audit-count">14</span>
-            </div>
-            <ul class="audit-list">
-              <li><strong>CRUD shape</strong> · DataTable → Detail → Edit dialog, soft-delete only</li>
-              <li><strong>Status colors</strong> · CSS variables only, no hex literals</li>
-              <li><strong>Money formatting</strong> · <code>formatRupiah()</code> everywhere</li>
-              <li><strong>Date formatting</strong> · <code>formatDate</code> / <code>formatDateShort</code> / <code>formatTime</code></li>
-              <li><strong>API response envelope</strong> · <code>{ data, pagination }</code> on lists</li>
-              <li><strong>Validation</strong> · Zod schemas in <code>lib/validations/</code></li>
-              <li><strong>Auth pattern</strong> · <code>getSession</code> + <code>isAdminRole</code> + tenant filter</li>
-              <li><strong>Field anatomy</strong> · <code>&lt;Field&gt;&lt;FieldLabel/&gt;&lt;Input/&gt;&lt;FieldDescription/&gt;&lt;FieldError/&gt;</code></li>
-              <li><strong>Toast hook</strong> · <code>sonner</code>, success / error / info</li>
-              <li><strong>Empty-state copy</strong> · <em>"Belum ada …" + next-step sentence</em></li>
-              <li><strong>Page header</strong> · title + description + inline actions</li>
-              <li><strong>Row actions</strong> · Lihat + ⋮ (Edit, Deactivate)</li>
-              <li><strong>Mobile shell</strong> · header + content + bottom nav + safe-area</li>
-              <li><strong>Breadcrumb</strong> · Shadcn <code>&lt;Breadcrumb&gt;</code> with <code>render</code> prop</li>
-            </ul>
-          </div>
-
-          <div class="audit-card">
-            <div class="audit-card-head">
-              <span class="audit-chip audit-drift"></span>
-              <h4>Drift to fix</h4>
-              <span class="audit-count">9</span>
-            </div>
-            <ul class="audit-list">
-              <li><strong>Generic <code>"Gagal"</code> errors</strong> · 11 sites fall back to this. Replace with domain-specific copy per §18.</li>
-              <li><strong>Edit UX split</strong> · Some entities use edit-in-place toggle, others use Dialog. Pick one per entity size (rule: &gt; 6 fields → page, else dialog).</li>
-              <li><strong>Detail page structure</strong> · Summary-card + Tabs pattern inconsistently applied (Admissions + Leave lack it).</li>
-              <li><del><strong>Sheet vs Dialog</strong> · Mobile forms sometimes use Dialog (breaks thumb reach). Rule: &lt;640px → Sheet from bottom.</del> <em>Resolved 2026-05-03 — academic, fees, assessments/templates, student-attendance, teaching-assignments converted to <code>&lt;ResponsiveFormDialog&gt;</code> (Sheet on &lt;768px). Settings pages remain Dialog-only per scope decision.</em></li>
-              <li><strong>Stat card metrics</strong> · Count, label, trend, color — four properties, five shapes in use. Collapse to one.</li>
-              <li><strong>Filter bar</strong> · Search + status + date — each page invents layout. Standardize <code>&lt;DataTableToolbar&gt;</code>.</li>
-              <li><strong>Skeleton fidelity</strong> · Some pages skeleton only rows; others skeleton cards + toolbar. Always skeleton the whole layout.</li>
-              <li><del><strong>Button labels</strong> · "Simpan" vs "Simpan Perubahan" vs "Ya, Simpan" — canonicalize per action type.</del> <em>Resolved 2026-05-03 — canonical table now lives in <code>.claude/standards/ui.md</code> §Dialog &amp; Sheet button labels; 28 sites swept across 18 admin pages.</em></li>
-              <li><strong>Confirm copy</strong> · Confirm dialogs mix second-person and impersonal voice. §18 rules fix.</li>
-            </ul>
-          </div>
-
-          <div class="audit-card">
-            <div class="audit-card-head">
-              <span class="audit-chip audit-gap"></span>
-              <h4>Specs needed</h4>
-              <span class="audit-count">11</span>
-            </div>
-            <ul class="audit-list">
-              <li><strong>Offline queue</strong> · PAUD teachers use 4G. Attendance must queue locally when offline and sync on reconnect. UI: pending-sync banner + retry.</li>
-              <li><strong>Bulk-action bar</strong> · Checkbox column + sticky action bar (Kirim, Batalkan, Ekspor). Used by Invoices today as ad-hoc; needs standard.</li>
-              <li><strong>CSV import preview</strong> · Parse → preview rows with errors highlighted → confirm → toast. Pattern for Siswa, Karyawan, bulk grading.</li>
-              <li><strong>Filter chips</strong> · Applied filters show as removable chips above the table. Currently only some filters are visible.</li>
-              <li><strong>Audit log drawer</strong> · Every entity detail should show a "Riwayat Perubahan" tab. Shadcn <code>Timeline</code> or custom.</li>
-              <li><strong>Print view</strong> · Salary slips, invoices, reports. Standardize margins, typography, page break rules.</li>
-              <li><strong>File upload</strong> · Parent submits sick note, admin uploads photo. No current pattern; need drop-zone + preview + progress.</li>
-              <li><strong>Date range picker</strong> · Used for attendance filters, payroll period. Currently two separate date inputs.</li>
-              <li><strong>Assessment grid</strong> · Teachers grade 20–30 students × 8–12 criteria. Spreadsheet-like cell edit, auto-save indicator.</li>
-              <li><strong>Notification center</strong> · Bell icon in topbar. Parent: invoice due, report ready. Teacher: leave approved, pay slip ready.</li>
-              <li><strong>Role switcher</strong> · SUPER_ADMIN sometimes needs to preview Parent view. Drawer with "Lihat sebagai …" and audit-log trail.</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Accessibility & platform concerns -->
-        <div class="audit-pillars">
-          <div class="audit-pillar">
-            <h5><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> Accessibility</h5>
-            <ul>
-              <li>Minimum touch target 44×44 (teacher clock-in FAB, roster rows, bottom nav)</li>
-              <li>Status never signalled by color alone — pair with icon + label</li>
-              <li>Focus ring visible on every interactive element (<code>:focus-visible</code>, <code>--ring</code> token)</li>
-              <li>Form errors announced via <code>aria-invalid</code> + <code>FieldError</code>, not just color</li>
-              <li>Bottom nav active state: color + underline + icon weight</li>
-            </ul>
-          </div>
-
-          <div class="audit-pillar">
-            <h5><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg> Mobile & PWA</h5>
-            <ul>
-              <li>Mobile portals use <code>max-w-md</code> — never wider (thumb-reach limit)</li>
-              <li>Safe-area-bottom padding on every bottom nav (<code>env(safe-area-inset-bottom)</code>)</li>
-              <li>Sheet opens from bottom on mobile, side on desktop</li>
-              <li>Network loss → inline banner, not blocking modal</li>
-              <li>No hover-only affordances — everything accessible via tap</li>
-            </ul>
-          </div>
-
-          <div class="audit-pillar">
-            <h5><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Security UX</h5>
-            <ul>
-              <li>SUPER_ADMIN-only fields visually gated — never rendered then hidden</li>
-              <li>Salary fields stripped server-side for SCHOOL_ADMIN (not CSS-hidden)</li>
-              <li>Destructive actions → AlertDialog, never ConfirmDialog</li>
-              <li>Soft delete only — status change, never DELETE endpoint</li>
-              <li>Rate-limit responses surface as toast, not silent</li>
-            </ul>
-          </div>
-
-          <div class="audit-pillar">
-            <h5><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Performance (PAUD 4G)</h5>
-            <ul>
-              <li>Page load &gt; 4s = blocker (UAT threshold)</li>
-              <li>API response &gt; 2s = blocker; show skeleton at 200ms, spinner at 800ms</li>
-              <li>Click-to-visible &gt; 3s = blocker; optimistic UI where safe (cycle-tap attendance)</li>
-              <li>Image assets lazy-loaded, <code>loading="lazy"</code> default</li>
-              <li>List pages server-paginate — never load &gt; 50 rows client-side</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="callout" style="margin-top: 1rem;">
-          <strong>How to use this audit →</strong> Every <em>Drift</em> and <em>Gap</em> is a candidate for a <code>/spec</code> cycle. Order by portal impact: PAUD teachers are on 4G, so offline-queue + bulk-action bar outrank notification center. Audit-log drawer is ERPNext table stakes — ship early.
         </div>
       </section>
 
@@ -3388,113 +3300,6 @@
 <style>
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ═══════════ §17 Audit ═══════════ */
-  .audit-legend {
-    display: flex; flex-wrap: wrap; gap: 1.25rem; row-gap: 0.5rem;
-    margin-bottom: 1.25rem;
-    font-size: 0.75rem; color: var(--muted-foreground);
-  }
-  .audit-legend-item { display: inline-flex; align-items: center; gap: 0.5rem; }
-  .audit-chip {
-    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .audit-ok { background: var(--status-present); }
-  .audit-drift { background: var(--status-late); }
-  .audit-gap { background: var(--status-absent); }
-
-  .audit-matrix-wrap {
-    border: 1px solid var(--border); border-radius: var(--radius-lg);
-    overflow: hidden; background: var(--card);
-    margin-bottom: 1.5rem;
-  }
-  table.audit-matrix {
-    width: 100%; border-collapse: collapse; font-size: 0.75rem;
-  }
-  table.audit-matrix th {
-    text-align: center; font-weight: 600; font-size: 0.625rem;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--muted-foreground);
-    padding: 0.625rem 0.5rem; background: var(--muted);
-    border-bottom: 1px solid var(--border);
-  }
-  table.audit-matrix td {
-    padding: 0.5rem 0.5rem; border-bottom: 1px solid var(--border);
-    text-align: center; vertical-align: middle;
-  }
-  table.audit-matrix tbody tr:last-child td { border-bottom: 0; }
-  table.audit-matrix tbody tr:hover { background: color-mix(in oklab, var(--secondary) 30%, transparent); }
-  td.audit-mod { text-align: left; font-weight: 500; padding-left: 1rem; }
-
-  .audit-xcut-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-  .audit-card {
-    border: 1px solid var(--border); border-radius: var(--radius-lg);
-    background: var(--card); padding: 1rem 1.125rem;
-  }
-  .audit-card-head {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding-bottom: 0.625rem; margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .audit-card-head h4 {
-    flex: 1; font-size: 0.875rem; font-weight: 600;
-    margin: 0;
-  }
-  .audit-card-head .audit-chip { width: 8px; height: 8px; }
-  .audit-count {
-    font-family: var(--font-mono); font-size: 0.6875rem;
-    color: var(--muted-foreground);
-    background: var(--muted); padding: 2px 6px; border-radius: 999px;
-  }
-  .audit-list {
-    list-style: none; padding: 0; margin: 0;
-    display: grid; gap: 0.5rem;
-  }
-  .audit-list li {
-    font-size: 0.75rem; line-height: 1.5; color: var(--foreground);
-    padding-left: 0.75rem; position: relative;
-  }
-  .audit-list li::before {
-    content: '·'; position: absolute; left: 0;
-    color: var(--muted-foreground); font-weight: 700;
-  }
-  .audit-list code {
-    font-family: var(--font-mono); font-size: 0.6875rem;
-    background: var(--muted); padding: 1px 4px; border-radius: 3px;
-  }
-
-  .audit-pillars {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;
-  }
-  .audit-pillar {
-    border: 1px solid var(--border); border-radius: var(--radius-lg);
-    background: var(--card); padding: 1rem 1.125rem;
-  }
-  .audit-pillar h5 {
-    display: flex; align-items: center; gap: 0.5rem;
-    font-size: 0.8125rem; font-weight: 600; margin: 0 0 0.625rem;
-    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
-    color: var(--primary);
-  }
-  .audit-pillar ul {
-    list-style: none; padding: 0; margin: 0; display: grid; gap: 0.375rem;
-  }
-  .audit-pillar li {
-    font-size: 0.75rem; line-height: 1.5; color: var(--foreground);
-    padding-left: 0.875rem; position: relative;
-  }
-  .audit-pillar li::before {
-    content: '→'; position: absolute; left: 0; top: -1px;
-    color: var(--primary); opacity: 0.6;
-  }
-  .audit-pillar code {
-    font-family: var(--font-mono); font-size: 0.6875rem;
-    background: var(--muted); padding: 1px 4px; border-radius: 3px;
-  }
-
   /* ═══════════ §18 Voice & Tone ═══════════ */
   .voice-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
@@ -3794,20 +3599,6 @@
     font-size: 0.6875rem; color: var(--muted-foreground); font-style: italic;
   }
 
-  /* Dark-mode tweaks for §17/18 */
-  body[data-theme="dark"] .audit-card,
-  body[data-theme="dark"] .audit-pillar,
-  body[data-theme="dark"] .audit-matrix-wrap,
-  body[data-theme="dark"] .voice-card,
-  body[data-theme="dark"] .voice-crosscard,
-  body[data-theme="dark"] .voice-glossary-col,
-  body[data-theme="dark"] .voice-do,
-  body[data-theme="dark"] .voice-dont,
-  body[data-theme="dark"] .voice-msg { background: var(--card); }
-  body[data-theme="dark"] table.audit-matrix th,
-  body[data-theme="dark"] table.voice-table th,
-  body[data-theme="dark"] .voice-msg-head { background: var(--muted); }
-  body[data-theme="dark"] .voice-islamic { background: #17292A; }
 
   /* Responsive */
   @media (max-width: 960px) {
@@ -3914,49 +3705,6 @@
   body[data-density="compact"] .page-header { margin-bottom: 1.75rem; }
   body[data-density="comfortable"] .page-header { margin-bottom: 3.5rem; }
 
-  /* Dark theme */
-  body[data-theme="dark"] {
-    --background: #0F1C1D;
-    --foreground: #F0F4F4;
-    --card: #17292A;
-    --card-foreground: #F0F4F4;
-    --popover: #17292A;
-    --secondary: #22383A;
-    --secondary-foreground: #F0F4F4;
-    --muted: #1E3234;
-    --muted-foreground: #8AACAD;
-    --accent: #22383A;
-    --accent-foreground: #F0F4F4;
-    --border: #26393A;
-    --input: #26393A;
-  }
-  body[data-theme="dark"] .stat,
-  body[data-theme="dark"] .card,
-  body[data-theme="dark"] .recipe-card,
-  body[data-theme="dark"] .swatch,
-  body[data-theme="dark"] .table-wrap,
-  body[data-theme="dark"] .topbar,
-  body[data-theme="dark"] .toc,
-  body[data-theme="dark"] .tweaks-panel,
-  body[data-theme="dark"] .tweak-fab { background: var(--card); }
-  body[data-theme="dark"] table.data th { background: var(--muted); }
-  body[data-theme="dark"] .recipe-preview { background: #0B1617; }
-  body[data-theme="dark"] .rp-block { background: #22383A; }
-  body[data-theme="dark"] .rp-accent { background: #2A4A4D; }
-  body[data-theme="dark"] .icon-tile { background: var(--card); }
-  body[data-theme="dark"] .input { background: #1E3234; color: var(--foreground); }
-  body[data-theme="dark"] .input[disabled] { background: #22383A; }
-  body[data-theme="dark"] .skeleton { background: linear-gradient(90deg, #22383A 0%, #2A4A4D 50%, #22383A 100%); background-size: 200% 100%; }
-  body[data-theme="dark"] .tweak-seg { background: #1E3234; }
-  body[data-theme="dark"] .tweak-seg button[aria-pressed="true"] { background: #2A4A4D; }
-
-  /* Type pairings */
-  body[data-type-pair="inter"] { --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif; }
-  body[data-type-pair="geist"] { --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif; }
-  body[data-type-pair="manrope"] { --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif; }
-  body[data-type-pair="plex"] { --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
-  body[data-type-pair="dm"] { --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif; }
-  body[data-type-pair="fira-mono"] { --font-mono: 'Fira Code', ui-monospace, monospace; }
 
   /* Badge style */
   body[data-badge-style="flat"] .badge .dot { display: none; }
@@ -4005,40 +3753,11 @@
   <div class="tweaks-body">
 
     <div class="tweak-group">
-      <div class="tweak-label">Theme</div>
-      <div class="tweak-seg" data-key="theme" style="--cols: 2;">
-        <button data-val="light">Light</button>
-        <button data-val="dark">Dark</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
       <div class="tweak-label">Density</div>
       <div class="tweak-seg" data-key="density" style="--cols: 3;">
         <button data-val="compact">Compact</button>
         <button data-val="default">Default</button>
         <button data-val="comfortable">Roomy</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Sans typeface</div>
-      <div class="tweak-seg" data-key="typePair" style="--cols: 3;">
-        <button data-val="jakarta">Jakarta</button>
-        <button data-val="inter">Inter</button>
-        <button data-val="geist">Geist</button>
-        <button data-val="manrope">Manrope</button>
-        <button data-val="plex">Plex</button>
-        <button data-val="dm">DM Sans</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Mono typeface</div>
-      <div class="tweak-seg" data-key="monoPair" style="--cols: 3;">
-        <button data-val="jetbrains">JetBrains</button>
-        <button data-val="fira">Fira Code</button>
-        <button data-val="plex-mono">Plex</button>
       </div>
     </div>
 
@@ -4092,10 +3811,7 @@
 <script>
 (() => {
   const DEFAULTS = /*EDITMODE-BEGIN*/{
-    "theme": "light",
     "density": "default",
-    "typePair": "jakarta",
-    "monoPair": "jetbrains",
     "hue": 190,
     "radius": 0.6875,
     "badgeStyle": "pill",
@@ -4118,33 +3834,20 @@
 
   function apply() {
     const body = document.body;
-    body.dataset.theme = state.theme;
     body.dataset.density = state.density;
-    body.dataset.typePair = state.typePair;
     body.dataset.badgeStyle = state.badgeStyle;
     body.dataset.sidebar = state.sidebar;
     body.dataset.sectionFilter = state.sectionFilter;
 
-    // Mono pair is additive to typePair
-    if (state.monoPair === 'fira') body.dataset.typePair = body.dataset.typePair + '';
-    // Handle mono overrides
     const root = document.documentElement;
-    if (state.monoPair === 'fira') root.style.setProperty('--font-mono', "'Fira Code', ui-monospace, monospace");
-    else if (state.monoPair === 'plex-mono') root.style.setProperty('--font-mono', "'IBM Plex Mono', ui-monospace, monospace");
-    else root.style.removeProperty('--font-mono');
 
     // Accent hue (rotate the teal palette)
     const baseHue = 186; // current teal ~186
     const shift = state.hue - baseHue;
     root.style.setProperty('--primary', `oklch(0.73 0.07 ${state.hue})`);
-    root.style.setProperty('--primary-hover', `oklch(0.65 0.08 ${state.hue})`);
     root.style.setProperty('--ring', `oklch(0.73 0.07 ${state.hue})`);
     root.style.setProperty('--secondary', `oklch(0.96 0.02 ${state.hue})`);
     root.style.setProperty('--accent', `oklch(0.96 0.02 ${state.hue})`);
-    if (state.theme === 'dark') {
-      root.style.setProperty('--secondary', `oklch(0.28 0.04 ${state.hue})`);
-      root.style.setProperty('--accent', `oklch(0.28 0.04 ${state.hue})`);
-    }
 
     // Radius
     root.style.setProperty('--radius', `${state.radius}rem`);
