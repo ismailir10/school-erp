@@ -12,8 +12,8 @@ const ok = (id: string): Release => ({
   id,
   headline: "Absensi lebih cepat",
   items: [
-    { kind: "baru", audience: "guru", text: "Guru bisa menandai semua hadir sekali ketuk." },
-    { kind: "diperbaiki", audience: "admin", text: "Daftar siswa tidak lagi memuat dua kali." },
+    { kind: "baru", audience: "guru", module: "kehadiran-siswa", text: "Guru bisa menandai semua hadir sekali ketuk." },
+    { kind: "diperbaiki", audience: "admin", module: "siswa-wali", text: "Daftar siswa tidak lagi memuat dua kali." },
   ],
 });
 
@@ -36,8 +36,15 @@ describe("validateReleases", () => {
     ["PR number", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], text: "Perbaikan (#712)." }, ok("x").items[1]] }, "no PR numbers"],
     ["bad kind", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], kind: "fix" as never }, ok("x").items[1]] }, "unknown kind"],
     ["bad audience", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], audience: "siswa" as never }, ok("x").items[1]] }, "unknown audience"],
+    ["bad module", { ...ok("2026-11-06"), items: [{ ...ok("x").items[0], module: "constructor" as never }] }, "unknown module"],
   ])("rejects %s", (_name, release, message) => {
     expect(validateReleases([release as Release]).join("\n")).toContain(message);
+  });
+
+  it("rejects a changelog item without a module", () => {
+    const untagged = { kind: "baru", audience: "guru", text: "Guru bisa menandai semua hadir sekali ketuk." };
+    const release = { ...ok("2026-11-06"), items: [untagged] };
+    expect(validateReleases([release as Release])).toEqual(['release 2026-11-06 item 1: unknown module "undefined"']);
   });
 
   it("rejects duplicate ids and wrong order", () => {

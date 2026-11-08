@@ -1,6 +1,7 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
+> Last audited: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
+> Prior: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -456,6 +457,17 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Why this job matters:** Teachers rarely hold a phone at drop-off and pickup; the gate is where the data is created, so it has to be one tap and need no class or piket assignment.
 - **Expected perf:** list load <1.5s for a campus; tap to toast <1s.
 - **Error scenarios to verify:** a child with no session for today and no class day schedule returns a clear message instead of a silent failure; a failed save offers retry.
+
+---
+
+## Area: changelog
+
+### JTBD-TEACHER-CHANGELOG-01 — Find a recent change to Buku Penghubung
+- **Persona:** Bu Sari
+- **Role:** TEACHER
+- **Preconditions:** Signed in with the seeded role and the release archive available.
+- **Steps:** On a phone, open Lainnya → Apa yang Baru, choose November 2026 under Bulan and Buku Penghubung under Modul, then switch from Untuk guru to Semua.
+- **Done when:** The teacher initially sees items for teachers or all audiences. Month and module both stay selected after switching audience, and the page fits without horizontal scrolling.
 
 ---
 
