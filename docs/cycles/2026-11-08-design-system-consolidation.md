@@ -133,7 +133,7 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
 
 ## Tasks
 
-- [ ] T1 Standards: visual-principles table, tone rule (Decision 1), header/stat/eyebrow rules in `ui.md`; reference
+- [x] T1 Standards: visual-principles table, tone rule (Decision 1), header/stat/eyebrow rules in `ui.md`; reference
       HTML inventory + tone specimens; guard rules L/M — accept: audit-docs + guard suite green (parallel)
 - [ ] T2 Tone: solid-red Button variant, ConfirmDialog uses it; logout neutral confirm in all portals; re-tone the
       reversible confirms — accept: confirm-dialog tests, logout specs green
@@ -148,6 +148,18 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
       findings above low
 
 ## Implementation
+
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5; parallel workers on disjoint files — W1 T1 (docs +
+  reference), W2 T2 (tone + logout), W3 T3 (headers, incl. invoices-client's StatCard so W4 never touches that file),
+  W4 T4 (StatTile), W5 T5+T6 (share class-day-grid). Guard rules L/M added by the driver after W4/W5 land (same test
+  file, and L can only pass once the removals exist). Workers run targeted Vitest only; the driver runs tsc/build/full
+  gate once (memory). T7 sequential at the end.
+- T1: `.claude/standards/ui.md` — § Visual principles (Figma's 13 principles in a 6-row table mapped to tokens,
+  components and guard rules; critiques check against it), tone rule (red = irreversible loss only; quiet trigger,
+  `destructive-solid` commit; deactivate and logout neutral), list/detail header action model, StatTile-only,
+  SectionHeading-only, Badge/StatusBadge pills, one filled button per group, guard rules L/M listed;
+  `design-system.html` (+ identical public copy) — `destructive-solid` specimen and two-step caption, confirm
+  specimen uses it. CLAUDE.md counts regenerated.
 
 ## Verification
 
