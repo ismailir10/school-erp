@@ -72,7 +72,7 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 - [x] T4 `docs/workflow/changelog.md` writing guide; link from ship.md Promotion + CLAUDE.md; `audit-docs.sh --write` — accept: `audit-docs.sh` exits 0
 - [x] T5 `scripts/check-promotion-changelog.sh` + `Checks` CI step + self-test — accept: fixtures pass/fail as expected (parallel with T2, T3)
 - [x] T6 Backfill 23 release entries from 2026-08-08 — accept: T1 tests green, driver tone review (deps: T1, T4; fan-out one worker per ~6 entries)
-- [ ] T7 `e2e/changelog.spec.ts` — accept: passes locally on production build (deps: T2, T3)
+- [x] T7 `e2e/changelog.spec.ts` — accept: passes locally on production build (deps: T2, T3)
 
 ## Implementation
 
@@ -83,8 +83,25 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 - T6: `lib/changelog/data/part-{1,2,3}.ts` - 23 entries (every distinct promotion date 2026-08-13 to 2026-11-06), written by 3 parallel workers from promotion ranges + cycle docs, then driver-reviewed. Driver edits: dropped items that were internal or already retired (10-22 security, 10-28 "Sudah dibayar" Lunas), merged the padded 10-26 pair into one item, replaced non-glossary words (surel, galat). Consequence: item minimum lowered 2 -> 1 (a promotion with one real change should not be padded). 2026-10-16 is a maintenance-only entry. Counts re-checked by the driver: 23 ids, `vitest run lib/changelog app/changelog` 30 passed.
 - T5: `scripts/check-promotion-changelog.sh` (passes when base...head adds a release `id:` under `lib/changelog/data/`; editing an old entry does not count), `scripts/test-check-promotion-changelog.sh` (4 fixture cases, run in the CI "Workflow audit and hook regression tests" step), `ci.yml` step "Promotion changelog entry" (PRs with base `main` only). Real branch vs `origin/main`: 23 new entries, pass. `test-hooks.sh` 32 passed, `test-audit-docs.sh` 7 passed.
 - T3: `components/admin/sidebar.tsx` (footer item above Panduan Talib), `components/teacher/more-sheet.tsx` (new Lainnya item), `app/parent/profile/page.tsx` (card in Bantuan, above the guide card), teacher more-sheet test (5 links + new href test). Same icon (Sparkles) and copy everywhere: "Apa yang Baru". design-system cross-check: parent card reuses the existing Bantuan card classes verbatim (text-xs floor kept). JTBD library not updated: a link, not a new capability.
-- T7: `e2e/changelog.spec.ts` - signed-out redirect, each role opens it and returns home, teacher mobile (375px) default scope then Semua with no sideways scroll, admin sidebar + parent Profil links. First 5 cases passed locally (15/15 with deck.spec); the menu-link case runs after the full suite (see Verification).
+- T7: `e2e/changelog.spec.ts` - signed-out redirect, each role opens it and returns home, teacher mobile (375px) default scope then Semua with no sideways scroll, admin sidebar + parent Profil links. 6 cases pass locally; full suite 288 passed.
 
 ## Verification
 
+Route: **other code** (no change to `proxy.ts`, `lib/auth*` or session code; the page only reads `getSession()` like `/guide/parents`), so verify-local, no `needs-staging-verify`. Compared `origin/staging...HEAD` at code SHA `ed0e659d`: `app/parent/profile`, `components/{admin,teacher,changelog}`, `lib/changelog`, `scripts/`, `.github/workflows/ci.yml`, `e2e/`, `docs/`, `README.md`, `CLAUDE.md`. Disposable local Postgres 16 (own cluster, port 54329, schema via plain `prisma db push` on the empty DB, then seeded), dropped afterwards.
+
+- Typecheck: `tsc --noEmit` clean. Lint: `npm run lint` exit 0.
+- Vitest (no DEMO_MODE): `Test Files 762 passed | 2 skipped (764)`, `Tests 9341 passed | 42 todo`. New: `lib/changelog` (schema 13 + filter), `app/changelog` page (guard, per-role, filter, empty state), teacher more-sheet.
+- `verify-rls-coverage.sh`: 51/51 OK. `verify-api-auth.sh`: 239/239 OK. `test-hooks.sh` 32 passed, `test-audit-docs.sh` 7 passed, `test-check-promotion-changelog.sh` 4 passed, `audit-docs.sh` 0 fail (1 pre-existing ADR-window warn).
+- `DEMO_MODE=true npm run build`: success, `/changelog` listed as dynamic.
+- Playwright (production build, Chromium, via the pre-installed browser; repo-pinned Playwright could not find its own): full suite `288 passed (7.4m)`; `e2e/changelog.spec.ts` 6/6 incl. signed-out redirect, three roles open it and return home, 375px teacher default scope then Semua with no sideways scroll, admin sidebar and parent Profil links. Soft-skip delta vs `origin/staging`: baseline 26, current 26.
+- Walked on the running app (screenshots): parent at 390px and admin at 1280px. Back link, title, "Untuk <peran>" / "Semua" chips, dated cards with kind + audience badges; parent sees only orang-tua and semua items; no clipping or overflow. design-system cross-check: Badge success/info/neutral tokens, muted-foreground, card/border, 44px back link, no raw hex.
+- Gap: the three menu entry points were checked by test (admin href, parent Profil click-through, teacher sheet) and not by screenshot; the Profil card sits below the fold.
+- Noted, not fixed (out of scope): none blocking.
+
 ## Ship Notes
+
+- Migrations: none. Env vars: none. Manual steps: none.
+- Rollback: revert the squash commit; the page, data and CI step go together. No data to undo.
+- Post-merge: staging deploy READY for the merge SHA; not auth-impacting, so no signed-in staging check required. Optional glance: `/changelog` on staging as any account.
+- Next promotion: write that promotion's entry first (`docs/workflow/changelog.md`), merge it to `staging`, then open the promotion PR. `Checks` now fails a PR into `main` with no new release. The 8 commits already on staging when this was written (design-system source of truth, gate-on-Beranda, geofence attendance, ...) have no entry yet: they belong to the next one.
+- Decisions made: branch is the session-designated `claude/jolly-cray-h1r16u`, no `feat/*` worktree; item minimum lowered to 1 after backfill review; two backfill items dropped as internal/retired; `playwright.local.config.ts` was a temporary untracked wrapper, deleted.

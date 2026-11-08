@@ -310,7 +310,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `app/teacher` pages | 15 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 74 |
-| `e2e/*.spec.ts` | 51 |
+| `e2e/*.spec.ts` | 52 |
 | `.claude/standards/*` | 10 |
 | `docs/cycles` active / archived | 145 / 233 |
 <!-- /generated:counts -->
