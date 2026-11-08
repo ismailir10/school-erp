@@ -17,9 +17,13 @@ export function AdminBreadcrumb() {
   const pathname = usePathname();
   const crumbs = getBreadcrumbs(pathname);
 
-  if (crumbs.length === 0) return null;
+  // One crumb is just the page title again; the breadcrumb earns its row only with a trail.
+  if (crumbs.length <= 1) return null;
 
   return (
+    // `data-admin-breadcrumb`: app/admin/layout.tsx hides this wrapper (with its margin) on any page
+    // that renders a back link (`data-page-back`), where the back link already says where "up" is.
+    <div data-admin-breadcrumb="" className="mb-field">
     <Breadcrumb>
       <BreadcrumbList>
         {crumbs.map((crumb, i) => (
@@ -38,5 +42,6 @@ export function AdminBreadcrumb() {
         ))}
       </BreadcrumbList>
     </Breadcrumb>
+    </div>
   );
 }

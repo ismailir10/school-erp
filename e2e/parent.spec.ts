@@ -206,7 +206,7 @@ test.describe("Parent flows", () => {
   test("logout works", async ({ page }) => {
     // UAT 2026-05-12 — logout now opens a ConfirmDialog before signing out.
     await page.click("[aria-label='Keluar']");
-    await page.getByRole("button", { name: "Keluar dari akun", exact: true }).click();
+    await page.getByRole("button", { name: "Keluar", exact: true }).click();
     await page.waitForURL("/", { timeout: 10_000 });
     // Use first() — "An Nisaa" appears multiple times on login page
     await expect(page.locator("text=An Nisaa").first()).toBeVisible();

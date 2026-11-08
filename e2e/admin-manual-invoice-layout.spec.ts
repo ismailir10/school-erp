@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // Layout regression against the real production-built form and Base UI controls.
 // Only the fee catalogue label is replaced to make its long-text case stable;
@@ -48,13 +49,9 @@ function amountInputs(dialog: Locator) {
   return dialog.getByLabel(/^Jumlah \d+/);
 }
 
-/** The control that opens Tagihan Manual at the current width: the inline button, or "Lainnya" below `sm`. */
+/** The "Aksi lainnya" menu trigger: it opens Tagihan Manual at every width and gets focus back on close. */
 function manualInvoiceOpener(page: Page) {
-  return page
-    .getByRole("button", { name: "Tagihan Manual", exact: true })
-    .or(page.getByRole("button", { name: "Lainnya", exact: true }))
-    .filter({ visible: true })
-    .first();
+  return page.getByRole("button", { name: "Aksi lainnya" });
 }
 
 async function openLongInvoiceForm(page: Page) {
@@ -86,15 +83,7 @@ async function openLongInvoiceForm(page: Page) {
   });
 
   await page.goto("/admin/invoices");
-  const opener = manualInvoiceOpener(page);
-  const opensMenu = (await opener.getAttribute("aria-haspopup")) === "menu";
-  await opener.click();
-  // Below `sm` the secondary header actions sit in the "Lainnya" menu.
-  const menuItem = page.getByRole("menuitem", { name: "Tagihan Manual", exact: true });
-  if (opensMenu) {
-    await expect(menuItem).toBeVisible();
-    await menuItem.click();
-  }
+  await openInvoiceHeaderMenuItem(page, "Tagihan Manual");
   const dialog = page.getByRole("dialog", { name: "Tagihan Manual", exact: true });
   await expect(dialog).toBeVisible();
   const studentPicker = dialog.getByRole("combobox").first();
@@ -216,7 +205,7 @@ for (const viewport of [
     // Do not press Enter: no invoice/payment mutation is part of this layout test.
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    // Focus returns to whatever opened the form: the inline button, or "Lainnya" on a phone.
+    // Focus returns to the "Aksi lainnya" trigger that opened the menu.
     await expect(manualInvoiceOpener(page)).toBeFocused();
   });
 }

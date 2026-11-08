@@ -32,6 +32,7 @@ export function ContactActions({
       {wa && (
         <Button
           size="sm"
+          variant="outline"
           className="flex-1 sm:flex-none"
           render={<a href={wa} target="_blank" rel="noopener noreferrer" />}
         >

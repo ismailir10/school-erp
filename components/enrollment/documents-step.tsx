@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Paperclip } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
@@ -257,9 +258,9 @@ export function DocumentsStep({
                   <p id={titleId} className="text-sm font-medium text-foreground">
                     {item.label}
                     {isRequired ? (
-                      <span className="ml-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
+                      <Badge variant="info" className="ml-2">
                         Wajib diunggah
-                      </span>
+                      </Badge>
                     ) : (
                       !item.required && (
                         <span className="ml-2 text-xs font-normal text-muted-foreground">Jika ada</span>

@@ -11,7 +11,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -300,9 +300,12 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
 
       <div className="space-y-section">
       <StatsCardsRow cols={3}>
-        <StatCard label="Semester aktif" value={stats.active} icon={CalendarRange} color="success" index={0} />
-        <StatCard label="Total tercatat" value={stats.all} icon={BookMarked} index={1} />
-        <StatCard label="Tema terdaftar" value={stats.themes} icon={Layers} color="primary" sublabel="pada semester aktif" index={2} />
+        <StatTile size="lg" mono
+          label="Semester aktif" value={stats.active} icon={CalendarRange} tone="positive" />
+        <StatTile size="lg" mono
+          label="Total tercatat" value={stats.all} icon={BookMarked} />
+        <StatTile size="lg" mono
+          label="Tema terdaftar" value={stats.themes} icon={Layers} tone="default" hint="pada semester aktif" />
       </StatsCardsRow>
 
       <DataTableToolbar

@@ -7,7 +7,7 @@ import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
 import { UserAvatar, getInitials } from "@/components/ui/user-avatar";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 import { SCHOOL_CONTACT_FALLBACK_TEXT, schoolContactPhone, telHref, whatsappHref } from "@/lib/contact";
 
@@ -62,7 +62,7 @@ export default async function ParentProfilePage({ searchParams }: {
 
       {/* Kontak */}
       <section>
-        <SectionLabel>Kontak</SectionLabel>
+        <SectionHeading>Kontak</SectionHeading>
         <div className="space-y-2">
           <ContactCard icon={Phone} primary={parent.phone ?? "—"} secondary="Nomor terdaftar" />
           <ContactCard icon={Mail} primary={displayEmail ?? "—"} secondary="Email terdaftar" />
@@ -72,7 +72,7 @@ export default async function ParentProfilePage({ searchParams }: {
       {/* Hubungi sekolah — the one place in the portal that always names a way to reach
           the school, so a wrong phone number or a missing pay link has somewhere to go. */}
       <section aria-labelledby="school-contact-heading" data-testid="school-contact">
-        <SectionLabel as="h2" id="school-contact-heading">Hubungi sekolah</SectionLabel>
+        <SectionHeading as="h2" id="school-contact-heading">Hubungi sekolah</SectionHeading>
         <div className="space-y-2">
           <ContactCard
             icon={School}
@@ -103,7 +103,7 @@ export default async function ParentProfilePage({ searchParams }: {
       {/* Anak Anda */}
       {children.length > 0 ? (
         <section>
-          <SectionLabel>Anak Anda</SectionLabel>
+          <SectionHeading>Anak Anda</SectionHeading>
           <ul className="space-y-2">
             {children.map((c) => {
               const initials = getInitials(c.studentName);
@@ -136,7 +136,7 @@ export default async function ParentProfilePage({ searchParams }: {
 
       {/* The parent tour: the same deck the school presents at parent meetings. */}
       <section>
-        <SectionLabel>Bantuan</SectionLabel>
+        <SectionHeading>Bantuan</SectionHeading>
         <Link
           href="/guide/parents"
           className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -447,10 +447,14 @@ export default function StudentAttendancePage() {
       />
 
       <StatsCardsRow cols={4}>
-        <StatCard label="Hadir Hari Ini" value={stats.present} icon={CalendarCheck} color="success" index={0} />
-        <StatCard label="Alpa" value={stats.absent} icon={CalendarX} color="error" index={1} />
-        <StatCard label="Sakit" value={stats.sick} icon={Heart} color="warning" index={2} />
-        <StatCard label="Izin" value={stats.permission} icon={Info} color="primary" index={3} />
+        <StatTile size="lg" mono
+          label="Hadir Hari Ini" value={stats.present} icon={CalendarCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Alpa" value={stats.absent} icon={CalendarX} tone="critical" />
+        <StatTile size="lg" mono
+          label="Sakit" value={stats.sick} icon={Heart} tone="warning" />
+        <StatTile size="lg" mono
+          label="Izin" value={stats.permission} icon={Info} tone="default" />
       </StatsCardsRow>
 
       <AdminTabs defaultValue="harian">

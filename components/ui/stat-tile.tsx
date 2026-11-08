@@ -1,6 +1,8 @@
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { CountUp } from "@/components/reactbits/count-up";
 import { fluidFigureClass, type FluidCap } from "@/lib/fluid-figure";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +17,15 @@ const TONE_CLASS: Record<StatTone, string> = {
   positive: "text-status-present-text",
   warning: "text-status-leave-text",
   critical: "text-destructive",
+};
+
+// Icon chip: tinted fill + matching `-text` glyph, per tone.
+const CHIP_CLASS: Record<StatTone, string> = {
+  default: "bg-primary/10 text-primary",
+  muted: "bg-muted text-muted-foreground",
+  positive: "bg-success-subtle text-success-text",
+  warning: "bg-warning-subtle text-warning-text",
+  critical: "bg-destructive-subtle text-destructive-text",
 };
 
 const VALUE_SIZE = {
@@ -32,8 +43,8 @@ const LINK_TILE_CLASS =
 
 /**
  * The compact "label above a number" tile every dashboard, summary rail and
- * trend strip shares. `StatCard` (icon, count-up, spotlight) stays the card for
- * a list page's KPI row; this is the quieter tile for everything smaller.
+ * trend strip and list-page KPI row shares. Pass `icon` for a tinted chip at the
+ * top right; a numeric `value` counts up (reduced motion: static).
  *
  * Pass `href` and the whole tile is the link (put the screen-reader sentence in
  * `ariaLabel`). `mono` sets the figure in the admin KPI face — leave it off for
@@ -43,6 +54,7 @@ export function StatTile({
   label,
   value,
   hint,
+  icon: Icon,
   tone = "default",
   size = "md",
   mono = false,
@@ -55,6 +67,8 @@ export function StatTile({
   label: string;
   value: ReactNode;
   hint?: ReactNode;
+  /** Tinted chip at the tile's top right. */
+  icon?: LucideIcon;
   tone?: StatTone;
   size?: keyof typeof VALUE_SIZE;
   mono?: boolean;
@@ -73,9 +87,26 @@ export function StatTile({
   // `@container`: the tile's content box is the width a fluid figure is sized from.
   const containerClass = fluid ? "@container" : "";
   const tileClass = cn(TILE_CLASS, containerClass, className);
+  const labelP = (
+    <p className="min-w-0 text-caption font-semibold uppercase tracking-wider text-muted-foreground @max-[7rem]:tracking-normal @max-[7rem]:text-[0.625rem]">{label}</p>
+  );
+  const labelEl = Icon ? (
+    <div className="flex items-start justify-between gap-2">
+      {labelP}
+      <span
+        data-testid="stat-tile-icon"
+        aria-hidden="true"
+        className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", CHIP_CLASS[tone])}
+      >
+        <Icon className="size-4" />
+      </span>
+    </div>
+  ) : (
+    labelP
+  );
   const body = (
     <>
-      <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground @max-[7rem]:tracking-normal @max-[7rem]:text-[0.625rem]">{label}</p>
+      {labelEl}
       <p
         // A `mono` figure (money, counts) never wraps: it is sized from the tile's width
         // with container-query units (lib/fluid-figure.ts), so "Rp 10.000.000.000" in a
@@ -87,7 +118,7 @@ export function StatTile({
         // conflicting text *colour* next to `text-foreground`. Only the colour merges.
         className={`mt-1 font-bold leading-tight tabular-nums ${figureClass} ${cn(TONE_CLASS[tone], valueClassName)}`}
       >
-        {value}
+        {typeof value === "number" ? <CountUp value={value} /> : value}
       </p>
       {hint && <p className="mt-0.5 text-small text-muted-foreground">{hint}</p>}
       {children}

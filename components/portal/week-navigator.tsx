@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -53,29 +54,19 @@ export function WeekNavigator({
   todayLabel?: string;
   className?: string;
 }) {
-  // size-11 = 44px. Bare (no border) so the control reads as chrome rather
-  // than as two competing buttons flanking the label.
-  const control =
-    "grid size-11 shrink-0 place-items-center rounded-md text-foreground transition-colors " +
-    "hover:bg-primary/10 active:bg-primary/20 outline-none " +
-    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
-  const controlDisabled =
-    "grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground/50 " +
-    "cursor-not-allowed outline-none";
-
   const showToday = Boolean(onToday || todayHref);
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       <div className="flex items-center justify-between gap-2">
         {prevHref ? (
-          <Link href={prevHref} className={control} aria-label={prevLabel}>
+          <Link href={prevHref} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={prevLabel}>
             <ChevronLeft size={20} />
           </Link>
         ) : (
-          <button type="button" onClick={onPrev} className={control} aria-label={prevLabel}>
+          <Button variant="ghost" size="icon" onClick={onPrev} aria-label={prevLabel}>
             <ChevronLeft size={20} />
-          </button>
+          </Button>
         )}
 
         <span className="min-w-0 truncate text-sm font-medium text-foreground">{label}</span>
@@ -83,43 +74,36 @@ export function WeekNavigator({
         {nextDisabled ? (
           // Rendered as a disabled button in both modes: a Link with no href
           // would still be focusable and would read as actionable.
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             disabled
             aria-disabled="true"
-            className={controlDisabled}
             aria-label={`${nextLabel} — pekan berikutnya belum tersedia`}
           >
             <ChevronRight size={20} />
-          </button>
+          </Button>
         ) : nextHref ? (
-          <Link href={nextHref} className={control} aria-label={nextLabel}>
+          <Link href={nextHref} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={nextLabel}>
             <ChevronRight size={20} />
           </Link>
         ) : (
-          <button type="button" onClick={onNext} className={control} aria-label={nextLabel}>
+          <Button variant="ghost" size="icon" onClick={onNext} aria-label={nextLabel}>
             <ChevronRight size={20} />
-          </button>
+          </Button>
         )}
       </div>
 
       {showToday ? (
         <div className="flex justify-center">
           {todayHref ? (
-            <Link
-              href={todayHref}
-              className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
+            <Link href={todayHref} className={buttonVariants({ variant: "ghost", size: "sm" })}>
               {todayLabel}
             </Link>
           ) : (
-            <button
-              type="button"
-              onClick={onToday}
-              className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
+            <Button variant="ghost" size="sm" onClick={onToday}>
               {todayLabel}
-            </button>
+            </Button>
           )}
         </div>
       ) : null}

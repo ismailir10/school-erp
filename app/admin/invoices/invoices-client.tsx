@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
-import { PageHeader } from "@/components/admin/page-header";
+import { PageHeader, type PageHeaderAction } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -11,15 +11,9 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
@@ -29,7 +23,7 @@ import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, MoreHorizontal, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
@@ -757,49 +751,35 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     return options;
   }, [statsState, stats, statusFilter]);
 
-  // The header's secondary actions, defined once. Rendered inline from `sm` up and inside the
-  // "Lainnya" menu below it, so both surfaces always offer the same set with the same handlers.
-  const secondaryActions: Array<{
-    key: string;
-    label: string;
-    icon: typeof Plus;
-    onSelect: () => void;
-    disabled?: boolean;
-  }> = [
-    ...(capabilities.create && stats.unpaidWithoutLink > 0
-      ? [{
-          key: "create-links",
-          label: creatingLinks ? "Membuat link..." : `Buat link baru (${stats.unpaidWithoutLink})`,
-          icon: LinkIcon,
-          onSelect: handleCreateMissingLinks,
-          disabled: creatingLinks,
-        }]
-      : []),
-    ...(capabilities.recordPayment
-      ? [
-          {
-            key: "check-all",
-            label: checkingAll ? "Memeriksa..." : "Cek semua belum lunas",
-            icon: RefreshCw,
-            onSelect: handleCheckAllPayments,
-            disabled: checkingAll,
-          },
-          {
-            key: "reminders",
-            label: "Pengingat WhatsApp",
-            icon: MessageCircle,
-            onSelect: () => setReminderQueueOpen(true),
-          },
-        ]
-      : []),
-    ...(capabilities.create
-      ? [
-          { key: "manual", label: "Tagihan Manual", icon: Plus, onSelect: () => setManualDialog(true) },
-          ...(canPrepaySpp
-            ? [{ key: "spp-prepay", label: "Catat pembayaran di muka", icon: CalendarCheck, onSelect: () => setSppPrepayDialog(true) }]
-            : []),
-        ]
-      : []),
+  // Header actions: "Buat Tagihan" is the one primary. The secondary is the cashier's own
+  // daily job (recording a payment up front); everything else lives in the ⋯ menu.
+  const menuActions: PageHeaderAction[] = [
+    {
+      label: creatingLinks ? "Membuat link..." : `Buat link baru (${stats.unpaidWithoutLink})`,
+      icon: <LinkIcon aria-hidden="true" />,
+      onClick: handleCreateMissingLinks,
+      disabled: creatingLinks,
+      hidden: !(capabilities.create && stats.unpaidWithoutLink > 0),
+    },
+    {
+      label: checkingAll ? "Memeriksa..." : "Cek semua belum lunas",
+      icon: <RefreshCw aria-hidden="true" />,
+      onClick: handleCheckAllPayments,
+      disabled: checkingAll,
+      hidden: !capabilities.recordPayment,
+    },
+    {
+      label: "Pengingat WhatsApp",
+      icon: <MessageCircle aria-hidden="true" />,
+      onClick: () => setReminderQueueOpen(true),
+      hidden: !capabilities.recordPayment,
+    },
+    {
+      label: "Tagihan Manual",
+      icon: <Plus aria-hidden="true" />,
+      onClick: () => setManualDialog(true),
+      hidden: !capabilities.create,
+    },
   ];
 
   return (
@@ -807,50 +787,27 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       <PageHeader
         title="Tagihan"
         description={`${pagination.total} tagihan`}
-        actions={(capabilities.create || capabilities.recordPayment) &&
-          <div className="flex flex-wrap gap-2">
-            {capabilities.create && stats.pendingPaymentLink > 0 && (
-              <PendingLinkBreakdownPopover
-                count={stats.pendingPaymentLink}
-                retrying={retrying}
-                onClickRetry={() => setRetryConfirmOpen(true)}
-                gatewayId={gatewayId}
-              />
-            )}
-            {/* From `sm` up the secondary actions sit inline as buttons; below it they fold into
-                "Lainnya" so a phone header stays one row. Both render the one list above, and the
-                CSS breakpoint (not JS) picks which, so there is no hydration mismatch. */}
-            <div className="hidden sm:contents">
-              {secondaryActions.map(({ key, label, icon: Icon, onSelect, disabled }) => (
-                <Button key={key} size="sm" variant="outline" onClick={onSelect} disabled={disabled}>
-                  <Icon size={14} className="mr-1.5" />
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {secondaryActions.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button size="sm" variant="outline" className="sm:hidden" />}>
-                  <MoreHorizontal size={14} className="mr-1.5" aria-hidden="true" />
-                  Lainnya
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-auto min-w-48 sm:hidden">
-                  {secondaryActions.map(({ key, label, icon: Icon, onSelect, disabled }) => (
-                    <DropdownMenuItem key={key} onClick={onSelect} disabled={disabled}>
-                      <Icon aria-hidden="true" />
-                      {label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {capabilities.create && (
-              <Button size="sm" onClick={openWizard}>
-                <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan
-              </Button>
-            )}
-          </div>
-        }
+        actions={capabilities.create && stats.pendingPaymentLink > 0 ? (
+          <PendingLinkBreakdownPopover
+            count={stats.pendingPaymentLink}
+            retrying={retrying}
+            onClickRetry={() => setRetryConfirmOpen(true)}
+            gatewayId={gatewayId}
+          />
+        ) : undefined}
+        primaryAction={{
+          label: "Buat Tagihan",
+          icon: <FilePlus2 aria-hidden="true" />,
+          onClick: openWizard,
+          hidden: !capabilities.create,
+        }}
+        secondaryAction={{
+          label: "Catat pembayaran di muka",
+          icon: <CalendarCheck aria-hidden="true" />,
+          onClick: () => setSppPrepayDialog(true),
+          hidden: !(capabilities.create && canPrepaySpp),
+        }}
+        menuActions={menuActions}
       />
 
       {/* Resumable draft banner (Cycle B1, Task T8) — a DRAFT billing run
@@ -926,32 +883,32 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
 
       {statsState === "error" && <Alert><AlertTitle>Ringkasan tagihan belum dapat dimuat</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
       {statsState === "ready" && <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
-        <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
-        <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
-        <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
-        <StatCard label="Dibayar Sebagian" value={stats.partiallyPaid} icon={CircleDashed} color="warning" index={3} />
-        <StatCard label="Lewat Tempo" value={stats.overdue} icon={AlertTriangle} color="error" index={4} />
+        <StatTile label="Total Tagihan" value={stats.total} icon={Receipt} tone="default" mono />
+        <StatTile label="Draft" value={stats.draft} icon={Clock} tone="warning" mono />
+        <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} tone="positive" mono />
+        <StatTile label="Dibayar Sebagian" value={stats.partiallyPaid} icon={CircleDashed} tone="warning" mono />
+        <StatTile label="Lewat Tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
         {stats.pendingPaymentLink > 0 && (
-          <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
+          <StatTile label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
         )}
       </StatsCardsRow>}
       {/* FIN-13: Rupiah next to the counts — what is still owed, and what came in this month. */}
       {statsState === "ready" && <StatsCardsRow cols={2}>
-        <StatCard
+        <StatTile
           label="Piutang"
           value={formatRupiah(stats.outstanding)}
-          sublabel={`${stats.owing} tagihan belum lunas`}
+          hint={`${stats.owing} tagihan belum lunas`}
           icon={Wallet}
-          color="warning"
-          index={6}
+          tone="warning"
+          mono
         />
-        <StatCard
+        <StatTile
           label="Diterima Bulan Ini"
           value={formatRupiah(stats.collectedThisMonth)}
-          sublabel="Pembayaran tercatat, tanpa yang dibatalkan"
+          hint="Pembayaran tercatat, tanpa yang dibatalkan"
           icon={Banknote}
-          color="success"
-          index={7}
+          tone="positive"
+          mono
         />
       </StatsCardsRow>}
 

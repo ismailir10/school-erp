@@ -1,3 +1,6 @@
+import type { VariantProps } from "class-variance-authority";
+
+import { Badge, type badgeVariants } from "@/components/ui/badge";
 import { formatRupiahParts } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -88,12 +91,15 @@ export type AmountStatusTone = "due" | "overdue" | "partial" | "paid" | "cancell
  * Sentence case, not the previous uppercase-bold eyebrow. Uppercase at the
  * same moment as a large red number gave one fact four shouting signals.
  */
-const STATUS_CLASS: Record<AmountStatusTone, string> = {
-  due: "border-border bg-muted text-muted-foreground",
-  overdue: "border-status-absent/40 bg-status-absent-subtle text-status-absent-text",
-  partial: "border-status-late/40 bg-status-late-subtle text-status-late-text",
-  paid: "border-status-present/40 bg-status-present-subtle text-status-present-text",
-  cancelled: "border-border bg-muted text-muted-foreground",
+const STATUS_VARIANT: Record<
+  AmountStatusTone,
+  NonNullable<VariantProps<typeof badgeVariants>["variant"]>
+> = {
+  due: "neutral",
+  overdue: "danger",
+  partial: "warning",
+  paid: "success",
+  cancelled: "neutral",
 };
 
 export function AmountStatus({
@@ -106,15 +112,9 @@ export function AmountStatus({
   className?: string;
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-        STATUS_CLASS[tone],
-        className,
-      )}
-    >
+    <Badge variant={STATUS_VARIANT[tone]} className={className}>
       {children}
-    </span>
+    </Badge>
   );
 }
 

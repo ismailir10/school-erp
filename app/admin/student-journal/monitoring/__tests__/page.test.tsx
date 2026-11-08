@@ -9,8 +9,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // One "label: value" line per card so each can be read exactly.
-vi.mock("@/components/admin/stat-card", () => ({
-  StatCard: ({ label, value }: { label: string; value: string | number }) => (
+vi.mock("@/components/ui/stat-tile", () => ({
+  StatTile: ({ label, value }: { label: string; value: string | number }) => (
     <p data-testid={`stat-${label}`}>{label}: {value}</p>
   ),
 }));

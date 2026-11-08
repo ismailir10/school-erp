@@ -113,7 +113,7 @@ test.describe("Teacher flows", () => {
   test("logout works", async ({ page }) => {
     // UAT 2026-05-12 — logout now opens a ConfirmDialog before signing out.
     await page.click("[aria-label='Keluar']");
-    await page.click("button:has-text('Keluar dari akun')");
+    await page.getByRole("button", { name: "Keluar", exact: true }).click();
     await page.waitForURL("/", { timeout: 10_000 });
     // Post-rebrand landing wordmark = TalibWordmark → renders <span>Talib</span>.
     // exact:true avoids substring match on footer "Talib by An Nisaa' Sekolahku".

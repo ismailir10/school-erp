@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -60,7 +61,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const needsAttendance=primary && attendanceOpen(primary);
   const needsJournal=primary && (!primary.journal || !primary.journal.completed);
   const primaryHref=primary ? classHref(primary.id,needsAttendance?"attendance":"journal") : "";
-  const sentraBadge=(c:TeacherClassSummary)=>c.sentraTag?<span className="rounded-full bg-primary/10 px-2 py-0.5 text-small font-semibold text-primary-text" data-testid="sentra-tag">{c.sentraTag} · hari ini</span>:null;
+  const sentraBadge=(c:TeacherClassSummary)=>c.sentraTag?<Badge variant="info" data-testid="sentra-tag">{c.sentraTag} · hari ini</Badge>:null;
   const primaryLabel=primary ? needsAttendance ? primary.attendanceRecorded===null ? "Buka absensi kelas" : `Lanjutkan absensi · ${primary.attendanceRecorded}/${primary.rosterCount}`
     : needsJournal ? "Lanjutkan jurnal harian" : "Periksa jurnal harian" : "";
   const replyRows=[...new Map(classes.flatMap(c=>(c.replies??[]).map(reply=>[reply.studentId,{...reply,className:c.name}] as const))).values()];
@@ -105,7 +106,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
             {record?.checkInTime ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
             {record?.checkOutTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · pulang ${formatTime(record.checkOutTime)}` : record?.checkInTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · sudah tercatat` : "Kehadiran pribadi belum dicatat"}
           </p>
-          {pending ? <span className="rounded-full bg-status-late-subtle px-2 py-0.5 text-small font-semibold text-status-late-text" data-testid="pending-approval-chip">Menunggu persetujuan</span> : null}
+          {pending ? <Badge variant="warning" data-testid="pending-approval-chip">Menunggu persetujuan</Badge> : null}
           {!record?.checkOutTime && <Button variant="outline" disabled={saving} onClick={()=>handleAction()} className="min-h-11">{saving?"Menyimpan…":saveError&&canRetry?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
         </div>
       )}
