@@ -189,6 +189,9 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
   icon Buttons (coarse-pointer `min-w-11` built in); navigator links stay `Link` + `buttonVariants` to keep link roles.
   WhatsApp in `contact-actions` (student + guardian detail) → outline; parent kid-card already had one filled button.
   Tests 187 files / 1628 green.
+- Guard rules (driver): `design-token-guard.test.ts` L (no import of `admin/stat-card` / `portal/section-label`), M (logout
+  confirm copy only inside `LogoutConfirmDialog`), plus a check that `LogoutConfirmDialog` never says `destructive`;
+  unit cases for each. Suite 29/29.
 
 ## Verification
 

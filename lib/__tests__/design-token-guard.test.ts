@@ -36,6 +36,13 @@ const RULES: Rule[] = [
   },
   { id: "J", why: "arbitrary z-[…]/shadow-[…] value (use z-*/shadow-* theme tokens)", pattern: /\b(?:z|shadow)-\[/, skip: (f) => f.startsWith("components/ui/") },
   { id: "K", why: "square icon sizing h-N w-N (use size-N)", pattern: /\bh-([0-9.]+) w-\1(?![0-9.])|\bw-([0-9.]+) h-\2(?![0-9.])/ },
+  { id: "L", why: "import of a removed component (StatCard → StatTile, SectionLabel → SectionHeading)", pattern: /from\s+["'][^"']*\/(?:admin\/stat-card|portal\/section-label)["']/ },
+  {
+    id: "M",
+    why: "logout confirm copy outside LogoutConfirmDialog (reuse it; logout is never destructive)",
+    pattern: /Keluar dari Talib|Yakin ingin keluar/,
+    skip: (f) => f === "components/portal/logout-confirm-dialog.tsx",
+  },
 ];
 
 /**
@@ -171,6 +178,22 @@ describe("design-token guard: matcher self-tests", () => {
     expect(hit("K", `className="h-4 w-8"`)).toBe(false);
     expect(hit("K", `className="h-4 w-48"`)).toBe(false);
     expect(hit("K", `className="size-4"`)).toBe(false);
+  });
+
+  it("L flags imports of removed components only", () => {
+    expect(hit("L", `import { StatCard } from "@/components/admin/stat-card";`)).toBe(true);
+    expect(hit("L", `import { SectionLabel } from "@/components/portal/section-label";`)).toBe(true);
+    expect(hit("L", `import { StatTile } from "@/components/ui/stat-tile";`)).toBe(false);
+  });
+
+  it("M flags logout copy outside LogoutConfirmDialog", () => {
+    expect(hit("M", `title="Yakin ingin keluar?"`)).toBe(true);
+    expect(hit("M", `title="Keluar dari Talib?"`, "components/portal/logout-confirm-dialog.tsx")).toBe(false);
+  });
+
+  it("LogoutConfirmDialog is never destructive", () => {
+    const src = readFileSync(join(root, "components/portal/logout-confirm-dialog.tsx"), "utf8");
+    expect(src).not.toMatch(/\bdestructive\b/);
   });
 });
 
