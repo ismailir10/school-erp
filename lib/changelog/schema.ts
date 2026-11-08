@@ -5,13 +5,26 @@
  */
 export const KINDS = ["baru", "lebih-baik", "diperbaiki"] as const;
 export const AUDIENCES = ["semua", "admin", "guru", "orang-tua"] as const;
+export const MODULE_LABELS = {
+  umum: "Umum",
+  pendaftaran: "Pendaftaran",
+  "siswa-wali": "Siswa & Wali",
+  akademik: "Akademik",
+  "kehadiran-siswa": "Kehadiran Siswa",
+  "buku-penghubung": "Buku Penghubung",
+  "penilaian-rapor": "Penilaian & Rapor",
+  "tagihan-pembayaran": "Tagihan & Pembayaran",
+  sdm: "SDM",
+} as const;
 
 export type ChangeKind = (typeof KINDS)[number];
 export type ChangeAudience = (typeof AUDIENCES)[number];
+export type ChangeModule = keyof typeof MODULE_LABELS;
 
 export interface ChangeItem {
   kind: ChangeKind;
   audience: ChangeAudience;
+  module: ChangeModule;
   text: string;
 }
 
@@ -30,6 +43,7 @@ export const ITEMS_MAX = 7;
 export const MAINTENANCE_ITEM: ChangeItem = {
   kind: "lebih-baik",
   audience: "semua",
+  module: "umum",
   text: "Pembaruan di balik layar agar Talib tetap cepat dan aman.",
 };
 
@@ -61,6 +75,7 @@ export function validateReleases(releases: readonly Release[]): string[] {
       const where = `${at} item ${i + 1}`;
       if (!KINDS.includes(it.kind)) errors.push(`${where}: unknown kind "${it.kind}"`);
       if (!AUDIENCES.includes(it.audience)) errors.push(`${where}: unknown audience "${it.audience}"`);
+      if (!Object.hasOwn(MODULE_LABELS, it.module)) errors.push(`${where}: unknown module "${it.module}"`);
       if (!it.text.trim()) errors.push(`${where}: text is empty`);
       if (it.text.length > ITEM_MAX) errors.push(`${where}: text over ${ITEM_MAX} chars`);
       for (const re of LEAKS) {

@@ -26,17 +26,17 @@ vi.mock("@/lib/changelog/releases", () => ({
       id: "2026-11-06",
       headline: "Absensi lebih cepat",
       items: [
-        { kind: "baru", audience: "guru", text: "Guru menandai semua hadir sekali ketuk." },
-        { kind: "diperbaiki", audience: "orang-tua", text: "Orang tua melihat kehadiran hari ini." },
-        { kind: "lebih-baik", audience: "semua", text: "Tampilan lebih rapi di ponsel kecil." },
+        { kind: "baru", audience: "guru", module: "kehadiran-siswa", text: "Guru menandai semua hadir sekali ketuk." },
+        { kind: "diperbaiki", audience: "orang-tua", module: "kehadiran-siswa", text: "Orang tua melihat kehadiran hari ini." },
+        { kind: "lebih-baik", audience: "semua", module: "umum", text: "Tampilan lebih rapi di ponsel kecil." },
       ],
     },
     {
       id: "2026-10-31",
       headline: "Khusus admin",
       items: [
-        { kind: "baru", audience: "admin", text: "Admin mengekspor daftar tagihan." },
-        { kind: "baru", audience: "admin", text: "Admin mencari siswa lebih cepat." },
+        { kind: "baru", audience: "admin", module: "tagihan-pembayaran", text: "Admin mengekspor daftar tagihan." },
+        { kind: "baru", audience: "admin", module: "siswa-wali", text: "Admin mencari siswa lebih cepat." },
       ],
     },
   ],

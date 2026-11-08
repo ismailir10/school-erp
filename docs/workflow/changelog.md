@@ -21,6 +21,10 @@ Every promotion (`/ship --to-main`) adds exactly one entry **before** the promot
 | item `text` | One sentence, ≤ 140 chars, starts with who/what changed for the user. |
 | item `kind` | `baru` a capability that did not exist · `lebih-baik` an existing thing is faster, clearer or simpler · `diperbaiki` something was wrong and now works. |
 | item `audience` | `admin` · `guru` · `orang-tua` · `semua`. Pick the portal that sees it; `semua` only when all three do. |
+| item `module` | Choose one primary module for each item. Use a key from `MODULE_LABELS` in `lib/changelog/schema.ts`. |
+
+Choose the module based on where readers will notice the change. Use `kehadiran-siswa` for student attendance,
+`sdm` for staff attendance and leave, and `umum` for maintenance or changes across the app.
 
 ## Include
 
@@ -44,12 +48,12 @@ flag that is off. If the whole promotion is like this, the entry is one item:
 - Parent-facing items are warm and child-framed; admin items are neutral and short (voice.md personas).
 - Same tone for every item of a kind; no exclamation marks, no emoji, no "akhirnya".
 
-| Instead of | Write |
-|---|---|
-| "Fix N+1 on student list" | (skip: nobody feels it) or "Daftar siswa terbuka lebih cepat." |
-| "Billing skips student on leave (#698)" | "Tagihan tidak dibuat untuk siswa yang sedang cuti." |
-| "Refactor attendance gate" | (skip) |
-| "Geofence check-in for staff" | "Guru dan staf absen masuk dari lokasi sekolah; di luar area, absen ditolak." |
+| Instead of | Write | Module |
+|---|---|---|
+| "Fix N+1 on student list" | "Daftar siswa terbuka lebih cepat." Include only if readers notice the difference. | `siswa-wali` |
+| "Billing skips student on leave (#698)" | "Tagihan tidak dibuat untuk siswa yang sedang cuti." | `tagihan-pembayaran` |
+| "Refactor attendance gate" | Skip this internal change. | |
+| "Geofence check-in for staff" | "Guru dan staf bisa mengajukan persetujuan saat absen masuk di luar area sekolah." | `sdm` |
 
 ## Process
 

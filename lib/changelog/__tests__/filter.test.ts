@@ -7,17 +7,17 @@ const releases: Release[] = [
     id: "2026-11-06",
     headline: "Campuran",
     items: [
-      { kind: "baru", audience: "guru", text: "Untuk guru." },
-      { kind: "baru", audience: "orang-tua", text: "Untuk orang tua." },
-      { kind: "diperbaiki", audience: "semua", text: "Untuk semua." },
+      { kind: "baru", audience: "guru", module: "kehadiran-siswa", text: "Untuk guru." },
+      { kind: "baru", audience: "orang-tua", module: "kehadiran-siswa", text: "Untuk orang tua." },
+      { kind: "diperbaiki", audience: "semua", module: "umum", text: "Untuk semua." },
     ],
   },
   {
     id: "2026-10-31",
     headline: "Khusus admin",
     items: [
-      { kind: "baru", audience: "admin", text: "A." },
-      { kind: "baru", audience: "admin", text: "B." },
+      { kind: "baru", audience: "admin", module: "tagihan-pembayaran", text: "A." },
+      { kind: "baru", audience: "admin", module: "siswa-wali", text: "B." },
     ],
   },
 ];

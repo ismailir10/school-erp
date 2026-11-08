@@ -48,7 +48,7 @@ None expected. No new dependency, migration, auth change, or production data wri
 
 ## Tasks
 
-- [ ] T1 Tag the release archive and require a valid module for future entries. Update the writing guide and validate the full archive. Reuse the existing release schema and data.
+- [x] T1 Tag the release archive and require a valid module for future entries. Update the writing guide and validate the full archive. Reuse the existing release schema and data.
 - [ ] T2 Add combined audience, month, and module filters with release pagination. Reuse the existing filter, Indonesian month formatter, and shared UI controls. Depends on T1.
 - [ ] T3 Update changelog help and browser coverage, then verify all three flows on the local app. Depends on T2.
 
@@ -56,6 +56,10 @@ None expected. No new dependency, migration, auth change, or production data wri
 
 - Plan: driver and workers use the session model. T1 archive tagging and schema/fixtures run in parallel. T2 UI and filtering follows T1. T3 browser coverage and documentation follows T2. The driver runs the gates and browser verification.
 
+- T1: release schema, three archive parts, changelog guide and fixtures. Tagged all 117 items, including maintenance, and checked that stripping tags reproduces the archive byte for byte. The focused 32 tests and production build passed. The intermediate full Vitest run was interrupted after prolonged local memory pressure and a failure marker. Full verification is run on the integrated change.
+
 ## Verification
+
+- T1 design-system cross-check: the TSX edit updates test fixtures only.
 
 ## Ship Notes
