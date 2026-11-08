@@ -70,7 +70,7 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 - [x] T2 `/changelog` page: guard, title, filter, empty state — accept: guard test + render test per role (deps: T1, reuse: `app/guide/parents/page.tsx`)
 - [ ] T3 Entry points in admin sidebar, teacher more-sheet, parent profile — accept: link visible in each (deps: T2, parallel with T4-T6)
 - [x] T4 `docs/workflow/changelog.md` writing guide; link from ship.md Promotion + CLAUDE.md; `audit-docs.sh --write` — accept: `audit-docs.sh` exits 0
-- [ ] T5 `scripts/check-promotion-changelog.sh` + `Checks` CI step + self-test — accept: fixtures pass/fail as expected (parallel with T2, T3)
+- [x] T5 `scripts/check-promotion-changelog.sh` + `Checks` CI step + self-test — accept: fixtures pass/fail as expected (parallel with T2, T3)
 - [x] T6 Backfill 23 release entries from 2026-08-08 — accept: T1 tests green, driver tone review (deps: T1, T4; fan-out one worker per ~6 entries)
 - [ ] T7 `e2e/changelog.spec.ts` — accept: passes locally on production build (deps: T2, T3)
 
@@ -81,6 +81,7 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 - T2: `app/changelog/page.tsx`, `components/changelog/changelog-view.tsx`, `lib/changelog/filter.ts`, tests - signed-in guard like `/guide/parents`, "Kembali ke <beranda>", "Untuk <peran>" / "Semua" toggle (default own portal), release cards with kind + audience badges, empty state. Reuses BackLink, Badge, Button, EmptyState, `formatDate`. design-system cross-check: tokens only, 44px back link, no raw hex. README gains a Portals row.
 - T4: `docs/workflow/changelog.md` - writing guide (shape, include/skip, words, examples, process); linked from ship.md and CLAUDE.md with the promotion check in T5.
 - T6: `lib/changelog/data/part-{1,2,3}.ts` - 23 entries (every distinct promotion date 2026-08-13 to 2026-11-06), written by 3 parallel workers from promotion ranges + cycle docs, then driver-reviewed. Driver edits: dropped items that were internal or already retired (10-22 security, 10-28 "Sudah dibayar" Lunas), merged the padded 10-26 pair into one item, replaced non-glossary words (surel, galat). Consequence: item minimum lowered 2 -> 1 (a promotion with one real change should not be padded). 2026-10-16 is a maintenance-only entry. Counts re-checked by the driver: 23 ids, `vitest run lib/changelog app/changelog` 30 passed.
+- T5: `scripts/check-promotion-changelog.sh` (passes when base...head adds a release `id:` under `lib/changelog/data/`; editing an old entry does not count), `scripts/test-check-promotion-changelog.sh` (4 fixture cases, run in the CI "Workflow audit and hook regression tests" step), `ci.yml` step "Promotion changelog entry" (PRs with base `main` only). Real branch vs `origin/main`: 23 new entries, pass. `test-hooks.sh` 32 passed, `test-audit-docs.sh` 7 passed.
 
 ## Verification
 
