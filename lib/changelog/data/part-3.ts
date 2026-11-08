@@ -2,6 +2,18 @@ import type { Release } from "../schema";
 
 const releases: Release[] = [
   {
+    id: "2026-11-08-2",
+    headline: "Pembaruan Talib lebih mudah ditemukan",
+    items: [
+      {
+        kind: "lebih-baik",
+        audience: "semua",
+        module: "umum",
+        text: "Di Apa yang Baru, Anda bisa menyaring pembaruan berdasarkan bulan dan modul, lalu membacanya per halaman.",
+      },
+    ],
+  },
+  {
     id: "2026-11-08",
     headline: "Gerbang, absensi staf, dan putaran sentra",
     items: [
