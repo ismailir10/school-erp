@@ -144,7 +144,7 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
 - [x] T5 SectionHeading only: `as` + children, migrate 9 SectionLabel uses, delete SectionLabel — accept: tests green
 - [x] T6 Pills → Badge/StatusBadge (~9); calendar + week-navigator controls → Button; two hierarchy fixes — accept:
       tests green, 44px targets
-- [ ] T7 Verify: full gate, Playwright, design critique re-run on the same 14 screens — accept: proud bar, no new
+- [x] T7 Verify: full gate, Playwright, design critique re-run on the same 14 screens — accept: proud bar, no new
       findings above low
 
 ## Implementation
@@ -196,7 +196,50 @@ None. The logout flow changes only its confirm UI; the sign-out call and the aut
   menu. New `e2e/helpers/invoice-header.ts` opens the ⋯ "Aksi lainnya" menu item; used by the manual-invoice layout,
   paid-invoice prepay, school-admin reminder queue and admin tagihan specs. Focus still returns to the trigger at all
   five viewports (assertion unchanged). 4 spec files / 43 tests green.
+- Fix (found by the critique re-run, round 2): the admin dashboard queue tiles orphaned the fifth tile at 390px
+  (Verify flow 5). `queue-summary-tiles.tsx` gets StatsCardsRow's odd-last rule; measured 165×4 + 342 after.
 
 ## Verification
 
+Local, disposable Postgres (`postgres:15` on :54329, `prisma db push` on the empty DB + seed), `DEMO_MODE=true`
+production build, cross-checked against `.claude/standards/design-system.html` and `ui.md` § Visual principles.
+
+- Lint clean · `tsc --noEmit` clean · RLS 51/51 · API auth 239/239 · `audit-docs.sh` 0 fail.
+- Vitest: 760 files / 9323 tests passed.
+- Playwright (full suite, Chromium, workers 1, local-Chromium scratch config as in cycle A): 274 passed, 9 failed on
+  the first run — all invoice specs driving the old header controls (fixed, round 1: 43/43 in those files) → 283/283.
+  After the round-2 dashboard fix: `admin-dashboard` + `mobile-layout` 64/64 on the rebuilt app.
+- Flow 1 (logout, measured): admin sidebar, teacher header and parent profile all open "Keluar dari Talib?" with a
+  teal "Keluar" (`#5DB4B8`, text `#173536` ≈ 6.4:1) and a neutral "Batal"; no red in any portal.
+- Flow 2: ConfirmDialog `destructive` commits with `destructive-solid` (unit-tested); unpublish is now neutral.
+- Flow 3 (measured `[data-admin-breadcrumb]`): hidden on the dashboard (one crumb) and on student detail (back link);
+  shown on Siswa and Tagihan (two crumbs).
+- Flow 4: invoices 1440 and 390 — one filled "Buat Tagihan", one outline secondary on desktop, the rest in ⋯; every
+  action reachable (the nine invoice specs exercise them through the menu).
+- Flow 5: list KPI rows and the dashboard tiles end with a full-width tile on an odd count at 390.
+- Flow 6: guard rule L unit case fails a StatCard import.
+- Every page title still 24px / 600 / 30px across admin, teacher and parent.
+- Design critique re-run (`design:design-critique`, 14 screens + 3 logout dialogs): resolved — invoices header, pills,
+  button hierarchy, logout tone, double back navigation, redundant "Dasbor" crumb; partial — stat tiles (list pages
+  unified; dashboard tiles have no icons and an uneven two-row layout, student-detail tiles a third look). Dismissed:
+  "white on teal below 4.5:1" (measured: dark text, 6.4:1); logout footer stacks on mobile (the shared responsive
+  dialog footer, same component everywhere). Carried forward (not this cycle):
+  - stat tiles: give dashboard and student-detail tiles the list-page icon rule and one grid; stat number colours need
+    a meaning (tone) map.
+  - copy: title casing mixes Title Case, sentence case and uppercase eyebrows across cards and buttons (voice.md pass).
+  - product: invoices mobile spends ~2 screens on 7 tiles before the list; student detail repeats the debt three times
+    and the Profil tab duplicates an open Profil section; student-detail tabs below the fold on mobile.
+
 ## Ship Notes
+
+- No migrations, env vars or manual steps.
+- Visible changes:
+  - logout confirms are neutral and the same everywhere (admin gains the confirm);
+  - irreversible confirms commit in solid red;
+  - detail pages lose the duplicate breadcrumb;
+  - the invoices header folds secondary actions into ⋯;
+  - list-page stat cards adopt the StatTile look (spotlight glow gone);
+  - WhatsApp contact buttons are outline.
+- Not auth-impacting: sign-out mechanics and guards untouched, only the confirm UI before them → no
+  `needs-staging-verify`. Post-merge: staging deploy READY for the merge SHA.
+- Rollback: revert the squash commit.
