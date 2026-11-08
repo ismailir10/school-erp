@@ -66,7 +66,7 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 
 ## Tasks
 
-- [ ] T1 Release data module + types + shape/limit tests — accept: Vitest fails on each rule break (reuse: `lib/page-title.ts` style)
+- [x] T1 Release data module + types + shape/limit tests — accept: Vitest fails on each rule break (reuse: `lib/page-title.ts` style)
 - [ ] T2 `/changelog` page: guard, title, filter, empty state — accept: guard test + render test per role (deps: T1, reuse: `app/guide/parents/page.tsx`)
 - [ ] T3 Entry points in admin sidebar, teacher more-sheet, parent profile — accept: link visible in each (deps: T2, parallel with T4-T6)
 - [ ] T4 `docs/workflow/changelog.md` writing guide; link from ship.md Promotion + CLAUDE.md; `audit-docs.sh --write` — accept: `audit-docs.sh` exits 0
@@ -75,6 +75,9 @@ None. (No schema, no new dependency, no auth code change, no production write.)
 - [ ] T7 `e2e/changelog.spec.ts` — accept: passes locally on production build (deps: T2, T3)
 
 ## Implementation
+
+- Plan: driver=claude-sonnet-5-5, workers=claude-sonnet-5-5 (no cheaper tier suited to tone-sensitive Indonesian copy); T1, T4 inline (small, define the contract the workers need); T6 parallel, 3 workers, one data file each (`lib/changelog/data/part-{1,2,3}.ts`, no shared files); T2, T3, T5, T7 inline sequential after the guide lands. Deviation: built on the session-designated branch `claude/jolly-cray-h1r16u` in the main checkout, no `feat/*` worktree (Assumption 1). Task gate per task is the scoped Vitest/tsc run; the full `npm run build && npx vitest run` runs in verify-local.
+- T1: `lib/changelog/{schema,releases}.ts`, `data/part-{1,2,3}.ts` (empty stubs), `__tests__/schema.test.ts` - typed release shape, limits (headline 60, item 140, 2-7 items or the one maintenance item, newest first, no PR numbers/links/code) and `validateReleases`; 13 Vitest tests green.
 
 ## Verification
 
