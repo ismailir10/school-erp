@@ -118,4 +118,13 @@ describe("ConfirmDialog", () => {
     resolve?.();
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
+
+  it("uses the solid destructive style only when destructive", () => {
+    const { rerender } = render(
+      <ConfirmDialog open onOpenChange={vi.fn()} title="T" confirmLabel="Ya" onConfirm={vi.fn()} destructive />,
+    );
+    expect(screen.getByRole("button", { name: "Ya" }).className).toContain("bg-destructive text-white");
+    rerender(<ConfirmDialog open onOpenChange={vi.fn()} title="T" confirmLabel="Ya" onConfirm={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Ya" }).className).not.toContain("text-white");
+  });
 });

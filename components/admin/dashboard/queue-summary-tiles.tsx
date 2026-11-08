@@ -33,7 +33,7 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
   }
 
   return (
-    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-5 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2 [&>*]:min-w-0">
       {items.map((item) =>
         item.status === "unavailable" ? (
           <StatTile

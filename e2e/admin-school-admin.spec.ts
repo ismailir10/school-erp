@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // SCHOOL_ADMIN persona — restricted role, no salary/payroll access.
 // Cookie-based demo auth, same pattern as admin.spec.ts.
@@ -305,7 +306,7 @@ test.describe("SCHOOL_ADMIN reminder queue", () => {
     await page.context().route("https://wa.me/**", (route) => route.abort());
 
     await page.goto("/admin/invoices");
-    await page.getByRole("button", { name: "Pengingat WhatsApp" }).click();
+    await openInvoiceHeaderMenuItem(page, "Pengingat WhatsApp");
 
     const dialog = page.getByRole("dialog", { name: "Pengingat WhatsApp" });
     await expect(dialog).toBeVisible({ timeout: 10_000 });

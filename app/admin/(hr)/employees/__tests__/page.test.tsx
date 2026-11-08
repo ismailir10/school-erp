@@ -27,8 +27,8 @@ vi.mock("@/components/ui/data-table-row-actions", () => ({
 
 // Flatten each card to one "label: value" line so a card can be read exactly
 // ("Aktif" also appears as a status badge / filter option elsewhere on the page).
-vi.mock("@/components/admin/stat-card", () => ({
-  StatCard: ({ label, value }: { label: string; value: string | number }) => (
+vi.mock("@/components/ui/stat-tile", () => ({
+  StatTile: ({ label, value }: { label: string; value: string | number }) => (
     <p data-testid={`stat-${label}`}>{label}: {value}</p>
   ),
 }));

@@ -22,7 +22,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -320,7 +320,7 @@ export function LeaveSheet({
           {balance && (
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Card className="p-3">
-                <SectionLabel>Cuti tahunan</SectionLabel>
+                <SectionHeading>Cuti tahunan</SectionHeading>
                 <p className="font-amount text-2xl font-semibold text-foreground">
                   {annualAvailable}
                 </p>
@@ -334,7 +334,7 @@ export function LeaveSheet({
                 />
               </Card>
               <Card className="p-3">
-                <SectionLabel>Cuti sakit</SectionLabel>
+                <SectionHeading>Cuti sakit</SectionHeading>
                 <p className="font-amount text-2xl font-semibold text-foreground">
                   {sickAvailable}
                 </p>

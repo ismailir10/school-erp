@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { getParentChildById, getParentWithChildren } from "@/lib/parent-helpers";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
@@ -75,9 +75,9 @@ export default async function ParentPerkembanganDetailPage({
             aria-labelledby="perkembangan-elements-heading"
           >
             <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <SectionLabel as="h2" id="perkembangan-elements-heading" className="mb-0">
+              <SectionHeading as="h2" id="perkembangan-elements-heading" className="mb-0">
                 Capaian per elemen
-              </SectionLabel>
+              </SectionHeading>
               <span className="min-w-0 break-words text-xs text-muted-foreground">
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
@@ -107,9 +107,9 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-pekan-heading"
           >
-            <SectionLabel as="h2" id="perkembangan-pekan-heading" className="mb-0">
+            <SectionHeading as="h2" id="perkembangan-pekan-heading" className="mb-0">
               Pekan ini
-            </SectionLabel>
+            </SectionHeading>
             {!data.hasActiveWeek ? (
               <EmptyState icon={CalendarOff} title="Belum ada pekan aktif saat ini" />
             ) : data.latestThisWeek.length === 0 ? (

@@ -4,7 +4,7 @@ import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -213,19 +213,21 @@ export default function PaymentsLedgerPage() {
       />
 
       <StatsCardsRow cols={2}>
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Total Penerimaan"
           value={formatRupiah(summary.totalAmount)}
           icon={Wallet}
-          color="success"
-          index={0}
+          tone="positive"
         />
-        <StatCard
+        <StatTile
+          size="lg"
+          mono
           label="Jumlah Transaksi"
           value={summary.totalCount}
           icon={Receipt}
-          color="primary"
-          index={1}
+          tone="default"
         />
       </StatsCardsRow>
 

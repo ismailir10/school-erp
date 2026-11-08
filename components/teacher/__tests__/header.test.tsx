@@ -17,7 +17,7 @@ describe("TeacherHeader sign-out (PAR-1)", () => {
     signOut.mockResolvedValue(undefined);
     render(<TeacherHeader userName="Bu Ani" />);
     await userEvent.click(screen.getByRole("button", { name: "Keluar" }));
-    await userEvent.click(screen.getByRole("button", { name: "Keluar dari akun" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keluar" }));
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
@@ -25,7 +25,7 @@ describe("TeacherHeader sign-out (PAR-1)", () => {
     signOut.mockRejectedValue(new Error("nope"));
     render(<TeacherHeader userName="Bu Ani" />);
     await userEvent.click(screen.getByRole("button", { name: "Keluar" }));
-    await userEvent.click(screen.getByRole("button", { name: "Keluar dari akun" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keluar" }));
     expect(toastError).toHaveBeenCalled();
   });
 });

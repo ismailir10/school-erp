@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { SectionCard } from "@/components/ui/section-card";
 import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useEffect, useRef, useState } from "react";
@@ -325,7 +325,7 @@ export function InvoiceDetailSheet({
 
           {/* Rincian */}
           <section>
-            <SectionLabel>Rincian</SectionLabel>
+            <SectionHeading>Rincian</SectionHeading>
             <ul>
               {invoice.lines.map((line) => (
                 <li
@@ -371,7 +371,7 @@ export function InvoiceDetailSheet({
               "hubungi admin" note below is the guidance then (PARX-1). */}
           {isPayable && hasPaymentLink && !paymentPending ? (
             <section>
-              <SectionLabel>Cara bayar</SectionLabel>
+              <SectionHeading>Cara bayar</SectionHeading>
               <SectionCard as="div">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -391,7 +391,7 @@ export function InvoiceDetailSheet({
           {/* Bukti pembayaran — once money has been received (fully or in part) */}
           {hasReceipt(invoice) ? (
             <section>
-              <SectionLabel>Bukti pembayaran</SectionLabel>
+              <SectionHeading>Bukti pembayaran</SectionHeading>
               <a
                 href={`/api/guardian/invoices/${invoice.id}/pdf`}
                 target="_blank"
@@ -419,7 +419,7 @@ export function InvoiceDetailSheet({
           {/* Payment history (paid invoices with multiple payment events) */}
           {invoice.payments.length > 0 ? (
             <section>
-              <SectionLabel>Riwayat pembayaran</SectionLabel>
+              <SectionHeading>Riwayat pembayaran</SectionHeading>
               <ul className="space-y-2">
                 {invoice.payments.map((p) => {
                   const Icon = METHOD_ICONS[p.method] ?? Building2;

@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -178,16 +179,17 @@ export function PortalTabs({
               </span>
             ) : null}
             {item.count != null ? (
-              <span
+              <Badge
+                variant="neutral"
                 className={cn(
-                  "ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs",
+                  "ml-2",
                   active
                     ? "bg-primary-foreground/20 text-primary-foreground"
                     : "bg-background text-foreground"
                 )}
               >
                 {item.count}
-              </span>
+              </Badge>
             ) : null}
           </button>
         );

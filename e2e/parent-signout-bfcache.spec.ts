@@ -150,7 +150,7 @@ test.describe("Back after sign-out does not restore the signed-in page (PAR-1)",
   test("header Keluar (confirm dialog)", async ({ page }) => {
     await openProfileInApp(page, guardianUserId);
     await page.click("[aria-label='Keluar']");
-    await page.getByRole("button", { name: "Keluar dari akun", exact: true }).click();
+    await page.getByRole("button", { name: "Keluar", exact: true }).click();
     await expectSignedOutAfterBack(page);
   });
 });

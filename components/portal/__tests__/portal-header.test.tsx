@@ -59,10 +59,10 @@ describe("PortalHeader", () => {
     expect(logout).toHaveClass("focus-visible:ring-2");
     await user.click(logout);
     expect(onLogout).not.toHaveBeenCalled();
-    expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
+    expect(screen.getByText("Keluar dari Talib?")).toBeInTheDocument();
 
     // Clicking the dialog's explicit logout action fires onLogout.
-    await user.click(screen.getByRole("button", { name: "Keluar dari akun" }));
+    await user.click(screen.getByRole("button", { name: "Keluar" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
@@ -74,7 +74,7 @@ describe("PortalHeader", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Keluar" }));
-    expect(screen.getByText("Yakin ingin keluar?")).toBeInTheDocument();
+    expect(screen.getByText("Keluar dari Talib?")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Batal" }));
     expect(onLogout).not.toHaveBeenCalled();

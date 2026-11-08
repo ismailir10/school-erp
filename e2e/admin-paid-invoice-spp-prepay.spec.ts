@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // Money the school already took (cycles 2026-10-27-paid-invoice-spp-prepay and
 // 2026-10-30-prepay-other-fees). "Catat pembayaran di muka" is the one place to record it:
@@ -140,7 +141,7 @@ test.describe("Admin — money already taken", () => {
     const before = await listInvoices(page, student.id);
 
     await page.goto("/admin/invoices");
-    await page.getByRole("button", { name: "Tagihan Manual", exact: true }).click();
+    await openInvoiceHeaderMenuItem(page, "Tagihan Manual");
     const dialog = page.getByRole("dialog", { name: "Tagihan Manual", exact: true });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeVisible();

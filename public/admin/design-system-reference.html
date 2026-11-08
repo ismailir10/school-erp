@@ -276,8 +276,10 @@
   .btn-outline:hover { background: var(--muted); }
   .btn-ghost { background: transparent; color: var(--foreground); }
   .btn-ghost:hover { background: var(--muted); }
-  .btn-destructive { background: var(--destructive); color: #fff; }
-  .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 88%, #000 12%); }
+  .btn-destructive { background: var(--destructive-subtle); color: var(--destructive-text); }
+  .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 20%, transparent); }
+  .btn-destructive-solid { background: var(--destructive); color: #fff; }
+  .btn-destructive-solid:hover { background: color-mix(in oklab, var(--destructive) 88%, #000 12%); }
   .btn-link { background: transparent; color: var(--primary); padding: 0; height: auto; }
   .btn-link:hover { text-decoration: underline; }
 
@@ -1540,9 +1542,11 @@
               <button class="btn btn-outline">Outline</button>
               <button class="btn btn-ghost">Ghost</button>
               <button class="btn btn-destructive">Destructive</button>
+              <button class="btn btn-destructive-solid">Destructive solid</button>
               <button class="btn btn-link">Link</button>
             </div>
           </div>
+          <p class="caption-note" style="margin: 0.5rem 0;">Two-step tone: the quiet <code>destructive</code> button is the trigger; the solid-red <code>destructive-solid</code> is the commit inside the confirm. Red means irreversible data loss only. Reversible actions and logout are neutral with a primary confirm.</p>
           <div style="display: grid; grid-template-columns: 160px 1fr; gap: 1.5rem; align-items: center; padding: 0.75rem 0; border-bottom: 1px dashed var(--border);">
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">Sizes</div>
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -2207,11 +2211,11 @@
                 </div>
                 <div class="overlay-footer" style="margin-top: 1rem;">
                   <button class="btn btn-ghost btn-sm">Batal</button>
-                  <button class="btn btn-sm" style="background: var(--status-absent); color: white;">Ya, hapus</button>
+                  <button class="btn btn-destructive-solid btn-sm">Ya, hapus</button>
                 </div>
               </div>
             </div>
-            <p class="caption-note">Always for destructive actions. Red primary button. Cancel on the left.</p>
+            <p class="caption-note">Only for irreversible data loss. Solid-red commit (<code>destructive-solid</code>), Cancel on the left. Reversible confirms and logout (&ldquo;Keluar dari Talib?&rdquo;) use a neutral primary button.</p>
           </div>
 
           <!-- Toast -->

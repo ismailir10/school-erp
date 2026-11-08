@@ -14,7 +14,7 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { StatCard } from "@/components/admin/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -376,9 +376,12 @@ export default function GuardiansPage() {
       <PageHeader title="Wali Murid" description="Kelola data wali murid dan hubungannya dengan siswa." />
 
       <StatsCardsRow cols={3}>
-        <StatCard label="Total Wali" value={stats.total} icon={Users} color="primary" index={0} />
-        <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
-        <StatCard label="Tidak Aktif" value={stats.inactive} icon={UserX} color="warning" index={2} />
+        <StatTile size="lg" mono
+          label="Total Wali" value={stats.total} icon={Users} tone="default" />
+        <StatTile size="lg" mono
+          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
+        <StatTile size="lg" mono
+          label="Tidak Aktif" value={stats.inactive} icon={UserX} tone="warning" />
       </StatsCardsRow>
 
       <DataTableToolbar

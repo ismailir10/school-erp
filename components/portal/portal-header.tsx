@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { LogoutConfirmDialog } from "@/components/portal/logout-confirm-dialog";
 
 export type PortalHeaderProps = {
   /** Display name for the user (full name). First word becomes the visible label. */
@@ -98,16 +98,7 @@ export function PortalHeader({
           </button>
         </div>
       </div>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Yakin ingin keluar?"
-        description="Anda perlu masuk lagi untuk mengakses akun setelah keluar."
-        confirmLabel="Keluar dari akun"
-        cancelLabel="Batal"
-        onConfirm={onLogout}
-        destructive
-      />
+      <LogoutConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} onConfirm={onLogout} />
     </header>
   );
 }

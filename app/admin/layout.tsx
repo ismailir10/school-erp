@@ -47,7 +47,13 @@ export default async function AdminLayout({
               </div>
             </div>
           </header>
-          <main className="min-w-0 px-page-x py-page-y"><div className="mb-field"><AdminBreadcrumb /></div>{children}</main>
+          {/* Back link and breadcrumb say the same thing: a page that renders a `data-page-back` link
+              (DetailPageHeader, BackLink) hides the breadcrumb wrapper. CSS-only so it works across
+              the server/client boundary. */}
+          <main className="min-w-0 px-page-x py-page-y [&:has([data-page-back])_[data-admin-breadcrumb]]:hidden">
+            <AdminBreadcrumb />
+            {children}
+          </main>
         </div>
       </SidebarProvider>
     </UnsavedChangesProvider>

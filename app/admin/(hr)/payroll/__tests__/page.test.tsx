@@ -20,7 +20,7 @@ vi.mock("@/components/ui/data-table", async () => {
 });
 vi.mock("@/components/ui/data-table-toolbar", () => ({ DataTableToolbar: () => null }));
 vi.mock("@/components/admin/stats-cards-row", () => ({ StatsCardsRow: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
-vi.mock("@/components/admin/stat-card", () => ({ StatCard: ({ label, value }: { label: string; value: string | number }) => <p>{label}: {value}</p> }));
+vi.mock("@/components/ui/stat-tile", () => ({ StatTile: ({ label, value }: { label: string; value: string | number }) => <p>{label}: {value}</p> }));
 
 import { toast } from "sonner";
 import PayrollListPage from "../page";

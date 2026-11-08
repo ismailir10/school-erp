@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Amount } from "@/components/portal/amount";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { KidCard, type KidCardFoot, type KidCardProps } from "@/components/parent/kid-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -297,7 +297,7 @@ export default async function ParentDashboard() {
       </header>
 
       <section aria-labelledby="household-actions-heading" className="space-y-3">
-        <SectionLabel as="h2" id="household-actions-heading">Hari ini</SectionLabel>
+        <SectionHeading as="h2" id="household-actions-heading">Hari ini</SectionHeading>
         {attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
           <Card size="sm" className="bg-status-present-subtle">
             <CardContent className="flex items-center gap-3 text-sm">
@@ -348,7 +348,7 @@ export default async function ParentDashboard() {
       </section>
 
       <section>
-        <SectionLabel>Anak saya</SectionLabel>
+        <SectionHeading>Anak saya</SectionHeading>
         <div className="space-y-3">
           {kids.map((k) => (
             <KidCard
@@ -381,7 +381,7 @@ export default async function ParentDashboard() {
         if (perkembanganKids.length === 0) return null;
         return (
           <section data-testid="home-perkembangan-section">
-            <SectionLabel>Perkembangan pekan ini</SectionLabel>
+            <SectionHeading>Perkembangan pekan ini</SectionHeading>
             <p className="-mt-1 mb-2 text-xs text-muted-foreground">Ini tahapan perkembangan, bukan nilai.</p>
             <div className="space-y-3">
               {perkembanganKids.map(({ child, data }) => {

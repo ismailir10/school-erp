@@ -28,6 +28,7 @@ import {
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { GuardedLink } from "@/components/admin/guarded-link";
 import { signOut } from "@/lib/sign-out";
+import { LogoutConfirmDialog } from "@/components/portal/logout-confirm-dialog";
 import {
   adminNav,
   getActiveGroup,
@@ -146,6 +147,8 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
   }, [pathname, visibleNav]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
   async function handleLogout() {
     try {
       await signOut();
@@ -257,13 +260,14 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Keluar" onClick={handleLogout}>
+            <SidebarMenuButton tooltip="Keluar" onClick={() => setLogoutOpen(true)}>
               <LogOut />
               <span>Keluar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} onConfirm={handleLogout} />
     </Sidebar>
   );
 }

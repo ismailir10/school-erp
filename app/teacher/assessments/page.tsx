@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ClipboardList, ChevronRight, CalendarDays, Building2 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/portal/page-header";
-import { SectionLabel } from "@/components/portal/section-label";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
 import { sentraLabel } from "@/lib/sentra/rotation";
 import { getTeacherSentraToday } from "@/lib/sentra/access";
@@ -149,7 +149,7 @@ export default async function TeacherAssessmentsPage() {
           </Link>
         )}
         <div data-testid="hub-center-grid">
-          <SectionLabel>Sentra harian</SectionLabel>
+          <SectionHeading>Sentra harian</SectionHeading>
           {tiles.length === 0 ? (
             <EmptyState
               icon={Building2}
