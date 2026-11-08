@@ -1,6 +1,7 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-10-27 in cycle `journal-no-entry-day` (JTBD-PARENT-JOURNAL-01 step 5: a day the guru marked Hari tanpa buku penghubung shows its keterangan, e.g. Renang, in that day's column). Prior: 2026-10-17 in cycle `payment-link-on-demand` (JTBD-PARENT-INV-01 step 5: an unpaid tagihan whose payment link expired shows Buat link pembayaran, or a small Minta link baru under Bayar sekarang, and gives a working link on the same tagihan without calling the school). Prior: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Last audited: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
+> Prior: 2026-10-27 in cycle `journal-no-entry-day` (JTBD-PARENT-JOURNAL-01 step 5: a day the guru marked Hari tanpa buku penghubung shows its keterangan, e.g. Renang, in that day's column). Prior: 2026-10-17 in cycle `payment-link-on-demand` (JTBD-PARENT-INV-01 step 5: an unpaid tagihan whose payment link expired shows Buat link pembayaran, or a small Minta link baru under Bayar sekarang, and gives a working link on the same tagihan without calling the school). Prior: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
@@ -377,6 +378,17 @@ This file is the living catalog of what a parent user can and should be able to 
   - Lookup request fails (offline) → the boxes stay typeable and the step still continues
   - Name search with fewer than 3 letters → no results listed, no error
 - **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+## Area: changelog
+
+### JTBD-PARENT-CHANGELOG-01 — Find updates relevant to parents
+- **Persona:** Pak Budi
+- **Role:** GUARDIAN
+- **Preconditions:** Signed in with the seeded role and the release archive available.
+- **Steps:** On a phone, open Profil → Apa yang Baru. Choose Agustus 2026 and SDM to reach an empty result, then tap Hapus filter.
+- **Done when:** The empty state explains that there are no matching updates. Hapus filter clears the month and module and returns to the newest parent and all-audience updates.
 
 ---
 

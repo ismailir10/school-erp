@@ -95,9 +95,9 @@ describe("ChangelogPage", () => {
     render((await ChangelogPage()) as ReactElement);
 
     const month = screen.getByRole("combobox", { name: "Bulan" });
-    const module = screen.getByRole("combobox", { name: "Modul" });
+    const moduleSelect = screen.getByRole("combobox", { name: "Modul" });
     fireEvent.change(month, { target: { value: "2026-11" } });
-    fireEvent.change(module, { target: { value: "kehadiran-siswa" } });
+    fireEvent.change(moduleSelect, { target: { value: "kehadiran-siswa" } });
 
     expect(screen.getByText("Guru menandai semua hadir sekali ketuk.")).toBeInTheDocument();
     expect(within(screen.getByRole("article")).getByText("Kehadiran Siswa")).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("ChangelogPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Semua" }));
     expect(month).toHaveValue("2026-11");
-    expect(module).toHaveValue("kehadiran-siswa");
+    expect(moduleSelect).toHaveValue("kehadiran-siswa");
     expect(screen.getByText("Orang tua melihat kehadiran hari ini.")).toBeInTheDocument();
     expect(screen.queryByText("Khusus admin")).not.toBeInTheDocument();
   });
@@ -116,14 +116,14 @@ describe("ChangelogPage", () => {
     render((await ChangelogPage()) as ReactElement);
 
     const month = screen.getByRole("combobox", { name: "Bulan" });
-    const module = screen.getByRole("combobox", { name: "Modul" });
+    const moduleSelect = screen.getByRole("combobox", { name: "Modul" });
     fireEvent.change(month, { target: { value: "2026-10" } });
-    fireEvent.change(module, { target: { value: "tagihan-pembayaran" } });
+    fireEvent.change(moduleSelect, { target: { value: "tagihan-pembayaran" } });
     expect(screen.getByText("Tidak ada pembaruan yang cocok")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hapus filter" }));
 
     expect(month).toHaveValue("");
-    expect(module).toHaveValue("");
+    expect(moduleSelect).toHaveValue("");
     expect(screen.getByRole("button", { name: "Untuk orang tua" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Orang tua melihat kehadiran hari ini.")).toBeInTheDocument();
     expect(screen.queryByText("Khusus admin")).not.toBeInTheDocument();

@@ -50,7 +50,7 @@ None expected. No new dependency, migration, auth change, or production data wri
 
 - [x] T1 Tag the release archive and require a valid module for future entries. Update the writing guide and validate the full archive. Reuse the existing release schema and data.
 - [x] T2 Add combined audience, month, and module filters with release pagination. Reuse the existing filter, Indonesian month formatter, and shared UI controls. Depends on T1.
-- [ ] T3 Update changelog help and browser coverage, then verify all three flows on the local app. Depends on T2.
+- [x] T3 Update changelog help and browser coverage, then verify all three flows on the local app. Depends on T2.
 
 ## Implementation
 
@@ -60,9 +60,25 @@ None expected. No new dependency, migration, auth change, or production data wri
 
 - T2: changelog filter and view. Added archive-derived month options, per-item module badges, combined filters, and five-card pages with focus on the next set of results. Focused Vitest passed 38 tests. Standards and spec reviewers found no actionable issues.
 
+- T3: expanded the existing browser spec for keyboard pagination, all pages, mobile fit with and without a pager, filter intersection, and the parent empty and single-result cases. Updated the README and all three portal JTBDs. Renamed test variables flagged by the full lint run.
+
 ## Verification
 
 - T2 design-system cross-check: uses NativeSelect, Button, Badge, and EmptyState with native keyboard behavior and shared spacing and type.
 - T1 design-system cross-check: the TSX edit updates test fixtures only.
 
+### Verified locally — a7f4f432, 2026-11-08
+
+- App: production build, demo auth, disposable localhost PostgreSQL. Build and runtime type check passed using a 4096 MB Node heap.
+- Focused Vitest: 38 passed across three files. Scoped lint passed after renaming four test variables. Docs audit: zero failures; RLS 51/51 and API auth 239/239.
+- Playwright: eight changelog cases passed initially. Reviewed rerun passed the three discovery cases on first attempt and the existing portal-menu case on retry after a timeout under concurrent local load.
+- Browser walk: admin paged with Enter and verified focus and back navigation; teacher combined filters at 390 px and widened audience with selections retained; parent cleared an empty result with focus and audience preserved. Headings were visible in 1172 ms, 413 ms and 376 ms respectively.
+- Console/network: only the existing localhost Vercel analytics 404 and MIME messages. The first timing harness waited for network idle; the recorded timing measures when the heading became visible.
+- Highlights: `changelog-desktop.png` and `changelog-phone.png` under screenshot archive tag `archive/changelog-discovery-2026-11-08`.
+- User-approved gate exception: full local suites stopped after laptop resource pressure and unrelated invoice/class test failures. The unchanged invoice-dialog timeout reproduced on the base. Full GitHub Checks, Test & Build, and E2E must pass before either merge.
+
 ## Ship Notes
+
+- No migrations, environment changes, or manual setup. The signed-in entry and existing audience behavior are preserved.
+- Verify the Vercel deployment for each merge. Roll back the UI through a revert PR for the staging squash commit, then promote through the usual merge PR.
+- Screenshot evidence uses a tag so GitHub needs no dedicated assets branch.
