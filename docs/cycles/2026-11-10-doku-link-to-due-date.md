@@ -60,7 +60,8 @@ No UI change. Main task (admin reads link validity) stays 0 taps; the column sim
 
 ## Assumptions
 
-1. DOKU's live channels (VA, QRIS) honour a long `payment_due_date`; the docs state no limit. A rejected session
+1. Parents pay by Virtual Account only (no QRIS — confirmed by the user). DOKU's VA channels honour a long
+   `payment_due_date`; the docs state no limit (direct BCA VA expiry is up to 8 digits of minutes). A rejected session
    surfaces as `paymentLinkError` and the heal retries, so the failure is loud, not silent.
 2. Scripts without a gateway (reseed, probes) keep the 30-day default.
 
