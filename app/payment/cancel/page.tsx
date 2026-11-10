@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
  * `2026-04-27-finance-ui-polish` shipped. Those sessions have hardcoded
  * `cancel_return_url = /payment/cancel?invoice=<id>` and Xendit cannot
  * change the URL after creation. Session expiry is now derived from the
- * invoice's due date and capped at 30 days (cycle
+ * invoice's due date and capped per gateway (30 days Xendit, 365 days DOKU; cycle
  * 2026-08-20-invoice-due-date-to-gateway), so no session created before
  * 2026-04-27 can still be live — this shim is safe to delete whenever someone
  * is in here anyway.

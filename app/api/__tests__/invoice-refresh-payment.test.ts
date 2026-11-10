@@ -57,6 +57,7 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/payments/registry", () => ({
   getGateway: () => ({
     id: "xendit",
+    maxSessionWindowMs: 30 * 86_400_000,
     createSession: vi.fn(),
     ping: vi.fn(),
     fetchPaymentStatus: fetchPaymentStatusMock,

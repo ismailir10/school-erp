@@ -94,6 +94,7 @@ describe("createXenditSessionForInvoice — withXenditRetry wrapping", () => {
     const createSessionMock = vi.fn().mockRejectedValue(transient5xx);
     vi.mocked(getGateway).mockReturnValue({
       id: "xendit",
+      maxSessionWindowMs: 30 * 86_400_000,
       createSession: createSessionMock,
       ping: vi.fn(),
       fetchPaymentStatus: vi.fn(),
@@ -153,6 +154,7 @@ describe("createPaymentSessionForInvoice — guardian contact passthrough", () =
     });
     vi.mocked(getGateway).mockReturnValue({
       id: "doku",
+      maxSessionWindowMs: 30 * 86_400_000,
       createSession,
       ping: vi.fn(),
       fetchPaymentStatus: vi.fn(),
