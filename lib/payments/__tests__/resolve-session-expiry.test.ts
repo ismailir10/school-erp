@@ -84,6 +84,31 @@ describe("resolveSessionExpiry", () => {
     expect(resolved.toISOString()).toBe(new Date(now.getTime() + 30 * DAY_MS).toISOString());
   });
 
+  describe("with the DOKU 365-day cap", () => {
+    const cap = 365 * DAY_MS;
+
+    it("keeps a due date ~4.5 months out at end of due date WIB", () => {
+      expect(resolveSessionExpiry("2027-01-05", now, cap).toISOString()).toBe(
+        "2027-01-05T16:59:59.000Z",
+      );
+    });
+
+    it("caps a due date beyond 365 days at now + 365 days", () => {
+      expect(resolveSessionExpiry("2030-01-01", now, cap).toISOString()).toBe(
+        new Date(now.getTime() + cap).toISOString(),
+      );
+    });
+
+    it("leaves the floors unchanged", () => {
+      expect(resolveSessionExpiry("2026-08-20", now, cap).toISOString()).toBe(
+        new Date(now.getTime() + DAY_MS).toISOString(),
+      );
+      expect(resolveSessionExpiry("2026-08-01", now, cap).toISOString()).toBe(
+        new Date(now.getTime() + 7 * DAY_MS).toISOString(),
+      );
+    });
+  });
+
   it("crosses a month boundary without drifting", () => {
     expect(resolveSessionExpiry("2026-08-31", now).toISOString()).toBe(
       "2026-08-31T16:59:59.000Z",

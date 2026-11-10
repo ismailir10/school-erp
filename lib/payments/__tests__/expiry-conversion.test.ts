@@ -49,6 +49,12 @@ describe("toDokuPaymentDueDateMinutes", () => {
     expect(String(capped).length).toBeLessThanOrEqual(6);
   });
 
+  it("stays within DOKU's 6-digit field length at the 365-day cap", () => {
+    const capped = toDokuPaymentDueDateMinutes(new Date(now.getTime() + 365 * DAY), now);
+    expect(capped).toBe(525_600);
+    expect(String(capped).length).toBeLessThanOrEqual(6);
+  });
+
   it("expresses Bu Shanti's real 27→10 collection window", () => {
     // Invoice issued 27 Oct 00:00 WIB, due end of 10 Nov WIB — the window that
     // surfaced this bug. Previously every one of these was sent as 7 days.

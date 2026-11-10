@@ -25,7 +25,7 @@ vi.mock("@/lib/payments/registry", () => ({
  * was broken. Reverting `session.ts` to any constant fails the first test here.
  */
 
-async function createSessionFor(dueDate: string) {
+async function createSessionFor(dueDate: string, maxSessionWindowMs = 30 * 86_400_000) {
   const { getGateway } = await import("@/lib/payments/registry");
   const { prisma } = await import("@/lib/db");
 
@@ -37,6 +37,7 @@ async function createSessionFor(dueDate: string) {
   });
   vi.mocked(getGateway).mockReturnValue({
     id: "doku",
+    maxSessionWindowMs,
     createSession,
     ping: vi.fn(),
     fetchPaymentStatus: vi.fn(),
@@ -113,6 +114,16 @@ describe("createPaymentSessionForInvoice — expiry derives from the invoice's d
     expect(Math.abs(params.expiresAt.getTime() - sevenDaysOut)).toBeGreaterThan(
       6 * 86_400_000,
     );
+  });
+
+  it("applies the active gateway's cap: a due date 4.5 months out is kept under DOKU's 365d cap", async () => {
+    const dueDate = nDaysFromNowAsYmd(135);
+    const doku = await createSessionFor(dueDate, 365 * 86_400_000);
+    expect(doku.expiresAt.toISOString()).toBe(`${dueDate}T16:59:59.000Z`);
+
+    // Same due date under a 30-day gateway is clamped to now + 30d.
+    const xendit = await createSessionFor(dueDate, 30 * 86_400_000);
+    expect(xendit.expiresAt.getTime()).toBe(Date.now() + 30 * 86_400_000);
   });
 
   it("still yields a usable window for an overdue invoice", async () => {

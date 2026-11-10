@@ -71,12 +71,30 @@ None. No schema change, no new dependency, no auth/PII change, no production wri
 
 ## Tasks
 
-- [ ] T1 Per-gateway session cap — accept: `resolveSessionExpiry` takes a max window; each adapter declares
+- [x] T1 Per-gateway session cap — accept: `resolveSessionExpiry` takes a max window; each adapter declares
   its own (DOKU 365 d, Xendit 30 d); session builder passes the active gateway's; tests cover all three and the
   6-digit bound; stale "30 days" comments updated. (deps: none; reuse: `resolveSessionExpiry`, `getGateway`)
 
 ## Implementation
 
+- Plan: driver (Opus) specced, reviewed and ran the gates; dirty-work tier (Sonnet) did the codebase sweep and
+  implemented T1 with its tests.
+- T1: `PaymentGateway` gained `maxSessionWindowMs` (DOKU 365 d, Xendit 30 d). `resolveSessionExpiry` takes the cap
+  as a third argument, defaulting to 30 d so gateway-less callers (reseed, probes) are unchanged. The invoice
+  session builder passes the active gateway's cap. Stale "30 days" comments updated. New tests: DOKU-cap block in
+  the expiry policy suite, 365 d → 525,600 min (6 digits) in the DOKU conversion suite, a session-level case
+  (DOKU keeps a far due date, a 30-day gateway is clamped), and an adapter-cap assertion. Gateway fakes in
+  existing tests gained the field.
+
 ## Verification
+
+- App: production build, demo auth + disposable local Postgres (cluster 16 on :5432, db `schoolerp`).
+- Lint ✓; RLS 51/51 ✓; API auth 239/239 ✓; `tsc` ✓; Vitest full 764 files / 9,369 tests ✓.
+- `DEMO_MODE=true` build ✓ (needed `NODE_OPTIONS=--max-old-space-size=8192`; default heap OOMs in type check).
+- Playwright (local Chromium): `payment`, `admin-payments`, `admin-paid-invoice-spp-prepay` — 10 passed.
+- design-system: no visual change; the only `app/` edits are comments in the payment return shims.
+- Not walked locally: creating a real link needs live DOKU sandbox credentials (stubbed locally, so the gateway
+  call cannot succeed). Unit tests pin the expiry sent to the gateway. The end-to-end check is on staging: an
+  admin creates/replaces a link on a far-due invoice and "Link berlaku" shows the due date.
 
 ## Ship Notes

@@ -169,6 +169,8 @@ export type GatewayPaymentStatus = {
 /** Port implemented by each concrete payment gateway (Xendit, DOKU, ...). */
 export interface PaymentGateway {
   readonly id: "xendit" | "doku";
+  /** Longest payment-session window this gateway accepts, in ms. Caps `resolveSessionExpiry`. */
+  readonly maxSessionWindowMs: number;
   createSession(params: CreateSessionParams): Promise<GatewaySession>;
   ping(timeoutMs?: number): Promise<void>;
   /**

@@ -177,7 +177,7 @@ export async function createPaymentSessionForInvoice(
   // (`paymentLinkExpiresAt`), never the string the gateway echoes back: that string can be
   // a format that does not parse, and failing the store after the gateway already made an
   // order would let the caller's retry make a second one (cycle 2026-10-20 D2).
-  const requestedExpiresAt = resolveSessionExpiry(invoice.dueDate, now);
+  const requestedExpiresAt = resolveSessionExpiry(invoice.dueDate, now, gateway.maxSessionWindowMs);
 
   // Wrap the gateway call in withRetry so transient 5xx/408/429/network
   // errors retry up to 3 attempts before surfacing. The typed `GatewayApiError`

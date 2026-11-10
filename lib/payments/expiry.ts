@@ -44,16 +44,22 @@ const OVERDUE_WINDOW_MS = 7 * DAY_MS;
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 /**
- * Cap. DOKU publishes only `Max Length: 6` for `payment_due_date` and defers
- * the real ceiling to each payment channel, so there is no documented number to
- * respect — the safe bound is ours to choose. Xendit's own session maximum is
- * 31 days, so 30 clears both.
+ * Default cap, used when the caller has no gateway to ask. Xendit's own session
+ * maximum is 31 days, so 30 clears it. Each gateway declares its own cap via
+ * `PaymentGateway.maxSessionWindowMs`; `resolveSessionExpiry` takes it as a
+ * parameter.
  *
  * The failure this avoids is asymmetric: a window clamped shorter than the
  * admin asked for is a visible inconvenience, while a rejected session is a
  * parent with no payment link at all.
  */
-const MAX_WINDOW_MS = 30 * DAY_MS;
+export const DEFAULT_MAX_WINDOW_MS = 30 * DAY_MS;
+
+/**
+ * DOKU cap. DOKU documents no maximum; `payment_due_date` is minutes with
+ * `Max Length: 6` (999,999). 365 days = 525,600 minutes, which fits.
+ */
+export const DOKU_MAX_WINDOW_MS = 365 * DAY_MS;
 
 /**
  * Resolve the instant a payment session for `dueDate` should stop accepting
@@ -70,11 +76,15 @@ const MAX_WINDOW_MS = 30 * DAY_MS;
  * round-trip. That is the whole reason this can be a pure string concatenation
  * rather than a timezone-database lookup.
  *
- * The result is clamped to `[floor, now + 30 days]`. The floor is `now + 7 days`
+ * The result is clamped to `[floor, now + maxWindowMs]`. The floor is `now + 7 days`
  * when `dueDate` is strictly before today in WIB (`OVERDUE_WINDOW_MS`) and
- * `now + 1 day` otherwise (`MIN_WINDOW_MS`); the cap is `MAX_WINDOW_MS`.
+ * `now + 1 day` otherwise (`MIN_WINDOW_MS`); `maxWindowMs` is the active gateway's cap (default `DEFAULT_MAX_WINDOW_MS`, 30 days).
  */
-export function resolveSessionExpiry(dueDate: string, now: Date = new Date()): Date {
+export function resolveSessionExpiry(
+  dueDate: string,
+  now: Date = new Date(),
+  maxWindowMs: number = DEFAULT_MAX_WINDOW_MS,
+): Date {
   const endOfDueDate = new Date(`${dueDate}T23:59:59+07:00`);
 
   // A malformed `dueDate` would otherwise propagate an Invalid Date into the
@@ -100,7 +110,7 @@ export function resolveSessionExpiry(dueDate: string, now: Date = new Date()): D
   const overdue = dueDate < todayWib;
 
   const floor = new Date(now.getTime() + (overdue ? OVERDUE_WINDOW_MS : MIN_WINDOW_MS));
-  const cap = new Date(now.getTime() + MAX_WINDOW_MS);
+  const cap = new Date(now.getTime() + maxWindowMs);
 
   if (endOfDueDate < floor) return floor;
   if (endOfDueDate > cap) return cap;

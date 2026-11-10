@@ -19,7 +19,7 @@ import {
   type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
-import { defaultExpiresAt } from "../expiry";
+import { DEFAULT_MAX_WINDOW_MS, defaultExpiresAt } from "../expiry";
 
 const XENDIT_API_URL = "https://api.xendit.co";
 
@@ -550,6 +550,7 @@ export async function getXenditSessionStatus(
  */
 export const xenditGateway: PaymentGateway = {
   id: "xendit",
+  maxSessionWindowMs: DEFAULT_MAX_WINDOW_MS,
   async createSession(params: CreateSessionParams): Promise<GatewaySession> {
     const session = await createXenditSession(params);
     return {

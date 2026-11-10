@@ -19,7 +19,7 @@ import {
   type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
-import { defaultExpiresAt } from "../expiry";
+import { DOKU_MAX_WINDOW_MS, defaultExpiresAt } from "../expiry";
 import { parseRetryAfter } from "../xendit/client";
 import { buildDigest, buildSignature } from "./signature";
 
@@ -746,6 +746,7 @@ export async function getDokuOrderStatus(
  */
 export const dokuGateway: PaymentGateway = {
   id: "doku",
+  maxSessionWindowMs: DOKU_MAX_WINDOW_MS,
   createSession(params: CreateSessionParams): Promise<GatewaySession> {
     return createDokuSession(params);
   },

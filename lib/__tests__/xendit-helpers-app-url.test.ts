@@ -45,6 +45,7 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
     });
     vi.mocked(getGateway).mockReturnValue({
       id: "xendit",
+      maxSessionWindowMs: 30 * 86_400_000,
       createSession: createSessionMock,
       ping: vi.fn(),
       fetchPaymentStatus: vi.fn(),
@@ -94,6 +95,7 @@ describe("createXenditSessionForInvoice — APP_URL trailing-slash safety", () =
     });
     vi.mocked(getGateway).mockReturnValue({
       id: "xendit",
+      maxSessionWindowMs: 30 * 86_400_000,
       createSession: createSessionMock,
       ping: vi.fn(),
       fetchPaymentStatus: vi.fn(),

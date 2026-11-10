@@ -28,6 +28,7 @@ const { state, gateway } = vi.hoisted(() => ({
   state: { row: null as unknown as Row },
   gateway: {
     id: "doku",
+    maxSessionWindowMs: 30 * 86_400_000,
     createSession: vi.fn(),
     fetchPaymentStatus: vi.fn(),
   },

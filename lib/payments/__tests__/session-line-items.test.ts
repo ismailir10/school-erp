@@ -33,6 +33,7 @@ async function itemsFor(totalPaid: number) {
   });
   vi.mocked(getGateway).mockReturnValue({
     id: "doku",
+    maxSessionWindowMs: 30 * 86_400_000,
     createSession,
     ping: vi.fn(),
     fetchPaymentStatus: vi.fn(),

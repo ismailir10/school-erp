@@ -53,7 +53,7 @@ function makeGateway(
   id: PaymentGateway["id"],
   ping: (timeoutMs?: number) => Promise<void>,
 ): PaymentGateway {
-  return { id, ping, createSession: vi.fn(), fetchPaymentStatus: vi.fn() };
+  return { id, maxSessionWindowMs: 30 * 86_400_000, ping, createSession: vi.fn(), fetchPaymentStatus: vi.fn() };
 }
 
 const ORIGINAL_DOKU_ENV = process.env.DOKU_ENV;
