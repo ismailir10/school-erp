@@ -1,0 +1,1 @@
+Screenshots embedded in PR descriptions. Never merged. Safe to prune old folders.
