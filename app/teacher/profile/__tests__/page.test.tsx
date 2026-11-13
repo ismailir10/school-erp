@@ -30,6 +30,6 @@ describe("TeacherProfilePage", () => {
     const slips = screen.getByRole("link", { name: /Slip gaji/ });
     expect(slips).toHaveAttribute("href", "/teacher/slips");
     expect(slips).toHaveClass("min-h-11");
-    expect(slips).toHaveClass("focus-visible:ring-2");
+    expect(slips).toHaveClass("focus-visible:focus-outline");
   });
 });

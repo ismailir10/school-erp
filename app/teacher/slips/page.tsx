@@ -115,7 +115,7 @@ export default function TeacherSlipsPage() {
                   <Link
                     href={`/teacher/slips/${slip.id}`}
                     prefetch={false}
-                    className="flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                    className="flex-1 min-w-0 outline-none focus-visible:focus-outline rounded"
                     aria-label={`Lihat slip ${periodLabel}`}
                   >
                     <p className="text-sm font-medium">{monthLabel}</p>

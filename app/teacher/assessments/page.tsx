@@ -129,7 +129,7 @@ export default async function TeacherAssessmentsPage() {
         {homeroom && (
           <Link
             href="/teacher/assessments/weekly"
-            className="flex min-h-11 items-center gap-3 p-card bg-card border border-border rounded-xl hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex min-h-11 items-center gap-3 p-card bg-card border border-border rounded-xl hover:border-primary/30 transition-colors outline-none focus-visible:focus-outline"
             data-testid="hub-weekly-card"
           >
             <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -168,7 +168,7 @@ export default async function TeacherAssessmentsPage() {
                     // Legacy sentra keep their old slug as test id (hub-center-worship …) so
                     // existing specs stay stable; admin-added sentra use their id.
                     data-testid={`hub-center-${sentra.legacyCenter ? sentra.legacyCenter.toLowerCase() : sentra.id}`}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:focus-outline"
                   >
                     <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <Building2 className="size-4 text-primary-text" />

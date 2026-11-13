@@ -25,7 +25,7 @@ export function ClassRankList({ heading, items }: { heading: string; items: Rank
           <StaggerItem as="li" key={item.key}>
             <Link
               href={item.href}
-              className="-mx-2 block min-h-11 rounded-md px-2 py-2 outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+              className="-mx-2 block min-h-11 rounded-md px-2 py-2 outline-none transition-colors hover:bg-muted/50 focus-visible:focus-outline"
             >
               <span className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate text-body font-medium">{item.name}</span>

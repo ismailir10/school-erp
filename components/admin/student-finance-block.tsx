@@ -103,7 +103,7 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-md text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-md text-sm text-primary-text hover:underline outline-none focus-visible:focus-outline"
         >
           Coba lagi
         </button>
@@ -166,7 +166,7 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
             <li key={inv.id} className="border-b border-border/50 last:border-0">
               <Link
                 href={`/admin/invoices/${inv.id}`}
-                className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent/50 outline-none focus-visible:focus-outline"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">

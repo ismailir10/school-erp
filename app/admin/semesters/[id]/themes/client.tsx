@@ -326,7 +326,7 @@ export function ThemeCard({
                 type="button"
                 aria-pressed={selectedId === t.id}
                 onClick={() => onSelect(t.id)}
-                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left outline-none focus-visible:focus-outline"
               >
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium text-pretty">{t.name}</p>
@@ -597,7 +597,7 @@ export function SubThemeCard({
                 type="button"
                 aria-pressed={selectedId === s.id}
                 onClick={() => onSelect(s.id)}
-                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-lg px-3 py-2 text-left outline-none focus-visible:focus-outline"
               >
                 <div>
                   <p className="text-sm font-medium">{s.name}</p>

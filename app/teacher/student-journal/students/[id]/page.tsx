@@ -296,7 +296,7 @@ export default function TeacherStudentWeekPage() {
               <Link
                 href={fillHref}
                 data-testid="fill-day-link"
-                className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:focus-outline"
               >
                 Isi {fillDayLabel}
               </Link>

@@ -180,7 +180,7 @@ function SignInPage() {
             // 44px touch minimum on a phone-first product. The focus ring uses
             // --primary-text (5.0:1 on white) because the default --ring
             // measures 2.36:1 and fails the 3:1 non-text contrast floor.
-            className="mt-6 h-auto min-h-12 w-full gap-3 rounded-xl border-border bg-card font-semibold shadow-xs hover:bg-muted focus-visible:border-primary-text focus-visible:ring-2 focus-visible:ring-primary-text"
+            className="mt-6 h-auto min-h-12 w-full gap-3 rounded-xl border-border bg-card font-semibold shadow-xs hover:bg-muted outline-none focus-visible:focus-outline focus-visible:[--focus-outline-color:var(--primary-text)]"
           >
             {loading ? <Spinner aria-hidden /> : <GoogleMark />}
             Masuk dengan Google
@@ -209,7 +209,7 @@ function SignInPage() {
           size="icon"
           onClick={() => setMotionPaused((paused) => !paused)}
           aria-label={motionPaused ? "Putar animasi" : "Jeda animasi"}
-          className="absolute right-3 bottom-3 size-11 rounded-full text-muted-foreground hover:bg-card/60 focus-visible:border-primary-text focus-visible:ring-2 focus-visible:ring-primary-text motion-reduce:hidden"
+          className="absolute right-3 bottom-3 size-11 rounded-full text-muted-foreground hover:bg-card/60 outline-none focus-visible:focus-outline focus-visible:[--focus-outline-color:var(--primary-text)] motion-reduce:hidden"
         >
           {motionPaused ? <Play /> : <Pause />}
         </Button>

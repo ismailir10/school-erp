@@ -392,7 +392,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
         <Collapsible open={childOpen} onOpenChange={setChildOpen}>
           <CollapsibleTrigger
             data-testid="daftar-child-toggle"
-            className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-background px-4 text-left text-base font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-background px-4 text-left text-base font-medium text-foreground outline-none focus-visible:focus-outline"
           >
             <span>
               Data anak{" "}
