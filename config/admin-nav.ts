@@ -175,7 +175,7 @@ export const adminNav: NavConfig = {
           href: "/admin/settings/work-hours",
           icon: Clock,
           permission: "settings.view",
-          description: "Atur jam masuk dan pulang karyawan.",
+          description: "Atur hari dan jam kerja, toleransi terlambat, dan periode gaji.",
         },
         {
           label: "Pengaturan Pendaftaran",
