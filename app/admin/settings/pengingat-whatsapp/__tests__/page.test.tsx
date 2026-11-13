@@ -124,14 +124,14 @@ describe("ReminderTemplatePage", () => {
   it("says so, with no editor, when the GET is forbidden", async () => {
     fixture({ get: { ok: false, status: 403, body: { error: "Forbidden" } } });
     render(<ReminderTemplatePage />);
-    expect(await screen.findByText("Anda tidak memiliki akses ke pengaturan ini.")).toBeInTheDocument();
+    expect(await screen.findByText("Anda tidak memiliki akses")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("offers a retry when loading fails", async () => {
     fixture({ get: { ok: false, status: 500, body: {} } });
     render(<ReminderTemplatePage />);
-    expect(await screen.findByText("Gagal memuat templat pesan.")).toBeInTheDocument();
+    expect(await screen.findByText("Templat pesan belum bisa dimuat")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
   });
 });

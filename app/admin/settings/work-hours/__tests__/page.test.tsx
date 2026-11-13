@@ -29,6 +29,20 @@ describe("OrgConfigPage (work hours)", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps the page header visible while loading and after a load failure", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((r) => { resolve = r; })));
+    render(<OrgConfigPage />);
+
+    expect(screen.getByRole("heading", { name: "Jam Kerja" })).toBeInTheDocument();
+    expect(screen.queryByText("Hari Kerja")).not.toBeInTheDocument();
+
+    resolve({ ok: false, status: 500, json: async () => ({}) });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Konfigurasi belum bisa dimuat");
+    expect(screen.getByRole("heading", { name: "Jam Kerja" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+  });
+
   it("renders the form once loaded", async () => {
     fixture();
     render(<OrgConfigPage />);

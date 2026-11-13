@@ -1,11 +1,12 @@
 "use client";
 
 import { MESSAGES } from "@/lib/feedback";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ const EMPTY_FORM = {
 
 export default function OrgConfigPage() {
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const formId = useId();
   const form = useZodForm(orgConfigSchema, { defaultValues: EMPTY_FORM });
 
@@ -47,32 +49,37 @@ export default function OrgConfigPage() {
     "Perubahan jam kerja yang belum disimpan akan hilang.",
   );
 
-  useEffect(() => {
-    fetch("/api/config/org")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data) {
-          const days = parseWorkingDays(data.workingDays);
-          const current = form.getValues();
-          form.reset({
-            workingDays: days.length > 0 ? days : current.workingDays,
-            workStartTime: data.workStartTime ?? current.workStartTime,
-            workEndTime: data.workEndTime ?? current.workEndTime,
-            gracePeriodMinutes: String(data.gracePeriodMinutes ?? current.gracePeriodMinutes),
-            timezone: data.timezone ?? current.timezone,
-            payrollPeriodStartDay: String(data.payrollPeriodStartDay ?? current.payrollPeriodStartDay),
-            payrollPeriodEndDay: String(data.payrollPeriodEndDay ?? current.payrollPeriodEndDay),
-          });
-        }
-      })
-      .catch(() => {
-        toast.error(MESSAGES.loadFailed("Konfigurasi"));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch("/api/config/org");
+      if (!res.ok) throw new Error("load failed");
+      const data = await res.json();
+      if (data) {
+        const days = parseWorkingDays(data.workingDays);
+        const current = form.getValues();
+        form.reset({
+          workingDays: days.length > 0 ? days : current.workingDays,
+          workStartTime: data.workStartTime ?? current.workStartTime,
+          workEndTime: data.workEndTime ?? current.workEndTime,
+          gracePeriodMinutes: String(data.gracePeriodMinutes ?? current.gracePeriodMinutes),
+          timezone: data.timezone ?? current.timezone,
+          payrollPeriodStartDay: String(data.payrollPeriodStartDay ?? current.payrollPeriodStartDay),
+          payrollPeriodEndDay: String(data.payrollPeriodEndDay ?? current.payrollPeriodEndDay),
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setLoadFailed(true);
+      toast.error(MESSAGES.loadFailed("Konfigurasi"));
+    } finally {
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const handleSave = form.handleSubmit(async (values) => {
     try {
@@ -84,12 +91,21 @@ export default function OrgConfigPage() {
     }
   });
 
-  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
-
   return (
     <>
       <PageHeader title="Jam Kerja" description="Atur jam kerja, zona waktu, dan periode penggajian" />
 
+      {loading ? (
+        <Card className="p-card max-w-2xl" aria-busy="true">
+          <Skeleton className="h-96 w-full rounded-lg" />
+        </Card>
+      ) : loadFailed ? (
+        <ErrorState
+          title="Konfigurasi belum bisa dimuat"
+          description="Coba lagi sebentar ya."
+          onRetry={() => void load()}
+        />
+      ) : (
       <Card className="p-card max-w-2xl">
         <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
           <FormRootError formState={form.formState} />
@@ -207,6 +223,7 @@ export default function OrgConfigPage() {
           </div>
         </form>
       </Card>
+      )}
     </>
   );
 }

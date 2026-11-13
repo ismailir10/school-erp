@@ -24,6 +24,7 @@ import { roleFormSchema } from "@/lib/validations/role";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { userMessage } from "@/lib/api/client-errors";
 
 // ------------------------------------------------------------------
 // Types
@@ -363,22 +364,18 @@ export default function RolesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(
+      await sendJson(
         `/api/roles/${deleteTarget.id}`,
         { method: "DELETE" },
-      ).catch((error) => {
-        toast.error("Gagal menghapus peran. Periksa koneksi lalu coba lagi.");
-        throw error;
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const message = err.error || "Gagal menghapus peran. Coba lagi.";
-        toast.error(message);
-        throw new Error(message);
-      }
+        "Gagal menghapus peran. Coba lagi.",
+      );
       toast.success("Peran dihapus");
       setDeleteTarget(null);
       fetchRoles();
+    } catch (err) {
+      toast.error(userMessage(err, MESSAGES.network));
+      // Keep the confirm dialog open so the admin can retry.
+      throw err;
     } finally {
       setDeleting(false);
     }
@@ -407,7 +404,7 @@ export default function RolesPage() {
         description="Kelola peran dan izin akses pengguna"
         actions={
           <Button size="sm" onClick={openCreate}>
-            <Plus size={14} className="mr-1.5" /> Tambah Peran
+            <Plus size={14} data-icon="inline-start" /> Tambah Peran
           </Button>
         }
       />

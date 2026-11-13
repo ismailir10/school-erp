@@ -20,6 +20,9 @@ import { createCampusSchema } from "@/lib/validations/campus";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { userMessage } from "@/lib/api/client-errors";
+import { MESSAGES } from "@/lib/feedback";
+import { ErrorState } from "@/components/ui/error-state";
 
 type Campus = {
   id: string;
@@ -41,6 +44,7 @@ const EMPTY_FORM = { name: "", address: "", lat: "", lng: "", radiusMeters: "50"
 export default function CampusesPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Campus | null>(null);
   const formId = useId();
@@ -53,27 +57,35 @@ export default function CampusesPage() {
 
   const fetchCampuses = useCallback(async (filter: StatusFilter) => {
     setLoading(true);
+    setLoadFailed(false);
     const param = filter === "all" ? "ALL" : filter;
-    const res = await fetch(`/api/config/campuses?status=${param}`);
-    setCampuses(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/config/campuses?status=${param}`);
+      if (!res.ok) throw new Error("load failed");
+      setCampuses(await res.json());
+    } catch (err) {
+      console.error(err);
+      setLoadFailed(true);
+      toast.error(MESSAGES.loadFailed("Daftar kampus"));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchCampuses(statusFilter); }, [fetchCampuses, statusFilter]);
 
   const handleReactivate = useCallback(
     async (c: Campus) => {
-      const res = await fetch(`/api/config/campuses/${c.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ACTIVE" }),
-      });
-      if (res.ok) {
+      try {
+        await sendJson(
+          `/api/config/campuses/${c.id}`,
+          { method: "PUT", body: { status: "ACTIVE" } },
+          "Gagal mengaktifkan kampus. Coba lagi.",
+        );
         toast.success("Kampus diaktifkan kembali");
         fetchCampuses(statusFilter);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "Gagal mengaktifkan kampus. Coba lagi.");
+      } catch (err) {
+        toast.error(userMessage(err, MESSAGES.network));
       }
     },
     [fetchCampuses, statusFilter],
@@ -124,14 +136,19 @@ export default function CampusesPage() {
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    const res = await fetch(`/api/config/campuses/${deleteTarget.id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      await sendJson(
+        `/api/config/campuses/${deleteTarget.id}`,
+        { method: "DELETE" },
+        "Gagal menonaktifkan kampus. Coba lagi.",
+      );
       toast.success("Kampus dinonaktifkan");
       setDeleteTarget(null);
       fetchCampuses(statusFilter);
-    } else {
-      const data = await res.json();
-      toast.error(data.error || "Gagal menonaktifkan kampus. Coba lagi.");
+    } catch (err) {
+      toast.error(userMessage(err, MESSAGES.network));
+      // Keep the confirm dialog open so the admin can retry.
+      throw err;
     }
   }
 
@@ -213,7 +230,7 @@ export default function CampusesPage() {
         description="Kelola lokasi kampus/cabang sekolah"
         actions={
           <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah Kampus
+            <Plus size={14} data-icon="inline-start" /> Tambah Kampus
           </Button>
         }
       />
@@ -240,6 +257,13 @@ export default function CampusesPage() {
         ]}
       />
 
+      {loadFailed ? (
+        <ErrorState
+          title="Daftar kampus belum bisa dimuat"
+          description="Coba lagi sebentar ya."
+          onRetry={() => void fetchCampuses(statusFilter)}
+        />
+      ) : (
       <DataTable
         columns={columns}
         data={filteredCampuses}
@@ -257,6 +281,7 @@ export default function CampusesPage() {
         // isn't a place to create a new (active) campus from.
         emptyAction={statusFilter !== "INACTIVE" ? { label: "Tambah Kampus", onClick: openNew } : undefined}
       />
+      )}
 
       {/* Add/Edit Dialog */}
       <ResponsiveFormDialog
@@ -325,7 +350,7 @@ export default function CampusesPage() {
             )}
           />
           <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
-            <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
+            <LocateFixed size={14} data-icon="inline-start" /> Ambil Lokasi Saat Ini
           </Button>
         </form>
       </ResponsiveFormDialog>

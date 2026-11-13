@@ -75,9 +75,9 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     fixture({ get: { ok: false, status: 403, body: { error: "Forbidden" } } });
     render(<EnrollmentSettingsPage />);
 
-    expect(await screen.findByText("Anda tidak memiliki akses ke pengaturan ini.")).toBeInTheDocument();
+    expect(await screen.findByText("Anda tidak memiliki akses")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Gagal memuat pengaturan.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pengaturan belum bisa dimuat")).not.toBeInTheDocument();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 
@@ -293,7 +293,7 @@ describe("EnrollmentSettingsPage (berkas wajib pendaftaran)", () => {
     fixture({ get: { ok: false, body: {} } });
     render(<EnrollmentSettingsPage />);
 
-    expect(await screen.findByText("Gagal memuat pengaturan.")).toBeInTheDocument();
+    expect(await screen.findByText("Pengaturan belum bisa dimuat")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });

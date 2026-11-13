@@ -43,13 +43,18 @@ The main task is reaching a setting: 2 taps (Pengaturan → item), unchanged. Re
 ## Tasks
 
 - [x] Focus: codemod hand-rolled rings to `focus-outline` in feature code and the two primitives, and add the guard test.
-- [ ] Pengaturan: regroup the hub and give it distinct icons, layout-shaped skeletons and a persistent header, plus load-error states and safe mutations.
+- [x] Pengaturan: regroup the hub and give it distinct icons, layout-shaped skeletons and a persistent header, plus load-error states and safe mutations.
 - [ ] Verify: run the full gate, sign in to the local demo, take before/after shots, and record the result.
 
 ## Implementation
 
 - Plan: driver=claude-opus-5-5 (spec, review, verification), workers=claude-sonnet-5 for the two read-only audits, the focus codemod and the Pengaturan slice. The two build slices own disjoint files and ran in parallel.
 - Focus: 23 feature files plus `resizable` and `navigation-menu` now use `focus-visible:focus-outline`, the utility documented in `design-system.html` and `ui.md`. Inset cells use `[--focus-outline-offset:-2px]` and the landing page keeps its `--primary-text` tint through `[--focus-outline-color:…]`. `lib/__tests__/focus-indicator-guard.test.ts` fails on any new `focus*:ring-` in `app/` or `components/`. Its allowlist is empty.
+- Pengaturan: the hub now groups Sekolah 4, Akademik 4, Keuangan & Gaji 3 and Akses 2, with a distinct icon per item. `config/__tests__/admin-nav.test.ts` locks icon uniqueness.
+- Skeletons follow page shape. The hub is a card grid, list pages show a toolbar and rows, and form pages show one card. Sentra gains the `loading.tsx` it lacked.
+- Jam Kerja, Pendaftaran and Pengingat WhatsApp keep their `PageHeader` while loading. They use `ErrorState` with "Coba lagi" on failure and `EmptyState` when access is missing.
+- Kampus and Hari Libur check `res.ok` and show `ErrorState` with a retry instead of a false "Belum ada …".
+- Mutations on Kampus, Hari Libur, Pengguna and Peran go through `sendJson` in `try`/`catch`. Delete rejections keep `ConfirmDialog` open for a retry, which it already supports.
 
 ## Verification
 

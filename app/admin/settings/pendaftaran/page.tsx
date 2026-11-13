@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FieldError } from "@/components/ui/field";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
@@ -125,8 +127,6 @@ export default function EnrollmentSettingsPage() {
     }
   });
 
-  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
-
   const saving = form.formState.isSubmitting;
 
   return (
@@ -136,19 +136,23 @@ export default function EnrollmentSettingsPage() {
         description="Atur biaya pendaftaran tiap program dan berkas yang wajib diunggah orang tua."
       />
 
+      {loading ? (
+        <Card className="p-card max-w-2xl" aria-busy="true">
+          <Skeleton className="h-96 w-full rounded-lg" />
+        </Card>
+      ) : noAccess ? (
+        <EmptyState
+          title="Anda tidak memiliki akses"
+          description="Hubungi admin dengan izin pendaftaran untuk membuka pengaturan ini."
+        />
+      ) : loadFailed ? (
+        <ErrorState
+          title="Pengaturan belum bisa dimuat"
+          description="Coba lagi sebentar ya."
+          onRetry={() => void load()}
+        />
+      ) : (
       <Card className="p-card max-w-2xl">
-        {noAccess ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            Anda tidak memiliki akses ke pengaturan ini.
-          </p>
-        ) : loadFailed ? (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Gagal memuat pengaturan.</p>
-            <Button type="button" variant="outline" onClick={() => void load()}>
-              Coba lagi
-            </Button>
-          </div>
-        ) : (
           <form id={formId} noValidate className="space-y-field" onSubmit={handleSave}>
             <FormRootError formState={form.formState} />
 
@@ -303,8 +307,8 @@ export default function EnrollmentSettingsPage() {
               </div>
             )}
           </form>
-        )}
       </Card>
+      )}
     </>
   );
 }
