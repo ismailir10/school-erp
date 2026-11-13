@@ -37,7 +37,7 @@ describe("SlipDetailPage", () => {
     const pdf = screen.getByRole("link", { name: /Unduh PDF slip/ });
     expect(pdf).toHaveAttribute("href", "/api/slips/slip-1/pdf");
     expect(pdf).toHaveAttribute("target", "_blank");
-    expect(pdf).toHaveClass("min-h-11", "focus-visible:ring-2");
+    expect(pdf).toHaveClass("min-h-11", "focus-visible:focus-outline");
   });
 
   it("names a 21–20 cycle by its end month and prints the range without ISO dates", async () => {

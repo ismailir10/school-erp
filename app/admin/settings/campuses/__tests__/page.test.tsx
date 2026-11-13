@@ -156,3 +156,28 @@ describe("CampusesPage list", () => {
     expect(screen.queryByTestId("campus-pin-hint")).not.toBeInTheDocument();
   });
 });
+
+describe("CampusesPage load failure", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows an error state with 'Coba lagi' (not the empty state) and refetches on retry", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      .mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<CampusesPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Daftar kampus belum bisa dimuat");
+    expect(screen.queryByText("Belum ada kampus")).not.toBeInTheDocument();
+    expect(toastError).toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+    expect(await screen.findByText("Belum ada kampus")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

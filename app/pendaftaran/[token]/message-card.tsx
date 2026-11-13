@@ -24,7 +24,7 @@ export function MessageCard({
   const wa = whatsappHref(phone);
   const tel = telHref(phone);
   const linkClass =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-text focus-visible:ring-offset-2";
+    "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-base font-medium outline-none focus-visible:focus-outline focus-visible:[--focus-outline-color:var(--primary-text)]";
   return (
     <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
       <h1 className="text-xl font-semibold text-foreground">{title}</h1>

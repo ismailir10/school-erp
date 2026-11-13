@@ -148,3 +148,26 @@ describe("HolidaysPage", () => {
     expect(screen.getByRole("dialog", { name: "Tambah Hari Libur" })).toBeInTheDocument();
   });
 });
+
+describe("HolidaysPage load failure", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows an error state with 'Coba lagi' (not the empty state) and refetches on retry", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      .mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<HolidaysPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Daftar hari libur belum bisa dimuat");
+    expect(screen.queryByText("Belum ada hari libur")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+    expect(await screen.findByText("Belum ada hari libur")).toBeInTheDocument();
+  });
+});

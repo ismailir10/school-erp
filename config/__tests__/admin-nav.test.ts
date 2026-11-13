@@ -118,13 +118,11 @@ describe("adminNav IA — ordering + grouping", () => {
 });
 
 describe("settingsHub — sections + moved items", () => {
-  it("school section covers Kampus, Tahun Ajaran, Semester, Hari Libur, Jam Kerja, Pengaturan Pendaftaran with original permission codes", () => {
+  it("school section covers Kampus, Hari Libur, Jam Kerja, Pengaturan Pendaftaran with original permission codes", () => {
     const section = adminNav.settingsHub.find((s) => s.id === "school")!;
     expect(section.label).toBe("Sekolah");
     expect(section.items.map((i) => i.label)).toEqual([
       "Kampus",
-      "Tahun Ajaran",
-      "Semester",
       "Hari Libur",
       "Jam Kerja",
       "Pengaturan Pendaftaran",
@@ -133,23 +131,22 @@ describe("settingsHub — sections + moved items", () => {
       href: "/admin/settings/pendaftaran",
       permission: "admissions.view",
     });
-    expect(section.items.find((i) => i.label === "Tahun Ajaran")).toMatchObject({
-      href: "/admin/academic-years",
-      permission: "academic.view",
-    });
-    expect(section.items.find((i) => i.label === "Semester")).toMatchObject({
-      href: "/admin/semesters",
-      permission: "curriculum.read",
-    });
     expect(section.items.every((i) => typeof i.description === "string" && i.description.length > 0)).toBe(true);
   });
 
-  it("academic section covers Bank Narasi + Templat Buku Penghubung", () => {
+  it("academic section covers Tahun Ajaran, Semester, Bank Narasi + Templat Buku Penghubung", () => {
     const section = adminNav.settingsHub.find((s) => s.id === "academic")!;
     expect(section.label).toBe("Akademik");
-    expect(section.items.map((i) => i.label)).toEqual(["Bank Narasi", "Templat Buku Penghubung"]);
-    expect(section.items[0]).toMatchObject({ href: "/admin/report-cards/templates", permission: "reportCard.template" });
-    expect(section.items[1]).toMatchObject({ href: "/admin/student-journal", permission: "students.view" });
+    expect(section.items.map((i) => i.label)).toEqual(["Tahun Ajaran", "Semester", "Bank Narasi", "Templat Buku Penghubung"]);
+    expect(section.items[0]).toMatchObject({ href: "/admin/academic-years", permission: "academic.view" });
+    expect(section.items[1]).toMatchObject({ href: "/admin/semesters", permission: "curriculum.read" });
+    expect(section.items[2]).toMatchObject({ href: "/admin/report-cards/templates", permission: "reportCard.template" });
+    expect(section.items[3]).toMatchObject({ href: "/admin/student-journal", permission: "students.view" });
+  });
+
+  it("every hub item has a distinct icon", () => {
+    const icons = adminNav.settingsHub.flatMap((s) => s.items).map((i) => i.icon);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 
   it("finance section covers Biaya + Komponen Gaji + Templat Pengingat WhatsApp", () => {

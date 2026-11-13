@@ -15,6 +15,8 @@ import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { sendJson } from "@/lib/api/send-json";
@@ -134,8 +136,6 @@ export default function ReminderTemplatePage() {
     }
   }
 
-  if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
-
   const shownError = serverError ?? (dirty ? problem : null);
   const atDefault = text === defaultText;
 
@@ -146,19 +146,22 @@ export default function ReminderTemplatePage() {
         description="Atur isi pesan yang terbuka di WhatsApp saat admin mengingatkan wali tentang tagihan. Pesan tetap dikirim oleh admin."
       />
 
-      {noAccess ? (
-        <Card className="max-w-2xl p-card">
-          <p role="status" className="text-sm text-muted-foreground">
-            Anda tidak memiliki akses ke pengaturan ini.
-          </p>
-        </Card>
+      {loading ? (
+        <div className="grid gap-card lg:grid-cols-2" aria-busy="true">
+          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className="h-96 rounded-xl" />
+        </div>
+      ) : noAccess ? (
+        <EmptyState
+          title="Anda tidak memiliki akses"
+          description="Hubungi admin dengan izin pembayaran untuk membuka pengaturan ini."
+        />
       ) : loadFailed ? (
-        <Card className="max-w-2xl space-y-2 p-card">
-          <p className="text-sm text-muted-foreground">Gagal memuat templat pesan.</p>
-          <Button type="button" variant="outline" onClick={() => void load()}>
-            Coba lagi
-          </Button>
-        </Card>
+        <ErrorState
+          title="Templat pesan belum bisa dimuat"
+          description="Coba lagi sebentar ya."
+          onRetry={() => void load()}
+        />
       ) : (
         <div className="grid items-start gap-card lg:grid-cols-2">
           <Card className="space-y-field p-card">

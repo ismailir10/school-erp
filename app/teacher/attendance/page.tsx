@@ -276,7 +276,7 @@ export default function TeacherAttendancePage() {
       {/* Cuti action card — opens Sheet instead of navigating */}
       <button
         type="button"
-        className="w-full mb-4 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="w-full mb-4 rounded-xl text-left outline-none focus-visible:focus-outline"
         onClick={() => setLeaveSheetOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={leaveSheetOpen}

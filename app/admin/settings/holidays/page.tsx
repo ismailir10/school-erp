@@ -26,6 +26,8 @@ import { holidaySchema } from "@/lib/validations/holiday";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { userMessage } from "@/lib/api/client-errors";
+import { ErrorState } from "@/components/ui/error-state";
 
 type Holiday = {
   id: string;
@@ -46,6 +48,7 @@ const EMPTY_FORM = { date: "", name: "", type: "NATIONAL", isHalfDay: false };
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Holiday | null>(null);
   const formId = useId();
@@ -54,12 +57,21 @@ export default function HolidaysPage() {
   const [query, setQuery] = useState("");
 
   async function fetchHolidays() {
-    const res = await fetch("/api/config/holidays");
-    setHolidays(await res.json());
-    setLoading(false);
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch("/api/config/holidays");
+      if (!res.ok) throw new Error("load failed");
+      setHolidays(await res.json());
+    } catch (err) {
+      console.error(err);
+      setLoadFailed(true);
+      toast.error(MESSAGES.loadFailed("Daftar hari libur"));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchHolidays(); }, []);
 
   function openNew() {
@@ -94,9 +106,16 @@ export default function HolidaysPage() {
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    const res = await fetch(`/api/config/holidays/${deleteTarget.id}`, { method: "DELETE" });
-    if (res.ok) { toast.success("Hari libur dihapus"); setDeleteTarget(null); fetchHolidays(); }
-    else toast.error(MESSAGES.deleteFailed);
+    try {
+      await sendJson(`/api/config/holidays/${deleteTarget.id}`, { method: "DELETE" }, MESSAGES.deleteFailed);
+      toast.success("Hari libur dihapus");
+      setDeleteTarget(null);
+      fetchHolidays();
+    } catch (err) {
+      toast.error(userMessage(err, MESSAGES.network));
+      // Keep the confirm dialog open so the admin can retry.
+      throw err;
+    }
   }
 
   const filteredHolidays = useMemo(() => {
@@ -180,7 +199,7 @@ export default function HolidaysPage() {
         description="Kelola tanggal libur untuk perhitungan hari kerja"
         actions={
           <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah Hari Libur
+            <Plus size={14} data-icon="inline-start" /> Tambah Hari Libur
           </Button>
         }
       />
@@ -191,6 +210,13 @@ export default function HolidaysPage() {
         searchPlaceholder="Cari nama atau tanggal..."
       />
 
+      {loadFailed ? (
+        <ErrorState
+          title="Daftar hari libur belum bisa dimuat"
+          description="Coba lagi sebentar ya."
+          onRetry={() => void fetchHolidays()}
+        />
+      ) : (
       <DataTable
         columns={columns}
         data={filteredHolidays}
@@ -199,6 +225,7 @@ export default function HolidaysPage() {
         emptyTitle="Belum ada hari libur"
         emptyDescription="Tambahkan hari libur untuk perhitungan hari kerja."
       />
+      )}
 
       {/* Delete confirm */}
       <DeactivateConfirmDialog

@@ -39,7 +39,7 @@ export default async function AdminSettingsPage() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="-mx-2 flex min-h-11 items-center gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="-mx-2 flex min-h-11 items-center gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent/50 outline-none focus-visible:focus-outline"
                   >
                     <Icon className="size-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">

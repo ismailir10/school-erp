@@ -112,7 +112,7 @@ export const StudentEnrollmentApplicationBlock = memo(
           <button
             type="button"
             onClick={load}
-            className="rounded-md text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md text-sm text-primary-text hover:underline outline-none focus-visible:focus-outline"
           >
             Coba lagi
           </button>

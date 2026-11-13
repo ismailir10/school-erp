@@ -30,6 +30,7 @@ import { userEditFormSchema } from "@/lib/validations/user";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { userMessage } from "@/lib/api/client-errors";
 
 // ------------------------------------------------------------------
 // Types
@@ -281,22 +282,19 @@ export default function UsersPage() {
     async (user: UserRow, newStatus: "ACTIVE" | "INACTIVE") => {
       setTogglePending(true);
       try {
-        const res = await fetch(`/api/users/${user.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          toast.error(err.error || "Gagal mengubah status");
-          return;
-        }
+        await sendJson(
+          `/api/users/${user.id}`,
+          { method: "PUT", body: { status: newStatus } },
+          "Gagal mengubah status",
+        );
         toast.success(
           newStatus === "ACTIVE"
             ? "Pengguna diaktifkan"
             : "Pengguna dinonaktifkan"
         );
         fetchUsers();
+      } catch (err) {
+        toast.error(userMessage(err, MESSAGES.network));
       } finally {
         setTogglePending(false);
       }

@@ -682,7 +682,7 @@ export function CenterSessionClient({
                         disabled={!isWritable}
                         className={cn(
                           "tap-target w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
-                          "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          "outline-none focus-visible:focus-outline",
                           picked
                             // text-primary-text, not text-primary: the brand teal
                             // is a fill colour and measures 2.24:1 on this tint.
@@ -812,7 +812,7 @@ export function CenterSessionClient({
                                     // 26px before. Same control as the walas
                                     // page, same 44px floor.
                                     "flex min-h-11 items-center justify-center rounded-md border px-1 text-sm font-medium transition-colors",
-                                    "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                    "outline-none focus-visible:focus-outline",
                                     isActive ? LEVEL_CHIP_CLASS[lv] : LEVEL_CHIP_CLASS_OFF[lv],
                                   )}
                                 >
@@ -826,7 +826,7 @@ export function CenterSessionClient({
                             onClick={() => toggleNoteOpen(key)}
                             disabled={!isWritable}
                             aria-expanded={noteOpen}
-                            className="tap-target inline-flex items-center rounded-md px-2 -ml-2 text-xs text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="tap-target inline-flex items-center rounded-md px-2 -ml-2 text-xs text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:focus-outline"
                           >
                             {noteOpen ? "Sembunyikan catatan" : "Tambah catatan"}
                           </button>

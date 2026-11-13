@@ -853,7 +853,7 @@ function Stepper({ step, reached, onGo }: { step: number; reached: number; onGo:
                   onClick={() => onGo(i)}
                   className={cn(
                     pill,
-                    "border-primary-text/40 bg-primary/10 font-medium text-foreground hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-primary-text focus-visible:ring-offset-2 focus-visible:outline-none [@media(pointer:coarse)]:min-h-11",
+                    "border-primary-text/40 bg-primary/10 font-medium text-foreground hover:bg-primary/20 outline-none focus-visible:focus-outline focus-visible:[--focus-outline-color:var(--primary-text)] [@media(pointer:coarse)]:min-h-11",
                   )}
                 >
                   {completed && (

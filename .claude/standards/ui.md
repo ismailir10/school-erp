@@ -207,6 +207,8 @@ Mobile-first Tailwind defaults (not overridden in `globals.css`): write the phon
 
 Use `focus-visible:focus-outline` for keyboard focus. It applies a 2px opaque outline with a 2px offset and uses the system highlight in forced colors. Light surfaces use `ring`, and the dark sidebar uses `sidebar-ring`. Use `border-input` for form-control boundaries. Invalid controls keep the destructive border and use destructive text ink for the focus outline. Controls built on shared primitives inherit these styles.
 
+- Feature code uses `focus-visible:focus-outline` (with `outline-none`); never hand-roll `ring-*` focus styles. Inset in clipped cells via `focus-visible:[--focus-outline-offset:-2px]`; recolor via `focus-visible:[--focus-outline-color:…]`. Guarded by `lib/__tests__/focus-indicator-guard.test.ts`.
+
 ## Dialog & Sheet button labels (canonical)
 
 Every admin form Dialog / Sheet uses these button strings (linked from `crud.md` Edit Dialog Standard); `voice.md` still governs body copy.

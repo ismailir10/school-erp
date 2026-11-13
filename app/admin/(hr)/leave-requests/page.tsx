@@ -478,7 +478,7 @@ export default function AdminLeavePage() {
 
   return (
     <>
-      <div ref={pageHeading} tabIndex={-1} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+      <div ref={pageHeading} tabIndex={-1} className="outline-none focus-visible:focus-outline rounded-lg">
         <PageHeader
           title="Pengajuan Cuti"
           description={fetchError ? "Daftar pengajuan belum tersedia" : "Tinjau dan proses pengajuan cuti karyawan"}

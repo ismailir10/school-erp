@@ -151,7 +151,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
             <div className="flex items-stretch">
               <button
                 onClick={() => toggleExpand(student.id)}
-                className="min-w-0 flex-1 flex items-center justify-between gap-2 p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className="min-w-0 flex-1 flex items-center justify-between gap-2 p-3.5 text-left outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                 aria-expanded={isExpanded}
               >
                 <div className="flex min-w-0 items-center gap-3">
@@ -212,7 +212,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                 <button
                   type="button"
                   onClick={() => onAddNote(student)}
-                  className="min-w-11 px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  className="min-w-11 px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                   aria-label={`Tambah catatan untuk ${student.name}`}
                 >
                   <MessageSquarePlus size={18} aria-hidden="true" />
@@ -232,7 +232,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                       `/teacher/student-journal/students/${student.id}?week=${visibleDate}`,
                     )
                   }
-                  className="min-w-11 px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  className="min-w-11 px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                   aria-label={`Lihat pekan ${student.name}`}
                 >
                   <ChevronRight size={18} aria-hidden="true" />
@@ -259,7 +259,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                           data-testid="bulk-check-all"
                           onClick={() => onBulkSet(student.id, true)}
                           disabled={checkedCount === totalIndicators}
-                          className="tap-target inline-flex items-center gap-1 rounded-md border border-primary/40 px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="tap-target inline-flex items-center gap-1 rounded-md border border-primary/40 px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent outline-none focus-visible:focus-outline"
                         >
                           <Check size={14} aria-hidden="true" />
                           Tandai semua
@@ -269,7 +269,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                           data-testid="bulk-clear-all"
                           onClick={() => setClearTargetId(student.id)}
                           disabled={checkedCount === 0}
-                          className="tap-target inline-flex items-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="tap-target inline-flex items-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent outline-none focus-visible:focus-outline"
                         >
                           Hapus semua
                         </button>
@@ -286,7 +286,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                               <button
                                 key={indicator.id}
                                 onClick={() => onToggle(student.id, indicator.id)}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:focus-outline ${
                                   isChecked
                                     ? // text-primary-text, not text-primary: the brand teal is a
                                       // fill colour and measures 2.24:1 on this tint, which made
