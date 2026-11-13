@@ -55,7 +55,10 @@ Browser baselines use an immutable archive of `b68b6153`. The table maps all 71 
 
 ## Verification
 
-### Verified locally — 2026-11-13
+### Verified locally — `1f9a38fd`, 2026-11-13
+
+- Ship classification is **Other code**, comparing staging `b68b6153` with runtime head `1f9a38fd`. The diff touches portal pages in `app/`, shared styles and UI in `app/globals.css` and `components/`, the catalog and standards, frontend test suites in `e2e/` and `lib/__tests__/`, and cycle and admin journey evidence in `docs/`. Auth guards, API routes, schema, and dependencies are outside the diff.
+- PR highlight shots show [Tagihan at 390 px](screenshots/2026-11-13-design-system/invoices-390-before-after.png) and [parent Kehadiran at 320 px](screenshots/2026-11-13-design-system/parent-attendance-320-before-after.png).
 
 - App: production webpack build, demo auth, and disposable local PostgreSQL. The baseline was `b68b6153`.
 - Checked the `design-system` reference, `ui.md`, `patterns.md`, `portal.md`, `colors.md`, and `voice.md` for matching rules and intentional exceptions.
@@ -73,4 +76,4 @@ Browser baselines use an immutable archive of `b68b6153`. The table maps all 71 
 
 ## Ship Notes
 
-The change is frontend-only and has no schema migration or new environment variables. Preview-smoke the admin invoice disclosure, student finance jump, teacher gate tab, and a parent child switch. Roll back by reverting the feature commits.
+The change is frontend-only and has no schema migration or new environment variables. On the deployed staging build, smoke-test the admin invoice disclosure and student finance jump, the teacher gate tab, and parent child switching and attendance. Roll back by reverting the staging squash commit.
