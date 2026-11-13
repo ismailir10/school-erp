@@ -54,6 +54,15 @@ describe("StatTile", () => {
     expect(chip).toHaveClass("size-8", "rounded-lg", "bg-success-subtle", "text-success-text");
   });
 
+  it("matches the warning figure and chip and uses readable teal in a neutral chip", () => {
+    const { rerender } = render(<StatTile label="Terlambat" value={3} icon={Users} tone="warning" />);
+    expect(screen.getByText("3")).toHaveClass("text-warning-text");
+    expect(screen.getByTestId("stat-tile-icon")).toHaveClass("bg-warning-subtle", "text-warning-text");
+
+    rerender(<StatTile label="Aktif" value={3} icon={Users} />);
+    expect(screen.getByTestId("stat-tile-icon")).toHaveClass("bg-secondary", "text-primary-text");
+  });
+
   it("shows no chip without an icon", () => {
     render(<StatTile label="Aktif" value={3} />);
     expect(screen.queryByTestId("stat-tile-icon")).toBeNull();

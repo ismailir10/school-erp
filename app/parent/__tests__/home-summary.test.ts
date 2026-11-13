@@ -208,13 +208,13 @@ describe("parent home round-2 fixes", () => {
     });
     const html = renderToStaticMarkup(await ParentDashboard());
     expect(html).toContain("Ini tahapan perkembangan, bukan nilai.");
-    const chip = (label: string) => html.match(new RegExp(`<span class="[^"]*">${label}</span>`))![0];
-    expect(chip("Mampu dan Konsisten")).toContain("bg-status-present-subtle");
+    const chip = (label: string) => html.match(new RegExp(`<span[^>]*data-slot="badge"[^>]*>${label}</span>`))![0];
+    expect(chip("Mampu dan Konsisten")).toContain('data-variant="success"');
     for (const label of ["Mampu Belum Konsisten", "Perlu Penguatan"]) {
-      expect(chip(label)).toContain("bg-secondary");
+      expect(chip(label)).toContain('data-variant="secondary"');
       expect(chip(label)).not.toContain("status-late");
     }
-    // Indicator text wraps to two lines instead of cutting off with an ellipsis.
+    // Give the full badge label room to wrap independently of the two-line indicator preview.
     expect(html).toContain("line-clamp-2 text-xs text-foreground");
   });
 });

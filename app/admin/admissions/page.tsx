@@ -55,7 +55,7 @@ function StatFilter({
       aria-pressed={pressed}
       aria-label={`${label}: ${value}`}
       onClick={onPress}
-      className="block w-full rounded-lg text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-pressed:ring-2 aria-pressed:ring-primary/40"
+      className="block w-full rounded-lg text-left outline-none focus-visible:focus-outline aria-pressed:ring-2 aria-pressed:ring-primary/40"
     >
       {children}
     </button>

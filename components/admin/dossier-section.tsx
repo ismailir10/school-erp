@@ -39,7 +39,7 @@ function DisclosureTrigger({ contentId, open, heading: Heading, label, badge, su
   return (
     <CollapsibleTrigger
       aria-controls={contentId}
-      className="group flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md py-3 text-left focus-visible:focus-outline [--focus-outline-offset:-2px]"
     >
       <ChevronDown
         size={15}
@@ -276,7 +276,7 @@ export function DossierNav({
             <button
               type="button"
               onClick={() => onJump(s.id)}
-              className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-small text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-small text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-outline [--focus-outline-offset:-2px]"
             >
               {s.label}
             </button>

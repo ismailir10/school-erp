@@ -223,7 +223,7 @@ export function GateClient() {
               setPickerFor(null);
             }}
             className={cn(
-              "inline-flex min-h-12 items-center justify-center gap-2 rounded-md text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              "inline-flex min-h-12 items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:focus-outline [--focus-outline-offset:-2px]",
               mode === value
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground",
@@ -326,7 +326,7 @@ export function GateClient() {
                     type="button"
                     onClick={() => void record(s, mode)}
                     disabled={busy.has(s.studentId)}
-                    className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left focus-visible:focus-outline [--focus-outline-offset:-2px]"
                     aria-label={`${mode === "arrive" ? "Masuk" : "Pulang"}: ${s.name}, ${s.className}${marked ? `, tercatat ${formatTime(time)}` : ""}`}
                   >
                     <span className="min-w-0">
@@ -350,7 +350,7 @@ export function GateClient() {
                       }}
                       aria-expanded={showPicker}
                       aria-label={`Ubah penjemput ${s.name}`}
-                      className="inline-flex min-h-14 min-w-12 shrink-0 items-center justify-center border-l border-border outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex min-h-14 min-w-12 shrink-0 items-center justify-center border-l border-border focus-visible:focus-outline [--focus-outline-offset:-2px]"
                     >
                       <UserRound size={18} aria-hidden="true" />
                     </button>

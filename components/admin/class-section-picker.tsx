@@ -256,7 +256,7 @@ export function ClassSectionMultiPicker({
         aria-label={value.length > 0 ? triggerLabel : placeholder}
         disabled={disabled}
         className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-hidden transition-colors hover:bg-accent/30 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-9 w-full [@media(pointer:coarse)]:min-h-11 items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-hidden transition-colors hover:bg-accent/30 focus-visible:focus-outline disabled:cursor-not-allowed disabled:opacity-50",
           value.length === 0 && "text-muted-foreground",
         )}
       >

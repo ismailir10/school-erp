@@ -11,6 +11,9 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -23,7 +26,7 @@ import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending
 import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-dialog";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, ChevronDown, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
@@ -297,6 +300,10 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // BatchProgressCard "Batalkan" button. Reset to null when the run finishes
   // or is cancelled so the next click starts fresh.
   const retryAbortRef = useRef<AbortController | null>(null);
+  const isMobile = useIsMobile();
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const statsRequest = useRef<AbortController | null>(null);
+  const [retryingStats, setRetryingStats] = useState(false);
   const [statsState, setStatsState] = useState<"loading" | "ready" | "error">("loading");
   const [stats, setStats] = useState({
     total: 0,
@@ -314,10 +321,15 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     collectedThisMonth: 0,
   });
 
-  const fetchStats = useCallback(() => {
-    fetch("/api/invoices/stats")
+  const fetchStats = useCallback((retry = false) => {
+    statsRequest.current?.abort();
+    const request = new AbortController();
+    statsRequest.current = request;
+    setRetryingStats(retry);
+    fetch("/api/invoices/stats", { signal: request.signal })
       .then((r) => { if (!r.ok) throw new Error("stats unavailable"); return r.json(); })
       .then((s) => {
+        if (request.signal.aborted) return;
         if (s?.error) throw new Error("stats unavailable");
         setStatsState("ready");
         setStats({
@@ -336,11 +348,20 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
       })
-      .catch(() => setStatsState("error"));
+      .catch(() => {
+        if (!request.signal.aborted) setStatsState("error");
+      })
+      .finally(() => {
+        if (!request.signal.aborted) {
+          statsRequest.current = null;
+          setRetryingStats(false);
+        }
+      });
   }, []);
 
   useEffect(() => {
     fetchStats();
+    return () => statsRequest.current?.abort();
   }, [fetchStats]);
 
   useEffect(() => {
@@ -810,30 +831,6 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         menuActions={menuActions}
       />
 
-      {/* Resumable draft banner (Cycle B1, Task T8) — a DRAFT billing run
-          persists across refreshes; this is how an admin picks it back up
-          instead of it silently sitting invisible until they happen to
-          re-open the wizard fresh and hit the 409. */}
-      {capabilities.create && draftRun && (
-        <Alert className="has-data-[slot=alert-action]:pr-2.5">
-          <AlertTriangle className="size-4" />
-          <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
-          <AlertDescription>
-            {draftRun.status === "COMMITTING"
-              ? `Pembuatan tagihan periode ${draftRun.periodLabel} belum selesai. Lanjutkan sisanya; tagihan yang sudah dibuat tidak akan dibuat ulang.`
-              : `Periode ${draftRun.periodLabel} punya draf yang belum dikomit.`}
-          </AlertDescription>
-          <AlertAction className="static col-span-full flex flex-wrap justify-end gap-2 pt-2">
-            {draftRun.status !== "COMMITTING" && <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
-              Buang draf
-            </Button>}
-            <Button size="sm" variant="outline" onClick={resumeWizard}>
-              {draftRun.status === "COMMITTING" ? "Lanjutkan pembuatan tagihan" : "Lanjutkan draf"}
-            </Button>
-          </AlertAction>
-        </Alert>
-      )}
-
       {/* Discard-draft confirm (Cycle B2, Task T6) — names the period and
           the consequence per .claude/standards/voice.md's destructive-
           confirmations table, never a bare "are you sure?". */}
@@ -881,36 +878,72 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         confirmLabel="Mulai Proses"
       />
 
-      {statsState === "error" && <Alert><AlertTitle>Ringkasan tagihan belum dapat dimuat</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
-      {statsState === "ready" && <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
-        <StatTile label="Total Tagihan" value={stats.total} icon={Receipt} tone="default" mono />
-        <StatTile label="Draft" value={stats.draft} icon={Clock} tone="warning" mono />
-        <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} tone="positive" mono />
-        <StatTile label="Dibayar Sebagian" value={stats.partiallyPaid} icon={CircleDashed} tone="warning" mono />
-        <StatTile label="Lewat Tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
-        {stats.pendingPaymentLink > 0 && (
-          <StatTile label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
-        )}
-      </StatsCardsRow>}
-      {/* FIN-13: Rupiah next to the counts — what is still owed, and what came in this month. */}
-      {statsState === "ready" && <StatsCardsRow cols={2}>
-        <StatTile
-          label="Piutang"
-          value={formatRupiah(stats.outstanding)}
-          hint={`${stats.owing} tagihan belum lunas`}
-          icon={Wallet}
-          tone="warning"
-          mono
-        />
-        <StatTile
-          label="Diterima Bulan Ini"
-          value={formatRupiah(stats.collectedThisMonth)}
-          hint="Pembayaran tercatat, tanpa yang dibatalkan"
-          icon={Banknote}
-          tone="positive"
-          mono
-        />
-      </StatsCardsRow>}
+      <Collapsible
+        open={!isMobile || summaryExpanded}
+        onOpenChange={setSummaryExpanded}
+        className="mb-field"
+      >
+        <CollapsibleTrigger
+          render={<Button variant="outline" className="w-full justify-between md:hidden" />}
+        >
+          Ringkasan tagihan
+          <ChevronDown aria-hidden="true" className={summaryExpanded ? "rotate-180" : undefined} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className={summaryExpanded ? "pt-field md:pt-0" : "max-md:hidden"}>
+          {statsState === "loading" && (
+            <div role="status" className="mb-field">
+              <span className="sr-only">Memuat ringkasan tagihan</span>
+              <Skeleton aria-hidden="true" className="h-16 w-full" />
+            </div>
+          )}
+          {statsState === "error" && (
+            <Alert variant="destructive" announcement="polite">
+              <AlertCircle aria-hidden="true" />
+              <AlertTitle>Ringkasan tagihan belum dapat dimuat</AlertTitle>
+              <AlertAction>
+                <Button
+                  variant="outline"
+                  aria-disabled={retryingStats}
+                  onClick={() => { if (!retryingStats) fetchStats(true); }}
+                >
+                  {retryingStats ? "Memuat ringkasan…" : "Muat ulang ringkasan"}
+                </Button>
+              </AlertAction>
+            </Alert>
+          )}
+          {statsState === "ready" && (
+            <>
+              <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
+                <StatTile label="Total tagihan" value={stats.total} icon={Receipt} mono />
+                <StatTile label="Draf" value={stats.draft} icon={Clock} tone="muted" mono />
+                <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} tone="positive" mono />
+                <StatTile label="Dibayar sebagian" value={stats.partiallyPaid} icon={CircleDashed} tone="warning" mono />
+                <StatTile label="Lewat tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
+                {stats.pendingPaymentLink > 0 && (
+                  <StatTile label="Link gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
+                )}
+              </StatsCardsRow>
+              <StatsCardsRow cols={2}>
+                <StatTile
+                  label="Piutang"
+                  value={formatRupiah(stats.outstanding)}
+                  hint={`${stats.owing} tagihan belum lunas`}
+                  icon={Wallet}
+                  mono
+                />
+                <StatTile
+                  label="Diterima bulan ini"
+                  value={formatRupiah(stats.collectedThisMonth)}
+                  hint="Pembayaran tercatat, tanpa yang dibatalkan"
+                  icon={Banknote}
+                  tone="positive"
+                  mono
+                />
+              </StatsCardsRow>
+            </>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."
@@ -929,17 +962,39 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         ]}
       />
 
-      {fetchError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle p-6 flex items-start gap-3">
-          <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" />
-          <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-sm font-semibold text-foreground">Gagal memuat tagihan</p>
-            <p className="text-sm text-muted-foreground">Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis.</p>
-            <Button size="sm" variant="outline" onClick={fetchInvoices}>
-              <RefreshCw size={14} className="mr-1.5" /> Coba lagi
+      {/* Resumable draft banner (Cycle B1, Task T8) — a DRAFT billing run
+          persists across refreshes; this is how an admin picks it back up
+          instead of it silently sitting invisible until they happen to
+          re-open the wizard fresh and hit the 409. */}
+      {capabilities.create && draftRun && (
+        <Alert variant="warning" announcement="off">
+          <AlertTriangle className="size-4" />
+          <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
+          <AlertDescription>
+            {draftRun.status === "COMMITTING"
+              ? `Pembuatan tagihan periode ${draftRun.periodLabel} belum selesai. Lanjutkan sisanya; tagihan yang sudah dibuat tidak akan dibuat ulang.`
+              : `Periode ${draftRun.periodLabel} punya draf yang belum dikomit.`}
+          </AlertDescription>
+          <AlertAction>
+            {draftRun.status !== "COMMITTING" && <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
+              Buang draf
+            </Button>}
+            <Button size="sm" variant="outline" onClick={resumeWizard}>
+              {draftRun.status === "COMMITTING" ? "Lanjutkan pembuatan tagihan" : "Lanjutkan draf"}
             </Button>
-          </div>
-        </div>
+          </AlertAction>
+        </Alert>
+      )}
+
+      {fetchError ? (
+        <Alert variant="destructive">
+          <AlertCircle aria-hidden="true" />
+          <AlertTitle>Gagal memuat tagihan</AlertTitle>
+          <AlertDescription>Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis.</AlertDescription>
+          <AlertAction>
+            <Button variant="outline" onClick={fetchInvoices}>Coba lagi</Button>
+          </AlertAction>
+        </Alert>
       ) : (
         <DataTable
           columns={columnsWithActions}

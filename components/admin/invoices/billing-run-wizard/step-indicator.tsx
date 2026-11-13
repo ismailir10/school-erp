@@ -58,7 +58,7 @@ export function StepIndicator({
                   "flex size-6 shrink-0 items-center justify-center rounded-full border font-medium",
                   status === "complete" &&
                     "border-primary bg-primary text-primary-foreground",
-                  status === "current" && "border-primary text-primary",
+                  status === "current" && "border-primary text-primary-text",
                   status === "upcoming" && "border-border text-muted-foreground",
                 )}
               >

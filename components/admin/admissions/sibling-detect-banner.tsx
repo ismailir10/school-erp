@@ -22,10 +22,10 @@ export function SiblingDetectBanner({
     .join(", ");
   return (
     <Alert
-      className="border-status-late bg-status-late-subtle text-status-late-text"
+      variant="warning" announcement="polite"
       data-testid="admission-edit-sibling-banner"
     >
-      <Users2 className="size-4" />
+      <Users2 aria-hidden="true" />
       <AlertDescription>
         Pendaftar ini terdeteksi sebagai saudara dari keluarga{" "}
         <strong>{detectedParent.name}</strong>

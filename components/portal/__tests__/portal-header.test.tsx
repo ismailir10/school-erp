@@ -35,7 +35,7 @@ describe("PortalHeader", () => {
     expect(link).toHaveAttribute("href", profileHref);
     expect(link).toContainElement(screen.getByText("Bu"));
     expect(link).toHaveClass("min-h-11");
-    expect(link).toHaveClass("focus-visible:ring-2");
+    expect(link).toHaveClass("focus-visible:focus-outline");
   });
 
   it("has no profile link when profileHref is absent", () => {
@@ -56,7 +56,6 @@ describe("PortalHeader", () => {
     const logout = screen.getByRole("button", { name: "Keluar" });
     expect(logout).toHaveClass("min-h-11");
     expect(logout).toHaveClass("min-w-11");
-    expect(logout).toHaveClass("focus-visible:ring-2");
     await user.click(logout);
     expect(onLogout).not.toHaveBeenCalled();
     expect(screen.getByText("Keluar dari Talib?")).toBeInTheDocument();

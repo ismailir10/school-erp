@@ -1,52 +1,24 @@
+import { BookOpen, CalendarCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import type { RailTile } from "@/components/admin/detail-rail";
-import { formatDateShort, formatRupiah } from "@/lib/format";
-import type { StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
 import type { StudentOverview } from "@/lib/student/overview";
 
 const muted = (text: string): ReactNode => <span className="text-muted-foreground">{text}</span>;
 
-/**
- * The three numbers the header and the strip do not already say: Tunggakan,
- * Hadir bulan ini and Rapor. Each distinguishes "still loading" (Memuat…) from
- * "could not load" and "nothing yet" (a dash), and never shows a bare 0 for a
- * request that has not answered — an admin would read it as a real answer.
- */
+/** Keep report and attendance context alongside the dossier sections. */
 export function buildRailTiles({
-  invoices,
   overviewError,
   attendanceCounts,
   raportTally,
 }: {
-  invoices: { loading: boolean; error: boolean; summary: StudentInvoiceSummary };
   overviewError: boolean;
   attendanceCounts: StudentOverview["attendance"]["counts"] | null;
   raportTally: StudentOverview["raport"] | null;
 }): RailTile[] {
-  const { loading, error, summary } = invoices;
   return [
     {
-      label: "Tunggakan",
-      wide: true,
-      value: loading ? (
-        muted("Memuat…")
-      ) : error ? (
-        muted("—")
-      ) : (
-        <span className="font-currency">{formatRupiah(summary.outstanding)}</span>
-      ),
-      tone: summary.outstanding > 0 ? "critical" : "positive",
-      hint:
-        loading || error
-          ? undefined
-          : summary.unpaidCount > 0
-            ? `${summary.unpaidCount} tagihan belum lunas${
-                summary.nearestDue ? ` · ${formatDateShort(summary.nearestDue)}` : ""
-              }`
-            : "Lunas semua",
-    },
-    {
       label: "Hadir bulan ini",
+      icon: CalendarCheck,
       value: overviewError
         ? muted("—")
         : !attendanceCounts
@@ -70,6 +42,7 @@ export function buildRailTiles({
     },
     {
       label: "Rapor",
+      icon: BookOpen,
       value: overviewError
         ? muted("—")
         : !raportTally

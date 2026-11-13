@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BottomNav } from "../bottom-nav";
 import { TEACHER_MORE_ITEMS } from "../more-sheet";
@@ -75,6 +75,18 @@ describe("BottomNav", () => {
     );
   });
 
+  it.each(["/teacher/gate", "/teacher/sessions", "/teacher/sessions/session_123"])(
+    "marks only Beranda current for %s",
+    (pathname) => {
+      navigation.pathname = pathname;
+      render(<BottomNav />);
+
+      const current = bar().querySelectorAll('[aria-current="page"]');
+      expect(current).toHaveLength(1);
+      expect(current[0]).toHaveAccessibleName("Beranda");
+    },
+  );
+
   it.each([
     "/teacher/attendance",
     "/teacher/slips/slip_123",
@@ -89,29 +101,26 @@ describe("BottomNav", () => {
     );
   });
 
-  it("keeps Lainnya keyboard reachable and active while its sheet is open", async () => {
+  it("moves focus into Lainnya on keyboard entry and restores it on Escape", async () => {
     const user = userEvent.setup();
     render(<BottomNav />);
 
-    await user.tab();
-    await user.tab();
-    await user.tab();
-    await user.tab();
-    await user.tab();
     const trigger = within(bar()).getByRole("button", { name: "Lainnya" });
-    expect(trigger).toHaveFocus();
-
+    trigger.focus();
     await user.keyboard("{Enter}");
+
+    const menu = await screen.findByRole("navigation", { name: "Menu lainnya guru" });
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    // A modal Drawer correctly removes the fixed bar from the accessibility
-    // tree. Inspect its existing DOM node rather than asking by role again.
-    const hiddenBar = document.querySelector(
-      'nav[aria-label="Navigasi utama guru"]',
-    );
-    expect(hiddenBar).not.toBeNull();
-    expect(within(hiddenBar as HTMLElement).getByText("Lainnya").className).toContain(
-      "text-primary",
-    );
+    await waitFor(() => expect(within(menu).getAllByRole("link")[0]).toHaveFocus());
+
+    const dialog = screen.getByRole("dialog", { name: "Lainnya" });
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // Vaul's CSS drives the exit. jsdom does not dispatch CSS animation events.
+    const animationEnd = new Event("animationend", { bubbles: true });
+    Object.defineProperty(animationEnd, "animationName", { value: "slideToBottom" });
+    fireEvent(dialog, animationEnd);
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("keeps every slot equal-width and focus-visible", () => {
@@ -119,7 +128,7 @@ describe("BottomNav", () => {
 
     for (const slot of [...within(bar()).getAllByRole("link"), ...within(bar()).getAllByRole("button")]) {
       expect(slot.className).toContain("basis-0");
-      expect(slot.className).toContain("focus-visible:ring-2");
+      expect(slot.className).toContain("focus-visible:focus-outline");
     }
   });
 });

@@ -74,7 +74,7 @@ export function ConvertDuplicateConfirm({
               href={`/admin/students/${c.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline underline-offset-2"
+              className="text-primary-text underline underline-offset-2"
             >
               Lihat siswa
               <ExternalLink size={12} aria-hidden="true" className="mb-0.5 ml-1 inline" />

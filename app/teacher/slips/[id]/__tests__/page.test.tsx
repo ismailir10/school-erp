@@ -33,7 +33,7 @@ describe("SlipDetailPage", () => {
     expect(screen.getByText("1 Maret – 31 Maret 2026")).toBeInTheDocument();
     const back = screen.getByRole("link", { name: /Kembali ke slip gaji/ });
     expect(back).toHaveAttribute("href", "/teacher/slips");
-    expect(back).toHaveClass("min-h-11", "focus-visible:ring-2");
+    expect(back).toHaveClass("min-h-11", "focus-visible:focus-outline");
     const pdf = screen.getByRole("link", { name: /Unduh PDF slip/ });
     expect(pdf).toHaveAttribute("href", "/api/slips/slip-1/pdf");
     expect(pdf).toHaveAttribute("target", "_blank");

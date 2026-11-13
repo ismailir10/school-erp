@@ -57,15 +57,13 @@ describe("PortalBottomNav", () => {
     }
   });
 
-  // 320 px phones: a 64 px slot truncated "Kehadiran" to "Kehadi…". Labels shrink
-  // fluidly (10 px floor) and never truncate.
-  it("never truncates a label and sizes it fluidly with a 10px floor", () => {
+  it("keeps the 12px type floor and the full label", () => {
     render(<PortalBottomNav items={items} ariaLabel="Test nav" />);
     for (const item of items) {
       const label = screen.getByText(item.label);
       expect(label.className).not.toContain("truncate");
       expect(label.className).toContain("whitespace-nowrap");
-      expect(label.className).toContain("clamp(0.625rem");
+      expect(label.className).toContain("text-xs");
     }
     for (const slot of screen.getAllByRole("link")) expect(slot.className).toContain("px-0.5");
   });
@@ -73,7 +71,7 @@ describe("PortalBottomNav", () => {
   it("gives every slot a visible focus ring", () => {
     render(<PortalBottomNav items={items} ariaLabel="Test nav" />);
     for (const slot of screen.getAllByRole("link")) {
-      expect(slot.className).toContain("focus-visible:ring-2");
+      expect(slot.className).toContain("focus-visible:focus-outline");
     }
   });
 
@@ -140,7 +138,7 @@ describe("PortalBottomNav", () => {
       render(<PortalBottomNav items={withAction(() => {})} ariaLabel="Test nav" />);
       const trigger = screen.getByRole("button", { name: "Lainnya" });
       expect(trigger.className).toContain("basis-0");
-      expect(trigger.className).toContain("focus-visible:ring-2");
+      expect(trigger.className).toContain("focus-visible:focus-outline");
     });
   });
 });

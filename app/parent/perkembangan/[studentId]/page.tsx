@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import {
   CalendarOff,
-  ChevronLeft,
   LineChart,
   Sparkles,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { BackLink } from "@/components/portal/back-link";
 import { PageHeader } from "@/components/portal/page-header";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { getParentChildById, getParentWithChildren } from "@/lib/parent-helpers";
@@ -44,12 +43,10 @@ export default async function ParentPerkembanganDetailPage({
 
   return (
     <div className="space-y-5">
-      <Link
+      <BackLink
         href={linkedChildren.length > 1 ? "/parent/perkembangan" : parentHref("/parent", studentId)}
-        className="inline-flex min-h-11 min-w-11 items-center gap-1 text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronLeft className="size-4" /> {linkedChildren.length > 1 ? "Pilih anak" : "Beranda"}
-      </Link>
+        label={linkedChildren.length > 1 ? "Pilih anak" : "Beranda"}
+      />
 
       <ContextStrip
         name={child.studentName}
@@ -122,7 +119,7 @@ export default async function ParentPerkembanganDetailPage({
                 {data.latestThisWeek.map((entry, idx) => (
                   <li
                     key={`${entry.date}-${entry.indicatorContent}-${idx}`}
-                    className="rounded-lg border border-input bg-card p-3"
+                    className="rounded-lg border border-border bg-card p-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">

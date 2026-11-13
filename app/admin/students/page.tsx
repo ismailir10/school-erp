@@ -963,7 +963,7 @@ export default function StudentsPage() {
         {duplicate?.existingId && (
           <Link
             href={`/admin/students/${duplicate.existingId}`}
-            className="text-sm font-medium text-primary underline underline-offset-4"
+            className="text-sm font-medium text-primary-text underline underline-offset-4"
           >
             Lihat siswa
           </Link>

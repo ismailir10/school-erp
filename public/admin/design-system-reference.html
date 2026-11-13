@@ -15,11 +15,12 @@
     --card: #FFFFFF;
     --card-foreground: #1C1917;
     --popover: #FFFFFF;
+    --popover-foreground: #1C1917;
 
     --primary: #5DB4B8;
     --primary-foreground: #173536;
-    /* Readable teal for text/glyphs on light or tinted surfaces (5.00:1 on white) */
-    --primary-text: #2F7A7D;
+    /* Readable teal for text and glyphs on light or tinted surfaces. */
+    --primary-text: #2E7578;
 
     --secondary: #E8F5F6;
     --secondary-foreground: #1C1917;
@@ -33,8 +34,8 @@
     /* AA-darkened error red (4.83:1 on white). #FF3B3B survives only as --status-absent, the attendance dot/bar */
     --destructive: #DC2626;
     --border: #E5E2DE;
-    --input: #E5E2DE;
-    --ring: #5DB4B8;
+    --input: #89837D;
+    --ring: var(--primary-foreground);
 
     --radius: 0.625rem;
     --radius-sm: calc(var(--radius) * 0.6);
@@ -74,13 +75,13 @@
     --status-no-checkout-text: #A35000;
 
     /* Semantic triads: base / -subtle (tint surface) / -text (AA ink on the tint). Alias the status tiers. */
-    --success: #00B37E;
+    --success: var(--status-present);
     --success-subtle: var(--status-present-subtle);
     --success-text: var(--status-present-text);
-    --warning: #FF8C00;
+    --warning: var(--status-late);
     --warning-subtle: var(--status-late-subtle);
     --warning-text: var(--status-late-text);
-    --info: #0EA5E9;
+    --info: var(--status-leave);
     --info-subtle: var(--status-leave-subtle);
     --info-text: var(--status-leave-text);
     --destructive-subtle: var(--status-absent-subtle);
@@ -111,18 +112,42 @@
     --space-card: 1.5rem;
     --space-field: 1rem;
 
-    --text-display: 2rem;    /* 1.15 leading, bold: hero numbers only */
-    --text-h1: 1.5rem;       /* 1.25 leading, semibold */
-    --text-h2: 1.125rem;     /* 1.35 leading, semibold */
-    --text-body: 0.875rem;
-    --text-small: 0.75rem;
-    --text-caption: 0.6875rem;
+    --type-display: 2rem;
+    --type-h1: 1.5rem;
+    --type-h2: 1.125rem;
+    --type-body: 0.875rem;
+    --type-small: 0.75rem;
+    --type-caption: 0.6875rem;
+
+    --text-display: var(--type-display);
+    --text-display--line-height: 1.15;
+    --text-display--font-weight: 700;
+    --text-h1: var(--type-h1);
+    --text-h1--line-height: 1.25;
+    --text-h1--font-weight: 600;
+    --text-h2: var(--type-h2);
+    --text-h2--line-height: 1.35;
+    --text-h2--font-weight: 600;
+    --text-body: var(--type-body);
+    --text-body--line-height: 1.5;
+    --text-small: var(--type-small);
+    --text-small--line-height: 1.4;
+    --text-caption: var(--type-caption);
+    --text-caption--line-height: 1.35;
 
     --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
   * { box-sizing: border-box; }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .sidebar :focus-visible { outline-color: var(--sidebar-ring); }
+  @media (forced-colors: active) {
+    :focus-visible, .sidebar :focus-visible { outline-color: Highlight; }
+  }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: var(--font-sans);
@@ -135,7 +160,7 @@
   }
 
   /* ─────────── App shell ─────────── */
-  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
 
   .sidebar {
     background: var(--sidebar);
@@ -178,7 +203,7 @@
   .nav-icon { width: 16px; height: 16px; flex-shrink: 0; color: #5F7F80; }
 
   /* ─────────── Main content ─────────── */
-  .main { display: flex; flex-direction: column; }
+  .main { display: flex; min-width: 0; flex-direction: column; }
 
   .topbar {
     background: var(--card);
@@ -280,7 +305,7 @@
   .btn-destructive:hover { background: color-mix(in oklab, var(--destructive) 20%, transparent); }
   .btn-destructive-solid { background: var(--destructive); color: #fff; }
   .btn-destructive-solid:hover { background: color-mix(in oklab, var(--destructive) 88%, #000 12%); }
-  .btn-link { background: transparent; color: var(--primary); padding: 0; height: auto; }
+  .btn-link { background: transparent; color: var(--primary-text); padding: 0; height: auto; }
   .btn-link:hover { text-decoration: underline; }
 
   .btn-sm { height: 28px; padding: 0 0.625rem; font-size: 0.8rem; }
@@ -317,12 +342,15 @@
     height: 36px; padding: 0 0.75rem; border-radius: var(--radius-md);
     border: 1px solid var(--input); background: var(--card);
     font-family: inherit; font-size: 0.875rem; color: var(--foreground); width: 100%;
-    outline: none; transition: border-color 120ms ease, box-shadow 120ms ease;
+    transition: border-color var(--transition-duration-fast) var(--ease-standard);
   }
-  .input:focus { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 20%, transparent); }
+  .input:focus-visible { border-color: var(--ring); }
   .input[aria-invalid="true"] { border-color: var(--destructive); }
-  .input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 20%, transparent); }
-  .input::placeholder { color: color-mix(in oklab, var(--muted-foreground) 70%, transparent); }
+  .input[aria-invalid="true"]:focus-visible { outline-color: var(--destructive-text); }
+  @media (forced-colors: active) {
+    .input[aria-invalid="true"]:focus-visible { outline-color: Highlight; }
+  }
+  .input::placeholder { color: var(--muted-foreground); }
 
   .textarea { min-height: 76px; padding: 0.5rem 0.75rem; line-height: 1.5; }
 
@@ -410,10 +438,32 @@
   .recipe-title { font-size: 0.875rem; font-weight: 600; margin: 0 0 0.125rem; }
   .recipe-desc { font-size: 0.75rem; color: var(--muted-foreground); margin: 0; line-height: 1.5; }
 
-  /* ─────────── Stat card demo ─────────── */
-  .stat { padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); }
-  .stat-label { font-size: 0.75rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
-  .stat-value { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; margin: 0.375rem 0 0.25rem; font-variant-numeric: tabular-nums; }
+  /* ─────────── Shared surfaces ─────────── */
+  .surface-card { border-radius: var(--radius-xl); padding: 1rem; box-shadow: var(--elevation-resting); }
+  .surface-section { border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); padding: 1rem; }
+  @media (min-width: 768px) { .surface-section { padding: var(--space-card); } }
+  .surface-section h3 { font-size: var(--text-h2); font-weight: var(--text-h2--font-weight); line-height: var(--text-h2--line-height); margin: 0; }
+  .surface-section p { font-size: var(--text-small); color: var(--muted-foreground); margin: 0.25rem 0 0; }
+  .surface-alert {
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem 0.75rem;
+    padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--card); color: var(--card-foreground);
+    font-size: var(--text-body); line-height: var(--text-body--line-height);
+  }
+  .surface-alert strong { font-weight: 500; }
+  .surface-alert p { margin: 0; overflow-wrap: anywhere; }
+  .surface-alert-message { flex: 1 1 14rem; min-width: 0; }
+  #inline-notices .grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+  .surface-alert-info { border-color: var(--info); background: var(--info-subtle); color: var(--info-text); }
+  .surface-alert-success { border-color: var(--success); background: var(--success-subtle); color: var(--success-text); }
+  .surface-alert-warning { border-color: var(--warning); background: var(--warning-subtle); color: var(--warning-text); }
+  .surface-alert-destructive { border-color: var(--destructive); background: var(--destructive-subtle); color: var(--destructive-text); }
+  .surface-alert-celebration { border-color: var(--celebration-gold); background: var(--celebration-gold-subtle); color: var(--celebration-gold-text); }
+
+  /* ─────────── Stat tile demo ─────────── */
+  .stat { padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); }
+  .stat-label { font-size: var(--text-caption); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .stat-value { font-size: var(--text-h2); font-weight: 700; letter-spacing: -0.02em; margin: 0.375rem 0 0.25rem; font-variant-numeric: tabular-nums; }
   .stat-delta { font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem; }
   .delta-up { color: var(--status-present-text); }
   .delta-down { color: var(--status-absent-text); }
@@ -430,20 +480,20 @@
   .overlay-stage-mobile { min-height: 440px; align-items: flex-end; padding: 0; }
   .overlay-backdrop {
     position: absolute; inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(2px);
+    background: rgb(0 0 0 / 0.1);
+    backdrop-filter: blur(4px);
   }
   .overlay-panel {
     position: relative; z-index: 1;
     background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 24px 48px -12px rgba(0,0,0,0.25);
+    box-shadow: var(--elevation-overlay);
     display: flex; flex-direction: column;
     max-width: 100%;
   }
-  .overlay-dialog { width: 420px; }
+  .overlay-dialog { width: 420px; border-radius: var(--radius-xl); }
   .overlay-sheet { width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding-top: 0.5rem; max-height: 90%; }
-  .overlay-alert { width: 400px; padding: 1.25rem; }
+  .overlay-alert { width: 400px; padding: 1.25rem; border-radius: var(--radius-xl); }
   .overlay-handle {
     width: 36px; height: 4px; border-radius: 999px;
     background: var(--border); margin: 0.25rem auto 0.5rem;
@@ -508,349 +558,59 @@
   .portal-col { display: flex; flex-direction: column; }
 
   .phone {
-    width: 320px; max-width: 100%; margin: 0 auto;
+    width: 340px; max-width: 100%; margin: 0 auto;
     background: var(--background); color: var(--foreground);
-    border: 10px solid oklch(0.2 0.01 220); border-radius: 36px;
-    box-shadow: 0 20px 48px -12px rgba(0,0,0,0.2);
-    overflow: hidden; position: relative;
-    display: flex; flex-direction: column;
-    height: 620px;
+    border: 8px solid var(--foreground); border-radius: 32px;
+    box-shadow: var(--elevation-overlay); overflow: hidden;
+    display: flex; flex-direction: column; height: 620px;
   }
-  .phone-notch {
-    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    width: 96px; height: 18px;
-    background: oklch(0.2 0.01 220); border-radius: 0 0 14px 14px;
-    z-index: 2;
-  }
-  .phone-statusbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0.375rem 1.25rem 0.25rem;
-    font-size: 0.6875rem; font-weight: 600; font-family: var(--font-mono);
-    letter-spacing: 0.02em;
-  }
-  .phone-statusbar-right { display: flex; gap: 0.375rem; font-size: 0.625rem; opacity: 0.7; }
   .phone-header {
-    display: flex; align-items: center; gap: 0.625rem;
-    padding: 0.5rem 0.875rem 0.75rem;
-    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+    min-height: 3.5rem; padding: 0 1rem;
+    background: var(--card); border-bottom: 1px solid var(--border);
   }
+  .phone-brand { flex: 1; display: flex; align-items: center; gap: 0.5rem; }
+  .phone-brand img { border-radius: var(--radius-sm); }
   .phone-avatar {
-    width: 32px; height: 32px; border-radius: 50%;
-    background: color-mix(in oklab, var(--primary) 30%, transparent);
-    color: var(--primary); font-weight: 700; font-size: 0.75rem;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px;
+    background: var(--secondary); color: var(--primary-text); border-radius: 50%;
+    font-size: 0.75rem; font-weight: 700;
   }
-  .phone-hello { font-size: 0.8125rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .phone-sub { font-size: 0.6875rem; color: var(--muted-foreground); }
+  .phone-user { font-size: 0.75rem; }
   .phone-body {
     flex: 1; overflow-y: auto;
-    padding: 1rem 0.875rem 1rem;
-    display: flex; flex-direction: column; gap: 0.875rem;
+    display: flex; flex-direction: column; gap: 1rem;
+    padding: 1rem 0.875rem;
   }
+  .phone-page-heading { display: grid; gap: 0.25rem; }
+  .phone-page-heading strong { font-size: var(--text-h1); font-weight: 600; line-height: 1.25; }
+  .phone-page-heading span, .phone-card > span, .phone-task > div > span { color: var(--muted-foreground); font-size: 0.75rem; }
+  .phone-line { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; }
+  .phone-section { display: grid; gap: 0.5rem; }
+  .phone-eyebrow { color: var(--muted-foreground); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .phone-task {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    min-height: 4.25rem; padding: 0.75rem; border: 1px solid var(--border);
+    border-radius: var(--radius-xl); background: var(--card);
+  }
+  .phone-task div { display: grid; }
+  .phone-task > span { font-size: 0.75rem; color: var(--muted-foreground); }
+  .phone-card { display: grid; gap: 0.5rem; padding: 0.875rem; }
+  .phone-card-primary { background: var(--secondary); }
+  .phone-card-primary > strong { font-size: var(--text-h2); }
   .phone-bottomnav {
-    display: grid; grid-template-columns: repeat(5, 1fr);
-    border-top: 1px solid var(--border);
-    background: var(--card);
-    padding: 0.375rem 0 0.625rem;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 4rem; border-top: 1px solid var(--border); background: var(--card);
   }
   .phone-bottomnav .tab {
-    display: flex; flex-direction: column; align-items: center; gap: 0.125rem;
-    font-size: 0.5625rem; color: var(--muted-foreground);
-    position: relative; padding: 0.25rem 0.125rem;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.25rem;
+    min-width: 0; position: relative; padding-inline: 2px; color: var(--muted-foreground);
+    font-size: 0.75rem; font-weight: 500; line-height: 1rem; overflow-wrap: anywhere; text-align: center;
   }
-  .phone-bottomnav .tab.active {
-    color: var(--primary); font-weight: 600;
-  }
+  .phone-bottomnav .tab.active { color: var(--primary-text); }
   .phone-bottomnav .tab.active::before {
-    content: ""; position: absolute; top: -0.375rem; left: 50%; transform: translateX(-50%);
-    width: 24px; height: 2px; background: var(--primary); border-radius: 999px;
-  }
-  .phone-bottomnav .tab span { font-size: 0.5625rem; }
-
-  .clock-btn {
-    width: 120px; height: 120px; border-radius: 50%; margin: 0 auto;
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-weight: 700; font-size: 1rem; letter-spacing: 0.04em;
-    box-shadow: 0 12px 24px -6px color-mix(in oklab, var(--primary) 40%, transparent);
-  }
-  .clock-btn-primary { background: var(--primary); }
-
-  .child-tabs {
-    display: flex; gap: 0.375rem; padding: 0.25rem;
-    background: var(--muted); border-radius: 999px;
-    width: fit-content;
-  }
-  .child-tab {
-    padding: 0.375rem 0.75rem; font-size: 0.75rem; font-weight: 500;
-    color: var(--muted-foreground); border-radius: 999px;
-  }
-  .child-tab.active {
-    background: var(--card); color: var(--foreground); font-weight: 600;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  }
-
-  /* Household Overview (Option A — promoted) */
-  .household-banner {
-    display: flex; align-items: center; gap: 0.625rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: var(--radius-md);
-    background: color-mix(in oklab, var(--status-absent) 8%, var(--card));
-    border: 1px solid color-mix(in oklab, var(--status-absent) 25%, var(--border));
-    border-left: 3px solid var(--status-absent);
-  }
-  .household-banner-icon {
-    width: 28px; height: 28px; border-radius: 50%;
-    display: grid; place-items: center;
-    background: color-mix(in oklab, var(--status-absent) 18%, var(--card));
-    color: var(--status-absent-text); flex-shrink: 0;
-  }
-
-  .child-row {
-    border: 1px solid var(--border); border-radius: var(--radius-md);
-    background: var(--card);
-    overflow: hidden;
-  }
-  .child-row-head {
-    display: flex; align-items: center; gap: 0.625rem;
-    padding: 0.625rem 0.75rem;
-  }
-  .child-row-name { font-weight: 700; font-size: 0.875rem; line-height: 1.2; }
-  .child-row-meta { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 2px; }
-  .child-row-signals {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 1px;
-    background: var(--border);
-    border-top: 1px solid var(--border);
-  }
-  .child-sig {
-    background: var(--card);
-    padding: 0.5rem 0.5rem 0.625rem;
-    text-align: center;
-    min-height: 58px;
-    display: flex; flex-direction: column; justify-content: center;
-    position: relative;
-  }
-  .child-sig-label {
-    font-size: 0.5625rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--muted-foreground);
-  }
-  .child-sig-val {
-    font-size: 0.875rem; font-weight: 700;
-    margin-top: 2px;
-    font-family: var(--font-sans);
-  }
-  .child-sig-val.font-currency { font-family: var(--font-mono); font-size: 0.8125rem; }
-  .child-sig-foot {
-    font-size: 0.5625rem; color: var(--muted-foreground); margin-top: 1px;
-  }
-  .child-sig-alert { background: color-mix(in oklab, var(--status-absent) 8%, var(--card)); }
-  .child-sig-alert .child-sig-val { color: var(--status-absent-text); }
-  .child-sig-alert .child-sig-label { color: var(--status-absent-text); }
-  .child-sig-alert-amber { background: color-mix(in oklab, var(--status-late) 10%, var(--card)); }
-  .child-sig-alert-amber .child-sig-val { color: var(--status-late-text); }
-  .child-sig-alert-amber .child-sig-label { color: var(--status-late-text); }
-
-  /* ═══════════ Multi-child brainstorm ═══════════ */
-  .mc-brainstorm {
-    border: 1px solid color-mix(in oklab, var(--primary) 25%, var(--border));
-    border-radius: var(--radius-lg);
-    background: color-mix(in oklab, var(--secondary) 35%, var(--card));
-    padding: 1.25rem 1.375rem 1.375rem;
-    margin-top: 1.5rem;
-  }
-  .mc-brain-eyebrow {
-    font-size: 0.625rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--primary); margin-bottom: 0.375rem;
-  }
-  .mc-brain-title {
-    font-size: 1.0625rem; font-weight: 700; margin: 0 0 0.5rem;
-  }
-  .mc-brain-desc {
-    font-size: 0.8125rem; line-height: 1.55; color: var(--muted-foreground);
-    margin: 0 0 1.25rem; max-width: 680px;
-  }
-  .mc-brain-desc em { color: var(--foreground); font-style: italic; font-weight: 500; }
-
-  .mc-grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;
-    margin-bottom: 1.125rem;
-  }
-  .mc-option {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 1rem 1.125rem 1.125rem;
-    display: flex; flex-direction: column;
-  }
-  .mc-opt-head { display: flex; gap: 0.625rem; margin-bottom: 0.75rem; }
-  .mc-opt-tag {
-    display: grid; place-items: center;
-    width: 26px; height: 26px; border-radius: 7px;
-    font-family: var(--font-mono); font-weight: 700; font-size: 0.75rem;
-    color: #FFFFFF; flex-shrink: 0;
-  }
-  .mc-tag-a { background: var(--primary); color: var(--primary-foreground); }
-  .mc-tag-b { background: #8B5CF6; }
-  .mc-tag-c { background: #E879A7; }
-  .mc-tag-d { background: var(--status-late); }
-  .mc-opt-title { font-size: 0.875rem; font-weight: 700; line-height: 1.3; }
-  .mc-opt-sub { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 2px; line-height: 1.45; }
-
-  .mc-mock {
-    background: color-mix(in oklab, var(--secondary) 40%, var(--background));
-    border-radius: var(--radius-md);
-    padding: 0.75rem;
-    margin-bottom: 0.875rem;
-    display: flex; flex-direction: column; gap: 0.5rem;
-    min-height: 180px;
-  }
-  .mc-mock-hello { font-size: 0.8125rem; font-weight: 700; }
-  .mc-mock-sub { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: -0.25rem; }
-
-  .mc-child-card {
-    display: flex; align-items: center; gap: 0.625rem;
-    padding: 0.5rem 0.625rem;
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .mc-child-alert { border-left: 3px solid var(--status-absent); }
-  .mc-child-avatar {
-    width: 32px; height: 32px; border-radius: 50%;
-    display: grid; place-items: center;
-    font-weight: 700; font-size: 0.8125rem;
-    flex-shrink: 0;
-  }
-  .mc-child-info { flex: 1; min-width: 0; }
-  .mc-child-name { font-size: 0.8125rem; font-weight: 600; }
-  .mc-child-signals { display: flex; gap: 0.375rem; flex-wrap: wrap; margin-top: 2px; }
-  .mc-sig { font-size: 0.625rem; color: var(--muted-foreground); }
-  .mc-sig-red { color: var(--status-absent-text); font-weight: 600; }
-  .mc-sig-amber { color: var(--status-late-text); font-weight: 600; }
-
-  .mc-avatar-row {
-    display: flex; gap: 0.625rem; overflow-x: auto;
-    padding: 0.25rem 0 0.125rem;
-  }
-  .mc-avatar-btn {
-    display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
-    background: transparent; border: 0; cursor: pointer;
-    padding: 0; flex-shrink: 0; min-width: 52px;
-    font-family: inherit;
-  }
-  .mc-avatar-circle {
-    width: 44px; height: 44px; border-radius: 50%;
-    background: var(--muted); color: var(--muted-foreground);
-    display: grid; place-items: center;
-    font-weight: 700; font-size: 0.9375rem;
-    position: relative; border: 2px solid transparent;
-  }
-  .mc-avatar-active .mc-avatar-circle {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px var(--card), 0 0 0 4px color-mix(in oklab, var(--primary) 40%, transparent);
-  }
-  .mc-avatar-all { background: var(--card); border: 1px dashed var(--border); color: var(--muted-foreground); }
-  .mc-avatar-dot {
-    position: absolute; top: -2px; right: -2px;
-    width: 10px; height: 10px; border-radius: 50%;
-    border: 2px solid var(--card);
-  }
-  .mc-dot-red { background: var(--status-absent); }
-  .mc-dot-amber { background: var(--status-late); }
-  .mc-avatar-name { font-size: 0.6875rem; color: var(--foreground); font-weight: 500; }
-  .mc-avatar-active .mc-avatar-name { color: var(--primary); font-weight: 600; }
-
-  .mc-focus-card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius-md); padding: 0.625rem 0.75rem;
-  }
-  .mc-focus-name { font-size: 0.8125rem; font-weight: 700; }
-  .mc-focus-meta { font-size: 0.6875rem; color: var(--muted-foreground); margin-top: 2px; }
-
-  .mc-switcher-bar {
-    display: flex; align-items: center; gap: 0.625rem;
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 0.5rem 0.75rem;
-  }
-  .mc-switcher-avatar {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: color-mix(in oklab, var(--primary) 15%, var(--card));
-    color: var(--primary);
-    display: grid; place-items: center;
-    font-weight: 700; font-size: 0.8125rem; flex-shrink: 0;
-  }
-  .mc-switcher-label { font-size: 0.5625rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-  .mc-switcher-name { font-size: 0.875rem; font-weight: 700; }
-  .mc-switcher-badge {
-    margin-left: auto;
-    font-size: 0.625rem; font-weight: 600;
-    padding: 0.1875rem 0.5rem; border-radius: 999px;
-    background: var(--status-absent-subtle); color: var(--status-absent-text);
-  }
-
-  .mc-chip-row { display: flex; gap: 0.375rem; margin-bottom: 0.25rem; }
-  .mc-chip {
-    font-size: 0.6875rem; font-weight: 500;
-    padding: 0.25rem 0.625rem; border-radius: 999px;
-    background: var(--card); border: 1px solid var(--border);
-    color: var(--muted-foreground);
-  }
-  .mc-chip-active {
-    background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 600;
-  }
-
-  .mc-feed-item {
-    display: flex; gap: 0.625rem; padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .mc-feed-item:last-child { border-bottom: 0; }
-  .mc-feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-  .mc-feed-title { font-size: 0.75rem; font-weight: 600; line-height: 1.3; }
-  .mc-feed-meta { font-size: 0.625rem; color: var(--muted-foreground); margin-top: 2px; }
-
-  .mc-opt-eval {
-    display: grid; gap: 0.375rem;
-    font-size: 0.6875rem; line-height: 1.5; color: var(--foreground);
-    margin-top: auto;
-  }
-  .mc-eval-label {
-    display: inline-block;
-    font-size: 0.5625rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 1px 6px; border-radius: 3px;
-    margin-right: 6px;
-  }
-  .mc-eval-pro { background: var(--status-present-subtle); color: var(--status-present-text); }
-  .mc-eval-con { background: var(--status-absent-subtle); color: var(--status-absent-text); }
-  .mc-eval-fit { background: var(--muted); color: var(--muted-foreground); }
-
-  .mc-recommend {
-    background: var(--card); border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--border));
-    border-left: 3px solid var(--primary);
-    border-radius: var(--radius-md);
-    padding: 0.875rem 1rem 1rem;
-  }
-  .mc-rec-head {
-    display: flex; align-items: center; gap: 0.375rem;
-    color: var(--primary); font-size: 0.8125rem;
-    margin-bottom: 0.375rem;
-  }
-  .mc-recommend p { font-size: 0.8125rem; line-height: 1.55; margin: 0 0 0.375rem; color: var(--foreground); }
-  .mc-recommend p strong { color: var(--primary); }
-  .mc-rec-small { font-size: 0.6875rem !important; color: var(--muted-foreground) !important; }
-
-  @media (max-width: 900px) {
-    .mc-grid { grid-template-columns: 1fr; }
-  }
-
-  .avatar-circle {
-    width: 44px; height: 44px; border-radius: 50%;
-    background: color-mix(in oklab, var(--primary) 18%, var(--card));
-    color: var(--primary); font-weight: 700; font-size: 1.125rem;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 32px; height: 2px; background: var(--primary-text); border-radius: 999px;
   }
 
   .quick-link-grid {
@@ -1089,6 +849,9 @@
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
     .grid-3 { grid-template-columns: 1fr; }
   }
+  @media (max-width: 560px) {
+    #stats .grid-2 { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -1196,7 +959,7 @@
         <a href="#status"><span class="toc-num">08</span>Status Badges</a>
         <a href="#datatable"><span class="toc-num">09</span>DataTable</a>
         <a href="#states"><span class="toc-num">10</span>States</a>
-        <a href="#stats"><span class="toc-num">11</span>Stat Cards</a>
+        <a href="#stats"><span class="toc-num">11</span>Cards and metrics</a>
         <a href="#recipes"><span class="toc-num">12</span>Page Recipes</a>
         <a href="#component-inventory"><span class="toc-num">17</span>Component inventory</a>
       </nav>
@@ -1917,6 +1680,25 @@
           </div>
         </div>
 
+        <div class="card" id="inline-notices" style="margin-top: 1rem;">
+          <div class="card-title">Inline notices</div>
+          <p class="card-hint">Use Alert beside the workflow it describes. Static notices stay quiet. Live updates use a polite announcement, and immediate errors may announce assertively. Actions wrap under the message in narrow layouts.</p>
+          <div class="grid-2">
+            <div class="surface-alert"><strong class="surface-alert-message">Belum ada struktur gaji</strong></div>
+            <div class="surface-alert surface-alert-info"><strong class="surface-alert-message">Tagihan diterbitkan setiap awal bulan</strong></div>
+            <div class="surface-alert surface-alert-success"><strong class="surface-alert-message">Kehadiran hari ini sudah tercatat</strong></div>
+            <div class="surface-alert surface-alert-warning"><strong class="surface-alert-message">Ada draf tagihan yang belum selesai</strong></div>
+            <div class="surface-alert surface-alert-destructive">
+              <div class="surface-alert-message">
+                <strong>Kehadiran belum bisa dimuat</strong>
+                <p>Muat ulang untuk melihat catatan hari ini.</p>
+              </div>
+              <button class="btn btn-outline btn-sm" type="button">Coba lagi</button>
+            </div>
+            <div class="surface-alert surface-alert-celebration"><strong class="surface-alert-message">Semua tagihan sudah lunas</strong></div>
+          </div>
+        </div>
+
         <div class="card" style="margin-top: 1rem;">
           <div class="card-title">Shared primitives</div>
           <div class="card-hint">Reach for these before hand-rolling. A guard test (<code class="mono" style="font-size: 0.6875rem;">design-token-guard.test.ts</code>) fails on raw palette colours, arbitrary hex, <code class="mono" style="font-size: 0.6875rem;">Loader2</code>/<code class="mono" style="font-size: 0.6875rem;">animate-spin</code> outside Spinner and <code class="mono" style="font-size: 0.6875rem;">bg-&lt;semantic&gt;/10</code> tints.</div>
@@ -1930,11 +1712,22 @@
         </div>
       </section>
 
-      <!-- ────────── 11 STAT CARDS ────────── -->
+      <!-- ────────── 11 CARDS AND METRICS ────────── -->
       <section class="doc-section" id="stats">
         <div class="section-head">
-          <h2 class="section-title"><span class="section-num">11</span>Stat Cards</h2>
-          <p class="section-desc">The dashboard building block. Always label + value + delta, currency in JetBrains, delta color-coded.</p>
+          <h2 class="section-title"><span class="section-num">11</span>Cards and metrics</h2>
+          <p class="section-desc">Use Card for custom composition, SectionCard for a titled detail block, and StatTile for a value with a label and optional hint. Use tabular figures, with JetBrains Mono for admin currency and Plus Jakarta Sans for parent amounts.</p>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 1rem;">
+          <div class="card surface-card">
+            <div class="card-title">Card</div>
+            <div class="card-hint">Border and resting elevation for custom header, content, and footer composition.</div>
+          </div>
+          <div class="surface-section">
+            <h3>SectionCard</h3>
+            <p>Flat border for detail and portal sections. An optional heading names the section.</p>
+          </div>
         </div>
 
         <div class="grid-4">
@@ -1964,7 +1757,7 @@
           </div>
           <div class="stat">
             <div class="stat-label">Pengajuan Izin</div>
-            <div class="stat-value">4</div>
+            <div class="stat-value" style="color: var(--warning-text);">4</div>
             <div class="stat-delta" style="color: var(--muted-foreground);">
               Menunggu persetujuan
             </div>
@@ -2252,358 +2045,113 @@
       <section class="doc-section" id="portal">
         <div class="section-head">
           <h2 class="section-title"><span class="section-num">14</span>Portal Shell</h2>
-          <p class="section-desc">Teacher and Parent portals are <strong>mobile-first PWAs</strong>. One spec, two palettes. Fixed <code>max-w-md</code> (448 px) · header + content + bottom nav · safe-area aware · Framer-motion underline on active tab.</p>
+          <p class="section-desc">Teacher and parent share a mobile-first shell with the same palette, header and bottom navigation. The centered <code>max-w-md</code> column stays the same on desktop. The screens below show how each role puts its daily work first.</p>
         </div>
 
         <div class="portal-row">
-          <!-- Teacher portal -->
           <div class="portal-col">
             <div class="subsection-title">Teacher · <code>/teacher</code></div>
             <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-statusbar">
-                <span>9:41</span>
-                <div class="phone-statusbar-right"><span>●●●●</span><span>5G</span><span>100%</span></div>
-              </div>
               <div class="phone-header">
-                <div class="phone-avatar">UK</div>
-                <div style="flex: 1; min-width: 0;">
-                  <div class="phone-hello">Ustadzah Khadijah</div>
-                  <div class="phone-sub">Guru · TK-B Anggur</div>
-                </div>
-                <button class="btn btn-ghost btn-sm btn-icon" aria-label="Logout"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></button>
+                <div class="phone-brand"><img src="/favicon-32x32.png" width="24" height="24" alt="" /><strong>Talib</strong></div>
+                <div class="phone-avatar" aria-hidden="true">SK</div>
+                <span class="phone-user">Sari</span>
+                <button class="btn btn-ghost btn-sm btn-icon" aria-label="Keluar"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></button>
               </div>
               <div class="phone-body">
-                <div style="text-align: center;">
-                  <div class="mono text-muted" style="font-size: 0.75rem;">Selasa, 22 April 2026</div>
-                  <div class="font-currency" style="font-size: 2.25rem; font-weight: 700; letter-spacing: -0.025em; margin-top: 0.25rem;">07:42:15</div>
+                <div class="phone-page-heading">
+                  <strong>Selamat pagi, Bu Guru Sari</strong>
+                  <span>Jumat, 13 November 2026</span>
                 </div>
-                <div class="clock-btn clock-btn-primary">MASUK</div>
-                <div style="text-align: center; font-size: 0.75rem; color: var(--muted-foreground); margin-top: -0.25rem;">
-                  <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display: inline; vertical-align: -1px;"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
-                  <span style="color: var(--status-present-text); font-weight: 500;">Di dalam area sekolah</span> · 42 m dari gerbang
+                <div class="phone-line">
+                  <span>Kehadiran pribadi belum dicatat</span>
+                  <button class="btn btn-outline btn-sm" type="button">Catat masuk</button>
                 </div>
-                <div class="card" style="padding: 0.875rem; margin-top: 0.25rem;">
-                  <div class="caption-note" style="margin: 0 0 0.5rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.625rem;">Status Hari Ini</div>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.25rem; text-align: center;">
-                    <div><div class="t-meta">Masuk</div><div class="font-currency" style="font-size: 0.875rem; font-weight: 600;">07:42</div></div>
-                    <div><div class="t-meta">Pulang</div><div class="font-currency" style="font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground);">—</div></div>
-                    <div><div class="t-meta">Status</div><div style="font-size: 0.8125rem; font-weight: 600; color: var(--status-present-text);">Hadir</div></div>
-                  </div>
+                <div class="phone-task">
+                  <div><strong>Gerbang</strong><span>Catat anak masuk dan pulang</span></div>
+                  <span>Buka ›</span>
+                </div>
+                <div class="surface-section phone-card phone-card-primary">
+                  <strong>TK B Anggur</strong>
+                  <span>Kelas hari ini · 18 siswa</span>
+                  <button class="btn btn-primary" type="button">Buka absensi kelas</button>
+                </div>
+                <div class="phone-eyebrow">Yang perlu diselesaikan</div>
+                <div class="phone-task">
+                  <div><strong>Jurnal harian TK B Anggur</strong><span>10 dari 18 siswa lengkap</span></div>
+                  <span>Buka ›</span>
                 </div>
               </div>
               <div class="phone-bottomnav">
-                <div class="tab active"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 2v8a1 1 0 001 1h4a1 1 0 001-1v-4h2v4a1 1 0 001 1h4a1 1 0 001-1v-8"/></svg><span>Beranda</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span>Kehadiran</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg><span>Kelas</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg><span>Penghubung</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg><span>Penilaian</span></div>
+                <div class="tab active"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 2v8a1 1 0 001 1h4a1 1 0 001-1v-4h2v4a1 1 0 001 1h4a1 1 0 001-1v-8"/></svg><span>Beranda</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span>Absensi</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg><span>Jurnal</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg><span>Penilaian</span></div>
+                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>Lainnya</span></div>
               </div>
             </div>
-            <p class="caption-note">Centerpiece: big circular clock-in button. GPS coord captured silently. Status card below reads back today's check-in / checkout / derived status. 5 bottom tabs.</p>
+            <p class="caption-note">Beranda keeps personal attendance and Gerbang in a stable position. The featured class card leads to the next incomplete task. Sesi also belongs to Beranda.</p>
           </div>
 
-          <!-- Parent portal -->
           <div class="portal-col">
             <div class="subsection-title">Parent · <code>/parent</code></div>
             <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-statusbar">
-                <span>9:41</span>
-                <div class="phone-statusbar-right"><span>●●●●</span><span>5G</span><span>100%</span></div>
-              </div>
               <div class="phone-header">
-                <div class="phone-avatar" style="background: color-mix(in oklab, var(--primary) 20%, transparent);">SR</div>
-                <div style="flex: 1; min-width: 0;">
-                  <div class="phone-hello">Bu Sari Rahman</div>
-                  <div class="phone-sub">2 anak</div>
-                </div>
-                <button class="btn btn-ghost btn-sm btn-icon" aria-label="Logout"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></button>
+                <div class="phone-brand"><img src="/favicon-32x32.png" width="24" height="24" alt="" /><strong>Talib</strong></div>
+                <div class="phone-avatar" aria-hidden="true">NR</div>
+                <span class="phone-user">Nur</span>
+                <button class="btn btn-ghost btn-sm btn-icon" aria-label="Keluar"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg></button>
               </div>
               <div class="phone-body">
-                <div>
-                  <div style="font-size: 1rem; font-weight: 700; letter-spacing: -0.01em;">Assalamu'alaikum,</div>
-                  <div style="font-size: 1rem; font-weight: 700;">Bu Sari</div>
-                  <div class="phone-sub">Portal Orang Tua · An Nisaa' Sekolahku</div>
+                <div class="phone-page-heading">
+                  <strong>Kabar keluarga hari ini</strong>
+                  <span>Assalamu'alaikum, Ibu Nur</span>
+                  <span>Jumat, 13 November 2026</span>
                 </div>
-
-                <!-- Household summary banner -->
-                <div class="household-banner">
-                  <div class="household-banner-icon">
-                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <div class="phone-section">
+                  <div class="phone-eyebrow">Hari ini</div>
+                  <div class="surface-alert surface-alert-success">
+                    <div class="surface-alert-message">
+                      <strong>2 anak sudah hadir.</strong>
+                      <p>Kehadiran hari ini dicatat sekolah.</p>
+                    </div>
                   </div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 0.75rem; font-weight: 700;">2 dari 2 anak perlu perhatian</div>
-                    <div class="phone-sub" style="margin-top: 1px;">1 tagihan jatuh tempo · 1 sakit hari ini</div>
-                  </div>
-                </div>
-
-                <!-- Child · Aisyah -->
-                <div class="child-row">
-                  <div class="child-row-head">
-                    <div class="avatar-circle">A</div>
-                    <div style="flex: 1; min-width: 0;">
-                      <div class="child-row-name">Aisyah Putri Rahman</div>
-                      <div class="child-row-meta">TK-B Anggur · <span style="color: var(--status-present-text); font-weight: 600;">Hadir hari ini</span></div>
-                    </div>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: var(--muted-foreground); flex-shrink: 0;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                  </div>
-                  <div class="child-row-signals">
-                    <div class="child-sig child-sig-alert">
-                      <div class="child-sig-label">Tagihan</div>
-                      <div class="child-sig-val font-currency">Rp 450rb</div>
-                      <div class="child-sig-foot">Jatuh tempo 3 hari</div>
-                    </div>
-                    <div class="child-sig">
-                      <div class="child-sig-label">Kehadiran</div>
-                      <div class="child-sig-val">6/7</div>
-                      <div class="child-sig-foot">Minggu ini</div>
-                    </div>
-                    <div class="child-sig">
-                      <div class="child-sig-label">Rapor</div>
-                      <div class="child-sig-val" style="font-size: 0.8125rem; color: var(--status-present-text);">Tersedia</div>
-                      <div class="child-sig-foot">Semester 2</div>
-                    </div>
+                  <div class="phone-task">
+                    <div><strong>Tagihan Aisyah</strong><span>1 tagihan belum dibayar</span></div>
+                    <strong>Rp 450.000 ›</strong>
                   </div>
                 </div>
-
-                <!-- Child · Yusuf -->
-                <div class="child-row">
-                  <div class="child-row-head">
-                    <div class="avatar-circle" style="background: color-mix(in oklab, var(--status-late) 18%, var(--card)); color: var(--status-late-text);">Y</div>
-                    <div style="flex: 1; min-width: 0;">
-                      <div class="child-row-name">Yusuf Ihsan Rahman</div>
-                      <div class="child-row-meta">KB Mangga · <span style="color: var(--status-late-text); font-weight: 600;">Sakit hari ini</span></div>
+                <div class="phone-section">
+                  <div class="phone-eyebrow">Anak saya</div>
+                  <div class="surface-section phone-card">
+                    <div class="phone-line"><strong>Aisyah Putri Rahman</strong><span class="badge badge-present">Hadir</span></div>
+                    <span>TK B Anggur</span>
+                    <p><strong>Catatan guru</strong> · Berbagi mainan dengan teman.</p>
+                    <div class="phone-line">
+                      <button class="btn btn-primary btn-sm" type="button">Baca catatan</button>
+                      <button class="btn btn-outline btn-sm" type="button">Lihat kehadiran</button>
                     </div>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: var(--muted-foreground); flex-shrink: 0;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                   </div>
-                  <div class="child-row-signals">
-                    <div class="child-sig">
-                      <div class="child-sig-label">Tagihan</div>
-                      <div class="child-sig-val" style="font-size: 0.8125rem; color: var(--status-present-text);">Lunas</div>
-                      <div class="child-sig-foot">Okt 2025</div>
-                    </div>
-                    <div class="child-sig">
-                      <div class="child-sig-label">Kehadiran</div>
-                      <div class="child-sig-val">4/7</div>
-                      <div class="child-sig-foot">Minggu ini</div>
-                    </div>
-                    <div class="child-sig child-sig-alert-amber">
-                      <div class="child-sig-label">Catatan</div>
-                      <div class="child-sig-val" style="font-size: 0.8125rem;">Baru</div>
-                      <div class="child-sig-foot">Dari Ustadzah</div>
-                    </div>
+                  <div class="surface-section phone-card">
+                    <div class="phone-line"><strong>Yusuf Ihsan Rahman</strong><span class="badge badge-present">Hadir</span></div>
+                    <span>KB Mangga</span>
                   </div>
                 </div>
               </div>
               <div class="phone-bottomnav">
-                <div class="tab active"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 2v8a1 1 0 001 1h4a1 1 0 001-1v-4h2v4a1 1 0 001 1h4a1 1 0 001-1v-8"/></svg><span>Beranda</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2v16z"/></svg><span>Tagihan</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span>Kehadiran</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg><span>Penghubung</span></div>
-                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg><span>Rapor</span></div>
+                <div class="tab active"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 2v8a1 1 0 001 1h4a1 1 0 001-1v-4h2v4a1 1 0 001 1h4a1 1 0 001-1v-8"/></svg><span>Beranda</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2v16z"/></svg><span>Tagihan</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span>Kehadiran</span></div>
+                <div class="tab"><svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg><span>Jurnal</span></div>
+                <div class="tab"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>Lainnya</span></div>
               </div>
             </div>
-            <p class="caption-note"><strong>Household Overview (Option A)</strong> · replaces the old pill-tabs. Summary banner surfaces urgency across all kids, then one row per child with 3-up signal cells (Tagihan, Kehadiran, third-contextual). Tap row → pinned switcher on inner tabs (Option C). Pill-tabs kept only as fallback for exactly 2 kids with minimal activity.</p>
-          </div>
-        </div>
-
-        <!-- Brainstorm: multi-child selector -->
-        <div class="mc-brainstorm">
-          <div class="mc-brain-head">
-            <div>
-              <div class="mc-brain-eyebrow">Open question · from Ismail</div>
-              <h3 class="mc-brain-title">How should a parent with 2–4 kids switch and monitor them?</h3>
-              <p class="mc-brain-desc">Today's pill-tabs are thin: they scale badly past 2 kids, hide per-child state (is <em>Yusuf's</em> invoice also unpaid?), and force a tap-to-see-anything loop. Below are four alternatives, each with trade-offs. The right answer likely depends on how many kids the median parent has and whether they want per-child focus or household overview.</p>
-            </div>
-          </div>
-
-          <!-- 2×2 option grid -->
-          <div class="mc-grid">
-
-            <!-- OPTION A -->
-            <div class="mc-option">
-              <div class="mc-opt-head">
-                <span class="mc-opt-tag mc-tag-a">A</span>
-                <div>
-                  <div class="mc-opt-title">Household Overview (no switcher)</div>
-                  <div class="mc-opt-sub">Show all kids as horizontal cards. Each row = one child with live signals.</div>
-                </div>
-              </div>
-
-              <!-- Mini mock -->
-              <div class="mc-mock">
-                <div class="mc-mock-hello">Assalamu'alaikum, Bu Sari</div>
-                <div class="mc-mock-sub">Anak-anak Anda · 2 dari 2 butuh perhatian</div>
-
-                <div class="mc-child-card mc-child-alert">
-                  <div class="mc-child-avatar" style="background: color-mix(in oklab, var(--status-absent) 20%, var(--card)); color: var(--status-absent-text);">A</div>
-                  <div class="mc-child-info">
-                    <div class="mc-child-name">Aisyah · TK-B</div>
-                    <div class="mc-child-signals">
-                      <span class="mc-sig mc-sig-red">• Tagihan Rp 450rb</span>
-                      <span class="mc-sig">Hadir hari ini</span>
-                    </div>
-                  </div>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: var(--muted-foreground);"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                </div>
-
-                <div class="mc-child-card mc-child-alert">
-                  <div class="mc-child-avatar" style="background: color-mix(in oklab, var(--status-late) 20%, var(--card)); color: var(--status-late-text);">Y</div>
-                  <div class="mc-child-info">
-                    <div class="mc-child-name">Yusuf · KB</div>
-                    <div class="mc-child-signals">
-                      <span class="mc-sig mc-sig-amber">• Sakit hari ini</span>
-                      <span class="mc-sig">Tagihan lunas</span>
-                    </div>
-                  </div>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: var(--muted-foreground);"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                </div>
-              </div>
-
-              <div class="mc-opt-eval">
-                <div><span class="mc-eval-label mc-eval-pro">Pros</span> No switcher needed · triage at a glance · scales cleanly to 4+ kids · urgency surfaces automatically</div>
-                <div><span class="mc-eval-label mc-eval-con">Cons</span> Deeper (1 extra tap to reach any detail) · home page busier with 3–4 kids · no "focused" mode</div>
-                <div><span class="mc-eval-label mc-eval-fit">Best for</span> Large families (3–4 kids) · parents who want triage view · heavy invoice/attendance activity</div>
-              </div>
-            </div>
-
-            <!-- OPTION B -->
-            <div class="mc-option">
-              <div class="mc-opt-head">
-                <span class="mc-opt-tag mc-tag-b">B</span>
-                <div>
-                  <div class="mc-opt-title">Avatar Segmented Row</div>
-                  <div class="mc-opt-sub">Circular avatars with dot-indicators. "All kids" option on the left.</div>
-                </div>
-              </div>
-
-              <div class="mc-mock">
-                <div class="mc-mock-hello">Assalamu'alaikum, Bu Sari</div>
-                <div class="mc-avatar-row">
-                  <button class="mc-avatar-btn">
-                    <div class="mc-avatar-circle mc-avatar-all"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="15" cy="9" r="3"/><circle cx="12" cy="15" r="3"/></svg></div>
-                    <div class="mc-avatar-name">Semua</div>
-                  </button>
-                  <button class="mc-avatar-btn mc-avatar-active">
-                    <div class="mc-avatar-circle" style="background: color-mix(in oklab, var(--primary) 18%, var(--card)); color: var(--primary);">A<span class="mc-avatar-dot mc-dot-red"></span></div>
-                    <div class="mc-avatar-name">Aisyah</div>
-                  </button>
-                  <button class="mc-avatar-btn">
-                    <div class="mc-avatar-circle" style="background: color-mix(in oklab, var(--status-late) 18%, var(--card)); color: var(--status-late-text);">Y<span class="mc-avatar-dot mc-dot-amber"></span></div>
-                    <div class="mc-avatar-name">Yusuf</div>
-                  </button>
-                </div>
-                <div class="mc-focus-card">
-                  <div class="mc-focus-name">Aisyah Putri Rahman</div>
-                  <div class="mc-focus-meta">TK-B Anggur · Hadir · Tagihan Rp 450rb</div>
-                </div>
-              </div>
-
-              <div class="mc-opt-eval">
-                <div><span class="mc-eval-label mc-eval-pro">Pros</span> Warmer & child-focused · supports "All kids" combined view · dots surface urgency · scales to 5+ with overflow</div>
-                <div><span class="mc-eval-label mc-eval-con">Cons</span> Avatars need real photos to pay off (initials look generic) · still one-at-a-time default</div>
-                <div><span class="mc-eval-label mc-eval-fit">Best for</span> Schools that collect student photos · parents with 2–3 kids · brand moment on home screen</div>
-              </div>
-            </div>
-
-            <!-- OPTION C -->
-            <div class="mc-option">
-              <div class="mc-opt-head">
-                <span class="mc-opt-tag mc-tag-c">C</span>
-                <div>
-                  <div class="mc-opt-title">Top-level Switcher (iOS-family style)</div>
-                  <div class="mc-opt-sub">Persistent avatar + name in header. Tap to reveal a sheet with all kids.</div>
-                </div>
-              </div>
-
-              <div class="mc-mock">
-                <div class="mc-switcher-bar">
-                  <div class="mc-switcher-avatar">A</div>
-                  <div>
-                    <div class="mc-switcher-label">Menampilkan</div>
-                    <div class="mc-switcher-name">Aisyah <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="display:inline; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></div>
-                  </div>
-                  <span class="mc-switcher-badge">1 perlu bayar</span>
-                </div>
-                <div class="mc-focus-card" style="margin-top: 0.5rem;">
-                  <div class="mc-focus-name">Aisyah Putri Rahman</div>
-                  <div class="mc-focus-meta">TK-B Anggur · Hadir · Tagihan Rp 450rb</div>
-                </div>
-                <div class="mc-focus-card" style="background: color-mix(in oklab, var(--secondary) 40%, var(--card));">
-                  <div class="mc-focus-name" style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 500;">Kuasai semua tab di bawah — semua data otomatis difilter ke Aisyah.</div>
-                </div>
-              </div>
-
-              <div class="mc-opt-eval">
-                <div><span class="mc-eval-label mc-eval-pro">Pros</span> Compact · always-visible active-child context · one tap reveals roster in a sheet · familiar from Apple Family / Notion workspaces</div>
-                <div><span class="mc-eval-label mc-eval-con">Cons</span> Hides other kids until you tap · no at-a-glance comparison · badge can only summarize, not detail</div>
-                <div><span class="mc-eval-label mc-eval-fit">Best for</span> Parents who live inside one child's context at a time · heavy per-child workflows (report-card reviews)</div>
-              </div>
-            </div>
-
-            <!-- OPTION D -->
-            <div class="mc-option">
-              <div class="mc-opt-head">
-                <span class="mc-opt-tag mc-tag-d">D</span>
-                <div>
-                  <div class="mc-opt-title">Combined Feed + Filter Chips</div>
-                  <div class="mc-opt-sub">Default is "All kids" — a chronological feed. Chips filter down to one.</div>
-                </div>
-              </div>
-
-              <div class="mc-mock">
-                <div class="mc-mock-hello" style="margin-bottom: 0.25rem;">Assalamu'alaikum, Bu Sari</div>
-                <div class="mc-chip-row">
-                  <span class="mc-chip mc-chip-active">Semua (2)</span>
-                  <span class="mc-chip">Aisyah</span>
-                  <span class="mc-chip">Yusuf</span>
-                </div>
-                <div class="mc-feed-item mc-feed-red">
-                  <div class="mc-feed-dot" style="background: var(--status-absent);"></div>
-                  <div class="mc-feed-body">
-                    <div class="mc-feed-title">Tagihan Aisyah jatuh tempo 3 hari</div>
-                    <div class="mc-feed-meta">Rp 450.000 · SPP Oktober</div>
-                  </div>
-                </div>
-                <div class="mc-feed-item">
-                  <div class="mc-feed-dot" style="background: var(--status-late);"></div>
-                  <div class="mc-feed-body">
-                    <div class="mc-feed-title">Yusuf tidak hadir hari ini</div>
-                    <div class="mc-feed-meta">Sakit · catatan dari Ustadzah</div>
-                  </div>
-                </div>
-                <div class="mc-feed-item">
-                  <div class="mc-feed-dot" style="background: var(--status-present);"></div>
-                  <div class="mc-feed-body">
-                    <div class="mc-feed-title">Rapor Aisyah semester 2 tersedia</div>
-                    <div class="mc-feed-meta">Diterbitkan kemarin</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mc-opt-eval">
-                <div><span class="mc-eval-label mc-eval-pro">Pros</span> Zero switcher cognitive load · urgency-ranked · matches how parents actually think ("what's new?") · novel for school apps</div>
-                <div><span class="mc-eval-label mc-eval-con">Cons</span> Biggest departure from current app · needs notification infra (spec gap §17) · per-child detail still 2 taps away</div>
-                <div><span class="mc-eval-label mc-eval-fit">Best for</span> Schools where notification center lands first · parents who primarily consume (not administer)</div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Recommendation -->
-          <div class="mc-recommend">
-            <div class="mc-rec-head">
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-              <strong>Recommendation</strong>
-            </div>
-            <p>Lead with <strong>A (Household Overview)</strong> for the home screen and <strong>C (Top-level Switcher)</strong> for deeper tabs (Tagihan, Kehadiran, Rapor). A answers the triage question on entry, C keeps the active-child context pinned while drilling. B is the warm alternative if we can get parent consent for student photos. D is the bolder bet — consider it when the notification center (§17 gap) ships.</p>
-            <p class="mc-rec-small">Keep the current pill-tabs as the fallback for exactly 2 kids where there's space. For 3+, they break.</p>
+            <p class="caption-note">Beranda shows verified household signals, then one card per child with the next useful links. Lainnya keeps the linked child selected for Perkembangan and Rapor.</p>
           </div>
         </div>
 
         <div class="callout" style="margin-top: 1.5rem;">
-          <strong>Portal rules →</strong> Max width <code>max-w-md</code>. Never add a sidebar. Every page ends <code>pb-20</code> to clear the bottom nav. Headers use <code>PortalHeader</code>; bottom nav uses <code>PortalBottomNav</code>. Quick-link cards use <code>QuickLinkCard</code> — don't re-roll.
+          <strong>Shared navigation.</strong> <code>PortalHeader</code>, <code>PortalBottomNav</code> and <code>PortalMoreSheet</code> serve both roles. Use four direct destinations plus Lainnya, with 12 px labels that fit at 320 px. Lainnya focuses its first link and restores focus to the trigger on dismissal. The fixed navigation respects the safe area and snaps to the active destination when reduced motion is enabled.
         </div>
       </section>
 
@@ -2816,7 +2364,7 @@
             </thead>
             <tbody>
               <tr><td><code>accordion</code></td><td>Stacked sections that expand one at a time</td><td><span class="text-muted">—</span></td></tr>
-              <tr><td><code>alert</code></td><td>Inline callout for info, warning or error messages</td><td><span class="text-muted">—</span></td></tr>
+              <tr><td><code>alert</code></td><td>Inline notice with optional action and announcement</td><td><a href="#inline-notices">inline notices</a></td></tr>
               <tr><td><code>alert-dialog</code></td><td>Modal confirm for destructive or irreversible actions</td><td><a href="#overlays">overlays</a></td></tr>
               <tr><td><code>aspect-ratio</code></td><td>Locks a child to a width/height ratio</td><td><span class="text-muted">—</span></td></tr>
               <tr><td><code>async-combobox</code></td><td>Searchable select that loads options from the server</td><td><a href="#forms">forms</a></td></tr>
@@ -3612,317 +3160,7 @@
     table.audit-matrix td.audit-mod { padding-left: 0.5rem; }
   }
 
-  /* ─────────── Tweaks panel ─────────── */
-  .tweaks-panel {
-    position: fixed;
-    right: 1rem;
-    bottom: 1rem;
-    width: 320px;
-    max-height: calc(100vh - 2rem);
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 20px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.02);
-    z-index: 50;
-    display: none;
-    flex-direction: column;
-    overflow: hidden;
-    font-family: var(--font-sans);
-  }
-  .tweaks-panel.open { display: flex; }
-  .tweaks-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0.75rem 0.875rem;
-    border-bottom: 1px solid var(--border);
-    background: color-mix(in oklab, var(--secondary) 40%, var(--card));
-  }
-  .tweaks-title { font-weight: 600; font-size: 0.8125rem; display: flex; align-items: center; gap: 0.5rem; }
-  .tweaks-title-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent); }
-  .tweaks-close { border: 0; background: transparent; color: var(--muted-foreground); cursor: pointer; padding: 4px; border-radius: 4px; display: grid; place-items: center; }
-  .tweaks-close:hover { background: var(--muted); color: var(--foreground); }
-  .tweaks-body { overflow-y: auto; padding: 0.75rem 0.875rem 1rem; display: grid; gap: 1rem; }
-  .tweak-group { display: grid; gap: 0.5rem; }
-  .tweak-label {
-    font-size: 0.6875rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--muted-foreground);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .tweak-value { font-family: var(--font-mono); font-size: 0.6875rem; font-weight: 500; color: var(--foreground); text-transform: none; letter-spacing: 0; }
-  .tweak-seg {
-    display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr);
-    gap: 2px; padding: 2px;
-    background: var(--muted); border-radius: 8px;
-  }
-  .tweak-seg button {
-    padding: 0.4rem 0.5rem; border: 0; background: transparent;
-    font-family: inherit; font-size: 0.75rem; color: var(--muted-foreground);
-    border-radius: 6px; cursor: pointer; font-weight: 500;
-    transition: background 120ms ease, color 120ms ease;
-  }
-  .tweak-seg button:hover { color: var(--foreground); }
-  .tweak-seg button[aria-pressed="true"] {
-    background: var(--card); color: var(--foreground);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  }
-  .tweak-slider { width: 100%; accent-color: var(--primary); }
-  .tweak-hue-preview {
-    height: 8px; border-radius: 4px;
-    background: linear-gradient(90deg, #5DB4B8, #8B5CF6, #DC2626, #FF8C00, #00B37E, #5DB4B8);
-  }
-  .tweak-fab {
-    position: fixed; right: 1rem; bottom: 1rem;
-    width: 44px; height: 44px; border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--card); color: var(--foreground);
-    box-shadow: 0 8px 20px -6px rgba(0,0,0,0.18);
-    cursor: pointer; z-index: 49;
-    display: grid; place-items: center;
-    transition: transform 140ms ease;
-  }
-  .tweak-fab:hover { transform: translateY(-2px); }
-  .tweak-fab[aria-expanded="true"] { display: none; }
-  .tweak-fab .dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
-
-  /* Density modes */
-  body[data-density="compact"] {
-    --space-page-x: 1rem;
-    --space-page-y: 1.25rem;
-    --space-section: 1.25rem;
-    --space-card: 1rem;
-    --space-field: 0.625rem;
-  }
-  body[data-density="comfortable"] {
-    --space-page-x: 2rem;
-    --space-page-y: 2.75rem;
-    --space-section: 3rem;
-    --space-card: 2rem;
-    --space-field: 1.25rem;
-  }
-  body[data-density="compact"] .section-head { padding-bottom: 0.5rem; margin-bottom: 0.875rem; }
-  body[data-density="compact"] section.doc-section { margin-bottom: 2.5rem; }
-  body[data-density="comfortable"] section.doc-section { margin-bottom: 5rem; }
-  body[data-density="compact"] .page-header { margin-bottom: 1.75rem; }
-  body[data-density="comfortable"] .page-header { margin-bottom: 3.5rem; }
-
-
-  /* Badge style */
-  body[data-badge-style="flat"] .badge .dot { display: none; }
-  body[data-badge-style="flat"] .badge { padding: 0.25rem 0.5rem; }
-  body[data-badge-style="square"] .badge { border-radius: 4px; }
-  body[data-badge-style="outline"] .badge {
-    background: transparent !important;
-    border: 1px solid currentColor;
-  }
-  body[data-badge-style="outline"] .badge .dot { display: none; }
-
-  /* Sidebar visibility */
-  body[data-sidebar="hidden"] .app { grid-template-columns: 1fr; }
-  body[data-sidebar="hidden"] .sidebar { display: none; }
-
-  /* Section filter */
-  body[data-section-filter="tokens"] #buttons,
-  body[data-section-filter="tokens"] #forms,
-  body[data-section-filter="tokens"] #status,
-  body[data-section-filter="tokens"] #datatable,
-  body[data-section-filter="tokens"] #states,
-  body[data-section-filter="tokens"] #stats,
-  body[data-section-filter="tokens"] #recipes { display: none; }
-  body[data-section-filter="components"] #brand,
-  body[data-section-filter="components"] #colors,
-  body[data-section-filter="components"] #typography,
-  body[data-section-filter="components"] #spacing,
-  body[data-section-filter="components"] #icons,
-  body[data-section-filter="components"] #recipes { display: none; }
-  body[data-section-filter="recipes"] section.doc-section:not(#recipes) { display: none; }
 </style>
-
-<!-- ─────────── Tweaks FAB + Panel ─────────── -->
-<button class="tweak-fab" id="tweakFab" aria-expanded="false" aria-controls="tweakPanel" aria-label="Open tweaks">
-  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-  <span class="dot"></span>
-</button>
-
-<aside class="tweaks-panel" id="tweakPanel" role="dialog" aria-label="Tweaks">
-  <div class="tweaks-header">
-    <div class="tweaks-title"><span class="tweaks-title-dot"></span>Tweaks</div>
-    <button class="tweaks-close" id="tweakClose" aria-label="Close tweaks">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-    </button>
-  </div>
-  <div class="tweaks-body">
-
-    <div class="tweak-group">
-      <div class="tweak-label">Density</div>
-      <div class="tweak-seg" data-key="density" style="--cols: 3;">
-        <button data-val="compact">Compact</button>
-        <button data-val="default">Default</button>
-        <button data-val="comfortable">Roomy</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Accent hue <span class="tweak-value" id="hueVal">190°</span></div>
-      <input class="tweak-slider" type="range" min="0" max="360" step="1" id="hueSlider" />
-      <div class="tweak-hue-preview"></div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Corner radius <span class="tweak-value" id="radiusVal">0.625rem</span></div>
-      <input class="tweak-slider" type="range" min="0" max="1.25" step="0.0625" id="radiusSlider" />
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Badge style</div>
-      <div class="tweak-seg" data-key="badgeStyle" style="--cols: 4;">
-        <button data-val="pill">Pill</button>
-        <button data-val="flat">Flat</button>
-        <button data-val="square">Square</button>
-        <button data-val="outline">Outline</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Sidebar</div>
-      <div class="tweak-seg" data-key="sidebar" style="--cols: 2;">
-        <button data-val="visible">Visible</button>
-        <button data-val="hidden">Hidden</button>
-      </div>
-    </div>
-
-    <div class="tweak-group">
-      <div class="tweak-label">Show sections</div>
-      <div class="tweak-seg" data-key="sectionFilter" style="--cols: 2;">
-        <button data-val="all">All (12)</button>
-        <button data-val="tokens">Tokens only</button>
-        <button data-val="components">Components</button>
-        <button data-val="recipes">Recipes</button>
-      </div>
-    </div>
-
-    <div style="padding-top: 0.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-      <span class="mono" style="font-size: 0.6875rem; color: var(--muted-foreground);">Saved locally</span>
-      <button class="btn btn-ghost btn-sm" id="tweakReset">Reset</button>
-    </div>
-
-  </div>
-</aside>
-
-<script>
-(() => {
-  const DEFAULTS = /*EDITMODE-BEGIN*/{
-    "density": "default",
-    "hue": 190,
-    "radius": 0.6875,
-    "badgeStyle": "pill",
-    "sidebar": "hidden",
-    "sectionFilter": "all"
-  }/*EDITMODE-END*/;
-
-  const STORAGE_KEY = 'ds-tweaks-v1';
-  const state = { ...DEFAULTS, ...loadState() };
-
-  function loadState() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-    catch { return {}; }
-  }
-  function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    // Host protocol: merge changes back into source
-    try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: state }, '*'); } catch {}
-  }
-
-  function apply() {
-    const body = document.body;
-    body.dataset.density = state.density;
-    body.dataset.badgeStyle = state.badgeStyle;
-    body.dataset.sidebar = state.sidebar;
-    body.dataset.sectionFilter = state.sectionFilter;
-
-    const root = document.documentElement;
-
-    // Accent hue (rotate the teal palette)
-    const baseHue = 186; // current teal ~186
-    const shift = state.hue - baseHue;
-    root.style.setProperty('--primary', `oklch(0.73 0.07 ${state.hue})`);
-    root.style.setProperty('--ring', `oklch(0.73 0.07 ${state.hue})`);
-    root.style.setProperty('--secondary', `oklch(0.96 0.02 ${state.hue})`);
-    root.style.setProperty('--accent', `oklch(0.96 0.02 ${state.hue})`);
-
-    // Radius
-    root.style.setProperty('--radius', `${state.radius}rem`);
-
-    // Sync segmented buttons
-    document.querySelectorAll('.tweak-seg').forEach(seg => {
-      const key = seg.dataset.key;
-      seg.querySelectorAll('button').forEach(btn => {
-        btn.setAttribute('aria-pressed', String(state[key] === btn.dataset.val));
-      });
-    });
-
-    // Sync sliders
-    document.getElementById('hueSlider').value = state.hue;
-    document.getElementById('hueVal').textContent = `${state.hue}°`;
-    document.getElementById('radiusSlider').value = state.radius;
-    document.getElementById('radiusVal').textContent = `${state.radius}rem`;
-  }
-
-  // Wire up segmented buttons
-  document.querySelectorAll('.tweak-seg').forEach(seg => {
-    const key = seg.dataset.key;
-    seg.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-val]');
-      if (!btn) return;
-      state[key] = btn.dataset.val;
-      apply();
-      saveState();
-    });
-  });
-
-  // Sliders
-  document.getElementById('hueSlider').addEventListener('input', (e) => {
-    state.hue = Number(e.target.value);
-    apply();
-  });
-  document.getElementById('hueSlider').addEventListener('change', saveState);
-
-  document.getElementById('radiusSlider').addEventListener('input', (e) => {
-    state.radius = Number(e.target.value);
-    apply();
-  });
-  document.getElementById('radiusSlider').addEventListener('change', saveState);
-
-  // Reset
-  document.getElementById('tweakReset').addEventListener('click', () => {
-    Object.assign(state, DEFAULTS);
-    apply();
-    saveState();
-  });
-
-  // FAB toggle
-  const fab = document.getElementById('tweakFab');
-  const panel = document.getElementById('tweakPanel');
-  const closeBtn = document.getElementById('tweakClose');
-
-  function openPanel() { panel.classList.add('open'); fab.setAttribute('aria-expanded', 'true'); }
-  function closePanel() { panel.classList.remove('open'); fab.setAttribute('aria-expanded', 'false'); }
-
-  fab.addEventListener('click', openPanel);
-  closeBtn.addEventListener('click', closePanel);
-
-  // Host edit-mode protocol: register listener BEFORE announcing availability
-  window.addEventListener('message', (e) => {
-    if (!e.data || typeof e.data !== 'object') return;
-    if (e.data.type === '__activate_edit_mode') openPanel();
-    if (e.data.type === '__deactivate_edit_mode') closePanel();
-  });
-  try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch {}
-
-  // Initial paint + auto-open so user sees the panel immediately
-  apply();
-  openPanel();
-})();
-</script>
 
 </body>
 </html>

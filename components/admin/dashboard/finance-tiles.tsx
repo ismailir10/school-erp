@@ -1,4 +1,6 @@
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
+import { AlertTriangle, Wallet } from "lucide-react";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatTile } from "@/components/ui/stat-tile";
 import { formatRupiah } from "@/lib/format";
 import type { ReceivablesSummary } from "@/lib/dashboard/receivables";
@@ -22,12 +24,14 @@ export function FinanceTiles({ data }: { data: FinanceTilesData }) {
   }
 
   return (
-    <div data-testid="dashboard-finance-tiles" className="grid grid-cols-2 gap-3">
+    <StatsCardsRow data-testid="dashboard-finance-tiles" cols={2} className="mb-0">
       <StatTile
         href="/admin/invoices?status=OVERDUE"
         ariaLabel={`${data.overdueCount} tagihan lewat tempo`}
         label="Tagihan lewat tempo"
         value={data.overdueCount}
+        icon={AlertTriangle}
+        tone={data.overdueCount > 0 ? "critical" : "default"}
         mono
       />
       <StatTile
@@ -35,8 +39,9 @@ export function FinanceTiles({ data }: { data: FinanceTilesData }) {
         ariaLabel={`Total piutang ${formatRupiah(data.receivable)}`}
         label="Piutang (belum dibayar)"
         value={formatRupiah(data.receivable)}
+        icon={Wallet}
         mono
       />
-    </div>
+    </StatsCardsRow>
   );
 }

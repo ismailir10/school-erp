@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,7 +8,8 @@ import Link from "next/link";
 import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, DoorOpen, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Card } from "@/components/ui/card";
+import { SectionCard } from "@/components/ui/section-card";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter } from "@/components/ui/form";
@@ -100,7 +102,15 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const lateLabel=record?.status==="LATE" ? record.minutesLate ? ` · Terlambat ${record.minutesLate} menit` : " · Terlambat" : "";
   const personalAttendance=(
     <div className="space-y-2" aria-label="Kehadiran pribadi">
-      {attendanceUnavailable ? <EmptyState title="Kehadiran pribadi belum bisa dimuat" description="Muat ulang sebelum mencatat masuk atau pulang." actionLabel="Coba lagi" onAction={()=>router.refresh()} /> : (
+      {attendanceUnavailable ? (
+        <Alert variant="destructive" announcement="off">
+          <AlertTitle>Kehadiran pribadi belum bisa dimuat</AlertTitle>
+          <AlertDescription>Muat ulang sebelum mencatat masuk atau pulang.</AlertDescription>
+          <AlertAction>
+            <Button variant="outline" onClick={() => router.refresh()}>Coba lagi</Button>
+          </AlertAction>
+        </Alert>
+      ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 text-small">
           <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
             {record?.checkInTime ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
@@ -114,7 +124,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
       {locationMessage?<p className="text-small text-muted-foreground">{locationMessage}</p>:null}
     </div>
   );
-  return <div className="space-y-6">
+  return <div className="space-y-section">
     <ResponsiveFormDialog open={outside!==null} onOpenChange={o=>{if(!o&&!saving){setOutside(null);setSaveError(null);}}} title="Anda di luar area kampus" description={outsideCopy} size="md"
       footer={<FormDialogFooter formId={noteFormId} pending={saving} disabled={trimmedNote.length<MIN_NOTE} onCancel={()=>{setOutside(null);setSaveError(null);}} submitLabel="Kirim untuk disetujui" pendingLabel="Mengirim…"/>}>
       <form id={noteFormId} onSubmit={e=>{e.preventDefault();if(trimmedNote.length>=MIN_NOTE)void handleAction(trimmedNote);}} className="space-y-2">
@@ -130,19 +140,41 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     <TaskList>
       <TaskRow title="Gerbang" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} sudah masuk · ${gateSummary.pickedUp} pulang`:"Catat anak masuk dan pulang di gerbang"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
     </TaskList>
-    {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2">Keputusan cuti</h2><TaskList>
+    {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><SectionHeading as="h2" id="leave-decisions">Keputusan cuti</SectionHeading><TaskList>
       {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
         return <TaskRow key={d.id} title={`${LEAVE_TYPE_LABEL[d.leaveType]??d.leaveType} ${approved?"disetujui":"ditolak"}`} description={`${range}${!approved&&d.reviewNote?` · Alasan: ${d.reviewNote}`:""}`} meta="Lihat" href="/teacher/attendance?cuti=1" icon={approved?<CheckCircle2 className="size-5"/>:<CalendarX className="size-5"/>} tone={approved?"teal":"warm"}/>;})}
     </TaskList></section>:null}
-    {classesUnavailable ? <EmptyState icon={Users} title="Kelas belum bisa dimuat" description="Periksa koneksi dan coba lagi." actionLabel="Coba lagi" onAction={()=>router.refresh()}/> : primary ? (
-      <Card className="gap-4 border-primary/20 bg-secondary p-card" data-testid="current-class">
-        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-small font-semibold text-muted-foreground">Kelas hari ini</p>{primary.slot?<span className="text-small font-semibold text-primary-text">{SLOT_LABEL[primary.slot]??primary.slot}</span>:null}</div>
-        <div><h2 className="text-h1 tracking-tight">{primary.name}</h2>{sentraBadge(primary)}<p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
-        {primary.rosterCount>0?<Button nativeButton={false} role="link" render={<Link href={primaryHref}/>} className="h-auto min-h-11 w-full whitespace-normal py-3"><ClipboardList aria-hidden="true"/>{primaryLabel}</Button>:<EmptyState icon={Users} title="Belum ada siswa" description="Minta admin menambahkan siswa ke kelas ini."/>}
-      </Card>
-    ):<EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas."/>}
+    {classesUnavailable ? (
+      <Alert variant="destructive" announcement="off">
+        <AlertTitle>Kelas belum bisa dimuat</AlertTitle>
+        <AlertDescription>Periksa koneksi dan coba lagi.</AlertDescription>
+        <AlertAction>
+          <Button variant="outline" onClick={() => router.refresh()}>Coba lagi</Button>
+        </AlertAction>
+      </Alert>
+    ) : primary ? (
+      <SectionCard
+        title={primary.name}
+        description={`Kelas hari ini · ${primary.rosterCount} siswa`}
+        action={primary.slot ? <Badge variant="secondary">{SLOT_LABEL[primary.slot] ?? primary.slot}</Badge> : undefined}
+        className="border-primary/20 bg-secondary"
+        contentClassName="space-y-field"
+        data-testid="current-class"
+      >
+        {sentraBadge(primary)}
+        {primary.rosterCount > 0 ? (
+          <Button nativeButton={false} role="link" render={<Link href={primaryHref} />} className="h-auto min-h-11 w-full whitespace-normal py-3">
+            <ClipboardList aria-hidden="true" />{primaryLabel}
+          </Button>
+        ) : (
+          <EmptyState icon={Users} title="Belum ada siswa" description="Minta admin menambahkan siswa ke kelas ini." />
+        )}
+      </SectionCard>
+    ) : (
+      <EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas." />
+    )}
     {classes.length > 0 ? <section aria-labelledby="class-tasks">
-      <h2 id="class-tasks" className="mb-3 text-h2">Yang perlu diselesaikan</h2>
+      <SectionHeading as="h2" id="class-tasks">Yang perlu diselesaikan</SectionHeading>
       <TaskList>
         {classes.filter(attendanceOpen).map(c =>
           <TaskRow key={`attendance-${c.id}`} title={`Absensi ${c.name}`} description={c.attendanceRecorded === null ? "Data belum tersedia · buka untuk mencoba lagi" : `${c.attendanceRecorded} dari ${c.rosterCount} siswa tercatat`} meta="Buka" href={classHref(c.id,"attendance")} icon={<CalendarDays className="size-5"/>}/>
@@ -162,12 +194,25 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
         </CollapsibleContent>
       </Collapsible> : null}
     </section> : null}
-    {replyRows.length>0 || classes.some(c=>c.replies===null)?<section aria-labelledby="guardian-replies"><h2 id="guardian-replies" className="mb-3 text-h2">Balasan dari wali</h2><TaskList>
+    {replyRows.length>0 || classes.some(c=>c.replies===null)?<section aria-labelledby="guardian-replies"><SectionHeading as="h2" id="guardian-replies">Balasan dari wali</SectionHeading><TaskList>
       {replyRows.map(r=><TaskRow key={r.studentId} title={`Balasan wali ${r.studentName}`} description={r.className} meta={`${r.count} baru`} href={`/teacher/student-journal/students/${encodeURIComponent(r.studentId)}?view=notes#catatan`} icon={<MessageCircle className="size-5"/>}/>)}
       {classes.some(c=>c.replies===null)?<TaskRow title="Balasan belum bisa dimuat" description="Coba muat ulang untuk melihat balasan terbaru." onClick={()=>router.refresh()} meta="Coba lagi"/>:null}
     </TaskList></section>:null}
-    <section aria-labelledby="pickup-sessions"><h2 id="pickup-sessions" className="mb-1 text-h2">Sesi & penjemputan</h2><p className="mb-3 text-small text-muted-foreground">Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.</p>
-      {sessionsUnavailable?<EmptyState title="Sesi belum bisa dimuat" actionLabel="Coba lagi" onAction={()=>router.refresh()}/>:todaySessions.length>0?<TaskList>{todaySessions.map(s=><TaskRow key={s.id} title={s.className} description={`${SLOT_LABEL[s.slot]??s.slot} · ${s.rosterCount} siswa`} meta="Buka sesi" href={`/teacher/sessions/${s.id}`} icon={<ClipboardList className="size-5"/>}/>)}</TaskList>:<EmptyState title="Belum ada sesi terjadwal hari ini" description={classes.length>0?"Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas.":"Sesi akan muncul di sini setelah admin menjadwalkannya untuk Anda."}/>}
+    <section aria-labelledby="pickup-sessions">
+      <SectionHeading
+        as="h2"
+        id="pickup-sessions"
+        label="Sesi & penjemputan"
+        description="Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas."
+      />
+      {sessionsUnavailable ? (
+        <Alert variant="destructive" announcement="off">
+          <AlertTitle>Sesi belum bisa dimuat</AlertTitle>
+          <AlertAction>
+            <Button variant="outline" onClick={() => router.refresh()}>Coba lagi</Button>
+          </AlertAction>
+        </Alert>
+      ) : todaySessions.length>0?<TaskList>{todaySessions.map(s=><TaskRow key={s.id} title={s.className} description={`${SLOT_LABEL[s.slot]??s.slot} · ${s.rosterCount} siswa`} meta="Buka sesi" href={`/teacher/sessions/${s.id}`} icon={<ClipboardList className="size-5"/>}/>)}</TaskList>:<EmptyState title="Belum ada sesi terjadwal hari ini" description={classes.length>0?"Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas.":"Sesi akan muncul di sini setelah admin menjadwalkannya untuk Anda."}/>}
     </section>
   </div>;
 }

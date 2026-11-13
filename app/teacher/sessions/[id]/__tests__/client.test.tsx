@@ -71,7 +71,7 @@ describe("SessionRosterClient", () => {
     });
     expect(status.className).toContain("min-h-11");
     expect(status.className).toContain("min-w-11");
-    expect(status.className).toContain("focus-visible:ring-2");
+    expect(status.className).toContain("focus-visible:focus-outline");
   });
 
   it("saves only the changed row, not the whole roster", async () => {

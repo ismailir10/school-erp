@@ -9,12 +9,17 @@ import {
   ChevronRight,
   LineChart,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Amount } from "@/components/portal/amount";
+import { PageHeader } from "@/components/portal/page-header";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { KidCard, type KidCardFoot, type KidCardProps } from "@/components/parent/kid-card";
-import { Card, CardContent } from "@/components/ui/card";
+import { SectionCard } from "@/components/ui/section-card";
+import { CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
@@ -25,27 +30,16 @@ import {
   formatCurriculumElement,
   formatEntrySentra,
 } from "@/lib/format";
-import { formatHijri, timeOfDayGreeting } from "@/lib/hijri";
+import { formatHijri } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
-import { LEVEL_LABEL_LONG, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
+import { LEVEL_LABEL_LONG } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
 
 export const metadata: Metadata = { title: "Beranda" };
 
 const JAKARTA_TZ = "Asia/Jakarta";
-
-/**
- * Home chips: only the top stage keeps its green. "Mampu Belum Konsisten" was
- * warning orange here, which reads as a bad grade to an anxious parent; the
- * stages are a developmental path, so every other one is quiet and neutral.
- */
-function homeLevelChipClass(level: string): string {
-  return level === "CONSISTENT"
-    ? LEVEL_CHIP_CLASS_OFF.CONSISTENT
-    : "bg-secondary text-secondary-foreground";
-}
 
 function knownAttendanceStatus(status: string | undefined): status is NonNullable<KidCardProps["todayStatus"]> {
   return status === "PRESENT" || status === "ABSENT" || status === "SICK" || status === "PERMISSION" || status === "MIXED";
@@ -233,8 +227,6 @@ export default async function ParentDashboard() {
   const greetingFirst = parentGreetingName(parent.name);
   const honorific = parentHonorific(children[0]?.relationship);
   const greetingTitle = `Assalamu'alaikum, ${honorific} ${greetingFirst}`;
-  // Server component — pin the hour to WIB or Vercel's UTC clock answers.
-  const tod = timeOfDayGreeting(now, JAKARTA_TZ);
   const dateLine = formatDate(today, {
     weekday: "long",
     day: "numeric",
@@ -284,27 +276,29 @@ export default async function ParentDashboard() {
     : `${attendanceFocus?.name} belum memiliki catatan kehadiran hari ini.`;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-sm text-muted-foreground">{greetingTitle}</p>
-        <h1 className="mt-1 text-h1 tracking-tight text-foreground">Kabar keluarga hari ini</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Selamat {tod} · {dateLine}
-          {hijri ? (
-            <span className="text-celebration-gold-text/85"> · {hijri}</span>
-          ) : null}
-        </p>
-      </header>
+    <div className="space-y-section">
+      <PageHeader
+        title="Kabar keluarga hari ini"
+        subtitle={
+          <>
+            <span className="block">{greetingTitle}</span>
+            <span className="mt-0.5 block text-small">
+              <span className="inline-block">{dateLine}</span>
+              {hijri ? <> <span className="inline-block">· {hijri}</span></> : null}
+            </span>
+          </>
+        }
+        className="mb-0"
+      />
 
       <section aria-labelledby="household-actions-heading" className="space-y-3">
         <SectionHeading as="h2" id="household-actions-heading">Hari ini</SectionHeading>
         {attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
-          <Card size="sm" className="bg-status-present-subtle">
-            <CardContent className="flex items-center gap-3 text-sm">
-              <CalendarDays className="size-5 shrink-0 text-status-present-text" aria-hidden="true" />
-              <span><strong>{kids.length === 1 ? kids[0]!.name : `${kids.length} anak`} sudah hadir.</strong> Kehadiran hari ini dicatat sekolah.</span>
-            </CardContent>
-          </Card>
+          <Alert variant="success" announcement="off">
+            <CalendarDays aria-hidden="true" />
+            <AlertTitle>{kids.length === 1 ? kids[0]!.name : `${kids.length} anak`} sudah hadir.</AlertTitle>
+            <AlertDescription>Kehadiran hari ini dicatat sekolah.</AlertDescription>
+          </Alert>
         ) : (
           <TaskList>
             <TaskRow
@@ -317,7 +311,7 @@ export default async function ParentDashboard() {
           </TaskList>
         )}
         {unpaidTotal > 0 ? (
-          <Card className="gap-0 py-0">
+          <TaskList>
             {singleBill ? null : (
               <CardContent className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div className="min-w-0">
@@ -339,16 +333,18 @@ export default async function ParentDashboard() {
                 </CollapsibleContent>
               </Collapsible>
             )}
-          </Card>
+          </TaskList>
         ) : (
-          <Card size="sm" className="bg-celebration-gold-subtle">
-            <CardContent><p className="text-sm font-semibold text-celebration-gold-text">Lunas semua</p><p className="text-xs text-muted-foreground">Alhamdulillah, tidak ada tagihan tertunda.</p></CardContent>
-          </Card>
+          <Alert variant="celebration" announcement="off">
+            <Sparkles aria-hidden="true" />
+            <AlertTitle>Lunas semua</AlertTitle>
+            <AlertDescription>Alhamdulillah, tidak ada tagihan tertunda.</AlertDescription>
+          </Alert>
         )}
       </section>
 
-      <section>
-        <SectionHeading>Anak saya</SectionHeading>
+      <section aria-labelledby="children-heading">
+        <SectionHeading as="h2" id="children-heading">Anak saya</SectionHeading>
         <div className="space-y-3">
           {kids.map((k) => (
             <KidCard
@@ -380,9 +376,13 @@ export default async function ParentDashboard() {
           );
         if (perkembanganKids.length === 0) return null;
         return (
-          <section data-testid="home-perkembangan-section">
-            <SectionHeading>Perkembangan pekan ini</SectionHeading>
-            <p className="-mt-1 mb-2 text-xs text-muted-foreground">Ini tahapan perkembangan, bukan nilai.</p>
+          <section aria-labelledby="development-heading" data-testid="home-perkembangan-section">
+            <SectionHeading
+              as="h2"
+              id="development-heading"
+              label="Perkembangan pekan ini"
+              description="Ini tahapan perkembangan, bukan nilai."
+            />
             <div className="space-y-3">
               {perkembanganKids.map(({ child, data }) => {
                 const displayName = child.studentName;
@@ -391,50 +391,53 @@ export default async function ParentDashboard() {
                     key={child.studentId}
                     href={`/parent/perkembangan/${child.studentId}`}
                     data-testid={`home-perkembangan-card-${child.studentId}`}
-                    className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40 md:p-6"
+                    className="group block rounded-xl focus-visible:focus-outline"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                        <LineChart size={18} />
+                    <SectionCard as="div" className="transition-colors group-hover:border-primary/30 group-active:border-primary/40">
+                      <div className="flex items-center gap-3">
+                        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary-text">
+                          <LineChart className="size-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="wrap-anywhere text-body font-semibold">
+                            {displayName}
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {data.latestThisWeek.length} catatan pekan ini
+                          </p>
+                        </div>
+                        <ChevronRight
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold truncate">
-                          {displayName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {data.latestThisWeek.length} catatan pekan ini
-                        </p>
-                      </div>
-                      <ChevronRight
-                        size={18}
-                        className="shrink-0 text-muted-foreground"
-                      />
-                    </div>
-                    <ul className="mt-3 space-y-1.5">
-                      {data.latestThisWeek.slice(0, 3).map((entry, idx) => (
-                        <li
-                          key={`${entry.date}-${entry.indicatorContent}-${idx}`}
-                          className="flex items-start justify-between gap-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs text-muted-foreground">
-                              {formatCurriculumElement(entry.element)}
-                              {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
-                                <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
-                              )}
-                            </p>
-                            <p className="line-clamp-2 text-xs text-foreground">
-                              {entry.indicatorContent}
-                            </p>
-                          </div>
-                          <span
-                            className={`max-w-[45%] shrink-0 rounded-md px-1.5 py-0.5 text-right text-xs font-medium ${homeLevelChipClass(entry.level)}`}
+                      <ul className="mt-3 space-y-1.5">
+                        {data.latestThisWeek.slice(0, 3).map((entry, idx) => (
+                          <li
+                            key={`${entry.date}-${entry.indicatorContent}-${idx}`}
+                            className="flex items-start justify-between gap-2"
                           >
-                            {LEVEL_LABEL_LONG[entry.level] ?? entry.level}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-muted-foreground">
+                                {formatCurriculumElement(entry.element)}
+                                {entry.source === "CENTER" && (entry.sentraName || entry.center) && (
+                                  <> · {formatEntrySentra({ center: entry.center, sentra: entry.sentraName ? { name: entry.sentraName } : null })}</>
+                                )}
+                              </p>
+                              <p className="line-clamp-2 text-xs text-foreground">
+                                {entry.indicatorContent}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={entry.level === "CONSISTENT" ? "success" : "secondary"}
+                              className="h-auto min-h-5 max-w-[45%] justify-end whitespace-normal text-right"
+                            >
+                              {LEVEL_LABEL_LONG[entry.level] ?? entry.level}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </SectionCard>
                   </Link>
                 );
               })}

@@ -61,9 +61,7 @@ export default function DesignSystemPage() {
           src={referenceUrl}
           title="Talib Design System reference"
           className="block h-[calc(100vh-200px)] w-full border-0"
-          // allow-same-origin so same-origin static HTML can load its inline
-          // scripts / Google Fonts; no need for scripts-from-other-origins.
-          sandbox="allow-same-origin allow-scripts"
+          sandbox="allow-same-origin"
         />
       </div>
     </div>

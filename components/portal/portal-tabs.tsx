@@ -138,7 +138,7 @@ export function PortalTabs({
         // — and they are the primary child switcher on every parent page, so
         // they are tapped more than anything else in the portal.
         const baseClasses =
-          "inline-flex min-h-11 items-center whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+          "inline-flex min-h-11 items-center whitespace-nowrap text-sm font-medium transition-colors focus-visible:focus-outline [--focus-outline-offset:-2px]";
 
         const variantClasses =
           variant === "pills"
@@ -151,7 +151,7 @@ export function PortalTabs({
             : cn(
                 "px-3 py-2 border-b-2",
                 active
-                  ? "border-primary text-primary-text"
+                  ? "border-primary-text text-primary-text"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               );
 

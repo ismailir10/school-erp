@@ -38,7 +38,7 @@ export function ElementProgressRow({
 
   return (
     <li
-      className="space-y-1.5 rounded-lg border border-input bg-card p-3"
+      className="space-y-1.5 rounded-lg border border-border bg-card p-3"
       data-testid={`perkembangan-element-${element}`}
     >
       <div className="flex items-center justify-between">

@@ -87,7 +87,7 @@ export function ReportCardsList({ data, studentId, childName }: Props) {
                     onClick={() => setSelectedTermId(item.termId)}
                     className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40"
                   >
-                    <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
                       <BookOpen size={18} />
                     </div>
                     <div className="min-w-0 flex-1">

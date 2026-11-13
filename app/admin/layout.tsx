@@ -41,7 +41,7 @@ export default async function AdminLayout({
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <div className="flex size-7 items-center justify-center rounded-full bg-muted">
-                <span className="text-xs font-bold text-primary">
+                <span className="text-xs font-bold text-primary-text">
                   {session.name?.[0] ?? "A"}
                 </span>
               </div>

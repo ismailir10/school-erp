@@ -16,9 +16,11 @@ const CSS = readFileSync(
 );
 
 function readToken(name: string): string {
-  const m = CSS.match(new RegExp(`^\\s*--${name}:\\s*(#[0-9A-Fa-f]{6});`, "m"));
+  const m = CSS.match(
+    new RegExp(`^\\s*--${name}:\\s*(#[0-9A-Fa-f]{6}|var\\(--([a-z-]+)\\));`, "m"),
+  );
   if (!m) throw new Error(`token --${name} not found in app/globals.css`);
-  return m[1]!.toUpperCase();
+  return m[2] ? readToken(m[2]) : m[1]!.toUpperCase();
 }
 
 function channels(hex: string): [number, number, number] {
@@ -85,6 +87,10 @@ describe("--primary-text contrast", () => {
     expect(contrast(primaryText, WHITE)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it.each(["background", "secondary", "muted"])("clears AA on --%s", (surface) => {
+    expect(contrast(primaryText, readToken(surface))).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("clears the 3:1 non-text-graphic threshold for the check glyph", () => {
     expect(contrast(primaryText, WHITE)).toBeGreaterThanOrEqual(3);
     expect(contrast(primaryText, tint5)).toBeGreaterThanOrEqual(3);
@@ -93,4 +99,31 @@ describe("--primary-text contrast", () => {
   it("is exposed to Tailwind as a colour utility", () => {
     expect(CSS).toMatch(/--color-primary-text:\s*var\(--primary-text\);/);
   });
+});
+
+describe("control and keyboard focus contrast", () => {
+  it.each(["background", "card", "muted", "accent"])(
+    "distinguishes form boundaries from the --%s surface",
+    (surface) => {
+      expect(contrast(readToken("input"), readToken(surface))).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it.each(["background", "card", "primary", "secondary", "muted", "input"])(
+    "distinguishes the focus outline from the --%s surface",
+    (surface) => {
+      expect(contrast(readToken("ring"), readToken(surface))).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it.each(["sidebar", "sidebar-accent"])("shows focus on --%s", (surface) => {
+    expect(contrast(readToken("sidebar-ring"), readToken(surface))).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(["background", "card", "destructive-subtle"])(
+    "shows the invalid focus outline on --%s",
+    (surface) => {
+      expect(contrast(readToken("destructive-text"), readToken(surface))).toBeGreaterThanOrEqual(3);
+    },
+  );
 });

@@ -374,7 +374,7 @@ export function InvoiceDetailSheet({
               <SectionHeading>Cara bayar</SectionHeading>
               <SectionCard as="div">
                 <div className="flex items-center gap-3">
-                  <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
                     <Building2 size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -398,7 +398,7 @@ export function InvoiceDetailSheet({
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30"
               >
-                <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
                   <FileText size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
