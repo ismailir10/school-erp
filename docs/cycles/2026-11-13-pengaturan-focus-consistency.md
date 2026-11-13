@@ -44,7 +44,7 @@ The main task is reaching a setting: 2 taps (Pengaturan → item), unchanged. Re
 
 - [x] Focus: codemod hand-rolled rings to `focus-outline` in feature code and the two primitives, and add the guard test.
 - [x] Pengaturan: regroup the hub and give it distinct icons, layout-shaped skeletons and a persistent header, plus load-error states and safe mutations.
-- [ ] Verify: run the full gate, sign in to the local demo, take before/after shots, and record the result.
+- [x] Verify: run the full gate, sign in to the local demo, take before/after shots, and record the result.
 
 ## Implementation
 
@@ -58,4 +58,25 @@ The main task is reaching a setting: 2 taps (Pengaturan → item), unchanged. Re
 
 ## Verification
 
+### Verified locally at `a050c52f` on 2026-11-13
+
+- **App:** `DEMO_MODE=true` production webpack build, run against a disposable local PostgreSQL 16 that was freshly pushed and seeded. The baseline was staging `64ee3e22`, built separately. Default Turbopack fails to resolve symlinked `node_modules` in a scratch worktree, so both builds used webpack.
+- **References:** I checked against `design-system.html` / `ui.md` (the focus-outline utility), `patterns.md` (skeletons, Don't make me think) and `voice.md` (error copy).
+- **AC1:** `rg 'focus-visible:ring-|focus:ring-' app components` finds nothing, and the guard runs as part of Vitest. In the browser, the Pengaturan hub link computes `outline: solid 2px` when focused.
+- **AC2:** The before/after shot is [hub at 1440 px](screenshots/2026-11-13-pengaturan/hub-1440-before-after.png), with before on the left. Before, the cards held 6/2/3/2 items, leaving a half-empty Akademik card and three identical calendar icons. After, they hold 4/4/3/2 with distinct icons. `admin-nav.test.ts` asserts that the icons are unique.
+- **AC3–4:** Covered by the rewritten `loading.tsx` files and a work-hours test asserting that the header is visible both while loading and after a failure. At 390 px, Jam Kerja renders with its header, breadcrumb and form.
+- **AC5:** In Chromium I forced `/api/config/campuses` to return 500. The page showed the "Daftar kampus belum bisa dimuat" heading and a "Coba lagi" button, and zero "Belum ada …" text. After un-routing, "Coba lagi" loaded both campus rows. Vitest covers the same behaviour for campuses and holidays.
+- **AC6:** Covered by Vitest. The mutations go through `sendJson` in `try`/`catch`, and `ConfirmDialog` stays open when a delete rejects.
+- **Full gate:**
+  - lint passed.
+  - `tsc --noEmit` passed.
+  - RLS coverage 51/51 and API auth 239/239 passed.
+  - `audit-docs.sh` reports 0 fail after `--write`.
+  - Vitest passed 766 files and 9,394 tests, with 2 skipped files and 42 todos.
+- **Playwright:** `npx playwright test` passed **296/296 in 7.3 min** on a fresh DB.
+  - The project pins a newer Playwright than this container's browser, so the run used an untracked config override that points `executablePath` at the preinstalled Chromium.
+  - The first attempt reused a stale `next-server` from before the rebuild and failed with chunk mismatches. After killing it, the clean run passed.
+
 ## Ship Notes
+
+Frontend only, with no schema, API or env change. The changes affect focus styling, the order and icons of the settings hub, skeletons, and error handling in the settings pages. On staging, Tab through Pengaturan and open Kampus. Roll back by reverting the squash commit. Not auth-impacting, so no `needs-staging-verify` label.
