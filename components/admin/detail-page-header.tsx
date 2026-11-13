@@ -65,7 +65,7 @@ export function DetailPageHeader({
       <GuardedLink
         href={backHref}
         data-page-back=""
-        className="mb-field inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-body text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="mb-field inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-body text-muted-foreground transition-colors hover:text-foreground focus-visible:focus-outline"
       >
         <ArrowLeft size={14} aria-hidden="true" />
         {backLabel}

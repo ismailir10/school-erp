@@ -39,7 +39,7 @@ function BubbleText({ text }: { text: string }) {
     <>
       {parts.map((part, i) => (
         <span key={i}>
-          {i > 0 && <span className="text-primary underline underline-offset-2">{SAMPLE.tautan}</span>}
+          {i > 0 && <span className="text-primary-text underline underline-offset-2">{SAMPLE.tautan}</span>}
           {part}
         </span>
       ))}

@@ -168,7 +168,7 @@ function RunRow({
               ? `${expanded ? "Sembunyikan" : "Tampilkan"} rincian tagihan ${row.studentNameSnapshot}`
               : "Tidak ada rincian"
           }
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent focus-visible:focus-outline"
         >
           <ChevronRight
             size={16}

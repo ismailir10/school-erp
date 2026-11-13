@@ -59,7 +59,7 @@ export function UserAvatar({
       {src ? <AvatarImage src={src} alt="" loading="lazy" /> : null}
       <AvatarFallback
         className={cn(
-          "font-bold text-primary",
+          "font-bold text-primary-text",
           TEXT_CLASS[size],
           tone === "primary" && "bg-primary/10",
         )}

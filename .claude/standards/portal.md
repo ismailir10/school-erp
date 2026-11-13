@@ -26,44 +26,31 @@
 
 **Teacher Portal** (mobile-first, max-w-md):
 - Header: logo + school name + user name + logout button
-- Bottom nav: exactly four direct destinations — **Beranda**, **Kelas**, **Jurnal**, **Penilaian** — plus a fifth **Lainnya** overflow trigger, with icons + labels + active indicator
-- `Lainnya` opens the teacher overflow sheet (`components/teacher/more-sheet.tsx`) and owns **Kehadiran Saya**, **Slip Gaji**, and **Profil Saya**; new teacher account/secondary destinations go into `TEACHER_MORE_ITEMS`, never into the direct tab array
-- Nested teacher routes must activate their owning direct destination or the `Lainnya` overflow state (for example, salary-slip detail → `Lainnya`); no nested route may leave the bottom navigation without an active owner
+- Bottom nav: exactly four direct destinations — **Beranda**, **Absensi**, **Jurnal**, **Penilaian** — plus a fifth **Lainnya** overflow trigger, with icons + labels + active indicator
+- `Lainnya` opens the teacher overflow sheet (`components/teacher/more-sheet.tsx`) and holds **Kehadiran saya**, **Slip gaji**, **Profil saya**, **Apa yang Baru**, and **Panduan Talib**; new teacher account/secondary destinations go into `TEACHER_MORE_ITEMS`, never into the direct tab array
+- Every teacher route highlights its owning destination. **Gerbang** and **Sesi** belong to **Beranda**. A salary-slip detail belongs to **Lainnya**.
 - Content: centered `max-w-md`
 
 **Parent Portal** (mobile-first, max-w-md — MUST match teacher pattern):
 - Header: logo + school name + user name + logout button (same as teacher)
 - Bottom nav: 4 destination tabs (Beranda, Tagihan, Kehadiran, Jurnal) **+ a `Lainnya` overflow tab** — icons + labels + active indicator
-- `Lainnya` opens a bottom sheet (`components/parent/more-sheet.tsx`) holding the weekly/semester/account surfaces: Capaian, Rapor, Profil
+- `Lainnya` opens a bottom sheet (`components/parent/more-sheet.tsx`) holding **Perkembangan**, **Rapor**, and **Profil**. The links carry the active guardian-linked child.
 - New parent destinations go into `PARENT_MORE_ITEMS`, **never** into the tab array
 - Content: centered `max-w-md` (NOT max-w-2xl — parents are mobile users)
 - Logout: accessible from header (same pattern as teacher)
 
 **Both portals MUST have:**
 - At most five bottom-nav slots: four direct destinations plus an overflow trigger whenever more surfaces are needed
-- Active state on current tab (teal underline + icon color)
+- Active state on the current tab (teal line at the top and matching icon/label), or on **Lainnya** while its sheet is open
 - Logout button in header with `aria-label="Keluar"` for accessibility (`title` is optional)
 - Framer Motion `layoutId` for smooth active indicator animation, guarded by `useReducedMotion()`
 - Safe area padding for mobile (`safe-area-bottom` on bottom nav)
-- A visible `focus-visible` ring on every tab (keyboard users get no usable default inside a fixed bar)
+- A visible focus outline on every tab. The sheet focuses its first link when opened and restores focus to its trigger on dismissal.
 - Explicit, stable labels for every tab and overflow-sheet action; icon-only navigation is forbidden
 
 ### Bottom-nav width budget — hard limit, 5 slots
 
-Each slot carries `px-1` (8 px), so the usable label width is `viewport / n − 8`:
-
-| Slots | Slot @375 | Label budget @375 | Label budget @360 | Verdict |
-|---|---|---|---|---|
-| 4 | 93.8 px | 85.8 px | 82.0 px | roomy — fits `Penghubung` (73.5 px) |
-| 5 | 75.0 px | 67.0 px | 64.0 px | **ceiling** — fits `Kehadiran` (57.8 px) at both widths |
-| 6 | 62.5 px | 54.5 px | — | **broken** — last slot lands 27.4 px past a 375 px viewport and is absent entirely at 360 px |
-
-Reference label widths at `text-xs font-medium`: `Kelas` 31, `Jurnal` ~40, `Lainnya` 43, `Tagihan` 44, `Beranda` 49, `Penilaian` 51, `Kehadiran` 58, `Penghubung` 73 (**does not fit a 5-slot bar at any supported width** — both portals use `Jurnal` for this surface).
-
-Measured 2026-08-01 (cycle `parent-nav-mobile-proposal`) after the parent bar had drifted to 6 tabs. Two rules follow:
-
-1. **Never exceed 5 slots.** Beyond 4 destinations, the 5th slot is an overflow trigger.
-2. **Slots must use `flex-1 basis-0`, not bare `flex-1`.** With `flex-basis: auto` each slot is sized by its own label, so the row's width is the sum of the labels and it can overflow its container. `basis-0` forces identical `container / n` slots, which caps the row and keeps tap targets uniform.
+With five equal-width slots, a 320 px viewport gives each slot 64 px. Keep `px-0.5` (4 px combined) so the 12 px **Kehadiran** label fits in 60 px. Add new destinations to **Lainnya** once the four direct slots are used. Keep `flex-1 basis-0 min-w-0` for equal slots and verify the text itself fits at 320 px.
 
 ## Empty State Contract
 
@@ -96,7 +83,7 @@ Target device for parent + teacher portals: mid-range Android at 375 px viewport
 
 Use the standard Tailwind scale only. When 12 px still feels too dense, loosen the surrounding layout (padding, line-height, grid columns) rather than shrinking text.
 
-Rationale: screenshots + audits surfaced that labels at 10 px were consistently missed by the target persona (Pak Budi, PAUD/TKIT parent) and failed WCAG AA contrast-size combinations on muted-foreground. Codified 2026-04-21 in cycle `parent-ux-cycle-1`. Teacher portal text-size sweep completed 2026-04-22 in cycle `parent-portal-polish-cycle-2`; both parent and teacher portals are now clean against the banned-size grep.
+Rationale: screenshots + audits surfaced that labels at 10 px were consistently missed by the target persona (Pak Budi, PAUD/TKIT parent) and failed WCAG AA contrast-size combinations on muted-foreground. Codified 2026-04-21 in cycle `parent-ux-cycle-1`. Teacher portal text-size sweep completed 2026-04-22 in cycle `parent-portal-polish-cycle-2`; the 12 px floor also applies to bottom-nav labels.
 
 Grep gate (should return zero):
 ```bash
@@ -203,20 +190,21 @@ Shared fixed bottom navigation bar for parent + teacher portals. Located at `com
 | Variant | Shape | Renders as |
 |---|---|---|
 | link (default) | `{ kind?: "link", label, href, icon, matcher? }` | `<Link>` with `aria-current="page"` when active. `matcher` lets a tab own multiple routes |
-| action | `{ kind: "action", label, icon, onSelect, expanded?, active? }` | `<button aria-haspopup="dialog" aria-expanded>` — for an overflow sheet. Not a destination, so it must not carry `aria-current` |
+| action | `{ kind: "action", label, icon, onSelect?, drawerTrigger?, expanded?, active? }` | `<button aria-haspopup="dialog" aria-expanded>` — for an overflow sheet. Not a destination, so it must not carry `aria-current` |
 
-Canonical consumers: `components/parent/bottom-nav.tsx` and `components/teacher/bottom-nav.tsx`.
+Canonical consumers: `components/parent/bottom-nav.tsx` and `components/teacher/bottom-nav.tsx`. Both use `PortalMoreSheet` for overflow and mark the **Lainnya** action as a `drawerTrigger`. The shared sheet owns the link layout, scroll and keyboard focus. The role wrappers supply destinations and any link context.
 
-**Example:**
+**Example inside the shared sheet:**
 
 ```tsx
 <PortalBottomNav
-  ariaLabel="Navigasi utama"
+  ariaLabel="Navigasi utama orang tua"
   items={[
     { label: "Beranda", href: "/parent", icon: Home },
     { label: "Tagihan", href: "/parent/invoices", icon: CreditCard },
     { label: "Kehadiran", href: "/parent/attendance", icon: CalendarDays },
-    { label: "Rapor", href: "/parent/reports", icon: GraduationCap },
+    { label: "Jurnal", href: "/parent/student-journal", icon: BookHeart },
+    { kind: "action", label: "Lainnya", icon: MoreHorizontal, drawerTrigger: true },
   ]}
 />
 ```
@@ -225,15 +213,15 @@ Canonical consumers: `components/parent/bottom-nav.tsx` and `components/teacher/
 
 Shared in-content page header for portal routes (title + optional subtitle + optional actions slot). Located at `components/portal/page-header.tsx`.
 
-**Use it** as the first child of every portal page. Semantic `<header>` with `<h1>`. Do NOT hand-roll `h1` + `p` headers in new pages.
+**Use it** for every portal page title. Back navigation or context can precede it when needed. Semantic `<header>` with `<h1>`. Do NOT hand-roll `h1` + `p` headers in new pages.
 
 **Props:**
 
 | Prop | Type | Notes |
 |---|---|---|
 | `title` | `string` | Plain string — no icons. If you need adornment, wrap the primitive |
-| `subtitle?` | `string` | Renders below the h1 as muted text |
-| `actions?` | `ReactNode` | Right-aligned slot for filters, CTAs; hidden on narrow widths via shrink-0 |
+| `subtitle?` | `ReactNode` (plain text or inline elements) | Renders below the h1 as muted text |
+| `actions?` | `ReactNode` | Right-aligned slot for filters and actions. Wraps below the heading on narrow widths. |
 | `className?` | `string` | Merged into the outer `<header>` |
 
 **Spacing contract** (the primitive wraps `components/admin/page-header.tsx`, so admin and portal titles are identical):
@@ -260,7 +248,7 @@ What the portal layouts render today (token rules: `ui.md` § Design tokens; val
 | Page content (`app/teacher/layout.tsx`, `app/parent/layout.tsx`) | `max-w-md mx-auto px-page-x py-6`, wrapper `pb-20` to clear the bottom nav |
 | Sticky `PortalHeader` | `h-14`, `px-5` inside `max-w-md mx-auto` |
 | Page-header block | `mb-section` (inside `PageHeader`) |
-| Section gap inside page | `space-y-6` between blocks (what portal pages use today); `space-y-2` / `space-y-3` for rows within a block |
+| Section gap inside page | `space-y-section` between home blocks; `space-y-2` / `space-y-3` for rows within a block |
 | Card padding | `SectionCard` is `p-4 md:p-card`; prefer it over a hand-built card |
 | Task row | `min-h-17` |
 
@@ -288,16 +276,15 @@ Never silently ignore errors: `.catch(() => {})` is forbidden.
 
 **Pattern:**
 - Show a summary of verified urgent items when present. Derive urgency from actual records, never from missing attendance or an empty API response.
-- One card per child — avatar + name + class + a verified recent signal or task.
+- One card per child with name, class and a verified recent signal or task.
 - Give each child a small set of useful actions (for example, invoice and teacher note). Keep labels explicit and avoid a fixed three-cell grid when it hides the action text.
-- Chevron on each row → child detail.
-- Inner tabs (Tagihan / Kehadiran / Rapor) inside a child detail use a pinned top-level switcher (Option C from the brainstorm in `design-system.html` §14).
+- Child-specific links carry that child’s context into Tagihan, Kehadiran, Jurnal, Rapor and Perkembangan. Destination pages can use a pinned child switcher.
 
 **Forbidden for larger households:**
 - `<PortalTabs>` as the child switcher on parent home.
 - "Select a child" dropdown in the header — hides state, defeats the purpose.
 
-See `design-system.html` §14 for full mockup and the 4-option brainstorm behind this choice.
+See `design-system.html` §14 for the household overview example.
 
 ## WeekGrid Contract (Buku Penghubung)
 
@@ -330,6 +317,7 @@ Class attendance entry (`/teacher/class-attendance`) is exception-first: most ch
 - `PortalHeader` — `components/portal/portal-header.tsx`
 - `PortalTabs` (with `leading` slot) — `components/portal/portal-tabs.tsx`
 - `PortalBottomNav` — `components/portal/portal-bottom-nav.tsx`
+- `PortalMoreSheet` — `components/portal/more-sheet.tsx`
 - `PageHeader` — `components/portal/page-header.tsx`
 
 **Cycle-3 extraction candidates (2nd-instance trigger pending):**

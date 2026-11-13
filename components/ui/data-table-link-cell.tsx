@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  * in the row's `⋯` menu (DataTableRowActions).
  */
 const LINK_CLASS =
-  "inline-flex items-center rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(pointer:coarse)]:min-h-11";
+  "inline-flex items-center rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:underline focus-visible:focus-outline [@media(pointer:coarse)]:min-h-11";
 
 type DataTableLinkCellProps = {
   children: ReactNode;

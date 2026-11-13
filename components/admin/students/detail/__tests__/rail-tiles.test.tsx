@@ -2,53 +2,25 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { RailStatTiles } from "@/components/admin/detail-rail";
-import { EMPTY_INVOICE_SUMMARY, type StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
 import { StudentRail } from "../rail-content";
 import { buildRailTiles } from "../rail-tiles";
 
-const settled = { loading: false, error: false, summary: EMPTY_INVOICE_SUMMARY };
 const counts = { present: 18, absent: 0, sick: 1, permission: 1, total: 20 };
 const raport = { published: 0, draft: 1, total: 2, current: null };
 
 function tiles(over: Partial<Parameters<typeof buildRailTiles>[0]> = {}) {
-  return buildRailTiles({ invoices: settled, overviewError: false, attendanceCounts: counts, raportTally: raport, ...over });
+  return buildRailTiles({ overviewError: false, attendanceCounts: counts, raportTally: raport, ...over });
 }
 function show(t: ReturnType<typeof tiles>) {
   return render(<RailStatTiles tiles={t} />);
 }
 
 describe("buildRailTiles", () => {
-  it("has exactly Tunggakan (wide), Hadir bulan ini and Rapor", () => {
-    const t = tiles();
-    expect(t.map((x) => x.label)).toEqual(["Tunggakan", "Hadir bulan ini", "Rapor"]);
-    expect(t[0].wide).toBe(true);
-  });
-
-  it("shows what is owed in the critical tone, with count and nearest due date", () => {
-    const summary: StudentInvoiceSummary = { ...EMPTY_INVOICE_SUMMARY, outstanding: 1250000, unpaidCount: 2, nearestDue: "2026-10-10" };
-    const t = tiles({ invoices: { loading: false, error: false, summary } });
-    expect(t[0].tone).toBe("critical");
-    expect(t[0].hint).toBe("2 tagihan belum lunas · 10 Okt 2026");
-    show(t);
-    expect(screen.getByText("Rp 1.250.000").className).toContain("font-currency");
-  });
-
-  it("says Lunas semua in the positive tone when nothing is owed", () => {
-    const t = tiles();
-    expect(t[0].tone).toBe("positive");
-    expect(t[0].hint).toBe("Lunas semua");
-  });
-
-  it("shows Memuat… while invoices load and a dash on error, never Rp 0", () => {
-    show(tiles({ invoices: { loading: true, error: false, summary: EMPTY_INVOICE_SUMMARY } }));
-    expect(screen.getByText("Memuat…")).toBeInTheDocument();
-    expect(screen.queryByText("Rp 0")).not.toBeInTheDocument();
-  });
-
-  it("shows a dash when the invoices fail", () => {
-    show(tiles({ invoices: { loading: false, error: true, summary: EMPTY_INVOICE_SUMMARY }, attendanceCounts: counts, raportTally: raport }));
-    expect(screen.queryByText("Rp 0")).not.toBeInTheDocument();
-    expect(screen.getAllByText("—")).toHaveLength(1);
+  it("shows attendance and report tiles with the shared icons", () => {
+    const summaryTiles = tiles();
+    expect(summaryTiles.map((tile) => tile.label)).toEqual(["Hadir bulan ini", "Rapor"]);
+    show(summaryTiles);
+    expect(screen.getAllByTestId("stat-tile-icon")).toHaveLength(2);
   });
 
   it("reads attendance and raport from the overview", () => {

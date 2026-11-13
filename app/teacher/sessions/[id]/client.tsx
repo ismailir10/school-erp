@@ -334,7 +334,7 @@ export function SessionRosterClient({
                     <button
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
-                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border border-border bg-background py-1 pl-1 pr-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border border-border bg-background py-1 pl-1 pr-2 transition-colors hover:bg-muted focus-visible:focus-outline"
                       aria-label={`Status ${r.name}: ${getStatusConfig(status).label}. Ketuk untuk ganti.`}
                     >
                       <StatusBadge status={status} />

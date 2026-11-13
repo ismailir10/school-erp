@@ -1,4 +1,5 @@
-import { ReactNode } from "react";
+import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
 // Two columns below lg: an odd last card spans both so the grid has no hole. Cards are
 // min-w-0 so one wide figure can't stretch its column past the viewport.
@@ -15,9 +16,10 @@ const COLS_CLASS: Record<2 | 3 | 4 | 5 | 6, string> = {
 export function StatsCardsRow({
   children,
   cols = 4,
-}: {
-  children: ReactNode;
+  className,
+  ...props
+}: ComponentProps<"div"> & {
   cols?: 2 | 3 | 4 | 5 | 6;
 }) {
-  return <div className={COLS_CLASS[cols]}>{children}</div>;
+  return <div {...props} className={cn(COLS_CLASS[cols], className)}>{children}</div>;
 }

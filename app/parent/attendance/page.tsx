@@ -199,92 +199,94 @@ export default async function ParentAttendancePage({
           description="InsyaAllah akan muncul setelah Ustadzah mengisi absensi."
         />
       ) : (
-        <div className="overflow-x-auto -mx-page-x px-page-x">
-          <table className="w-full min-w-[324px] border-collapse text-sm">
-            <thead>
-              <tr>
-                {/* Corner cell: the visible "Status" label belongs to the data row only. */}
-                <th scope="col" className="sticky left-0 z-sticky w-[80px] min-w-[80px] bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
-                  <span className="sr-only">Hari</span>
-                </th>
-                {days.map((d, i) => {
-                  const isToday = d === today;
-                  return (
-                    <th
-                      key={d}
-                      className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary-text" : "font-medium text-muted-foreground"}`}
-                    >
-                      <div>{DAY_LABELS[i] ?? ""}</div>
-                      <div className={`text-xs font-normal ${isToday ? "text-primary-text" : "text-muted-foreground/70"}`}>
-                        {shortDayMonth(d)}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-border/40">
-                <th scope="row" className="sticky left-0 z-sticky bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
-                  Status
-                </th>
-                {days.map((d) => {
-                  const isToday = d === today;
-                  const status = statusByDate.get(d);
-                  const isFuture = d > today;
-                  return (
-                    <td
-                      key={d}
-                      className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
-                    >
-                      <span className="inline-flex size-9 items-center justify-center">
-                        {status === "MIXED" ? (
-                          <>
-                            <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>
-                            <span className="sr-only">Catatan berbeda</span>
-                          </>
-                        ) : status === "PRESENT" ? (
-                          <>
-                            <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-primary" />
-                            <span className="sr-only">Hadir</span>
-                          </>
-                        ) : status === "SICK" ? (
-                          <>
-                            <span aria-hidden="true" className="text-xs font-bold text-status-late-text">S</span>
-                            <span className="sr-only">Sakit</span>
-                          </>
-                        ) : status === "ABSENT" ? (
-                          <>
-                            <span aria-hidden="true" className="text-xs font-bold text-status-absent-text">A</span>
-                            <span className="sr-only">Alpa</span>
-                          </>
-                        ) : status === "PERMISSION" ? (
-                          <>
-                            <span aria-hidden="true" className="text-xs font-bold text-status-leave-text">I</span>
-                            <span className="sr-only">Izin</span>
-                          </>
-                        ) : isFuture ? (
-                          <>
-                            <span aria-hidden="true" className="text-muted-foreground/60">-</span>
-                            <span className="sr-only">Belum berlangsung</span>
-                          </>
-                        ) : (
-                          // Past or today with no saved record: an empty box, never the
-                          // same mark as a day that has not happened yet.
-                          <>
-                            <span aria-hidden="true" className="block size-3.5 rounded-sm border border-muted-foreground/30" />
-                            <span className="sr-only">Belum dicatat</span>
-                          </>
-                        )}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </table>
+        <div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  {/* Corner cell: the visible "Status" label belongs to the data row only. */}
+                  <th scope="col" className="sticky left-0 z-sticky w-12 min-w-12 min-[375px]:w-20 min-[375px]:min-w-20 bg-background py-2 pr-2 text-left text-xs font-medium text-muted-foreground">
+                    <span className="sr-only">Hari</span>
+                  </th>
+                  {days.map((d, i) => {
+                    const isToday = d === today;
+                    return (
+                      <th
+                        key={d}
+                        className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary-text" : "font-medium text-muted-foreground"}`}
+                      >
+                        <div>{DAY_LABELS[i] ?? ""}</div>
+                        <div className={`text-xs font-normal ${isToday ? "text-primary-text" : "text-muted-foreground/70"}`}>
+                          {shortDayMonth(d)}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border/40">
+                  <th scope="row" className="sticky left-0 z-sticky bg-background py-2 pr-2 text-left text-xs font-normal text-foreground">
+                    Status
+                  </th>
+                  {days.map((d) => {
+                    const isToday = d === today;
+                    const status = statusByDate.get(d);
+                    const isFuture = d > today;
+                    return (
+                      <td
+                        key={d}
+                        className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
+                      >
+                        <span className="relative inline-flex size-9 items-center justify-center">
+                          {status === "MIXED" ? (
+                            <>
+                              <span aria-hidden="true" className="text-xs font-semibold text-muted-foreground">≠</span>
+                              <span className="sr-only">Catatan berbeda</span>
+                            </>
+                          ) : status === "PRESENT" ? (
+                            <>
+                              <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-primary-text" />
+                              <span className="sr-only">Hadir</span>
+                            </>
+                          ) : status === "SICK" ? (
+                            <>
+                              <span aria-hidden="true" className="text-xs font-bold text-status-late-text">S</span>
+                              <span className="sr-only">Sakit</span>
+                            </>
+                          ) : status === "ABSENT" ? (
+                            <>
+                              <span aria-hidden="true" className="text-xs font-bold text-status-absent-text">A</span>
+                              <span className="sr-only">Alpa</span>
+                            </>
+                          ) : status === "PERMISSION" ? (
+                            <>
+                              <span aria-hidden="true" className="text-xs font-bold text-status-leave-text">I</span>
+                              <span className="sr-only">Izin</span>
+                            </>
+                          ) : isFuture ? (
+                            <>
+                              <span aria-hidden="true" className="text-muted-foreground/60">-</span>
+                              <span className="sr-only">Belum berlangsung</span>
+                            </>
+                          ) : (
+                            // Past or today with no saved record: an empty box, never the
+                            // same mark as a day that has not happened yet.
+                            <>
+                              <span aria-hidden="true" className="block size-3.5 rounded-sm border border-muted-foreground/30" />
+                              <span className="sr-only">Belum dicatat</span>
+                            </>
+                          )}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span><Check className="inline size-3 text-primary align-middle" /> Hadir</span>
+            <span><Check className="inline size-3 text-primary-text align-middle" /> Hadir</span>
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
             <span><b className="text-status-leave-text">I</b> Izin</span>

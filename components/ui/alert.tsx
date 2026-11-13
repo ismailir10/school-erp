@@ -4,13 +4,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert @container grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-y-1 rounded-lg border px-3 py-2.5 text-start text-body [&>svg]:col-start-1 [&>svg]:row-span-2 [&>svg]:row-start-1 [&>svg]:mt-0.5 [&>svg]:me-2 [&>svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-card text-card-foreground",
-        destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+        info: "border-info bg-info-subtle text-info-text",
+        success: "border-success bg-success-subtle text-success-text",
+        warning: "border-warning bg-warning-subtle text-warning-text",
+        destructive: "border-destructive bg-destructive-subtle text-destructive-text",
+        celebration: "border-celebration-gold bg-celebration-gold-subtle text-celebration-gold-text",
       },
     },
     defaultVariants: {
@@ -19,15 +22,29 @@ const alertVariants = cva(
   }
 )
 
+type AlertAnnouncement = "off" | "polite" | "assertive"
+
+const ANNOUNCEMENT_ROLE = {
+  off: undefined,
+  polite: "status",
+  assertive: "alert",
+} as const
+
+const MESSAGE_COLUMNS = "col-start-2 col-end-4 @md:group-has-data-[slot=alert-action]/alert:col-end-3"
+
 function Alert({
   className,
   variant,
+  announcement = "assertive",
+  role = ANNOUNCEMENT_ROLE[announcement],
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
+}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants> & {
+  announcement?: AlertAnnouncement
+}) {
   return (
     <div
       data-slot="alert"
-      role="alert"
+      role={role}
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
@@ -39,7 +56,8 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-heading font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        MESSAGE_COLUMNS,
+        "font-heading font-medium wrap-anywhere [&_a]:underline [&_a]:underline-offset-3",
         className
       )}
       {...props}
@@ -55,7 +73,8 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        MESSAGE_COLUMNS,
+        "wrap-anywhere text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
@@ -67,7 +86,10 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-action"
-      className={cn("absolute top-2 right-2", className)}
+      className={cn(
+        "col-start-2 col-end-4 flex min-w-0 flex-wrap items-center gap-2 pt-1 @md:col-start-3 @md:row-span-2 @md:row-start-1 @md:ms-3 @md:justify-end @md:pt-0",
+        className
+      )}
       {...props}
     />
   )

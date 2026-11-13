@@ -56,7 +56,7 @@ export function EmptyState({
           data-testid="empty-state-icon-warm"
           className="size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4"
         >
-          <Icon className="size-8 text-primary" />
+          <Icon className="size-8 text-primary-text" />
         </div>
       )}
       {accent === "celebration" && (

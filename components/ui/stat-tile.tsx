@@ -15,13 +15,13 @@ const TONE_CLASS: Record<StatTone, string> = {
   default: "text-foreground",
   muted: "text-muted-foreground",
   positive: "text-status-present-text",
-  warning: "text-status-leave-text",
+  warning: "text-warning-text",
   critical: "text-destructive",
 };
 
 // Icon chip: tinted fill + matching `-text` glyph, per tone.
 const CHIP_CLASS: Record<StatTone, string> = {
-  default: "bg-primary/10 text-primary",
+  default: "bg-secondary text-primary-text",
   muted: "bg-muted text-muted-foreground",
   positive: "bg-success-subtle text-success-text",
   warning: "bg-warning-subtle text-warning-text",
@@ -37,9 +37,9 @@ const VALUE_SIZE = {
 // The cap a `mono` (currency/count) figure scales up to; matches VALUE_SIZE.
 const FLUID_CAP: Record<keyof typeof VALUE_SIZE, FluidCap> = { sm: "base", md: "h2", lg: "display" };
 
-const TILE_CLASS = "relative isolate block min-w-0 overflow-hidden rounded-lg border bg-card p-3 text-left";
+const TILE_CLASS = "relative isolate flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card p-3 text-left";
 const LINK_TILE_CLASS =
-  "outline-none transition-shadow hover:shadow-sm hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring";
+  "focus-visible:focus-outline motion-safe:transition-shadow hover:shadow-raised";
 
 /**
  * The compact "label above a number" tile every dashboard, summary rail and
@@ -116,7 +116,7 @@ export function StatTile({
         // Size is a plain string, not an argument to `cn`: tailwind-merge doesn't know
         // our `text-display` / `text-h2` size tokens and would drop them as a
         // conflicting text *colour* next to `text-foreground`. Only the colour merges.
-        className={`mt-1 font-bold leading-tight tabular-nums ${figureClass} ${cn(TONE_CLASS[tone], valueClassName)}`}
+        className={`mt-auto pt-1 font-bold leading-tight tabular-nums ${figureClass} ${cn(TONE_CLASS[tone], valueClassName)}`}
       >
         {typeof value === "number" ? <CountUp value={value} /> : value}
       </p>

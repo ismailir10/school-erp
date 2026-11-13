@@ -106,7 +106,7 @@ export function TaskRow({
 
   const rowClassName = cn(
     "min-h-17 flex-nowrap gap-3 rounded-none border-0 border-b border-border/70 px-4 py-3 text-left last:border-b-0",
-    interactive && "hover:bg-secondary/40 focus-visible:z-10 focus-visible:bg-secondary/40",
+    interactive && "hover:bg-secondary/40 focus-visible:z-10 focus-visible:bg-secondary/40 [--focus-outline-offset:-2px]",
     className,
   );
 

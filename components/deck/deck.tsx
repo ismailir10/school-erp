@@ -174,7 +174,7 @@ export function Deck({
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/70 px-4 sm:px-8">
         <Link
           href={homeHref}
-          className="flex items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex items-center gap-3 rounded-md outline-none focus-visible:focus-outline"
           aria-label={`Kembali ke ${homeLabel}`}
         >
           <Image src="/logo.png" alt="" width={32} height={32} className="rounded-md" />
@@ -277,7 +277,7 @@ export function Deck({
                 aria-label={`Slide ${i + 1}: ${s.nav}`}
                 aria-current={active ? "step" : undefined}
                 title={s.nav}
-                className="group grid h-9 w-7 place-items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="group grid h-9 w-7 place-items-center rounded-md outline-none focus-visible:focus-outline"
               >
                 <span
                   aria-hidden="true"

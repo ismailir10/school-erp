@@ -113,7 +113,7 @@ export default async function ParentProfilePage({ searchParams }: {
                     href={parentHref("/parent/attendance", c.studentId)}
                     className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
                   >
-                    <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary text-xs font-bold">
+                    <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text text-xs font-bold">
                       {initials}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ export default async function ParentProfilePage({ searchParams }: {
           href="/changelog"
           className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
         >
-          <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+          <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
             <Sparkles size={18} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
@@ -155,7 +155,7 @@ export default async function ParentProfilePage({ searchParams }: {
           href="/guide/parents"
           className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
         >
-          <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+          <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
             <Presentation size={18} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
@@ -193,7 +193,7 @@ type CardIconProps = {
 function ContactCard({ icon: Icon, primary, secondary }: CardIconProps) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-      <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+      <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text">
         <Icon size={18} />
       </div>
       <div className="min-w-0 flex-1">

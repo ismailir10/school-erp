@@ -32,11 +32,11 @@ export function BackLink({
       className={cn(
         "inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-sm text-muted-foreground",
         "transition-colors hover:text-foreground",
-        "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "focus-visible:focus-outline",
         className,
       )}
     >
-      <ArrowLeft size={16} aria-hidden="true" />
+      <ArrowLeft className="size-4" aria-hidden="true" />
       {label}
     </Link>
   );

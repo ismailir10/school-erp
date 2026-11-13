@@ -654,7 +654,7 @@ export function CenterSessionClient({
           {!isWritable && (
             <p
               role="status"
-              className="rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+              className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
             >
               Sesi ini hanya bisa dilihat. Ganti tanggal untuk mengisi penilaian baru.
             </p>
@@ -755,7 +755,7 @@ export function CenterSessionClient({
               {visibleStudents.map((student) => (
                 <li
                   key={student.id}
-                  className="space-y-2 rounded-lg border border-input p-3"
+                  className="space-y-2 rounded-lg border border-border p-3"
                   data-testid={`center-row-${student.id}`}
                 >
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">

@@ -5,7 +5,7 @@
  *
  * The contracts worth pinning are about *when* each one costs a request, and
  * about the money figure agreeing with the summary lib. Keuangan is eager
- * because the rail's Tunggakan tile reads it; the other two must stay silent
+ * so the attention strip can flag unpaid invoices; the other two stay silent
  * until an admin opens them, or the dossier pays three round-trips per student
  * view for data most visits never look at.
  *
@@ -259,18 +259,21 @@ describe("student dossier — increment 2 sections", () => {
 
     // Billed 1.000.000, paid 600.000 — but only the OVERDUE invoice's 400.000
     // is owed; the PAID one contributes nothing.
-    await waitFor(() => {
-      expect(screen.getAllByText("Rp 400.000").length).toBeGreaterThan(0);
-    });
-    expect(screen.getByText("1 tagihan belum lunas · 28 Feb 2026")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Lihat tagihan" }));
+    const due = await screen.findByText("Jatuh tempo 28 Feb 2026");
+    const balance = due.parentElement!;
+    expect(within(balance).getByText("Sisa tagihan")).toBeVisible();
+    expect(within(balance).getByText("Rp 400.000")).toBeVisible();
   });
 
-  it("says Lunas semua when nothing is owed", async () => {
+  it("says Semua tagihan lunas when nothing is owed", async () => {
     const { fn } = stubFetch({ invoices: [INVOICES[0]] });
     vi.stubGlobal("fetch", fn);
     render(<StudentDetailPage />);
 
-    await waitFor(() => expect(screen.getByText("Lunas semua")).toBeInTheDocument());
+    const group = await sectionTrigger("group-keuangan");
+    if (group.getAttribute("aria-expanded") === "true") await userEvent.click(group);
+    await waitFor(() => expect(group).toHaveTextContent("Semua tagihan lunas"));
   });
 
   it("renders a dash rather than Rp 0 when the invoice fetch fails", async () => {
@@ -283,7 +286,7 @@ describe("student dossier — increment 2 sections", () => {
     await waitFor(() =>
       expect(screen.getByText("Gagal memuat data tagihan.")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Lunas semua")).not.toBeInTheDocument();
+    expect(screen.queryByText("Semua tagihan lunas")).not.toBeInTheDocument();
   });
 
   it("does not request keringanan, cuti or the journal until their sections are opened", async () => {

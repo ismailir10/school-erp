@@ -74,6 +74,17 @@ Other docs link here for these bans; they do not repeat them.
 | Field validation error | shadcn `<FieldError>` under the field | A toast as the only signal |
 | Failed save of a record being entered | `toastError(msg, { retry, id })` (`lib/feedback.ts`) | Bare `toast.error`, `{ duration: Infinity }` by hand |
 
+## Cards, metrics, and inline notices
+
+| Purpose | Component | Surface |
+|---|---|---|
+| Composed card with custom header, content, or footer | `Card` | Bordered card with resting elevation. Use `size="sm"` for compact composition. |
+| Detail or portal section with an optional heading, action, and footer | `SectionCard` | Flat bordered card. The h2 names the section. Actions wrap beside the title when space allows. |
+| Dashboard, operational list, or detail metric | `StatTile` | Compact bordered surface. Use `StatsCardsRow` to arrange operational-list metrics. A linked tile raises on hover and shows the standard keyboard outline. |
+| Inline update or issue that belongs beside a workflow | `Alert` | Neutral or semantic surface with an optional icon, title, description, and action. |
+
+Choose an Alert variant by meaning. Use `info` for context, `success` for completion, `warning` for something that needs attention, `destructive` for a blocking error, and `celebration` for an all-clear or milestone. Put recovery actions in `AlertAction` after the message so they can wrap below it in narrow containers. Mark decorative icons `aria-hidden`. Keep `announcement="off"` on static notices, use `announcement="polite"` for live updates, and use `announcement="assertive"` for immediate feedback. Existing alerts default to assertive.
+
 ## Rule: Shadcn FIRST. Never build custom when Shadcn has it.
 
 Use the installed Shadcn component; do not build custom. (Talib primitives are in "Reach for" above.)
@@ -194,7 +205,7 @@ Mobile-first Tailwind defaults (not overridden in `globals.css`): write the phon
 
 ## Focus ring
 
-Keyboard focus is shown with `focus-visible` only. The primitives (`Button`, `Input`, `Textarea`, `SelectTrigger`, `Checkbox`, `Switch`, `Toggle`, `TabsTrigger`) use `focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`; an invalid control swaps in `aria-invalid:border-destructive` and a destructive ring. A control built on a primitive inherits this and needs nothing extra. A hand-built interactive element (rare; prefer a primitive) must copy the same classes. Never `outline-none` or `focus:outline-none` without a `focus-visible` ring replacing it, and never `focus:` where `focus-visible:` is meant (it rings on mouse click).
+Use `focus-visible:focus-outline` for keyboard focus. It applies a 2px opaque outline with a 2px offset and uses the system highlight in forced colors. Light surfaces use `ring`, and the dark sidebar uses `sidebar-ring`. Use `border-input` for form-control boundaries. Invalid controls keep the destructive border and use destructive text ink for the focus outline. Controls built on shared primitives inherit these styles.
 
 ## Dialog & Sheet button labels (canonical)
 

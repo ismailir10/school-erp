@@ -1,6 +1,6 @@
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
-import { CountUp } from "@/components/reactbits/count-up";
-import { Spotlight } from "@/components/reactbits/spotlight";
+import { CalendarClock, FileText, LinkIcon, MessageCircle, Wallet } from "lucide-react";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatTile } from "@/components/ui/stat-tile";
 import type { QueueSummaryItem } from "@/lib/dashboard/admin-work-queue";
 
@@ -10,6 +10,14 @@ const tileLabel: Record<QueueSummaryItem["kind"], string> = {
   leave: "Pengajuan cuti menunggu",
   invoice: "Link pembayaran belum tersedia",
   payroll: "Draf penggajian",
+};
+
+const tileIcon = {
+  inquiry: MessageCircle,
+  enrollment: FileText,
+  leave: CalendarClock,
+  invoice: LinkIcon,
+  payroll: Wallet,
 };
 
 /**
@@ -33,12 +41,13 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
   }
 
   return (
-    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-5 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2 [&>*]:min-w-0">
+    <StatsCardsRow data-testid="dashboard-queue-tiles" cols={5} className="mb-0 auto-rows-fr">
       {items.map((item) =>
         item.status === "unavailable" ? (
           <StatTile
             key={item.kind}
             label={tileLabel[item.kind]}
+            icon={tileIcon[item.kind]}
             value="—"
             tone="muted"
             size="lg"
@@ -53,14 +62,13 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
             href={`/admin/work-queue?kind=${item.kind}`}
             ariaLabel={`${item.count} ${tileLabel[item.kind]}`}
             label={tileLabel[item.kind]}
-            value={<CountUp value={item.count} />}
+            icon={tileIcon[item.kind]}
+            value={item.count}
             size="lg"
             mono
-          >
-            <Spotlight />
-          </StatTile>
+          />
         ),
       )}
-    </div>
+    </StatsCardsRow>
   );
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDate, formatInvoicePeriod, formatRupiah } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -475,21 +476,11 @@ export function InvoicesClient({
           </div>
         </SectionCard>
       ) : (
-        <section className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">
-              <Sparkles size={18} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-celebration-gold-text">
-                Lunas semua
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Alhamdulillah, semua tagihan lunas.
-              </p>
-            </div>
-          </div>
-        </section>
+        <Alert variant="celebration" announcement="off">
+          <Sparkles aria-hidden="true" />
+          <AlertTitle>Lunas semua</AlertTitle>
+          <AlertDescription>Alhamdulillah, semua tagihan lunas.</AlertDescription>
+        </Alert>
       )}
 
       {due.length > 0 && (
@@ -581,7 +572,7 @@ export function InvoicesClient({
       {paid.length > 0 ? (
         <section>
           <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-            <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-left text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-left text-sm font-semibold text-foreground focus-visible:focus-outline">
               Riwayat pembayaran ({paid.length})
               <ChevronRight aria-hidden="true" className={`size-4 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
             </CollapsibleTrigger>

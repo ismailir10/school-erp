@@ -53,7 +53,7 @@ function ActivityRow({ item }: { item: ParentActivityItem }) {
   const Icon = ICON_BY_KIND[item.kind];
   const content = (
     <div className="flex items-start gap-3 p-3">
-      <Icon size={24} className="text-primary shrink-0 mt-0.5" />
+      <Icon size={24} className="text-primary-text shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground line-clamp-2">
           {item.title}

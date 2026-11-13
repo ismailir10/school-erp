@@ -10,7 +10,7 @@ import { formatDateShort } from "@/lib/format";
  * closed groups' summaries already carry these numbers, and a stacked tile
  * block would only push the sections down.
  *
- * Tunggakan, Hadir bulan ini and Raport as tiles, then Jejak (when the record
+ * Hadir bulan ini and Rapor as tiles, then Jejak (when the record
  * was made and where it came from). Everything else the old rail said now lives
  * with the section it belongs to or in the strip.
  */

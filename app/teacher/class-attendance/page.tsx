@@ -408,7 +408,7 @@ export default function ClassAttendancePage() {
                             aria-label={o.label}
                             onClick={() => { if (!selected) persist([s.student.id], o.status); }}
                             className={cn(
-                              "size-11 @max-[20rem]:w-full rounded-lg border text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                              "size-11 @max-[20rem]:w-full rounded-lg border text-sm font-semibold transition-colors focus-visible:focus-outline [--focus-outline-offset:-2px]",
                               selected ? SELECTED[o.status] : "border-border bg-background text-muted-foreground hover:bg-muted",
                             )}
                           >

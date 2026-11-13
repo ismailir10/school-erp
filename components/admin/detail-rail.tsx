@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,7 @@ export type RailTone = "default" | "positive" | "warning" | "critical";
 const TONE_CLASS: Record<RailTone, string> = {
   default: "text-foreground",
   positive: "text-status-present-text",
-  warning: "text-status-leave-text",
+  warning: "text-warning-text",
   critical: "text-destructive",
 };
 
@@ -91,6 +92,7 @@ export function RailKV({ items }: { items: RailItem[] }) {
 
 export type RailTile = {
   label: string;
+  icon?: LucideIcon;
   value: ReactNode;
   hint?: string;
   tone?: RailTone;
@@ -116,6 +118,7 @@ export function RailStatTiles({ tiles }: { tiles: RailTile[] }) {
         <StatTile
           key={tile.label}
           label={tile.label}
+          icon={tile.icon}
           value={tile.value}
           hint={tile.hint}
           tone={tile.tone}

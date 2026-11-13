@@ -262,7 +262,7 @@ export function ReminderQueueDialog({ open, onOpenChange, capabilities }: Props)
         Isi pesan bisa disesuaikan dengan gaya sekolah.{" "}
         <Link
           href="/admin/settings/pengingat-whatsapp"
-          className="font-medium text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="font-medium text-primary-text underline underline-offset-2 focus-visible:focus-outline"
         >
           Ubah templat pesan
         </Link>

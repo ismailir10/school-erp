@@ -49,14 +49,14 @@ const SYSTEM_ROLES = [
     name: "Super Admin",
     description: "Akses penuh termasuk SDM, gaji, dan data karyawan",
     icon: ShieldCheck,
-    color: "text-primary" as const,
+    color: "text-primary-text" as const,
   },
   {
     role: "SCHOOL_ADMIN",
     name: "Admin Sekolah",
     description: "Akses penuh kecuali modul SDM (karyawan, gaji, cuti, kehadiran)",
     icon: ShieldCheck,
-    color: "text-primary" as const,
+    color: "text-primary-text" as const,
   },
   {
     role: "TEACHER",

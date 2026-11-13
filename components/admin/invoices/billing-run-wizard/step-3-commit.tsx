@@ -489,8 +489,8 @@ export function CommitStep({
         Draf dibuat {formatRelativeTime(summary.createdAt)}.
       </p>
       {isStale && summary.canRebuild ? (
-        <Alert>
-          <AlertTriangle className="size-4" />
+        <Alert variant="warning" announcement="off">
+          <AlertTriangle aria-hidden="true" />
           <AlertTitle>Draf ini sudah agak lama</AlertTitle>
           <AlertDescription>
             Struktur biaya atau keringanan mungkin sudah berubah sejak draf ini dibuat. Nilai
@@ -512,7 +512,7 @@ export function CommitStep({
 
       {phase === "error" && errorMessage ? (
         <Alert variant="destructive">
-          <AlertTriangle className="size-4" />
+          <AlertTriangle aria-hidden="true" />
           <AlertTitle>Komit terhenti</AlertTitle>
           <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>

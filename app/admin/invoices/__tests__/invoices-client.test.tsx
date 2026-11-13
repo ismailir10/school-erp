@@ -153,7 +153,7 @@ describe("InvoicesClient — name is the link (T7)", () => {
 const caps = { create: true, recordPayment: true, void: true };
 
 describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => {
-  it("FIN-13: shows Piutang and Diterima Bulan Ini in Rupiah next to the counts", async () => {
+  it("FIN-13: shows Piutang and Diterima bulan ini in Rupiah next to the counts", async () => {
     vi.stubGlobal(
       "fetch",
       stubFetch({ stats: { sent: 2, overdue: 1, partiallyPaid: 1, owing: 4, outstanding: 1550000, collectedThisMonth: 1250000 } }),
@@ -163,7 +163,7 @@ describe("InvoicesClient — Rupiah KPIs and void menu (finance-safety)", () => 
     const piutang = (await screen.findByText("Piutang")).closest("div.rounded-lg") as HTMLElement;
     expect(within(piutang).getByText("Rp 1.550.000")).toBeInTheDocument();
     expect(within(piutang).getByText("4 tagihan belum lunas")).toBeInTheDocument();
-    const diterima = screen.getByText("Diterima Bulan Ini").closest("div.rounded-lg") as HTMLElement;
+    const diterima = screen.getByText("Diterima bulan ini").closest("div.rounded-lg") as HTMLElement;
     expect(within(diterima).getByText("Rp 1.250.000")).toBeInTheDocument();
   });
 

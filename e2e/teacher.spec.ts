@@ -313,10 +313,23 @@ test.describe("Teacher flows", () => {
       }
       await expect(nav.getByRole("button", { name: "Lainnya" })).toBeVisible();
 
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
       const boxes = await slots.evaluateAll((elements) =>
         elements.map((element) => {
           const rect = element.getBoundingClientRect();
-          return { left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+          const label = element.querySelector("span")!;
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          const text = range.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+            fontSize: parseFloat(getComputedStyle(label).fontSize),
+            textLeft: text.left,
+            textRight: text.right,
+          };
         }),
       );
       expect(boxes).toHaveLength(5);
@@ -325,6 +338,9 @@ test.describe("Teacher flows", () => {
         expect(box.right).toBeLessThanOrEqual(width + 0.5);
         expect(box.width).toBeGreaterThanOrEqual(44);
         expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(box.fontSize).toBeGreaterThanOrEqual(12);
+        expect(box.textLeft).toBeGreaterThanOrEqual(box.left - 0.5);
+        expect(box.textRight).toBeLessThanOrEqual(box.right + 0.5);
         if (index > 0) expect(box.left).toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -337,6 +353,10 @@ test.describe("Teacher flows", () => {
     await page.waitForURL("**/teacher/student-journal", { timeout: 15_000 });
     const nav = page.getByRole("navigation", { name: "Navigasi utama guru" });
     await expect(nav.getByRole("link", { name: "Jurnal" })).toHaveAttribute("aria-current", "page");
+
+    await page.goto("/teacher/gate");
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(nav.getByRole("link", { name: "Beranda" })).toHaveAttribute("aria-current", "page");
 
     await page.goto("/teacher/slips");
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });

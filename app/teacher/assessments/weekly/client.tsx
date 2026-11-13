@@ -402,7 +402,7 @@ export function WeeklyClient({
             return (
               <li
                 key={student.id}
-                className="rounded-lg border border-input p-3 space-y-2"
+                className="rounded-lg border border-border p-3 space-y-2"
                 data-testid={`weekly-row-${student.id}`}
               >
                 <div className="flex items-center justify-between">

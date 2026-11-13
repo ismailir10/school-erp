@@ -78,4 +78,35 @@ test.describe("Design System reference page", () => {
       expect(content, `missing ${anchor} in reference HTML`).toContain(anchor);
     }
   });
+
+  test("form controls have visible keyboard focus and overlays honor reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/admin/students");
+
+    const opener = page.getByRole("button", { name: "Tambah Siswa", exact: true });
+    await opener.focus();
+    await page.keyboard.press("Enter");
+
+    const dialog = page.getByRole("dialog", { name: "Tambah Siswa" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS("animation-name", "none");
+
+    const name = dialog.getByPlaceholder("Aisyah Putri", { exact: true });
+    await name.focus();
+    await expect(name).toBeFocused();
+    await expect(name).toHaveCSS("border-top-color", "rgb(137, 131, 125)");
+    await expect(name).toHaveCSS("outline-style", "solid");
+    await expect(name).toHaveCSS("outline-width", "2px");
+    await expect(name).toHaveCSS("outline-color", "rgb(23, 53, 54)");
+    // Keep the indicator inside the dialog’s clipped scroll viewport.
+    await expect(name).toHaveCSS("outline-offset", "-2px");
+
+    await page.emulateMedia({ forcedColors: "active" });
+    await expect(name).toHaveCSS("outline-style", "solid");
+    await expect(name).toHaveCSS("outline-width", "2px");
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
 });

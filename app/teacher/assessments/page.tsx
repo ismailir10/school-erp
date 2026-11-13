@@ -133,7 +133,7 @@ export default async function TeacherAssessmentsPage() {
             data-testid="hub-weekly-card"
           >
             <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <CalendarDays className="size-5 text-primary" />
+              <CalendarDays className="size-5 text-primary-text" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">Penilaian pekanan</p>
@@ -171,7 +171,7 @@ export default async function TeacherAssessmentsPage() {
                     className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Building2 className="size-4 text-primary" />
+                      <Building2 className="size-4 text-primary-text" />
                     </div>
                     {/*
                       The eyebrow above already says "Sentra", and repeating it

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { LogoutConfirmDialog } from "@/components/portal/logout-confirm-dialog";
 
 export type PortalHeaderProps = {
@@ -46,12 +47,12 @@ export function PortalHeader({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const avatar = (
-    <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+    <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-secondary">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
       ) : (
-        <span className="text-xs font-bold text-primary">{avatarFallback}</span>
+        <span className="text-xs font-bold text-primary-text">{avatarFallback}</span>
       )}
     </div>
   );
@@ -81,21 +82,23 @@ export function PortalHeader({
           {profileHref ? (
             <Link
               href={profileHref}
-              className="flex min-h-11 items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex min-h-11 items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-accent focus-visible:focus-outline"
             >
               {userBlock}
             </Link>
           ) : (
             <div className="flex items-center gap-2 px-2 py-1">{userBlock}</div>
           )}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setConfirmOpen(true)}
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="min-h-11 min-w-11 text-muted-foreground"
             aria-label="Keluar"
           >
-            <LogOut size={16} />
-          </button>
+            <LogOut aria-hidden="true" />
+          </Button>
         </div>
       </div>
       <LogoutConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} onConfirm={onLogout} />

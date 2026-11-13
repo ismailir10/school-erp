@@ -13,13 +13,14 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatRupiah } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
-import { Wallet, Receipt, Download, AlertCircle, RefreshCw } from "lucide-react";
+import { Wallet, Receipt, Download, AlertCircle } from "lucide-react";
 
 type LedgerRow = {
   id: string;
@@ -300,16 +301,14 @@ export default function PaymentsLedgerPage() {
       />
 
       {fetchError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle p-6 flex items-start gap-3">
-          <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" />
-          <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-sm font-semibold text-foreground">Gagal memuat penerimaan</p>
-            <p className="text-sm text-muted-foreground">Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis.</p>
-            <Button size="sm" variant="outline" onClick={() => fetchLedger({ cancelled: false })}>
-              <RefreshCw size={14} className="mr-1.5" /> Coba lagi
-            </Button>
-          </div>
-        </div>
+        <Alert variant="destructive">
+          <AlertCircle aria-hidden="true" />
+          <AlertTitle>Gagal memuat penerimaan</AlertTitle>
+          <AlertDescription>Coba lagi sebentar. Jika tetap gagal, hubungi tim teknis.</AlertDescription>
+          <AlertAction>
+            <Button variant="outline" onClick={() => fetchLedger({ cancelled: false })}>Coba lagi</Button>
+          </AlertAction>
+        </Alert>
       ) : (
         <DataTable
           columns={columns}

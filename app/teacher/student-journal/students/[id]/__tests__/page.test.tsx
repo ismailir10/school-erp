@@ -93,7 +93,7 @@ describe("TeacherStudentWeekPage", () => {
       // Button size="icon" grows to 44px on coarse pointers.
       expect(control.className).toContain("min-h-11");
       expect(control.className).toContain("min-w-11");
-      expect(control.className).toContain("focus-visible:ring-3");
+      expect(control.className).toContain("focus-visible:focus-outline");
     }
   });
 

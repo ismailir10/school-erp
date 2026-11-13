@@ -125,6 +125,15 @@ test.describe("Parent flows", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test("attendance fits a 320px phone", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.goto("/parent/attendance");
+    await expect(page.getByRole("heading", { level: 1, name: "Kehadiran" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() =>
+      document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )).toBe(0);
+  });
+
   test("reports page loads", async ({ page }) => {
     await page.goto("/parent/reports");
     await page.waitForURL("**/parent/reports");
@@ -266,19 +275,32 @@ test.describe("Parent flows", () => {
     }
   });
 
-  test("bottom nav is fully visible at 360px too", async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 800 });
-    await page.goto("/parent");
-    await page.waitForURL("**/parent", { timeout: 15_000 });
+  test("bottom nav labels stay at 12px and fit at 320px", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 740 });
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    const slots = page.getByRole("navigation", { name: "Navigasi utama orang tua" }).locator("a, button");
 
-    const nav = page.getByRole("navigation", { name: "Navigasi utama orang tua" });
-    const viewport = 360;
-    const slots = await nav.locator("a, button").all();
-    expect(slots).toHaveLength(5);
-    for (const slot of slots) {
-      const box = await slot.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport + 0.5);
+    await expect(slots).toHaveCount(5);
+    for (const slot of await slots.all()) {
+      const { fontSize, textLeft, textRight, slotLeft, slotRight } = await slot.evaluate((element) => {
+        const label = element.querySelector("span")!;
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        const text = range.getBoundingClientRect();
+        const box = element.getBoundingClientRect();
+        return {
+          fontSize: parseFloat(getComputedStyle(label).fontSize),
+          textLeft: text.left,
+          textRight: text.right,
+          slotLeft: box.left,
+          slotRight: box.right,
+        };
+      });
+      expect(fontSize).toBeGreaterThanOrEqual(12);
+      expect(textLeft).toBeGreaterThanOrEqual(slotLeft - 0.5);
+      expect(textRight).toBeLessThanOrEqual(slotRight + 0.5);
+      expect(slotLeft).toBeGreaterThanOrEqual(0);
+      expect(slotRight).toBeLessThanOrEqual(320.5);
     }
   });
 
@@ -295,7 +317,13 @@ test.describe("Parent flows", () => {
       'nav[aria-label="Navigasi utama orang tua"] button:has-text("Lainnya")',
     );
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
-    await trigger.click();
+    await trigger.focus();
+    await expect(async () => {
+      if (await trigger.getAttribute("aria-expanded") !== "true") {
+        await page.keyboard.press("Enter");
+      }
+      await expect(trigger).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
 
     const sheet = page.getByRole("navigation", { name: "Menu lainnya" });
     await expect(sheet).toBeVisible({ timeout: 10_000 });
@@ -304,6 +332,13 @@ test.describe("Parent flows", () => {
       await expect(sheet.getByRole("link", { name: new RegExp(label) })).toBeVisible();
     }
 
+    await expect(sheet.getByRole("link", { name: /^Perkembangan/ })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(sheet).toBeVisible();
     const reportLink = sheet.getByRole("link", { name: /Rapor/ });
     const href = await reportLink.getAttribute("href");
     expect(href).toBeTruthy();

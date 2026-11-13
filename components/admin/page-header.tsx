@@ -20,7 +20,7 @@ export function PageHeader({
   className,
 }: {
   title: string;
-  description?: string;
+  description?: ReactNode;
   badge?: ReactNode;
   /** Legacy escape hatch: an arbitrary node. Renders first, before the structured actions. */
   actions?: ReactNode;

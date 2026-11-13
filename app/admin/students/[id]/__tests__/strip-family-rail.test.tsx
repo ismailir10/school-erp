@@ -62,7 +62,7 @@ describe("student page — Perlu perhatian", () => {
     await renderLoaded({ invoices: INVOICES_OWED });
     const region = await screen.findByRole("region", { name: "Perlu perhatian" });
     expect(within(region).getByText(/belum dibayar/)).toHaveTextContent(
-      "Rp 1.250.000 belum dibayar · 2 tagihan, 1 lewat tempo",
+      "2 tagihan belum dibayar · 1 lewat tempo",
     );
   });
 
@@ -161,7 +161,7 @@ describe("student page — Perlu perhatian", () => {
     const region = await screen.findByRole("region", { name: "Perlu perhatian" });
     await waitFor(() => expect(within(region).getAllByRole("listitem")).toHaveLength(5));
     expect(within(region).getAllByRole("listitem").map((li) => li.textContent?.split("·")[0].replace(/\s+/g, " ").trim().slice(0, 12))).toEqual([
-      "Rp 1.250.000",
+      "2 tagihan be",
       "Belum terdaf",
       "Belum ada wa",
       "Berkas belum",
@@ -252,28 +252,21 @@ describe("student page — slim rail", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("holds Tunggakan, Hadir bulan ini and Rapor tiles plus Jejak, and nothing of the old rail", async () => {
+  it("keeps attendance, reports and Jejak without repeating the outstanding balance", async () => {
     await renderLoaded({ invoices: INVOICES_OWED });
     const rail = screen.getByLabelText("Ringkasan", { selector: "aside" });
     expect(rail.className).toContain("hidden");
     expect(rail.className).toContain("lg:flex");
     await waitFor(() => expect(within(rail).getByText("18/20")).toBeInTheDocument());
-    for (const label of ["Tunggakan", "Hadir bulan ini", "Rapor"]) {
+    for (const label of ["Hadir bulan ini", "Rapor"]) {
       expect(within(rail).getByText(label)).toBeInTheDocument();
     }
-    expect(within(rail).getByText("Rp 1.250.000")).toBeInTheDocument();
+    expect(within(rail).queryByText("Tunggakan")).not.toBeInTheDocument();
+    expect(within(rail).queryByText("Rp 1.250.000")).not.toBeInTheDocument();
     expect(within(rail).getByText("Jejak")).toBeInTheDocument();
     for (const gone of ["Usia", "Kelas Aktif", "Wali Aktif", "Berkas", "Ringkasan", "Kontak Cepat", "Kelengkapan Berkas"]) {
       expect(within(rail).queryByText(gone)).not.toBeInTheDocument();
     }
-  });
-
-  it("shows Memuat… in the Tunggakan tile while invoices load", async () => {
-    await renderLoaded({ invoicesPending: true });
-    const rail = screen.getByLabelText("Ringkasan", { selector: "aside" });
-    expect(within(rail).getByText("Tunggakan")).toBeInTheDocument();
-    expect(within(rail).getAllByText("Memuat…").length).toBeGreaterThan(0);
-    expect(within(rail).queryByText("Rp 0")).not.toBeInTheDocument();
   });
 
   it("is the only place the numbers appear: no tile block above the sections", async () => {

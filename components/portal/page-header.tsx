@@ -3,7 +3,7 @@ import { PageHeader as BasePageHeader } from "@/components/admin/page-header";
 
 export type PageHeaderProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   className?: string;
 };
@@ -11,8 +11,8 @@ export type PageHeaderProps = {
 /**
  * Portal-route page header (parent, teacher, admin sub-pages). The layout lives
  * in `components/admin/page-header.tsx` — one implementation — and this keeps
- * the `subtitle` prop the portal callers already use. Don't add props here: if
- * a page needs icons or custom markup in the heading, wrap the primitive.
+ * the `subtitle` prop the portal callers already use. A subtitle can contain inline elements, such
+ * as the greeting and date on the parent home.
  */
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps) {
   return (

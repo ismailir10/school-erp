@@ -5,7 +5,8 @@ import { join } from "node:path";
 /**
  * Design-reference parity (design-system-source-of-truth, Decisions 1 and 8).
  * `app/globals.css` owns every token value; the standalone reference HTML keeps
- * its own `:root`, so this guard fails when a shared token drifts, and when a
+ * its own `:root`, so this guard catches a missing required token, value or
+ * alias drift, and when a
  * `components/ui` primitive is missing from the reference's component inventory.
  */
 
@@ -13,7 +14,8 @@ const ROOT = process.cwd();
 const HTML = readFileSync(join(ROOT, ".claude/standards/design-system.html"), "utf8");
 const GLOBALS = readFileSync(join(ROOT, "app/globals.css"), "utf8");
 
-const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
+const stripComments = (css: string) =>
+  css.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|\/\*[\s\S]*?\*\//g, (_match, quoted) => quoted ?? "");
 
 /** Body text of every top-level `<selector> { … }` block, with nested blocks removed. */
 export function blockBodies(css: string, selector: RegExp): string[] {
@@ -62,13 +64,13 @@ export function normalizeValue(v: string): string {
     .trim();
 }
 
-/** Names present in both maps, both literal (no var()), whose normalized values differ. */
+/** Missing tokens or mismatched declarations, including aliases. */
 export function mismatches(a: Map<string, string>, b: Map<string, string>): string[] {
   const out: string[] = [];
   for (const [name, av] of a) {
     const bv = b.get(name);
-    if (bv === undefined || av.includes("var(") || bv.includes("var(")) continue;
-    if (normalizeValue(av) !== normalizeValue(bv)) out.push(`${name}: html=${av} globals=${bv}`);
+    if (bv === undefined) out.push(`${name}: missing from reference`);
+    else if (normalizeValue(av) !== normalizeValue(bv)) out.push(`${name}: globals=${av} html=${bv}`);
   }
   return out;
 }
@@ -76,14 +78,38 @@ export function mismatches(a: Map<string, string>, b: Map<string, string>): stri
 const HTML_ROOT = [/(^|\n)\s*:root\s*\{/];
 const GLOBALS_BLOCKS = [/(^|\n)\s*@theme[^{]*\{/, /(^|\n)\s*:root\s*\{/];
 
+// The catalog covers the core palette, status and semantic triads, and the
+// documented type, radius, spacing, elevation, motion and stacking scales.
+const CORE = [
+  "background", "foreground", "card", "card-foreground", "popover", "popover-foreground",
+  "primary", "primary-foreground", "primary-text", "secondary", "secondary-foreground",
+  "muted", "muted-foreground", "accent", "accent-foreground", "destructive", "border",
+  "input", "ring", "radius", "shadow-sticky-edge",
+].map((name) => `--${name}`);
+// next/font binds these variables on the document body. The standalone HTML
+// loads the same families directly and declares its own fallback stacks.
+const NEXT_FONT_VARS = new Set(["--font-sans", "--font-mono"]);
+const CATALOG_FAMILY = /^--(?:sidebar|status|success|warning|info|celebration-gold|destructive-|radius-|elevation|ease|transition-duration|z-index|space-|type-|text-)/;
+
 describe("design reference: token parity with app/globals.css", () => {
-  it("every shared literal token has the same value", () => {
+  it("mirrors required tokens and every shared declaration, including aliases", () => {
     const html = customProps(HTML, HTML_ROOT);
     const globals = customProps(GLOBALS, GLOBALS_BLOCKS);
-    expect(html.size).toBeGreaterThan(20);
-    expect(globals.size).toBeGreaterThan(20);
-    const bad = mismatches(html, globals);
+    const missingFromApp = [...new Set([...CORE, ...html.keys()])]
+      .filter((name) => !NEXT_FONT_VARS.has(name) && !globals.has(name));
+    expect(missingFromApp, "catalog tokens missing from globals.css").toEqual([]);
+    const required = new Map(
+      [...globals].filter(([name]) => !NEXT_FONT_VARS.has(name) && (CORE.includes(name) || CATALOG_FAMILY.test(name) || html.has(name))),
+    );
+    const bad = mismatches(required, html);
     expect(bad, `reference :root differs from globals.css:\n${bad.join("\n")}`).toEqual([]);
+  });
+
+  it("serves the exact canonical bytes without a runtime token override", () => {
+    const canonical = readFileSync(join(ROOT, ".claude/standards/design-system.html"));
+    const served = readFileSync(join(ROOT, "public/admin/design-system-reference.html"));
+    expect(served.equals(canonical), "copy the canonical reference to public/admin").toBe(true);
+    expect(HTML).not.toMatch(/<script\b|\bstyle\s*=\s*["'][^"']*--(?:ring|input|primary|radius|space-)[a-z-]*\s*:/i);
   });
 
   it("the reference declares no dark palette or theme toggle", () => {
@@ -107,7 +133,7 @@ describe("design reference: component inventory", () => {
 });
 
 describe("design reference: parser", () => {
-  const css = `/* c */ :root { --a: #ABC; --b:  1rem; /* --x: 1; */ }
+  const css = `@source not "../docs/**";\n/* c */ :root { --a: #ABC; --b:  1rem; /* --x: 1; */ }
 @theme inline { --c: var(--a); @keyframes k { from { --z: 1; } } --d: 2px; }`;
 
   it("reads custom properties from named blocks and skips nested ones", () => {
@@ -120,9 +146,13 @@ describe("design reference: parser", () => {
     expect(normalizeValue("rgba(0,0,0,  0.1)")).toBe("rgba(0, 0, 0, 0.1)");
   });
 
-  it("flags differing literals, ignores var() and unshared names", () => {
-    const a = new Map([["--p", "#FFF"], ["--q", "1rem"], ["--r", "var(--p)"], ["--only", "1"]]);
-    const b = new Map([["--p", "#fff"], ["--q", "2rem"], ["--r", "3px"]]);
-    expect(mismatches(a, b)).toEqual(["--q: html=1rem globals=2rem"]);
+  it("flags changed alias targets and required declarations removed from the reference", () => {
+    const globals = new Map([["--p", "#FFF"], ["--q", "1rem"], ["--r", "var(--p)"], ["--missing", "1"]]);
+    const html = new Map([["--p", "#fff"], ["--q", "2rem"], ["--r", "var(--q)"]]);
+    expect(mismatches(globals, html)).toEqual([
+      "--q: globals=1rem html=2rem",
+      "--r: globals=var(--p) html=var(--q)",
+      "--missing: missing from reference",
+    ]);
   });
 });

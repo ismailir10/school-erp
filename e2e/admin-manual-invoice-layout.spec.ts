@@ -228,3 +228,63 @@ test("manual invoice preserves entered values when an open form crosses the mobi
     await wheelThroughForm(page, dialog);
   }
 });
+
+for (const width of [390, 1440]) {
+  test(`Tagihan prioritizes search and keeps every metric accessible at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await page.context().addCookies([{
+      name: "school-erp-session", value: "u_super_admin", domain: "localhost", path: "/",
+      httpOnly: true, sameSite: "Lax",
+    }]);
+    await page.goto("/admin/invoices");
+
+    const search = page.getByPlaceholder("Cari siswa atau nomor tagihan...");
+    const summary = page.getByRole("button", { name: "Ringkasan tagihan" });
+    const totals = page.getByText("Total tagihan", { exact: true });
+    if (width === 390) {
+      await expect(page.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeInViewport();
+      await expect(search).toBeInViewport({ ratio: 1 });
+      await expect(summary).toHaveAttribute("aria-expanded", "false");
+      await expect(totals).toBeHidden();
+      await summary.focus();
+      await summary.press("Enter");
+      await expect(summary).toHaveAttribute("aria-expanded", "true");
+    } else {
+      await expect(summary).toBeHidden();
+    }
+    for (const label of ["Total tagihan", "Draf", "Lunas", "Dibayar sebagian", "Lewat tempo", "Piutang", "Diterima bulan ini"]) {
+      await expect(page.locator("[data-slot=collapsible-content]").getByText(label, { exact: true })).toBeVisible();
+    }
+    if (width === 390) {
+      await summary.press("Enter");
+      await expect(totals).toBeHidden();
+      await expect(summary).toBeFocused();
+    }
+  });
+}
+
+test("a failed invoice summary can be retried without losing the list or search", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().addCookies([{
+    name: "school-erp-session", value: "u_super_admin", domain: "localhost", path: "/",
+    httpOnly: true, sameSite: "Lax",
+  }]);
+  let attempts = 0;
+  await page.route("**/api/invoices/stats", (route) => {
+    attempts += 1;
+    if (attempts === 1) return route.fulfill({ status: 503, json: {} });
+    return route.continue();
+  });
+
+  await page.goto("/admin/invoices");
+  const search = page.getByPlaceholder("Cari siswa atau nomor tagihan...");
+  await search.fill("INV-");
+  const summary = page.getByRole("button", { name: "Ringkasan tagihan" });
+  await summary.click();
+  await expect(page.getByRole("status").filter({ hasText: "Ringkasan tagihan belum dapat dimuat" })).toBeVisible();
+  await page.getByRole("button", { name: "Muat ulang ringkasan" }).click();
+  await expect(page.getByText("Total tagihan", { exact: true })).toBeVisible();
+  await expect(search).toHaveValue("INV-");
+  await expect(summary).toHaveAttribute("aria-expanded", "true");
+  expect(attempts).toBe(2);
+});

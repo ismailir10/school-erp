@@ -19,6 +19,9 @@
 | Leave/info | `text-info-text` on `bg-info-subtle` | `text-[#0EA5E9]` |
 | Text on a tint | the `-text` token | the base token (fails AA) or a copied hex (hardcoded copies stayed stale when the `-text` token was darkened once) |
 | Brand teal as text/glyph on a light or tinted surface | `text-primary-text` | `text-primary` (fails AA on white) |
+| A visible control boundary | `border-input` | `border-border` on an unfilled input |
+| A structural divider or card edge | `border-border` | `border-input` |
+| Keyboard focus | `focus-visible:focus-outline` (see `ui.md` § Focus ring) | Translucent brand or error rings |
 | Pill or tone | `<Badge>` variants, `<StatusBadge>` (see `ui.md` § Reach for) | `<Badge className="bg-status-…">`, hand-rolled `<span rounded-full …>` |
 
 ## Semantic triads

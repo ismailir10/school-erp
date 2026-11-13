@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import Link from "next/link";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -15,8 +16,7 @@ import { getStatusConfig } from "@/components/ui/status-badge";
  * still belongs to the Tagihan module, so each row deep-links to
  * `/admin/invoices/[id]` rather than growing an edit affordance here.
  *
- * Presentational: the page owns the fetch, because the rail's Tunggakan tile
- * reads the same summary and must not wait on a section being opened.
+ * The page owns the fetch so the attention strip can use the same summary.
  */
 
 export type StudentInvoiceRow = {
@@ -28,34 +28,6 @@ export type StudentInvoiceRow = {
   totalDue: number | string;
   totalPaid: number | string;
 };
-
-function SummaryFigure({
-  label,
-  value,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: string;
-  tone?: "outstanding";
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={
-          tone === "outstanding"
-            ? "mt-1 font-currency text-base font-bold tabular-nums text-destructive"
-            : "mt-1 font-currency text-base font-semibold tabular-nums"
-        }
-      >
-        {value}
-      </p>
-      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
 
 /**
  * Per-status split from the aggregate route (increment 3). The four figures
@@ -163,19 +135,23 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryFigure label="Total Ditagih" value={formatRupiah(summary.totalBilled)} />
-        <SummaryFigure label="Sudah Dibayar" value={formatRupiah(summary.totalPaid)} />
-        <SummaryFigure
-          label="Sisa Tagihan"
+        <StatTile label="Total ditagih" value={formatRupiah(summary.totalBilled)} size="sm" mono />
+        <StatTile label="Sudah dibayar" value={formatRupiah(summary.totalPaid)} size="sm" mono />
+        <StatTile
+          label="Sisa tagihan"
+          size="sm"
+          mono
           value={formatRupiah(summary.outstanding)}
-          tone={summary.outstanding > 0 ? "outstanding" : undefined}
+          tone={summary.outstanding > 0 ? "critical" : undefined}
           hint={
             summary.nearestDue ? `Jatuh tempo ${formatDateShort(summary.nearestDue)}` : undefined
           }
         />
-        <SummaryFigure
-          label="Belum Lunas"
-          value={String(summary.unpaidCount)}
+        <StatTile
+          label="Belum lunas"
+          value={summary.unpaidCount}
+          size="sm"
+          mono
           hint={summary.overdueCount > 0 ? `${summary.overdueCount} lewat tempo` : undefined}
         />
       </div>

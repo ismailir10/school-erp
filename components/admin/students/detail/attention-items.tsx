@@ -1,5 +1,4 @@
 import type { AttentionItem } from "@/components/admin/attention-strip";
-import { formatRupiah } from "@/lib/format";
 import type { StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
 import {
   SECTION_AKADEMIK,
@@ -65,13 +64,7 @@ export function buildStudentAttentionItems({
   if (!loading && !error && summary.outstanding > 0) {
     items.push({
       id: "owed",
-      message: (
-        <>
-          <strong className="font-currency font-semibold">{formatRupiah(summary.outstanding)}</strong> belum dibayar
-          {" · "}
-          {summary.unpaidCount} tagihan{summary.overdueCount > 0 ? `, ${summary.overdueCount} lewat tempo` : ""}
-        </>
-      ),
+      message: `${summary.unpaidCount} tagihan belum dibayar${summary.overdueCount > 0 ? ` · ${summary.overdueCount} lewat tempo` : ""}`,
       action: { label: "Lihat tagihan", onClick: () => onJump(SECTION_KEUANGAN), testId: "attention-owed" },
     });
   }

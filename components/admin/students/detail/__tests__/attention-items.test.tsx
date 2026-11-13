@@ -58,11 +58,10 @@ describe("buildStudentAttentionItems", () => {
     expect(ids(items)).toEqual(["owed", "no-class", "no-guardian", "documents", "raport"]);
   });
 
-  it("states what is owed, how many tagihan and how many are overdue", () => {
+  it("shows the number of unpaid and overdue invoices", () => {
     const { items } = build({ invoices: { loading: false, error: false, summary: OWED } });
     render(<AttentionStrip items={items} />);
-    expect(screen.getByText(/belum dibayar/)).toHaveTextContent("Rp 1.250.000 belum dibayar · 2 tagihan, 1 lewat tempo");
-    expect(screen.getByText("Rp 1.250.000").className).toContain("font-currency");
+    expect(screen.getByText(/belum dibayar/)).toHaveTextContent("2 tagihan belum dibayar · 1 lewat tempo");
   });
 
   it("leaves out the overdue clause when none is overdue", () => {
@@ -70,7 +69,7 @@ describe("buildStudentAttentionItems", () => {
       invoices: { loading: false, error: false, summary: { ...OWED, overdueCount: 0 } },
     });
     render(<AttentionStrip items={items} />);
-    expect(screen.getByText(/belum dibayar/)).toHaveTextContent("Rp 1.250.000 belum dibayar · 2 tagihan");
+    expect(screen.getByText(/belum dibayar/)).toHaveTextContent("2 tagihan belum dibayar");
     expect(screen.getByText(/belum dibayar/)).not.toHaveTextContent("lewat tempo");
   });
 

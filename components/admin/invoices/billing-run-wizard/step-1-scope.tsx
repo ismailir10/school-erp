@@ -51,7 +51,7 @@ function StudentChips({
               type="button"
               onClick={() => onRemove(s.id)}
               aria-label={`Hapus ${s.name} dari daftar`}
-              className="inline-flex size-5 items-center justify-center rounded-full opacity-70 hover:bg-muted hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="inline-flex size-5 items-center justify-center rounded-full opacity-70 hover:bg-muted hover:opacity-100 focus-visible:opacity-100 focus-visible:focus-outline"
             >
               <X size={12} />
             </button>

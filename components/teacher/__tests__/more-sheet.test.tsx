@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { TEACHER_MORE_ITEMS, TeacherMoreSheet } from "../more-sheet";
 
 const navigation = vi.hoisted(() => ({ pathname: "/teacher" }));
@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("TeacherMoreSheet", () => {
-  it("exposes the four lower-frequency teacher destinations", () => {
+  it("exposes the lower-frequency teacher destinations", () => {
     navigation.pathname = "/teacher";
     render(<TeacherMoreSheet open onOpenChange={() => {}} />);
 
@@ -67,20 +67,16 @@ describe("TeacherMoreSheet", () => {
     );
   });
 
-  it("keeps overflow rows touch- and keyboard-focusable, and closes on selection", () => {
+  it("keeps overflow rows touch- and keyboard-focusable", () => {
     navigation.pathname = "/teacher";
-    const onOpenChange = vi.fn();
-    render(<TeacherMoreSheet open onOpenChange={onOpenChange} />);
+    render(<TeacherMoreSheet open onOpenChange={() => {}} />);
 
     const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
     const profile = within(menu).getByRole("link", { name: /^Profil saya/ });
     expect(profile.className).toContain("min-h-14");
-    expect(profile.className).toContain("focus-visible:ring-2");
+    expect(profile.className).toContain("focus-visible:focus-outline");
 
     profile.focus();
     expect(profile).toHaveFocus();
-    profile.addEventListener("click", (event) => event.preventDefault());
-    fireEvent.click(profile);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

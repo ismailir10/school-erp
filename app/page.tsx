@@ -314,7 +314,7 @@ function DemoLoginPage() {
           </p>
         </div>
 
-        <Card className="border-white/5 bg-login-card-bg py-0 text-white">
+        <Card className="border-white/5 bg-login-card-bg py-0 text-white [--focus-outline-color:var(--sidebar-ring)] [--focus-outline-offset:-2px]">
           <CardContent className="p-6">
             <p className="text-sidebar-foreground text-xs uppercase tracking-wider font-semibold mb-4">
               Demo Mode — Pilih Akun
@@ -341,7 +341,7 @@ function DemoLoginPage() {
                     className="h-auto w-full justify-start gap-3 rounded-xl border border-primary/20 bg-primary/10 p-3 text-left hover:border-primary/40 hover:bg-primary/15"
                   >
                     <div className="size-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <span className="text-white text-sm font-bold">{user.name?.[0] ?? "A"}</span>
+                      <span className="text-primary-foreground text-sm font-bold">{user.name?.[0] ?? "A"}</span>
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-white font-medium text-sm truncate">{user.name ?? user.email}</p>

@@ -184,9 +184,7 @@ export default function StudentDetailPage() {
   const [kehadiranActive, setKehadiranActive] = useState(false);
 
   // --- Keuangan (increment 2) ---
-  // Eager, unlike Kehadiran: the rail's Tunggakan tile reads this summary, and
-  // a tile that only fills once the admin opens a section below the fold is a
-  // tile that always reads as zero.
+  // Eager so the attention strip can flag unpaid invoices before Keuangan opens.
   const [invoices, setInvoices] = useState<StudentInvoiceRow[] | null>(null);
   const [invoicesError, setInvoicesError] = useState<"denied" | "failed" | null>(null);
 
@@ -556,9 +554,7 @@ export default function StudentDetailPage() {
   // rather than a day-care row — raport is a school-programme artefact.
   const primaryClassSectionId = primaryEnrollment?.classSection.id ?? null;
 
-  // Summary over whatever the invoice fetch returned. Until it lands, the
-  // empty summary reads as zero everywhere — which is why the Tunggakan tile
-  // below distinguishes "not loaded yet" from "nothing owed".
+  // The attention strip and Keuangan share the summary and its loading/error state.
   const invoiceSummary = invoices ? summarizeStudentInvoices(invoices) : EMPTY_INVOICE_SUMMARY;
   const invoicesLoading = invoices === null && !invoicesError;
 
@@ -656,7 +652,6 @@ export default function StudentDetailPage() {
     onEnroll: () => setEnrollDialog(true),
   });
   const railTiles = buildRailTiles({
-    invoices: { loading: invoicesLoading, error: invoicesError !== null, summary: invoiceSummary },
     overviewError,
     attendanceCounts,
     raportTally,

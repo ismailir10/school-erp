@@ -43,9 +43,8 @@ describe("student page — phone first screen", () => {
     render(<StudentDetailPage />);
     await screen.findByRole("region", { name: "Kontak keluarga" });
 
-    const tunggakan = screen.getAllByText("Tunggakan");
-    expect(tunggakan).toHaveLength(1);
-    const rail = tunggakan[0].closest("aside")!;
+    const attendance = screen.getByText("Hadir bulan ini");
+    const rail = attendance.closest("aside")!;
     expect(rail.className).toContain("hidden");
     // And no other Ringkasan / Berkas cards after the sections.
     expect(screen.queryByText("Kelengkapan Berkas", { selector: "h3" })).not.toBeInTheDocument();
