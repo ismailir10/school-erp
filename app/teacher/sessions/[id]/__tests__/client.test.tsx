@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
@@ -49,6 +50,12 @@ function renderRoster(rows = roster) {
   );
 }
 
+async function chooseStatus(name: string, label: string) {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`Status ${name}:`) }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: label }));
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+}
+
 describe("SessionRosterClient", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -67,7 +74,7 @@ describe("SessionRosterClient", () => {
     expect(saveArea?.className).toContain("border-t");
 
     const status = screen.getByRole("button", {
-      name: "Status Aisyah: Hadir. Ketuk untuk ganti.",
+      name: "Status Aisyah: Hadir. Pilih status.",
     });
     expect(status.className).toContain("min-h-11");
     expect(status.className).toContain("min-w-11");
@@ -83,7 +90,7 @@ describe("SessionRosterClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderRoster();
 
-    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
+    await chooseStatus("Aisyah", "Sakit");
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -127,14 +134,13 @@ describe("SessionRosterClient", () => {
     expect(toastInfo).toHaveBeenCalledWith("Tidak ada perubahan untuk disimpan.");
   });
 
-  it("treats a change that is reverted by hand as no change", () => {
+  it("treats a change that is reverted by hand as no change", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     renderRoster();
 
-    // Hadir → Sakit → Izin → Alpa → Hadir.
-    const status = () => screen.getByRole("button", { name: /Status Aisyah/ });
-    for (let i = 0; i < 4; i++) fireEvent.click(status());
+    await chooseStatus("Aisyah", "Sakit");
+    await chooseStatus("Aisyah", "Hadir");
     expect(screen.queryByText(/Belum disimpan/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi" }));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -145,7 +151,7 @@ describe("SessionRosterClient", () => {
     vi.stubGlobal("fetch", fetchMock);
     renderRoster();
 
-    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
+    await chooseStatus("Aisyah", "Sakit");
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
     await screen.findByText("Semua perubahan tersimpan");
     expect(screen.getByRole("button", { name: "Simpan absensi" })).toBeInTheDocument();
@@ -156,22 +162,54 @@ describe("SessionRosterClient", () => {
     expect(toastInfo).toHaveBeenCalledWith("Tidak ada perubahan untuk disimpan.");
 
     // A new edit to Bilal sends Bilal only — Aisyah is no longer resent.
-    fireEvent.click(screen.getByRole("button", { name: /Status Bilal/ }));
+    await chooseStatus("Bilal", "Sakit");
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const sent = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
     expect(sent.rows).toEqual([expect.objectContaining({ studentId: "s2", status: "SICK" })]);
   });
 
-  it("cycles Hadir → Sakit → Izin → Alpa → Hadir (class-attendance order)", () => {
+  it("opens named choices without changing a row and Escape dismisses without an edit", async () => {
+    const user = userEvent.setup();
     renderRoster();
-    const label = (word: string) =>
-      screen.getByRole("button", { name: `Status Aisyah: ${word}. Ketuk untuk ganti.` });
-    for (const next of ["Sakit", "Izin", "Alpa", "Hadir"]) {
-      fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ }));
-      expect(label(next)).toBeInTheDocument();
-    }
-    expect(screen.getByText(/Hadir → Sakit → Izin → Alpa/)).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Status Aisyah: Hadir. Pilih status." });
+    await user.click(trigger);
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitemradio").map(item => item.textContent)).toEqual(["Hadir", "Sakit", "Izin", "Alpa"]);
+    expect(within(menu).getByRole("menuitemradio", { name: "Hadir" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(trigger).toHaveFocus();
+    expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+  });
+
+  it("selects any named status with the keyboard instead of cycling hidden alternatives", async () => {
+    const user = userEvent.setup();
+    renderRoster();
+    const trigger = screen.getByRole("button", { name: /Status Aisyah:/ });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await screen.findByRole("menu");
+    await waitFor(() => expect(screen.getByRole("menuitemradio", { name: "Hadir" })).toHaveFocus());
+    await user.keyboard("{End}");
+    await waitFor(() => expect(screen.getByRole("menuitemradio", { name: "Alpa" })).toHaveFocus());
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(screen.getByRole("button", { name: "Status Aisyah: Alpa. Pilih status." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status Bilal: Hadir. Pilih status." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" })).toBeInTheDocument();
+  });
+
+  it("choosing the existing status preserves arrival and pickup data", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster([{ ...roster[0], checkInTime: "2026-08-03T01:00:00.000Z", checkOutTime: "2026-08-03T05:00:00.000Z", pickedUpByRelation: "PARENT", pickedUpByName: "Ibu" }]);
+    await chooseStatus("Aisyah", "Hadir");
+    expect(screen.getByText(/^Masuk /)).toBeInTheDocument();
+    expect(screen.getByText(/^Pulang /)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi" }));
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("hides masuk, pulang and the pickup form for a child who is not Hadir (TCHX-8)", () => {
@@ -193,7 +231,7 @@ describe("SessionRosterClient", () => {
         pickedUpByName: "Ibu",
       },
     ]);
-    fireEvent.click(screen.getByRole("button", { name: /Status Aisyah/ })); // → Sakit
+    await chooseStatus("Aisyah", "Sakit"); // → Sakit
     expect(screen.queryByText(/^Masuk /)).toBeNull();
     expect(screen.queryByText("Dijemput oleh")).toBeNull();
 
@@ -329,7 +367,7 @@ describe("SessionRosterClient", () => {
       // load: "expected true to be false").
       await waitFor(() => expect(beforeUnloadPrevented()).toBe(false));
 
-      fireEvent.click(screen.getByRole("button", { name: /Status Bilal/ }));
+      await chooseStatus("Bilal", "Sakit");
       expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
     });
 
@@ -385,7 +423,7 @@ describe("unrecorded session rows", () => {
     renderRoster(roster.map(row => ({ ...row, status: "UNKNOWN" })));
     expect(screen.getAllByText("Belum dicatat")).toHaveLength(2);
     expect(screen.queryByText("Hadir", { exact: true })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Status Aisyah: Belum dicatat. Ketuk untuk ganti." }));
+    await chooseStatus("Aisyah", "Hadir");
     fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).rows).toEqual([expect.objectContaining({ studentId: "s1", status: "PRESENT" })]);
@@ -394,8 +432,8 @@ describe("unrecorded session rows", () => {
   it("explicit bulk arrival selects unknown children but preserves Sakit", () => {
     renderRoster([{ ...roster[0], status: "UNKNOWN" }, { ...roster[1], status: "SICK" }]);
     fireEvent.click(screen.getByRole("button", { name: "Semua hadir" }));
-    expect(screen.getByRole("button", { name: "Status Aisyah: Hadir. Ketuk untuk ganti." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Status Bilal: Sakit. Ketuk untuk ganti." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status Aisyah: Hadir. Pilih status." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status Bilal: Sakit. Pilih status." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" })).toBeInTheDocument();
   });
 });

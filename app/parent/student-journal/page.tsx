@@ -19,6 +19,7 @@ import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel"
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { NoteDeleteDialog } from "@/components/student-journal/note-delete-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { resolveParentWeek } from "@/lib/parent/attendance-week";
 import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
 import { formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -79,21 +80,6 @@ function weekLabel(dates: string[]): string {
   return formatWeekRangeLabel(dates[0], dates[dates.length - 1]);
 }
 
-/**
- * `?week=` is trusted only as far as "is this a real calendar date" — anything
- * else falls back to the current week rather than 400-ing at the reader. The
- * value is snapped to its Monday so a link to any day of a week opens that week.
- */
-function resolveWeekParam(raw: string | null, todayYmd: string): string {
-  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const parsed = new Date(`${raw}T00:00:00Z`);
-    if (!Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === raw) {
-      return weekStart(raw);
-    }
-  }
-  return weekStart(todayYmd);
-}
-
 // ── Component ─────────────────────────────────────────────────────
 
 type TabView = "school" | "home" | "notes";
@@ -145,7 +131,7 @@ export default function ParentStudentJournalPage() {
   // is the opposite of what a parent chasing last week's catatan wants.
   const today = getTodayInTimezone("Asia/Jakarta");
   const thisWeek = weekStart(today);
-  const currentWeek = resolveWeekParam(searchParams.get("week"), today);
+  const currentWeek = resolveParentWeek(searchParams.get("week"), today);
   const isCurrentWeek = currentWeek === thisWeek;
 
   const setCurrentWeek = useCallback(

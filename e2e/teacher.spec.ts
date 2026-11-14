@@ -1,9 +1,76 @@
+import { randomUUID } from "node:crypto";
+import { Client } from "pg";
 import { test, expect } from "@playwright/test";
 
 // Demo mode E2E — discovers teacher user ID from /api/auth/users and sets
 // session cookie directly to avoid rate limit on repeated logins.
 
 let teacherUserId: string;
+
+function localRosterDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url || !["localhost", "127.0.0.1"].includes(new URL(url).hostname)) {
+    throw new Error("Roster e2e resets one fixture attendance: DATABASE_URL must be a local disposable Postgres.");
+  }
+  return url;
+}
+
+/** Test setup only, like attendance-geofence-gate: never a shared database. */
+async function ensureFreshRosterSession(userId: string) {
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const db = new Client({ connectionString: localRosterDatabaseUrl() });
+  await db.connect();
+  try {
+    const { rows: fixtures } = await db.query<{ classSectionId: string; employeeId: string; semesterId: string; studentId: string; studentName: string }>(
+      `SELECT c.id AS "classSectionId", u."employeeId", sem.id AS "semesterId", s.id AS "studentId", s.name AS "studentName"
+       FROM "User" u
+       JOIN "TeachingAssignment" ta ON ta."employeeId" = u."employeeId"
+       JOIN "ClassSection" c ON c.id = ta."classSectionId" AND c."tenantId" = u."tenantId"
+       JOIN "Semester" sem ON sem."academicYearId" = c."academicYearId" AND sem."tenantId" = c."tenantId"
+       JOIN "StudentEnrollment" e ON e."classSectionId" = c.id AND e.status = 'ACTIVE'
+       JOIN "Student" s ON s.id = e."studentId" AND s."tenantId" = c."tenantId"
+       WHERE u.id = $1 AND c.status = 'ACTIVE'
+       ORDER BY (ta.role = 'HOMEROOM') DESC, c.id, sem."startDate" DESC, length(s.name) DESC, s.id LIMIT 1`,
+      [userId],
+    );
+    const fixture = fixtures[0];
+    if (!fixture) throw new Error("Roster e2e needs an assigned class, semester and active student in the local seed.");
+    const existing = await db.query<{ id: string }>(
+      `SELECT id FROM "ClassSession" WHERE "classSectionId" = $1 AND date = $2 AND "teacherId" = $3 ORDER BY slot LIMIT 1`,
+      [fixture.classSectionId, date, fixture.employeeId],
+    );
+    let sessionId = existing.rows[0]?.id;
+    if (!sessionId) {
+      // Weekends and expired seed calendars may have no session. An explicit
+      // local fixture tests the roster, not the calendar's eligibility policy.
+      const inserted = await db.query<{ id: string }>(
+        `INSERT INTO "ClassSession" (id, "classSectionId", "semesterId", date, slot, "teacherId", "defaultTeacherId", "updatedAt")
+         SELECT $1, $2, $3, $4, slots.slot, $5, $5, now()
+         FROM (VALUES ('FULL_DAY'), ('MORNING'), ('AFTERNOON')) AS slots(slot)
+         WHERE NOT EXISTS (SELECT 1 FROM "ClassSession" cs WHERE cs."classSectionId" = $2 AND cs.date = $4 AND cs.slot = slots.slot)
+         LIMIT 1 RETURNING id`,
+        [randomUUID(), fixture.classSectionId, fixture.semesterId, date, fixture.employeeId],
+      );
+      sessionId = inserted.rows[0]?.id;
+    }
+    if (!sessionId) throw new Error("Roster e2e could not reserve a local session without replacing another teacher's slot.");
+    // A deliberately voided row renders neutral. Selecting a status must
+    // restore this same row, not merely return success while it stays hidden.
+    const notes = "E2E roster correction — retain original note";
+    const attendance = await db.query<{ id: string; createdAt: Date }>(
+      `INSERT INTO "StudentAttendance" (id, "studentId", "classSectionId", "sessionId", date, status, "isVoided", notes, "checkedInBy")
+       VALUES ($1, $2, $3, $4, $5, 'SICK', true, $6, $7)
+       ON CONFLICT ("studentId", "sessionId") DO UPDATE SET
+         status = 'SICK', "isVoided" = true, "checkInTime" = null, "checkOutTime" = null,
+         "pickedUpByRelation" = null, "pickedUpByName" = null, notes = $6
+       RETURNING id, "createdAt"`,
+      [randomUUID(), fixture.studentId, fixture.classSectionId, sessionId, date, notes, fixture.employeeId],
+    );
+    return { sessionId, studentName: fixture.studentName, studentId: fixture.studentId, attendanceId: attendance.rows[0].id, createdAt: attendance.rows[0].createdAt, notes };
+  } finally {
+    await db.end();
+  }
+}
 
 test.describe("Teacher flows", () => {
   test.beforeAll(async ({ request }) => {
@@ -154,79 +221,59 @@ test.describe("Teacher flows", () => {
     }
   });
 
-  // Daily session flow (academic-hierarchy-refactor Task 9). The seed is
-  // date-relative (prisma/seed.ts): it generates ClassSession rows across both
-  // semesters of the ACTIVE academic year and leaves the most recent school day
-  // partly unmarked, so a fresh row is always available. "Today" can still be a
-  // weekend or a seeded holiday (reconcileSessions correctly skips those), so
-  // this test discovers a session on ANY recent working day the teacher
-  // actually teaches — via the dated /api/teacher/sessions param — then drives
-  // the roster page (which is date-agnostic): set a status, Tap In, Tap Out,
-  // set a pickup relation, Simpan, then reload and assert the entered data
-  // persisted.
+  // A local fixture makes this flow run on weekends and after the seed's term
+  // ends. Do not turn missing calendar data into a skipped UI regression check.
   test("teacher daily session flow: record roster attendance and verify it persists", async ({ page }) => {
-    // Scan back over the last ~21 days for a date on which this teacher has a
-    // session with enrolled students. The dated query param mirrors the
-    // dashboard card's "today" query but lets the test tolerate today being a
-    // holiday / weekend with no generated sessions.
-    let session: { id: string; rosterCount: number } | undefined;
-    const today = new Date();
-    for (let back = 0; back <= 21 && !session; back++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - back);
-      const ymd = d.toISOString().slice(0, 10);
-      const res = await page.request.get(`/api/teacher/sessions?date=${ymd}`);
-      if (!res.ok()) continue;
-      const list = (await res.json()) as Array<{ id: string; rosterCount: number }>;
-      session = list.find((s) => s.rosterCount > 0);
-    }
-    if (!session) {
-      test.skip(
-        true,
-        "teacher has no recent session with enrolled students in demo seed",
-      );
-      return;
-    }
+    const fixture = await ensureFreshRosterSession(teacherUserId);
+    const { sessionId, studentName } = fixture;
 
+    // Keep full identities readable on the narrow phone from the audit.
+    await page.setViewportSize({ width: 320, height: 740 });
     // Roster page is date-agnostic — navigate straight to it.
-    await page.goto(`/teacher/sessions/${session.id}`);
-    await page.waitForURL(`**/teacher/sessions/${session.id}`, { timeout: 15_000 });
+    await page.goto(`/teacher/sessions/${sessionId}`);
+    await page.waitForURL(`**/teacher/sessions/${sessionId}`, { timeout: 15_000 });
 
-    // The roster page renders one row per ACTIVE-enrolled student. This test
-    // mutates state, so to stay re-runnable we pick the first row whose "Tap
-    // Masuk" button is still ENABLED (i.e. not yet checked in by a prior run).
-    // Once checked in, the button re-labels to "Masuk HH:MM" and disables.
     await expect(page.getByTestId("roster-row").first()).toBeVisible({ timeout: 15_000 });
     const rows = page.getByTestId("roster-row");
-    const rowCount = await rows.count();
-    let targetRow: import("@playwright/test").Locator | undefined;
-    for (let i = 0; i < rowCount; i++) {
-      const candidate = rows.nth(i);
-      const tapIn = candidate.getByRole("button", { name: /^Ketuk masuk$/ });
-      if (await tapIn.isVisible().catch(() => false)) {
-        targetRow = candidate;
-        break;
-      }
-    }
-    if (!targetRow) {
-      test.skip(
-        true,
-        "every student in this session is already checked in — no fresh row to exercise",
-      );
-      return;
-    }
+    const clippedNames = await rows.evaluateAll(elements => elements.flatMap(element => {
+      const name = element.querySelector("p");
+      return name && (name.scrollWidth > name.clientWidth || name.scrollHeight > name.clientHeight)
+        ? [name.textContent]
+        : [];
+    }));
+    expect(clippedNames).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const targetRow = rows.filter({ has: page.getByText(studentName, { exact: true }) });
+    await expect(targetRow).toHaveCount(1);
 
-    // Capture the student name so the row can be re-located after reload.
-    const studentName = (
-      await targetRow.locator("p").first().textContent()
-    )?.trim();
-    expect(studentName).toBeTruthy();
+    // The status affordance opens explicit choices; dismissing never edits.
+    const statusPill = targetRow.getByRole("button", { name: /^Status .*Pilih status\.$/ });
+    await expect(statusPill).toHaveAccessibleName(/: Belum dicatat\./);
+    await statusPill.click();
+    await expect(page.getByRole("menuitemradio")).toHaveCount(4);
+    await expect(page.getByRole("menuitemradio", { checked: true })).toHaveCount(0);
+    for (const item of await page.getByRole("menuitemradio").all()) {
+      await expect.poll(async () => (await item.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    await page.getByRole("menuitemradio", { name: "Hadir", exact: true }).click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await statusPill.click();
+    await expect(page.getByRole("menuitemradio", { name: "Hadir", exact: true })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(statusPill).toBeFocused();
+    await expect(statusPill).toHaveAccessibleName(/: Hadir\./);
 
-    // The status pill cycles Hadir → Sakit → Izin → Alpa → Hadir (TCH-15).
-    // Masuk/pulang exist only for Hadir (TCHX-8), so go once round the cycle
-    // and land back on Hadir.
-    const statusPill = targetRow.getByRole("button", { name: /^Status .*Ketuk untuk ganti\.$/ });
-    for (let i = 0; i < 4; i++) await statusPill.click();
+    // Select Alpa by keyboard, then return to Hadir for arrival/pickup.
+    await statusPill.press("Enter");
+    await expect(page.getByRole("menuitemradio", { name: "Hadir", exact: true })).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(page.getByRole("menuitemradio", { name: "Alpa", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(statusPill).toHaveAccessibleName(/: Alpa\./);
+    await expect(targetRow.getByRole("button", { name: /^Ketuk masuk$/ })).toHaveCount(0);
+    await statusPill.click();
+    await page.getByRole("menuitemradio", { name: "Hadir", exact: true }).click();
     await expect(statusPill).toHaveAccessibleName(/: Hadir\./);
 
     // Tap In — enables Tap Out.
@@ -260,6 +307,17 @@ test.describe("Teacher flows", () => {
     // Check-out persisted → pickup Select renders with "Orang tua" selected.
     await expect(reloadedRow.getByText(/^Pulang \d/)).toBeVisible();
     await expect(reloadedRow.getByRole("combobox")).toContainText("Orang tua");
+    const db = new Client({ connectionString: localRosterDatabaseUrl() });
+    await db.connect();
+    try {
+      const saved = await db.query(`SELECT id, "isVoided", status, notes, "createdAt", "checkInTime", "checkOutTime" FROM "StudentAttendance" WHERE "sessionId" = $1 AND "studentId" = $2`, [sessionId, fixture.studentId]);
+      expect(saved.rows).toHaveLength(1);
+      expect(saved.rows[0]).toMatchObject({ id: fixture.attendanceId, isVoided: false, status: "PRESENT", notes: fixture.notes, createdAt: fixture.createdAt });
+      expect(saved.rows[0].checkInTime).not.toBeNull();
+      expect(saved.rows[0].checkOutTime).not.toBeNull();
+    } finally {
+      await db.end();
+    }
   });
 
   test("teacher entry grid 'Lihat pekan' affordance navigates to per-student week view", async ({ page }) => {

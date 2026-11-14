@@ -103,16 +103,42 @@ test.describe.serial("Geofenced check-in, staff day and gate", () => {
   test.describe("admin", () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test("approves the pending check-in from Perlu persetujuan", async ({ page, context }) => {
-      await signIn(context, "u_super_admin");
-      await page.goto("/admin/employee-attendance");
-      await page.getByRole("tab", { name: /Perlu persetujuan/ }).click();
+    test("approves the pending check-in and updates an already-open teacher Home on return", async ({ page, context, browser, baseURL }) => {
+      // Separate cookies keep both roles signed in while the teacher's existing
+      // Home remains mounted. Loading it after approval would not test freshness.
+      const teacherContext = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 } });
+      try {
+        await signIn(teacherContext, "u_teacher");
+        const teacherPage = await teacherContext.newPage();
+        await openTeacherHome(teacherPage);
+        await expect(teacherPage.getByTestId("pending-approval-chip")).toHaveText("Menunggu persetujuan");
+        const teacherUrl = teacherPage.url();
+        const teacherNavigations: string[] = [];
+        teacherPage.on("request", request => {
+          if (request.isNavigationRequest()) teacherNavigations.push(request.url());
+        });
 
-      const row = page.getByTestId("pending-row").filter({ hasText: "Guru Tiga" });
-      await expect(row).toContainText(/± \d+ m dari Taman Aster/);
-      await expect(row).toContainText("Mengantar siswa ke dokter");
-      await row.getByRole("button", { name: "Setujui", exact: true }).click();
-      await expect(page.getByTestId("pending-row").filter({ hasText: "Guru Tiga" })).toHaveCount(0);
+        await signIn(context, "u_super_admin");
+        await page.bringToFront();
+        await page.goto("/admin/employee-attendance");
+        await page.getByRole("tab", { name: /Perlu persetujuan/ }).click();
+        const row = page.getByTestId("pending-row").filter({ hasText: "Guru Tiga" });
+        await expect(row).toContainText(/± \d+ m dari Taman Aster/);
+        await expect(row).toContainText("Mengantar siswa ke dokter");
+        await row.getByRole("button", { name: "Setujui", exact: true }).click();
+        await expect(page.getByTestId("pending-row").filter({ hasText: "Guru Tiga" })).toHaveCount(0);
+
+        await teacherPage.bringToFront();
+        // Headless Chromium may keep both pages visible. Deliver the same focus
+        // event as a real tab return; no reload/navigation and no mocked response.
+        await teacherPage.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await expect(teacherPage.getByTestId("attendance-decision")).toContainText("Kehadiran disetujui admin");
+        await expect(teacherPage.getByTestId("pending-approval-chip")).toHaveCount(0);
+        expect(teacherPage.url()).toBe(teacherUrl);
+        expect(teacherNavigations).toEqual([]);
+      } finally {
+        await teacherContext.close();
+      }
     });
 
     test("Absensi Staf Harian: Tandai semua hadir, then one Sakit exception, both persist", async ({ page, context }) => {

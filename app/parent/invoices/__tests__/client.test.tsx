@@ -162,6 +162,23 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.getAllByText("Belum dibayar").length).toBeGreaterThan(0);
     });
 
+    it("identifies the earliest actionable bill without adding a payment shortcut", async () => {
+      const user = userEvent.setup();
+      render(<InvoicesClient data={[mockInvoices[1], mockInvoices[0], mockInvoices[2]]} />);
+      const priority = screen.getByText("Tagihan berikutnya").closest("li")!;
+      expect(priority).toHaveTextContent("Agustus 2024");
+      expect(screen.queryByRole("button", { name: /Bayar sekarang/ })).not.toBeInTheDocument();
+      await user.click(within(priority).getByRole("button"));
+      expect(screen.getByText("Sheet open: inv-1")).toBeInTheDocument();
+    });
+
+    it("does not recommend a pending or cancelled invoice for payment", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      render(<InvoicesClient data={[{...mockInvoices[0], id: "cancelled", status: "CANCELLED", dueDate: "2020-01-01"}, ...mockInvoices]} />);
+      expect(screen.getByText("Tagihan berikutnya").closest("li")).toHaveTextContent("September 2024");
+      expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+    });
+
     it("renders due rows with period label", () => {
       render(<InvoicesClient data={mockInvoices} />);
       expect(screen.getByText("Agustus 2024")).toBeInTheDocument();
@@ -171,7 +188,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(within(list).getByRole("button", { name: /Agustus 2024/ })).toBeVisible();
     });
 
-    it("keeps paid history behind an explicit disclosure after outstanding rows", async () => {
+    it("offers one-tap history near the summary before outstanding rows", async () => {
       const user = userEvent.setup();
       render(<InvoicesClient data={mockInvoices} />);
       const history = screen.getByRole("button", { name: /Riwayat pembayaran/ });
@@ -180,7 +197,7 @@ describe("InvoicesClient (cycle-4)", () => {
       await user.click(history);
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
       expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(2);
-      expect(screen.getByText("Agustus 2024").compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(history.compareDocumentPosition(screen.getByText("Agustus 2024")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("lists the money already received on a partly paid invoice in Riwayat, with what is left (R2-P-6)", async () => {
@@ -217,8 +234,14 @@ describe("InvoicesClient (cycle-4)", () => {
         totalPaid: inv.totalDue,
       }));
       render(<InvoicesClient data={allPaid} />);
-      await user.click(screen.getByRole("button", { name: /Riwayat pembayaran/ }));
+      expect(screen.getByRole("button", { name: /Riwayat pembayaran/ })).toHaveAttribute("aria-expanded", "true");
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
+      const history = screen.getByRole("button", { name: /Riwayat pembayaran/ });
+      history.focus();
+      await user.keyboard("{Enter}");
+      expect(history).toHaveAttribute("aria-expanded", "false");
+      await user.keyboard(" ");
+      expect(history).toHaveAttribute("aria-expanded", "true");
     });
   });
 

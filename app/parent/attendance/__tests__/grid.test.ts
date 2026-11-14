@@ -29,6 +29,24 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("parent attendance week grid", () => {
+  it.each(["2026-11-14T04:00:00Z", "2026-11-15T04:00:00Z"])("does not offer a false current-week reset or future link on %s", async (now) => {
+    vi.setSystemTime(new Date(now));
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ child: "child" }) }));
+    expect(html).not.toContain("Kembali ke pekan ini");
+    expect(html).toContain('aria-label="Pekan berikutnya — pekan berikutnya belum tersedia"');
+    expect(html).not.toContain('href="/parent/attendance?child=child&amp;week=2026-11-16"');
+  });
+
+  it("preserves child context when returning from a past week and clamps a future URL", async () => {
+    vi.setSystemTime(new Date("2026-11-14T04:00:00Z"));
+    const past = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ child: "child", week: "2026-11-02" }) }));
+    expect(past).toContain("Kembali ke pekan ini");
+    expect(past).toContain('href="/parent/attendance?child=child&amp;week=2026-11-09"');
+    const future = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ child: "child", week: "2027-01-01" }) }));
+    expect(future).not.toContain("Kembali ke pekan ini");
+    expect(future).toContain("9 Nov – 13 Nov 2026");
+  });
+
   it("labels only the data row 'Status' and gives every cell text for screen readers", async () => {
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ child: "child", week: "2026-09-21" }) }));
     const table = html.slice(html.indexOf("<table"), html.indexOf("</table>"));

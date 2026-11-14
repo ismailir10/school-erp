@@ -44,7 +44,7 @@ export default async function ParentAttendancePage({
   if (!selected) redirect("/parent");
 
   // Determine the focal week (defaults to this week).
-  const { today, days, prevWeek, nextWeek } = parentAttendanceWeek(new Date(), params.week);
+  const { today, days, prevWeek, nextWeek, isCurrentWeek } = parentAttendanceWeek(new Date(), params.week);
   const weekStart = days[0]!;
   const weekEnd = days[days.length - 1]!;
 
@@ -179,8 +179,8 @@ export default async function ParentAttendancePage({
         label={weekRangeLabel}
         prevHref={parentHref("/parent/attendance", selected.studentId, { week: prevWeek })}
         nextHref={parentHref("/parent/attendance", selected.studentId, { week: nextWeek })}
-        // Only when off the current week; today is always inside `days` on it.
-        todayHref={days.includes(today) ? undefined : parentHref("/parent/attendance", selected.studentId)}
+        nextDisabled={isCurrentWeek}
+        todayHref={isCurrentWeek ? undefined : parentHref("/parent/attendance", selected.studentId)}
       />
 
       {/* Week grid */}

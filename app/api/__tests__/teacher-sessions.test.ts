@@ -177,6 +177,8 @@ describe("POST /api/teacher/sessions/[id]/attendance", () => {
       postParams(),
     );
     expect(res.status).toBe(404);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.studentAttendance.upsert).not.toHaveBeenCalled();
     expect(prisma.classSession.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "cs1", classSection: { tenantId: "t1" } },
@@ -197,6 +199,8 @@ describe("POST /api/teacher/sessions/[id]/attendance", () => {
       postParams(),
     );
     expect(res.status).toBe(403);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.studentAttendance.upsert).not.toHaveBeenCalled();
   });
 
   it("lets an admin write any tenant session", async () => {
@@ -339,6 +343,24 @@ describe("POST /api/teacher/sessions/[id]/attendance", () => {
       status: "PRESENT",
       checkedInBy: "emp1",
     });
+  });
+
+  it("explicitly re-records a voided session row as visible without replacing its identity or creation history", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER", "emp1"));
+    vi.mocked(prisma.classSession.findFirst).mockResolvedValue(SESSION_ROW as never);
+    vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([{ studentId: "s1" }] as never);
+    const stored = { id: "att-existing", isVoided: true, status: "SICK", checkedInBy: "previous-employee", createdAt: new Date("2026-05-15T00:00:00Z"), notes: "Existing note" };
+    vi.mocked(prisma.studentAttendance.upsert).mockImplementationOnce((async (args: { update: object }) => {
+      Object.assign(stored, args.update);
+      return stored;
+    }) as never);
+
+    const res = await POST(postReq({ rows: [{ studentId: "s1", status: "PRESENT", checkInTime: "2026-05-15T01:00:00Z" }] }) as never, postParams());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ saved: 1, total: 1 });
+    expect(stored).toMatchObject({ id: "att-existing", isVoided: false, status: "PRESENT", checkedInBy: "emp1", createdAt: new Date("2026-05-15T00:00:00Z"), notes: "Existing note", checkInTime: new Date("2026-05-15T01:00:00Z") });
   });
 
   it("returns 429 when rate-limited", async () => {

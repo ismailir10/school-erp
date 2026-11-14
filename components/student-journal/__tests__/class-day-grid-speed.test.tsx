@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { useState } from "react";
+import userEvent from "@testing-library/user-event";
 
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 
@@ -178,5 +180,35 @@ describe("ClassDayGrid — lengkap avatar", () => {
     );
     expect(screen.queryByText("AF")).toBeNull();
     expect(screen.getByText("1/2")).toBeInTheDocument();
+  });
+});
+
+
+describe("ClassDayGrid — accessible indicator state", () => {
+  it("exposes a named pressed state and updates it for pointer and keyboard activation", async () => {
+    const user = userEvent.setup();
+    function Grid() {
+      const [state, setState] = useState<Record<string, Record<string, boolean>>>({ s1: { "ind-1": true } });
+      return <ClassDayGrid students={[abdullah]} categories={categories} state={state} onToggle={(studentId, indicatorId) => setState(previous => ({ ...previous, [studentId]: { ...previous[studentId], [indicatorId]: !previous[studentId]?.[indicatorId] } }))} />;
+    }
+    render(<Grid />);
+    await user.click(screen.getByRole("button", { expanded: false }));
+    const opening = screen.getByRole("button", { name: "Mengikuti doa pembuka", pressed: true });
+    const closing = screen.getByRole("button", { name: "Mengikuti doa penutup", pressed: false });
+    await user.click(opening);
+    expect(opening).toHaveAttribute("aria-pressed", "false");
+    closing.focus();
+    await user.keyboard(" ");
+    expect(closing).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+  });
+
+  it("keeps pending and reverted values truthful instead of reporting a saved check", () => {
+    const props = { students: [abdullah], categories, onToggle: vi.fn() };
+    const { rerender } = render(<ClassDayGrid {...props} state={{ s1: { "ind-1": true } }} pendingCells={new Set(["s1:ind-1"])} />);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByRole("button", { name: "Mengikuti doa pembuka" })).toHaveAttribute("aria-pressed", "true");
+    rerender(<ClassDayGrid {...props} state={{ s1: { "ind-1": false } }} pendingCells={new Set()} />);
+    expect(screen.getByRole("button", { name: "Mengikuti doa pembuka" })).toHaveAttribute("aria-pressed", "false");
   });
 });

@@ -145,9 +145,14 @@ test.describe("Admin — student leave (cuti)", () => {
     await cancelRun(page.request, run.id);
 
     // Cancel the leave from the page: the next run bills the student again.
-    await page.getByRole("button", { name: "Batalkan cuti" }).first().click();
-    await page.getByRole("button", { name: "Ya, batalkan" }).click();
-    await expect(page.getByText("Dibatalkan").first()).toBeVisible({ timeout: 15_000 });
+    const leaveRow = page.locator("#cuti-content").getByRole("listitem").filter({ hasText: reason });
+    await leaveRow.getByRole("button", { name: "Batalkan cuti" }).click();
+    const cancelDialog = page.getByRole("alertdialog", { name: "Batalkan cuti?" });
+    await cancelDialog.getByRole("button", { name: "Ya, batalkan" }).click();
+    await expect(cancelDialog).not.toBeVisible();
+    // The confirmation description also contains "dibatalkan". Wait for this
+    // leave's terminal badge, not that pre-existing text, before billing again.
+    await expect(leaveRow.getByText("Dibatalkan", { exact: true })).toBeVisible({ timeout: 15_000 });
 
     const again = await createDraft(page.request, fx);
     const row = await studentRow(page.request, again.id, fx.studentId);

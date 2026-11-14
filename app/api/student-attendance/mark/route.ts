@@ -188,6 +188,8 @@ export async function POST(req: NextRequest) {
             checkedInBy: session.employeeId!,
           },
           update: {
+            // Re-recording restores visibility, matching the session and Gate paths.
+            isVoided: false,
             status: record.status,
             ...updateTimes,
             notes,
@@ -221,6 +223,7 @@ export async function POST(req: NextRequest) {
         await tx.studentAttendance.update({
           where: { id: existing.id },
           data: {
+            isVoided: false,
             status: record.status,
             ...resolveTimes(record, undefined),
             notes: resolveNotes(record.notes, existing, record.status),

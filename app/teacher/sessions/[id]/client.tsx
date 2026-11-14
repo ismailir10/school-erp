@@ -10,6 +10,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SaveStatus } from "@/components/portal/save-status";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Input } from "@/components/ui/input";
@@ -27,10 +34,9 @@ import { applyAllArrived, applyAllPickedUp } from "@/lib/attendance/bulk";
 const SAVE_TOAST_ID = "session-attendance-save";
 
 // Prisma enum values — do NOT translate in code, only display labels.
-// Tap order matches class attendance (H · S · I · A) so one muscle memory
-// serves both screens (TCH-15).
-const ROTATION = ["PRESENT", "SICK", "PERMISSION", "ABSENT"] as const;
-type Status = (typeof ROTATION)[number];
+// Choice order matches class attendance (H · S · I · A).
+const STATUS_CHOICES = ["PRESENT", "SICK", "PERMISSION", "ABSENT"] as const;
+type Status = (typeof STATUS_CHOICES)[number];
 
 // Labels come from status-badge's STATUS_MAP — the single source of truth.
 // A second hand-written copy here is exactly how the historical
@@ -129,9 +135,7 @@ export function SessionRosterClient({
     [],
   );
 
-  function cycleStatus(studentId: string, current: string) {
-    const idx = ROTATION.indexOf(current as Status);
-    const next = ROTATION[(idx + 1) % ROTATION.length];
+  function selectStatus(studentId: string, next: Status) {
     // Masuk / pulang / penjemput only make sense for a child who is there.
     update(
       studentId,
@@ -322,28 +326,39 @@ export function SessionRosterClient({
                   data-testid="roster-row"
                   className={`rounded-lg border border-border p-3 ${ROW_TINT[status] ?? "bg-card"}`}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{r.name}</p>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+                      <p className="text-sm font-medium break-words">{r.name}</p>
                       {r.nickname && (
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="text-xs text-muted-foreground break-words">
                           {r.nickname}
                         </p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => cycleStatus(r.studentId, r.status)}
-                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border border-border bg-background py-1 pl-1 pr-2 transition-colors hover:bg-muted focus-visible:focus-outline"
-                      aria-label={`Status ${r.name}: ${unrecorded ? "Belum dicatat" : getStatusConfig(status).label}. Ketuk untuk ganti.`}
-                    >
-                      <StatusBadge status={status} label={unrecorded ? "Belum dicatat" : undefined} />
-                      <ChevronDown
-                        size={16}
-                        className="text-muted-foreground"
-                        aria-hidden="true"
-                      />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={<Button variant="outline" />}
+                        className="min-h-11 min-w-11 gap-1 rounded-full py-1 pl-1 pr-2"
+                        aria-label={`Status ${r.name}: ${unrecorded ? "Belum dicatat" : getStatusConfig(status).label}. Pilih status.`}
+                      >
+                        <StatusBadge status={status} label={unrecorded ? "Belum dicatat" : undefined} />
+                        <ChevronDown className="text-muted-foreground" aria-hidden="true" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" aria-label={`Status kehadiran ${r.name}`}>
+                        <DropdownMenuRadioGroup
+                          value={r.status}
+                          onValueChange={(next: Status) => {
+                            if (next !== r.status) selectStatus(r.studentId, next);
+                          }}
+                        >
+                          {STATUS_CHOICES.map((choice) => (
+                            <DropdownMenuRadioItem key={choice} value={choice} closeOnClick className="min-h-11">
+                              {getStatusConfig(choice).label}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {/*
@@ -527,7 +542,7 @@ export function SessionRosterClient({
           </div>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Ketuk status untuk mengganti (Hadir → Sakit → Izin → Alpa)
+            Pilih status kehadiran, lalu ketuk Simpan absensi.
           </p>
         </>
       )}
