@@ -159,7 +159,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   
   Accept: verify flow 2 (academic part). Deps: T3.
 - [ ] **T6** — HR and portal links: staff daily, monthly and approvals; payroll detail; class teachers and wali kelas (HR-gated); teacher rosters (class attendance, weekly, center); parent profile cards. Accept: verify flows 2 and 5. Deps: T3.
-- [ ] **T7** — Parent pinned "Bayar Rp …" footer, one-tap create-and-go, failure recovery; update `docs/uat/jobs/parent.md`. Accept: verify flow 4; sheet tests.
+- [x] **T7** — Parent pinned "Bayar Rp …" footer, one-tap create-and-go, failure recovery; update `docs/uat/jobs/parent.md`. Accept: verify flow 4; sheet tests.
 - [x] **T8** — Small bugs:
   - check-in title by state (update `docs/uat/jobs/teacher.md`);
   - journal sidebar active item;
@@ -184,6 +184,11 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - **Monitoring:** the journal monitoring API returns `campusName`, and the page shows "program · short campus".
   - **Skeletons:** route `loading.tsx` added for staff daily and for the Sentra rotation, which is a grid page, so it uses the root shape.
   - **Payroll spacing:** moved to T6.
+- T7: Parent invoice sheet changes (`app/parent/invoices/invoice-detail-sheet.tsx`):
+  - **Layout:** split into header, scrolling body and a pinned footer (`invoice-sheet-footer`).
+  - **One button:** "Bayar Rp …" in every state. With a link it is an anchor in a new tab. Without one, the tap creates the link and then `location.assign`. The checkout success and cancel URLs return to `/parent/invoices` (`lib/payments/session.ts`).
+  - **Failure:** an inline alert, "Coba lagi" and the contact box.
+  - JTBD-PARENT-INV-01 is updated, and `e2e/parent.spec.ts` asserts the button is in the viewport.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
