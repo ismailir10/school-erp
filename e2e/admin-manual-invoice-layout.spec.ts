@@ -282,13 +282,17 @@ test("a failed invoice summary can be retried without losing the list or search"
   });
 
   await page.goto("/admin/invoices");
-  const search = page.getByPlaceholder("Cari siswa atau nomor tagihan...");
+  // Match the accessible page rather than a transient hidden server subtree.
+  const main = page.getByRole("main");
+  const search = main.getByRole("textbox", { name: "Cari siswa atau nomor tagihan...", exact: true });
+  await expect(main).toHaveCount(1);
+  await expect(search).toHaveCount(1);
   await search.fill("INV-");
-  const summary = page.getByRole("button", { name: "Ringkasan tagihan" });
+  const summary = main.getByRole("button", { name: "Ringkasan tagihan" });
   await summary.click();
-  await expect(page.getByRole("status").filter({ hasText: "Ringkasan tagihan belum dapat dimuat" })).toBeVisible();
-  await page.getByRole("button", { name: "Muat ulang ringkasan" }).click();
-  await expect(page.getByText("Total tagihan", { exact: true })).toBeVisible();
+  await expect(main.getByRole("status").filter({ hasText: "Ringkasan tagihan belum dapat dimuat" })).toBeVisible();
+  await main.getByRole("button", { name: "Muat ulang ringkasan" }).click();
+  await expect(main.getByText("Total tagihan", { exact: true })).toBeVisible();
   await expect(search).toHaveValue("INV-");
   await expect(summary).toHaveAttribute("aria-expanded", "true");
   expect(attempts).toBe(2);
