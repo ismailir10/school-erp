@@ -22,6 +22,7 @@ import { parentHref } from "@/lib/parent/navigation";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
 import { SectionCard } from "@/components/ui/section-card";
+import { usePaymentAttempts } from "./use-payment-attempts";
 
 const InvoiceDetailSheet = dynamic(
   () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
@@ -74,12 +75,14 @@ type SelectedChildSummary = {
 export function InvoicesClient({
   data,
   selectedChildId,
+  paymentScope,
   selectedStudentName = "",
   selectedChildSummary,
   otherChildrenWithOutstanding = [],
 }: {
   data: InvoiceItem[] | null;
   selectedChildId?: string;
+  paymentScope?: { tenantId: string; guardianId: string };
   selectedStudentName?: string;
   selectedChildSummary?: SelectedChildSummary;
   otherChildrenWithOutstanding?: OtherChildOutstanding[];
@@ -102,11 +105,15 @@ export function InvoicesClient({
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("due-asc");
   const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
-  // Invoices the gateway sent the parent back from with "sedang diperiksa",
-  // mapped to the totalPaid we saw then. The pending note holds only while that
-  // figure is unchanged and the invoice is still outstanding — a webhook that
-  // lands (PAID, or a changed totalPaid) releases it without any extra signal.
-  const [pendingPayments, setPendingPayments] = useState<Record<string, number>>({});
+  const checkedAttemptsRef = useRef(new Set<string>());
+  const onExternalAttemptChange = useCallback(() => {
+    checkedAttemptsRef.current.clear();
+    router.refresh();
+  }, [router]);
+  const { pending, remember, clear, keyFor } = usePaymentAttempts(
+    paymentScope && selectedChildId ? { ...paymentScope, childId: selectedChildId } : null,
+    data, onExternalAttemptChange,
+  );
   const handledReturnRef = useRef<string | null>(null);
   const prevDataRef = useRef<InvoiceItem[] | null>(null);
   // Return-check bookkeeping. Deliberately outside the return effect: that
@@ -128,7 +135,7 @@ export function InvoicesClient({
   // No toast on any failure: "Pembayaran sedang diperiksa" is already shown and
   // stays true, and the nightly sweep is the backstop.
   const checkPaymentAfterReturn = useCallback(
-    async (invoiceId: string, renderedStatus: string): Promise<void> => {
+    async (invoiceId: string, renderedStatus: string, startedAt?: number): Promise<void> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
           // Unmount clears this timer, so the promise never settles and the loop ends there.
@@ -142,15 +149,21 @@ export function InvoicesClient({
         }
         let code: string | undefined;
         let status: string | undefined;
+        let attemptOutcome: string | undefined;
         try {
           const res = await fetch(`/api/guardian/invoices/${invoiceId}/check-payment`, { method: "POST" });
           if (!res.ok) return;
-          ({ code, status } = (await res.json()) as { code?: string; status?: string });
+          ({ code, status, attemptOutcome } = (await res.json()) as { code?: string; status?: string; attemptOutcome?: string });
         } catch {
           if (mountedRef.current) console.warn("Payment check after return failed");
           return;
         }
         if (!mountedRef.current) return;
+        if (attemptOutcome === "failed" || attemptOutcome === "expired") {
+          clear(invoiceId, startedAt);
+          router.refresh();
+          return;
+        }
         // A status that moved on from what the page rendered also needs a
         // re-read: a webhook can credit the invoice between the two checks,
         // and the retry then reports SKIPPED / ALREADY_PAID with status PAID.
@@ -161,7 +174,7 @@ export function InvoicesClient({
         if (code !== "NO_CHANGE" && code !== "UNAVAILABLE" && code !== "GATEWAY_ERROR") return;
       }
     },
-    [router],
+    [router, clear],
   );
 
   useEffect(() => {
@@ -185,40 +198,53 @@ export function InvoicesClient({
     if (!data || !invoiceParam || !paymentStatusParam) return;
     const found = data.find((i) => i.id === invoiceParam);
     if (!found) return;
-    const returnKey = `${invoiceParam}:${paymentStatusParam}`;
+    const returnKey = `${keyFor(invoiceParam)}:${paymentStatusParam}`;
     if (handledReturnRef.current === returnKey) return;
     handledReturnRef.current = returnKey;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
     if (found.status === "PAID") setHistoryOpen(true);
+    let canStripCallback = true;
     if (found.status === "PAID") {
+      clear(found.id);
       toast.success(`Alhamdulillah, tagihan ${formatInvoicePeriod(found.periodLabel)} terbayar.`);
-    } else if (isOutstanding(found) && found.totalPaid > 0) {
-      toast(`Pembayaran tagihan ${formatInvoicePeriod(found.periodLabel)} tercatat sebagian. Lihat sisa tagihan.`);
-    } else if (found.status === "CANCELLED" || paymentStatusParam === "cancel") {
+    } else if (found.status === "CANCELLED" || paymentStatusParam.toLowerCase() === "cancel") {
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
     } else {
-      toast("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.");
-      setPendingPayments((prev) => ({ ...prev, [found.id]: found.totalPaid }));
+      const result = remember(found, "confirming");
+      canStripCallback = result.persisted;
+      toast(result.pending
+        ? "Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi."
+        : `Pembayaran tagihan ${formatInvoicePeriod(found.periodLabel)} tercatat sebagian. Lihat sisa tagihan.`);
     }
     const retained = Object.fromEntries(new URLSearchParams(searchParams.toString()));
     delete retained.invoice;
     delete retained.paymentStatus;
     delete retained.xenditStatus;
-    router.replace(parentHref("/parent/invoices", selectedChildId, retained), { scroll: false });
+    // A blocked browser store must retain the callback so a reload restores the warning.
+    if (canStripCallback) router.replace(parentHref("/parent/invoices", selectedChildId, retained), { scroll: false });
     if (found.status !== "PAID") router.refresh();
-    if (paymentStatusParam.toLowerCase() === "paid" && found.status !== "PAID" && found.status !== "CANCELLED") {
-      void checkPaymentAfterReturn(found.id, found.status);
+  }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId, remember, clear, keyFor]);
+
+  // Reconcile restored hints too, including a callback opened in another tab.
+  useEffect(() => {
+    for (const invoice of data ?? []) {
+      const hint = pending(invoice);
+      if (!hint) continue;
+      const attemptKey = `${keyFor(invoice.id)}:${hint.startedAt}`;
+      if (checkedAttemptsRef.current.has(attemptKey)) continue;
+      checkedAttemptsRef.current.add(attemptKey);
+      void checkPaymentAfterReturn(invoice.id, invoice.status, hint.startedAt);
     }
-  }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId, checkPaymentAfterReturn]);
+  }, [data, pending, keyFor, checkPaymentAfterReturn]);
 
   // Webhook → list freshness. While at least one outstanding invoice has an
   // active Xendit payment session (xenditPaymentUrl != null), poll the server
   // component every 30 s so the parent sees the PAID flip without manual
   // refresh. Stops as soon as no in-flight payment remains.
   const hasInFlightPayment = useMemo(
-    () => data?.some((i) => i.xenditPaymentUrl != null && isOutstanding(i)) ?? false,
-    [data],
+    () => data?.some((i) => (i.xenditPaymentUrl != null || pending(i)) && isOutstanding(i)) ?? false,
+    [data, pending],
   );
   useEffect(() => {
     if (!hasInFlightPayment) return;
@@ -400,8 +426,7 @@ export function InvoicesClient({
   const selectedInvoice = selectedInvoiceId ? data.find((i) => i.id === selectedInvoiceId) : undefined;
   const paymentPending =
     !!selectedInvoice &&
-    isOutstanding(selectedInvoice) &&
-    pendingPayments[selectedInvoice.id] === selectedInvoice.totalPaid;
+    !!pending(selectedInvoice);
 
   return (
     <div className="space-y-6 pb-4">
@@ -497,6 +522,7 @@ export function InvoicesClient({
                 invoice={inv}
                 onClick={() => setSelectedInvoiceId(inv.id)}
                 tone="due"
+                paymentPending={!!pending(inv)}
                 isOverdue={isOverdue}
               />
             ))}
@@ -616,7 +642,14 @@ export function InvoicesClient({
         invoiceId={selectedInvoiceId}
         paymentPending={paymentPending}
         listStateKey={selectedInvoice ? `${selectedInvoice.status}:${selectedInvoice.totalPaid}` : undefined}
-        onRefreshStatus={() => router.refresh()}
+        onBeforeCheckout={(invoice) => !remember(invoice, "checkout").pending}
+        onRefreshStatus={() => {
+          if (selectedInvoice) {
+            const hint = pending(selectedInvoice);
+            if (hint) void checkPaymentAfterReturn(selectedInvoice.id, selectedInvoice.status, hint.startedAt);
+          }
+          router.refresh();
+        }}
       />
     </div>
   );
@@ -628,12 +661,14 @@ function InvoiceRow({
   tone,
   isOverdue,
   highlight = false,
+  paymentPending = false,
 }: {
   invoice: InvoiceItem;
   onClick: () => void;
   tone: "due" | "paid";
   isOverdue: boolean;
   highlight?: boolean;
+  paymentPending?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
   // In Riwayat a partly paid row shows what was received, not the full bill.
@@ -648,7 +683,7 @@ function InvoiceRow({
   // a 360px phone (PAR-9).
   const secondary =
     tone === "due"
-      ? `${isOverdue ? "Lewat tempo · " : ""}${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}`
+      ? `${paymentPending ? "Pembayaran sedang diperiksa · " : ""}${isOverdue ? "Lewat tempo · " : ""}${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}`
       : partialInHistory
         ? `Dibayar sebagian · sisa ${formatRupiah(remaining)}`
         : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;

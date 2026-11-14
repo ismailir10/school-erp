@@ -6,7 +6,7 @@
  *        the school (WhatsApp/tel when SCHOOL_CONTACT_PHONE is configured, always
  *        the invoice number to quote).
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -177,6 +177,9 @@ describe("InvoiceDetailSheet — pending payment (PARX-8)", () => {
     const note = await screen.findByTestId("payment-pending");
     expect(note).toHaveTextContent("Pembayaran sedang diperiksa");
     expect(note).toHaveTextContent("tidak perlu bayar lagi");
+    expect(note).toHaveTextContent("hubungi bagian tata usaha sekolah");
+    expect(note).toHaveTextContent("Jangan bayar lagi sebelum dikonfirmasi");
+    expect(note).toHaveTextContent(base.invoiceNumber);
     expect(screen.queryByRole("button", { name: /Bayar Rp/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Bayar Rp/ })).not.toBeInTheDocument();
   });
@@ -281,4 +284,14 @@ describe("InvoiceDetailSheet — payment dates on the Asia/Jakarta day", () => {
     await screen.findByTestId("invoice-totals");
     expect(screen.getByText("Diterbitkan 5 Februari 2026")).toBeInTheDocument();
   });
+});
+
+
+it("captures the authoritative partial balance before opening checkout", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => ({ok:true,json:async () => ({...base,xenditPaymentUrl:"https://checkout.example/invoice"})})));
+  const beforeCheckout = vi.fn();
+  render(<InvoiceDetailSheet open onOpenChange={() => {}} invoiceId={base.id} onBeforeCheckout={beforeCheckout} />);
+  const link = await screen.findByRole("link", {name:/Bayar Rp/});
+  fireEvent.click(link);
+  expect(beforeCheckout).toHaveBeenCalledWith(expect.objectContaining({id:base.id,totalPaid:400000,totalDue:850000,status:"PARTIALLY_PAID"}));
 });

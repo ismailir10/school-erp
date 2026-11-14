@@ -99,6 +99,7 @@ export default async function ParentInvoicesPage({
       />
       <InvoicesClient
         data={data}
+        paymentScope={{ tenantId: session.tenantId, guardianId: session.id }}
         selectedChildId={selected.studentId}
         selectedStudentName={selected.studentName}
         selectedChildSummary={selectedChildSummary}

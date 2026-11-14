@@ -210,13 +210,21 @@ describe("POST /api/guardian/invoices/[id]/check-payment — skip rules", () => 
     expect(reconcileMock).not.toHaveBeenCalled();
   });
 
-  it("SKIPPED for an unpaid invoice without a payment link", async () => {
+  it("keeps a synthetic no-link invoice unresolved when the provider has no order", async () => {
     await asSession(session());
     invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: null }));
+    reconcileMock.mockResolvedValue({code:"UNAVAILABLE",statusAfter:"SENT",gatewayState:"UNAVAILABLE"});
     const res = await call();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ code: "SKIPPED", status: "SENT" });
-    expect(reconcileMock).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ code: "UNAVAILABLE", status: "SENT" });
+    expect(reconcileMock).toHaveBeenCalledWith("inv-1", {minIntervalMs:10_000});
+  });
+
+  it("recovers a verified DOKU expiry after cron already cleared the checkout URL", async () => {
+    await asSession(session());
+    invoiceFindUnique.mockResolvedValue(invoiceRow({ xenditPaymentUrl: null }));
+    reconcileMock.mockResolvedValue({code:"NO_CHANGE",statusAfter:"SENT",provider:"doku",gatewayState:"EXPIRED"});
+    expect(await (await call()).json()).toEqual({code:"NO_CHANGE",status:"SENT",attemptOutcome:"expired"});
   });
 });
 
@@ -297,4 +305,38 @@ describe("POST /api/guardian/invoices/[id]/check-payment — reconcile", () => {
     });
     errSpy.mockRestore();
   });
+});
+
+
+describe("verified terminal payment attempts", () => {
+  it.each([["FAILED", "failed"], ["EXPIRED", "expired"]])("exposes a verified %s outcome for the same checkout", async (gatewayState, attemptOutcome) => {
+    await asSession(session());
+    reconcileMock.mockResolvedValue({code:"NO_CHANGE", statusAfter:"SENT", gatewayState});
+    const response = await call();
+    expect(await response.json()).toEqual({code:"NO_CHANGE", status:"SENT", attemptOutcome});
+  });
+  it("accepts an expired checkout only after its link was cleared", async () => {
+    await asSession(session());
+    invoiceFindUnique.mockResolvedValueOnce(invoiceRow()).mockResolvedValueOnce({xenditPaymentUrl:null});
+    reconcileMock.mockResolvedValue({code:"UPDATED", statusAfter:"SENT", gatewayState:"EXPIRED"});
+    expect(await (await call()).json()).toEqual({code:"UPDATED",status:"SENT",attemptOutcome:"expired"});
+  });
+  it.each(["FAILED", "EXPIRED"])("does not clear a newer checkout after a slow %s result", async (gatewayState) => {
+    await asSession(session());
+    invoiceFindUnique.mockResolvedValueOnce(invoiceRow()).mockResolvedValueOnce({xenditPaymentUrl:"https://checkout.example/new-session"});
+    reconcileMock.mockResolvedValue({code:"NO_CHANGE", statusAfter:"SENT", gatewayState});
+    expect(await (await call()).json()).toEqual({code:"NO_CHANGE",status:"SENT"});
+  });
+  it.each(["PENDING", "UNAVAILABLE", undefined])("never infers a terminal outcome from raw text when normalized state is %s", async (gatewayState) => {
+    await asSession(session());
+    reconcileMock.mockResolvedValue({code:"NO_CHANGE", statusAfter:"SENT", gatewayState, gatewayStatus:"FAILED"});
+    expect(await (await call()).json()).toEqual({code:"NO_CHANGE",status:"SENT"});
+  });
+});
+
+
+it("does not release a pending attempt from an invoice-scoped completed historic partial payment", async () => {
+  await asSession(session());
+  reconcileMock.mockResolvedValue({code:"NO_CHANGE",statusAfter:"PARTIALLY_PAID",gatewayState:"COMPLETED",duplicate:true,processorStatus:"PARTIALLY_PAID"});
+  expect(await (await call()).json()).toEqual({code:"NO_CHANGE",status:"PARTIALLY_PAID"});
 });

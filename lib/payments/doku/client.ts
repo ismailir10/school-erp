@@ -162,11 +162,23 @@ export function toDokuPaymentDueDateMinutes(expiresAt: Date, now: Date = new Dat
   return Math.max(1, minutes);
 }
 
+export function normalizeLineItemNameForDoku(name: string): string {
+  // DOKU's line-item allowlist differs from Talib's Unicode labels. Keep the
+  // original on the invoice; adapt only the checkout copy (sandbox 400, Nov 14).
+  const normalized = name.normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
+    .replace(/[^a-zA-Z0-9 .\-/+,=_:'@%()]/g, " ")
+    .replace(/\s+/g, " ").trim();
+  return /[a-zA-Z0-9]/.test(normalized) ? normalized : "Biaya sekolah";
+}
+
 /**
  * Map an HTTP response (already known to be non-OK) to a typed
  * `GatewayApiError`. Body is the parsed JSON (may be `null` if parse failed).
  *
- * DOKU's 400 body shape is `{ "error_messages": ["…", "…"] }` — the messages
+ * DOKU's 400 body uses `error_messages` or `message` arrays — the messages
  * are joined with `"; "` so the combined string lands in the `4xx:` pending-
  * link breakdown bucket rather than `unknown:`.
  *
@@ -181,13 +193,9 @@ export function classifyDokuResponse(
   body: unknown,
 ): GatewayApiError {
   const status = response.status;
-  const errorMessages =
-    body && typeof body === "object" && "error_messages" in body &&
-      Array.isArray((body as { error_messages?: unknown }).error_messages)
-      ? (body as { error_messages: unknown[] }).error_messages.filter(
-          (m): m is string => typeof m === "string",
-        )
-      : null;
+  const errorBody = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const errorMessages = [errorBody.error_messages, errorBody.message]
+    .flatMap((value) => Array.isArray(value) ? value.filter((m): m is string => typeof m === "string") : []);
   const message =
     errorMessages && errorMessages.length > 0
       ? errorMessages.join("; ")
@@ -311,7 +319,7 @@ export async function createDokuSession(
   };
   if (params.items?.length) {
     order.line_items = params.items.map((item) => ({
-      name: item.name,
+      name: normalizeLineItemNameForDoku(item.name),
       quantity: item.quantity,
       price: item.price,
     }));
