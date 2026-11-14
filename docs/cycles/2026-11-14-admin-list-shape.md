@@ -109,7 +109,7 @@ None: no schema, dependency, auth or production change.
 
 ## Tasks
 
-- [ ] T1 Shared pieces: stat-filter component (from Admissions), page header accepts several secondaries, empty state
+- [x] T1 Shared pieces: stat-filter component (from Admissions), page header accepts several secondaries, empty state
   uses a link-button — accept: unit tests green (deps: none)
 - [ ] T2 List pages: Students, Guardians, Admissions, Invoices stat cards filter + header slots — accept: verify flow 1
   (deps: T1)
@@ -118,6 +118,15 @@ None: no schema, dependency, auth or production change.
 - [ ] T4 Docs: `patterns.md` Recipe 1 rules, audit roadmap status — accept: `audit-docs.sh` green (deps: T2, T3)
 
 ## Implementation
+
+- Plan: T1 sequential first (T2 and T3 build on it); T2 and T3 parallel, one worker each, disjoint files (T2 owns
+  the Students, Guardians, Admissions and Invoices pages; T3 owns every other header); T4 inline (two doc edits).
+  Driver: claude-opus-5-5 (spec, review, verify). Workers: claude-sonnet (T1–T3 implementation). Visual reference:
+  `design-system.html` § Page Recipes and § Buttons, read for every slice.
+- T1: `components/admin/stat-filter.tsx` (+ test), `components/admin/page-header.tsx` (+ test),
+  `components/ui/empty-state.tsx`, `app/admin/admissions/page.tsx` — the Admissions stat filter is now shared; the
+  page header takes several outline secondaries that fold into `⋯` on a phone; the empty-state action is a
+  link-button instead of a button nested in a link.
 
 ## Verification
 
