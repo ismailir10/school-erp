@@ -104,10 +104,10 @@ function GenerateCard({
     <Card className="sticky top-4 z-sticky p-4 mb-4 border-primary/30 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         {isRunning ? (
-          <Spinner className="text-primary" aria-hidden />
+          <Spinner className="text-primary-text" aria-hidden />
         ) : null}
         {progress.phase === "done" ? (
-          <CheckCircle2 size={16} className="text-success" aria-hidden />
+          <CheckCircle2 size={16} className="text-success-text" aria-hidden />
         ) : null}
         <span className="text-sm font-medium">
           {progress.phase === "running" && `Membuat tagihan… ${progress.done}/${progress.total}`}
@@ -133,7 +133,7 @@ function GenerateCard({
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>{progress.xenditOk} link berhasil</span>
         {progress.xenditFailed > 0 && (
-          <span className="text-warning">{progress.xenditFailed} link gagal</span>
+          <span className="text-warning-text">{progress.xenditFailed} link gagal</span>
         )}
       </div>
 
@@ -157,10 +157,10 @@ function RetryCard({
     <Card className="sticky top-4 z-sticky p-4 mb-4 border-primary/30 shadow-sm">
       <div className="flex items-center gap-3 mb-2">
         {isRunning ? (
-          <Spinner className="text-primary" aria-hidden />
+          <Spinner className="text-primary-text" aria-hidden />
         ) : null}
         {progress.phase === "done" ? (
-          <CheckCircle2 size={16} className="text-success" aria-hidden />
+          <CheckCircle2 size={16} className="text-success-text" aria-hidden />
         ) : null}
         <span className="text-sm font-medium">
           {progress.phase === "fetching-pending" && "Memperbaiki link pembayaran…"}
@@ -189,7 +189,7 @@ function RetryCard({
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>{progress.fixed} link diperbaiki</span>
         {progress.stillFailed > 0 && (
-          <span className="text-warning">{progress.stillFailed} masih gagal</span>
+          <span className="text-warning-text">{progress.stillFailed} masih gagal</span>
         )}
       </div>
 

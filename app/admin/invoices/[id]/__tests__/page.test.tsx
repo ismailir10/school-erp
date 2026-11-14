@@ -903,3 +903,15 @@ it("Kembali restores the invoice list search, filter and page", async () => {
   sessionStorage.clear();
   vi.unstubAllGlobals();
 });
+
+
+describe("InvoiceDetailPage — finance emphasis", () => {
+  it.each(["SENT", "PARTIALLY_PAID", "OVERDUE"])("uses the canonical %s status for balance emphasis and readable paid ink", async (status) => {
+    fixture({ invoice: { status } });
+    render(<InvoiceDetailPage />);
+    const remainingLabel = await screen.findByText("Sisa", { selector: "span" });
+    expect(within(remainingLabel.parentElement!).getByText("Rp 600.000")).toHaveClass(status === "OVERDUE" ? "text-destructive" : "text-foreground");
+    const paidLabel = screen.getByText("Dibayar", { selector: "span" });
+    expect(within(paidLabel.parentElement!).getByText("Rp 400.000")).toHaveClass("text-success-text");
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader, type PageHeaderAction } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -92,7 +93,7 @@ const columns: ColumnDef<Invoice>[] = [
       return (
         <div className="flex items-center gap-3">
           <div className="hidden size-8 rounded-full bg-muted items-center justify-center shrink-0 md:flex">
-            <FileText size={14} className="text-primary" />
+            <FileText size={14} className="text-muted-foreground" />
           </div>
           <DataTableLinkCell
             href={entityHref.invoice(inv.id)}
@@ -142,12 +143,12 @@ const columns: ColumnDef<Invoice>[] = [
             {formatRupiah(Number(inv.totalDue))}
           </p>
           {Number(inv.totalPaid) > 0 && Number(inv.totalPaid) < Number(inv.totalDue) && (
-            <p className="font-currency text-xs text-success">
+            <p className="font-currency text-xs text-success-text">
               Dibayar: {formatRupiah(Number(inv.totalPaid))}
             </p>
           )}
           {remaining > 0 && inv.status !== "DRAFT" && inv.status !== "CANCELLED" && (
-            <p className="font-currency text-xs text-destructive">
+            <p className={cn("font-currency text-xs", inv.status === "OVERDUE" ? "text-destructive" : "text-foreground")}>
               Sisa: {formatRupiah(remaining)}
             </p>
           )}
@@ -1011,11 +1012,11 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
               <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
                 <StatTile label="Total tagihan" value={stats.total} icon={Receipt} mono />
                 <StatTile label="Draf" value={stats.draft} icon={Clock} tone="muted" mono />
-                <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} tone="positive" mono />
-                <StatTile label="Dibayar sebagian" value={stats.partiallyPaid} icon={CircleDashed} tone="warning" mono />
-                <StatTile label="Lewat tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
+                <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} mono />
+                <StatTile label="Dibayar sebagian" value={stats.partiallyPaid} icon={CircleDashed} mono />
+                <StatTile label="Lewat tempo" value={stats.overdue} icon={AlertTriangle} tone={stats.overdue > 0 ? "critical" : "default"} mono />
                 {stats.pendingPaymentLink > 0 && (
-                  <StatTile label="Link gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
+                  <StatTile label="Link gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="critical" mono />
                 )}
               </StatsCardsRow>
               <StatsCardsRow cols={2}>
@@ -1031,7 +1032,6 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
                   value={formatRupiah(stats.collectedThisMonth)}
                   hint="Pembayaran tercatat, tanpa yang dibatalkan"
                   icon={Banknote}
-                  tone="positive"
                   mono
                 />
               </StatsCardsRow>
