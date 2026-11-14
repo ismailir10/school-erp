@@ -1,5 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
+> Acceptance reviewed: 2026-11-15 in `audit-remediation` (recovery, access and data-integrity checks below; local evidence lives in the cycle, not a representative-user UAT claim).
 > Last audited: 2026-11-14 in cycle `audit-eight-followups` (acceptance contracts for full session identity, named status choices, accessible journal toggles, automatic Home decision refresh and explicit re-recording of voided attendance; changed-flow staging verification passed on `32731fd5` via PR #743, with automated-only edges distinguished in the cycle). Prior: 2026-11-14 in cycle `audit-remediation` (calendar-aware Gate availability, neutral unrecorded session rows, explicit pickup action and admin attendance decisions; primary class task before campus Gate). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-TEACHER-HOME-03 unreadable-location sheet is titled "Lokasi tidak terbaca"). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
@@ -104,54 +105,28 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 
 ## Area: assessments
 
-### JTBD-TEACHER-ASSESS-01 — Fill indicator scores for a full class with autosave
+### JTBD-TEACHER-ASSESS-01 — Record the latest intended level for a class
 - **Persona:** Bu Sari
-- **Role:** TEACHER
-- **Preconditions:**
-  - Logged in as wali kelas with ≥1 class section assigned in seed
-  - At least one assessment template + period (e.g. `2026-Q2`) is configured for that class
-  - Class has ≥5 students; no scores filled yet for the period
-  - Demo cookie set
-- **Steps (user intent, not UI clicks):**
-  1. Open the teacher portal → Penilaian
-  2. Pick a class section + template + period
-  3. Land on the per-student scoring grid
-  4. Expand each student accordion and tap one of the 4-level rubric buttons (BB/MB/BSH/BSB) for each indicator
-  5. Watch the autosave indicator settle to "saved" between taps (1.2s debounce per `app/teacher/assessments/[classSectionId]/[templateId]/[period]/client.tsx`)
-  6. Optionally add a per-indicator note
-- **Done when:** Every tapped score persists across a full reload. Autosave indicator never gets stuck on "saving" longer than 3s under normal network. Reopening a previously-edited student shows the prior scores already populated.
-- **Why this job matters:** End-of-term ritual — Bu Sari fills 25 students × 12 indicators per template per period. If autosave silently drops scores or the debounce is too aggressive (rapid tap → only last value saved), her work is lost. This is the most expensive data-entry flow in the teacher portal.
-- **Expected perf:** scoring page initial load <2s; tap-to-save-confirm <1.5s including the 1.2s debounce; no UI jank when typing notes on a 5-year-old Android.
-- **Error scenarios to verify:**
-  - Network drop during autosave → indicator shows "error", retry on next tap; no silent loss
-  - Two browser tabs editing the same student → last write wins, but neither tab hangs
-  - Tap a rubric button rapidly 5× across 200ms → exactly one autosave fires, final value is the 5th tap
-  - No active assessment week → use the available date control and `Lihat penilaian` to recover; do not leave the user at a dead end. The week shown follows the class's kelompok (TK A or TK B), so a TK A and a TK B class can show different themes on the same date
-  - A center assessment load failure → visible `Coba lagi` recovery; a read-only assessment has no sticky save footer or writable controls
-- **Known friction (from last UAT):** <filled by /uat reports>
-
----
-
-### JTBD-TEACHER-ASSESS-02 — Bulk publish all student scores for a period
-- **Persona:** Bu Sari
-- **Role:** TEACHER
-- **Preconditions:** Same as ASSESS-01 plus every student has ≥1 indicator score filled (mix of "all filled" and "one student empty" to verify the gate)
+- **Role:** TEACHER with a homeroom assignment
+- **Preconditions:** An active curriculum week and linked active indicators for the class's kelompok; at least five active pupils.
 - **Steps:**
-  1. With all scoring done, scroll to the sticky bottom action
-  2. **Before tapping publish:** inspect the area above the "Publikasikan rapor" CTA — when ≥1 student has incomplete scores the page renders a pre-publish warning "X siswa belum memiliki nilai lengkap" above the button. This warning is informational only; it does NOT block or disable the CTA. Verify the count matches the actual number of students with missing scores.
-  3. Tap "Publikasikan rapor" / bulk-publish CTA
-  4. Watch the per-student progress (the implementation iterates `students[]` and calls `saveStudent(id, { publish: true })` per student — see `client.tsx` lines 266–290)
-  5. Read the resulting toasts: success for each published student, error for any student with zero filled scores ("Bu Sari: belum ada nilai yang diisi")
-- **Done when:** All eligible students transition to `PUBLISHED` status; the header counter `{publishedCount}/{totalStudents}` updates live. Empty-score students are NOT published and produce a clear per-student error toast naming the student. After publish, the parent's `/parent/reports` for that child reflects the new published assessment.
-- **Why this job matters:** Bulk publish is what makes report cards visible to parents. A silent publish failure = parents WhatsApp Bu Sari asking why the report isn't showing. A wrongful publish (empty-score student treated as published) = parents see an empty report.
-- **Expected perf:** publish loop completes in <Nx1s where N=class size (each student ≈1 round-trip). For a 25-student class on 4G, total <30s with progress visible throughout.
-- **Error scenarios to verify:**
-  - One student has zero scores → toast `<student name>: belum ada nilai yang diisi`, that student stays `DRAFT`, others still publish
-  - All students empty → final toast "Tidak ada yang dipublikasikan" (per `client.tsx` line 289)
-  - Mid-loop network failure → some students published, some not; no rollback (acceptable but operator must be told to re-tap publish for the failed subset)
-  - The pre-publish warning ("X siswa belum memiliki nilai lengkap") is informational — it does NOT block the button. UAT should assert the warning count is correct when incomplete students exist, then proceed to tap publish and verify per-student error toasts for the empty-score students.
-  - Publish gate is per-student inside the loop — the button is always enabled; the upfront warning only informs the operator of the scope of incomplete students.
-- **Known friction (from last UAT):** <filled by /uat reports>
+  1. Open Penilaian → Penilaian pekanan and confirm the class, theme and week.
+  2. Pick the intended day and indicator, then choose Mampu, Belum or Perlu for each pupil.
+  3. Wait for Penilaian tersimpan, reload and confirm the choices remain.
+  4. Rapidly change one cell twice while its first request is delayed. After both saves settle, reload: the last choice remains.
+- **Done when:** The visible selection and persisted level agree with the latest tap. An older failed save cannot clear a newer choice, and its old retry cannot overwrite a later successful choice.
+- **Error scenarios:** A latest failed save restores the last saved value and offers Coba lagi. Fail one pupil's cell, then save another: the unresolved failure must remain visible. Inactive indicators or objectives are unavailable; inactive themes/subthemes/semesters cannot supply an assessable week.
+- **Expected perf:** page load <2s; ordinary tap-to-save confirmation <1.5s.
+
+### JTBD-TEACHER-ASSESS-02 — Continue scoring in another week
+- **Persona:** Bu Sari
+- **Role:** TEACHER with a homeroom assignment
+- **Steps:**
+  1. Open a saved Friday, choose Pekan berikutnya and confirm the new week heading and selected day.
+  2. Choose a level, then reload that week and the previous week.
+  3. Open a date without an active week and use the date control to return to an available week.
+- **Done when:** New scores belong to a day in the displayed week; previous-week entries stay on their original dates. Day, indicator and draft cells reset for the new week. Missing-week screens offer a usable date recovery path.
+- **Boundary:** Teachers record indicator levels; report-card publication is an admin task under Rapor.
 
 ### JTBD-TEACHER-ASSESS-03 — Record Sentra Harian from her own sentra
 - **Persona:** Bu Sari as guru sentra
@@ -161,7 +136,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   1. Open Penilaian (`/teacher/assessments`); under **Sentra harian** the first tile is her own sentra with the badge **Sentra saya** (and "Hari ini: <kelas>")
   2. Open it; the heading reads Sentra Balok and the **Kelas** switcher defaults to the class visiting today, marked "(hari ini)"; Semua TK A / Semua TK B stay available
   3. Fill **Kegiatan**, pick an IKTP, set a level for a child and tap **Simpan**
-  4. Reload: the level is still set
+  4. Reload: the level is still set. Change to another saved date: Kegiatan matches that date’s saved activity; a session without activity starts blank, never with the previous date’s text
   5. As the admin, open Penilaian (`/admin/assessments`): the Sentra Harian section lists Sentra Balok
 - **Done when:** The entry is stored under the sentra, the roster started on today's class, and the admin monitor, parent view and raport show "Sentra Balok"; entries recorded before the sentra list existed keep their old label.
 - **Why this job matters:** Every sentra, including Makro, Mikro and I Love Islam, can now be assessed under its own name by its own guru.

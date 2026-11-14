@@ -11,11 +11,11 @@ The user approved fixing the completed local audit of 69 grouped findings, with 
 - Additive persistence changes needed for idempotency/concurrency are within this remediation; no destructive migration, new service, production data change or production promotion.
 
 ## Acceptance criteria
-- [ ] All 69 grouped findings are mapped to an implementation and verified regression or a documented pre-existing correction.
-- [ ] Permission regressions deny missing grants while preserving legitimate role/tenant flows.
-- [ ] Billing, enrollment, assessment, attendance, guardian and report changes preserve data under retries, concurrent edits and failures.
-- [ ] Validation, loading/error, mobile and accessibility defects have useful recoverable behavior consistent with the design-system.
-- [ ] Local build, lint, Vitest, API/RLS guards and production-build Playwright pass.
+- [x] All 69 grouped findings are mapped to an implementation and verified regression or a documented pre-existing correction.
+- [x] Permission regressions deny missing grants while preserving legitimate role/tenant flows.
+- [x] Billing, enrollment, assessment, attendance, guardian and report changes preserve data under retries, concurrent edits and failures.
+- [x] Validation, loading/error, mobile and accessibility defects have useful recoverable behavior consistent with the design-system.
+- [x] Local build, lint, Vitest, API/RLS guards and production-build Playwright pass.
 
 ## Verify flows
 1. Restricted admin attempts module reads/writes and guardian financial disclosure; normal role still completes authorized tasks.
@@ -46,7 +46,7 @@ Destructive migration, new dependency requiring a product tradeoff, live service
 - [x] T4 Academic setup and curriculum assessments.
 - [x] T5 HR, payroll and attendance.
 - [x] T6 Report cards and journals.
-- [ ] T7 Integrate, independently review, verify and deliver.
+- [x] T7 Integrate, independently review, verify and deliver.
 
 ## Implementation
 - Plan: driver=gpt-6, workers=gpt-6.1-sol; T1–T6 parallel by owned modules, T7 sequential integration and full verification. Driver owns cross-module design, integration and security review; workers implement and test slices.
@@ -161,6 +161,23 @@ All rows below describe implemented behavior; final local verification is record
 - Latest standalone unit run passed 9,730 tests; its sole failure was the new upstream parent-preview test expecting no active-ancestor filters. The query correctly retained this cycle's ACTIVE theme/subtheme/semester and date bounds. Strengthened that test to assert the complete hierarchy while preserving age-group and take=3 assertions; all 13 loader tests passed. Full unit/browser runs are repeated with no concurrent build/lint.
 
 - Final combined-source gate passed: 792 unit files / 9,731 tests (2 pre-existing skipped files, 42 todo), 303/303 production-build browser cases, build/TypeScript, full lint plus the final test-file lint, RLS 51/51 and API auth 240/240. No skipped-test growth. All updated role probes and the late-edit submission persistence check passed.
+
+<!-- final-local-gate:start -->
+### Verified locally — ff3a99e43227b1f012df2a263ecacfeb08e82db6, 2026-11-14
+
+Earlier entries retain the verification history; these final results supersede their pending gate status.
+
+- Final source: `ff3a99e43227b1f012df2a263ecacfeb08e82db6`; integrated staging base `0536c3afe1959f780da408375ff1fffaf92aa384`. Evidence assembled at HEAD `ff3a99e43227b1f012df2a263ecacfeb08e82db6`. All 251 runtime and regression hashes match `runtime-color-integrated-snapshot.json`.
+- Actual diff versus that base is **auth-impacting**: module/API grants, idle-session cookies, student/guardian data access, financial writes and cross-role pages. Changed paths are recorded by `git diff --name-only 0536c3af...ff3a99e4` in `/workspace/remediation/final-changed-paths.txt`; local demo authentication cannot prove real Supabase OAuth.
+- Driver confirmed final lint and build sessions exited 0 (`lint-color-integrated.log`, `build-color-integrated.log`). Final Vitest: **9,731 passed, 42 todo, 0 pending, 0 failed across 792 passing files; 2 skipped files (794 reported files)** (`/workspace/remediation/vitest-final-merged.json`).
+- Production-build Playwright: **303 expected passes, 0 unexpected, 0 interrupted, 0 flaky, 0 skipped** (`/workspace/remediation/e2e-integrated-final-summary.json`), using disposable local databases and demo authentication.
+- API auth coverage **240/240**; RLS coverage **51/51**; hook checks **32 passed**. Documentation audit: **13 ok, 1 existing ADR-age warnings, 0 failures**; vendored workflow matches its pinned ref.
+- All 69 grouped findings retain their implementations in the ledger and are marked verified locally in `/workspace/remediation/closure-register.json` and `.csv`. Prior independent security/module reviews and audited browser reproductions remain under `/workspace/remediation/` and its module browser directories; immutable original evidence remains under `/workspace/audit/`.
+- Late edit during final enrollment submission is verified through POST payload, acknowledged baseline and stored nickname (`students-browser/submit-late-edit-result.json`); failures retain inputs and distinguish conflicts from prior receipt. Prior finance retry/concurrency, role restrictions, report stress export, keyboard/mobile and recovery proofs remain part of this local verification.
+- Console/network: fault-injected 4xx/5xx responses were expected and recovery was asserted. The full browser run also records existing report-only CSP eval notices; no browser test failed.
+- Cross-checked the integrated design-system and color changes. Final mobile highlight: `/workspace/remediation/invoice-totals-readable-on-mobile.png` (readable invoice totals); Desktop and phone captures remain in the module browser evidence directories.
+- This verifies the recorded local regressions and full local gates. Real OAuth and signed-in staging verification remain pending under `needs-staging-verify`; no production promotion or claim of exhaustive corner coverage.
+<!-- final-local-gate:end -->
 
 ## Ship Notes
 One additive migration adds nullable manual invoice request key/hash columns and a tenant-scoped unique index; no existing rows are rewritten. A licensed Arabic font is bundled for report exports. No new package dependency or environment variable. Staging deploy applies the migration through scripts/vercel-build.sh. Rollback: revert application commits while retaining the additive nullable columns/index; existing invoice rows remain unchanged.

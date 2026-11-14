@@ -1,5 +1,6 @@
 # Parent Portal — Jobs to be Done
 
+> Acceptance reviewed: 2026-11-15 in `audit-remediation` (recovery, access and data-integrity checks below; local evidence lives in the cycle, not a representative-user UAT claim).
 > Last audited: 2026-11-14 in cycle `audit-eight-followups` (acceptance jobs and focused regression review for bill priority/history and current/past week navigation; changed-flow staging verification passed on `32731fd5` via PR #743, with evidence and limits in the cycle). Prior: 2026-11-14 in cycle `audit-remediation` (Home separates scheduled-but-unrecorded attendance from no session and includes actual weekend attendance). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-PARENT-INV-01: one pinned "Bayar Rp …" button in the invoice sheet; with no link it makes one and goes to checkout in one tap, with Coba lagi on failure). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-10-27 in cycle `journal-no-entry-day` (JTBD-PARENT-JOURNAL-01 step 5: a day the guru marked Hari tanpa buku penghubung shows its keterangan, e.g. Renang, in that day's column). Prior: 2026-10-17 in cycle `payment-link-on-demand` (JTBD-PARENT-INV-01 step 5: an unpaid tagihan whose payment link expired shows Buat link pembayaran, or a small Minta link baru under Bayar sekarang, and gives a working link on the same tagihan without calling the school). Prior: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
@@ -123,7 +124,7 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Steps:**
   1. Open Buka rapor. Child and triwulan stay visible; focus starts at the heading and the first narrative is visible without scrolling upward.
   2. Scroll by touch/pointer and keyboard through Pembukaan, development sections, closing sections, Kehadiran, Pertumbuhan and Hafalan. Read each level chip and narrative; empty authored sections may be omitted.
-  3. Reach Unduh PDF at the end. Compare the PDF with the saved narrative, attendance and child/term; inspect all pages rather than only the cover.
+  3. Reach Unduh PDF at the end. Compare the PDF with the saved narrative, attendance and child/term; inspect all pages rather than only the cover. Include Arabic hafalan and a long multiline narrative: neither may become gibberish, overlap other sections or lose its final lines.
   4. Tutup remains reachable while scrolling. Close by touch and Escape, then reopen: start at the beginning each time and restore focus to the opener on close.
 - **Done when:** The sheet stays within the viewport, its body has a real scroll range and no horizontal overflow, and every section can be read without losing the child/period/close controls. The same presentation is used by admin Pratinjau rapor.
 - **Why this job matters:** Parents need the teacher's formative narrative and level descriptors, including the final follow-up guidance.
@@ -145,13 +146,14 @@ This file is the living catalog of what a parent user can and should be able to 
   3. Land on the "Sekolah" tab
   4. Read each day's checklist status (what the teacher filled) and any notes the teacher wrote this week
   5. A day the class did not use the book (the guru marked it Hari tanpa buku penghubung) shows a small marker under its date and a line above the grid, e.g. "Sel 28/10 · Tanpa buku penghubung: Renang", instead of reading as a day the teacher forgot
-  6. Compare week navigation with Kehadiran: both allow current/past weeks only, including when a future `week` is supplied in the URL. A current weekend has no unnecessary return action.
+  6. Read an actual Saturday/Sunday checklist entry: that date appears in the week grid; weeks without weekend activity retain the five school-day columns.
+  7. Compare week navigation with Kehadiran: both allow current/past weeks only, including when a future `week` is supplied in the URL. A current weekend has no unnecessary return action.
 - **Done when:** Pak Budi can answer his wife's question "what did Aisha do at school this week?" without calling the teacher. Each day's indicator checklist is readable at a glance; notes are grouped by date with the author role visible as `GURU` / `WALI`.
 - **Why this job matters:** the Jurnal (Buku Penghubung, staff-side) is the primary trust artifact for PAUD/TKIT parents — they pay for visibility into the school day. If this page fails to render the teacher's daily entries, the school looks absent.
 - **Expected perf:** week grid load <1.5s; week navigation prev/next click-to-update <1s.
 - **Error scenarios to verify:**
   - No entries for the week yet → empty state reads "Belum ada catatan minggu ini" (not a blank grid)
-  - Network error on `/api/student-journal/children/{id}/week` → toast + retry CTA, never a white screen
+  - Network error on `/api/student-journal/children/{id}/week` → persistent load error + local Coba lagi, never a blank body or an authoritative empty state
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -193,6 +195,7 @@ This file is the living catalog of what a parent user can and should be able to 
   - Empty note body → client-side validation blocks submit with inline message
   - Pasting beyond 2000 characters is capped without splitting an emoji and explains truncation; direct oversized API input is rejected.
   - Failed save preserves the body, announces an inline error and leaves a clear retry path.
+  - Failed Catatan loading leaves unread messages unread. Opening the recovered thread clears the badge only after the notes load successfully.
   - Delete cancelled in AlertDialog → note stays, no API call fired
   - Attempt to edit/delete another author's note → edit/delete controls absent; direct PUT/DELETE is rejected by the server author check, with cross-tenant IDs returning 404.
 - **Known friction (from last UAT):** <filled by /uat reports>
@@ -319,6 +322,7 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Expected perf:** signature save click-to-"Tersimpan" <800ms on mobile 4G; "Periksa lagi" click-to-result <800ms.
 - **Error scenarios to verify:**
   - "Periksa lagi" while the other parent has not signed yet → the page says so ("Belum ada tanda tangan baru"), not a silent no-op
+  - Edit different parent fields from two devices: both sets of changes survive. Conflicting edits to the same field show that changes are not saved; copy the draft, reload the latest form and reapply it rather than silently replacing another parent’s work.
   - Clipboard denied on "Salin link" → the link is shown in a field to copy by hand
 - **Known friction (from last UAT):** <filled by /uat reports>
 
