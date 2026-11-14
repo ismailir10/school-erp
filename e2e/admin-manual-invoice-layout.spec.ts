@@ -238,11 +238,16 @@ for (const width of [390, 1440]) {
     }]);
     await page.goto("/admin/invoices");
 
-    const search = page.getByPlaceholder("Cari siswa atau nomor tagihan...");
-    const summary = page.getByRole("button", { name: "Ringkasan tagihan" });
-    const totals = page.getByText("Total tagihan", { exact: true });
+    // Streaming may retain a hidden server subtree briefly. Assert the
+    // accessible page, not that inert copy; two live search fields still fail.
+    const main = page.getByRole("main");
+    const search = main.getByRole("textbox", { name: "Cari siswa atau nomor tagihan...", exact: true });
+    const summary = main.getByRole("button", { name: "Ringkasan tagihan" });
+    const totals = main.getByText("Total tagihan", { exact: true });
+    await expect(main).toHaveCount(1);
+    await expect(search).toHaveCount(1);
     if (width === 390) {
-      await expect(page.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeInViewport();
+      await expect(main.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeInViewport();
       await expect(search).toBeInViewport({ ratio: 1 });
       await expect(summary).toHaveAttribute("aria-expanded", "false");
       await expect(totals).toBeHidden();
@@ -253,7 +258,7 @@ for (const width of [390, 1440]) {
       await expect(summary).toBeHidden();
     }
     for (const label of ["Total tagihan", "Draf", "Lunas", "Dibayar sebagian", "Lewat tempo", "Piutang", "Diterima bulan ini"]) {
-      await expect(page.locator("[data-slot=collapsible-content]").getByText(label, { exact: true })).toBeVisible();
+      await expect(main.locator("[data-slot=collapsible-content]").getByText(label, { exact: true })).toBeVisible();
     }
     if (width === 390) {
       await summary.press("Enter");

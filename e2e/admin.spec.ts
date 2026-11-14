@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // Demo mode E2E tests — discovers user ID from /api/auth/users and sets
 // session cookie directly to avoid rate-limit on repeated beforeEach calls.
@@ -529,10 +528,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
       "no class section with an active enrollment on this DB — cannot scope a billing run",
     ).toBeTruthy();
 
-    // Step 1 — Scope (step-1-scope.tsx). "Buat Tagihan" is the sole
-    // bulk-generate entry point since Task T10; it opens the wizard dialog
-    // titled "Buat Tagihan (Wizard)" (billing-run-wizard.tsx).
+    // Choose group billing before Step 1 — Scope (step-1-scope.tsx).
+    // The header entry explicitly distinguishes one student from a group.
     await page.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+    const choice = page.getByRole("dialog", { name: "Buat tagihan untuk siapa?" });
+    await expect(choice.getByRole("button", { name: "Satu siswa", exact: true })).toBeVisible();
+    await choice.getByRole("button", { name: "Per kelas / beberapa siswa", exact: true }).click();
 
     const dialog = page.getByRole("dialog", { name: /Buat Tagihan \(Wizard\)/ });
     await expect(dialog).toBeVisible({ timeout: 10_000 });
@@ -757,9 +758,12 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
       page.getByRole("heading", { name: /^Tagihan$/ }),
     ).toBeVisible({ timeout: 15_000 });
 
-    // The header has "Buat Tagihan" (opens the Billing Run wizard — the only
-    // bulk path since Task T10) and "Tagihan Manual" (single invoice).
-    await openInvoiceHeaderMenuItem(page, "Tagihan Manual");
+    // Exercise the primary one-student entry; legacy overflow access is
+    // covered separately by the manual-invoice layout and prepayment specs.
+    await page.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+    const choice = page.getByRole("dialog", { name: "Buat tagihan untuk siapa?" });
+    await expect(choice.getByRole("button", { name: "Per kelas / beberapa siswa", exact: true })).toBeVisible();
+    await choice.getByRole("button", { name: "Satu siswa", exact: true }).click();
 
     const dialog = page.getByRole("dialog", { name: /Tagihan Manual/ });
     await expect(dialog).toBeVisible({ timeout: 10_000 });

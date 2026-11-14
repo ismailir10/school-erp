@@ -109,6 +109,9 @@ test.describe("Admin: class ↔ program setup", () => {
       // Billing wizard: the class now shows its new program and rate.
       await page.goto("/admin/invoices");
       await page.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+      const choice = page.getByRole("dialog", { name: "Buat tagihan untuk siapa?" });
+      await expect(choice.getByRole("button", { name: "Satu siswa", exact: true })).toBeVisible();
+      await choice.getByRole("button", { name: "Per kelas / beberapa siswa", exact: true }).click();
       const wizard = page.getByRole("dialog", { name: /Buat Tagihan \(Wizard\)/ });
       await expect(wizard).toBeVisible({ timeout: 10_000 });
       await wizard.getByRole("combobox", { name: "Tahun Ajaran" }).click();

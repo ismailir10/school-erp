@@ -894,3 +894,12 @@ describe("InvoiceDetailPage — Perlu dicek alert for unrecorded gateway payment
     expect(screen.queryByText("Perlu dicek")).not.toBeInTheDocument();
   });
 });
+
+it("Kembali restores the invoice list search, filter and page", async () => {
+  fixture();
+  sessionStorage.setItem("admin.invoices.listQuery", "q=Ahmad&status=PARTIALLY_PAID&page=3&billingRun=keep-me");
+  render(<InvoiceDetailPage />);
+  expect(await screen.findByRole("link", { name: "Kembali ke Daftar Tagihan" })).toHaveAttribute("href", "/admin/invoices?q=Ahmad&status=PARTIALLY_PAID&page=3&billingRun=keep-me");
+  sessionStorage.clear();
+  vi.unstubAllGlobals();
+});
