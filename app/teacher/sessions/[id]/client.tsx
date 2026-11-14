@@ -36,8 +36,7 @@ type Status = (typeof ROTATION)[number];
 // A second hand-written copy here is exactly how the historical
 // "Tidak Hadir" → "Alpa" drift happened.
 
-// Mirrors .claude/standards/portal.md Daily Data Entry recipe — cycle-tap the
-// status, row-tinted by current state for a 3 m glance.
+// Unrecorded rows remain neutral; the selected status is a draft until saved.
 const ROW_TINT: Record<Status, string> = {
   PRESENT: "bg-[color:var(--status-present-subtle)]",
   ABSENT: "bg-[color:var(--status-absent-subtle)]",
@@ -316,11 +315,12 @@ export function SessionRosterClient({
           <div className="space-y-2">
             {rows.map((r) => {
               const status = r.status as Status;
+              const unrecorded = r.status === "UNKNOWN";
               return (
                 <div
                   key={r.studentId}
                   data-testid="roster-row"
-                  className={`rounded-lg border border-border p-3 ${ROW_TINT[status]}`}
+                  className={`rounded-lg border border-border p-3 ${ROW_TINT[status] ?? "bg-card"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -335,9 +335,9 @@ export function SessionRosterClient({
                       type="button"
                       onClick={() => cycleStatus(r.studentId, r.status)}
                       className="inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border border-border bg-background py-1 pl-1 pr-2 transition-colors hover:bg-muted focus-visible:focus-outline"
-                      aria-label={`Status ${r.name}: ${getStatusConfig(status).label}. Ketuk untuk ganti.`}
+                      aria-label={`Status ${r.name}: ${unrecorded ? "Belum dicatat" : getStatusConfig(status).label}. Ketuk untuk ganti.`}
                     >
-                      <StatusBadge status={status} />
+                      <StatusBadge status={status} label={unrecorded ? "Belum dicatat" : undefined} />
                       <ChevronDown
                         size={16}
                         className="text-muted-foreground"

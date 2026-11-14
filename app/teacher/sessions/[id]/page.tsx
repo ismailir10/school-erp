@@ -76,7 +76,7 @@ export default async function TeacherSessionPage({
   });
 
   const attendance = await prisma.studentAttendance.findMany({
-    where: { sessionId: classSession.id },
+    where: { sessionId: classSession.id, isVoided: false },
     select: {
       studentId: true,
       status: true,
@@ -94,7 +94,7 @@ export default async function TeacherSessionPage({
       studentId: e.student.id,
       name: e.student.name,
       nickname: e.student.nickname,
-      status: a?.status ?? "PRESENT",
+      status: a?.status ?? "UNKNOWN",
       checkInTime: a?.checkInTime?.toISOString() ?? null,
       checkOutTime: a?.checkOutTime?.toISOString() ?? null,
       pickedUpByRelation: a?.pickedUpByRelation ?? null,

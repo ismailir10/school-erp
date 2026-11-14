@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentAttendanceStatus, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
+import { scheduledClassIds } from "@/lib/sessions/scheduled-day";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -50,7 +51,7 @@ function ymd(d: Date): string {
 }
 
 /**
- * Mon-Fri YYYY-MM-DD strings for the Jakarta-local week containing `now`.
+ * Mon-Sun YYYY-MM-DD strings for the Jakarta-local week containing `now`.
  * Anchored on the WIB calendar day, not the server's UTC day — without this
  * a request arriving between 17:00-23:59 UTC (= 00:00-06:59 WIB next day)
  * would compute Monday off the wrong base date.
@@ -72,7 +73,7 @@ function thisWeekDates(now: Date = new Date()): string[] {
   const monday = new Date(anchor);
   monday.setUTCDate(anchor.getUTCDate() + offsetToMon);
   const out: string[] = [];
-  for (let i = 0; i < 5; i += 1) {
+  for (let i = 0; i < 7; i += 1) {
     const d = new Date(monday);
     d.setUTCDate(monday.getUTCDate() + i);
     out.push(getYmdInTimezone(d, JAKARTA_TZ));
@@ -139,8 +140,9 @@ export default async function ParentDashboard() {
     latestNotes,
     outstanding,
     perkembanganByKid,
+    scheduledClasses,
   ] = await Promise.all([
-    loadParentAttendanceSummary(session.tenantId, kidIds, week),
+    loadParentAttendanceSummary(session.tenantId, kidIds, [...new Set([...week, today])]),
     prisma.studentJournalNote.findMany({
       where: {
         tenantId: session.tenantId,
@@ -164,6 +166,7 @@ export default async function ParentDashboard() {
         ),
       ),
     ).then((rows) => new Map(rows)),
+    scheduledClassIds(session.tenantId, children.flatMap(child => child.student.enrollments.filter(e => e.status === "ACTIVE").map(e => e.classSection.id)), today),
   ]);
 
   // Latest note per kid (notes already ordered desc by createdAt)
@@ -261,12 +264,13 @@ export default async function ParentDashboard() {
       // "KB" alone is cryptic; the other parent pages spell it "KB · Kelompok Bermain".
       className: [c.className, c.programName && c.programName !== c.className ? c.programName : null].filter(Boolean).join(" · ") || "—",
       todayStatus: knownAttendanceStatus(todayStatus) ? todayStatus : null,
+      todayScheduled: c.student.enrollments.some(e => e.status === "ACTIVE" && scheduledClasses.has(e.classSection.id)),
       teacherNote,
       foot,
     };
   });
   const attendanceNeedsAttention = kids.filter((kid) => kid.todayStatus === "MIXED" || kid.todayStatus === "ABSENT" || kid.todayStatus === "SICK" || kid.todayStatus === "PERMISSION");
-  const attendanceUnknown = kids.filter((kid) => kid.todayStatus === null);
+  const attendanceUnknown = kids.filter((kid) => kid.todayStatus === null && kid.todayScheduled);
   const attendanceFocus = attendanceNeedsAttention[0] ?? attendanceUnknown[0] ?? kids[0];
   const attendanceStatusLabels = PARENT_ATTENDANCE_LABELS;
   const attendanceDescription = attendanceFocus?.todayStatus === "MIXED"
@@ -293,11 +297,17 @@ export default async function ParentDashboard() {
 
       <section aria-labelledby="household-actions-heading" className="space-y-3">
         <SectionHeading as="h2" id="household-actions-heading">Hari ini</SectionHeading>
-        {attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
+        {kids.every(kid => kid.todayStatus === "PRESENT") ? (
           <Alert variant="success" announcement="off">
             <CalendarDays aria-hidden="true" />
             <AlertTitle>{kids.length === 1 ? kids[0]!.name : `${kids.length} anak`} sudah hadir.</AlertTitle>
             <AlertDescription>Kehadiran hari ini dicatat sekolah.</AlertDescription>
+          </Alert>
+        ) : attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
+          <Alert announcement="off">
+            <CalendarDays aria-hidden="true" />
+            <AlertTitle>Tidak ada kehadiran yang perlu diperiksa</AlertTitle>
+            <AlertDescription>Anak tanpa jadwal sesi hari ini tidak perlu dicatat hadir. Catatan yang sudah tersimpan tetap terlihat di bawah.</AlertDescription>
           </Alert>
         ) : (
           <TaskList>
@@ -353,6 +363,7 @@ export default async function ParentDashboard() {
               name={k.name}
               className={k.className}
               todayStatus={k.todayStatus}
+              todayScheduled={k.todayScheduled}
               teacherNote={k.teacherNote}
               foot={k.foot}
             />

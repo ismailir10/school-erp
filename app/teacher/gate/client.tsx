@@ -25,6 +25,7 @@ export type GateStudent = {
   nickname: string | null;
   classSectionId: string;
   className: string;
+  available: boolean;
   status: string | null;
   checkInTime: string | null;
   checkOutTime: string | null;
@@ -103,7 +104,7 @@ export function GateClient() {
     relation?: string,
     name?: string,
   ) {
-    if (busy.has(s.studentId)) return;
+    if (busy.has(s.studentId) || !s.available) return;
     const before = {
       status: s.status,
       checkInTime: s.checkInTime,
@@ -200,7 +201,9 @@ export function GateClient() {
 
   const done = (s: GateStudent) =>
     mode === "arrive" ? !!s.checkInTime : !!s.checkOutTime;
-  const doneCount = students.filter(done).length;
+  const scheduledStudents = students.filter(s => s.available);
+  const doneCount = scheduledStudents.filter(done).length;
+  const unavailableCount = students.length - scheduledStudents.length;
 
   return (
     <div className="space-y-3">
@@ -278,8 +281,10 @@ export function GateClient() {
 
       {!loading && !failed && students.length > 0 && (
         <p className="text-sm text-muted-foreground" role="status">
-          {mode === "arrive" ? "Sudah masuk" : "Sudah pulang"} {doneCount} dari{" "}
-          {students.length}
+          {scheduledStudents.length > 0
+            ? `${mode === "arrive" ? "Sudah masuk" : "Sudah pulang"} ${doneCount} dari ${scheduledStudents.length} anak dengan sesi hari ini.`
+            : "Tidak ada sesi kelas di kampus ini hari ini."}
+          {unavailableCount > 0 ? ` ${unavailableCount} anak tidak memiliki sesi hari ini.` : ""}
         </p>
       )}
 
@@ -326,7 +331,7 @@ export function GateClient() {
                   <button
                     type="button"
                     onClick={() => void record(s, mode)}
-                    disabled={busy.has(s.studentId)}
+                    disabled={busy.has(s.studentId) || !s.available}
                     className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left focus-visible:focus-outline [--focus-outline-offset:-2px]"
                     aria-label={`${mode === "arrive" ? "Masuk" : "Pulang"}: ${s.name}, ${s.className}${marked ? `, tercatat ${formatTime(time)}` : ""}`}
                   >
@@ -335,6 +340,7 @@ export function GateClient() {
                         {s.name}
                       </span>
                       <span className="block truncate text-xs">{s.className}</span>
+                      {!s.available ? <span className="block text-xs text-muted-foreground">Tidak ada sesi kelas hari ini</span> : null}
                     </span>
                     {marked && (
                       <span className="shrink-0 text-sm font-medium tabular-nums">
@@ -342,7 +348,7 @@ export function GateClient() {
                       </span>
                     )}
                   </button>
-                  {mode === "pickup" && !marked && (
+                  {mode === "pickup" && !marked && s.available && (
                     <button
                       type="button"
                       onClick={() => {
@@ -360,7 +366,8 @@ export function GateClient() {
 
                 {showPicker && (
                   <div className="space-y-2 border-t border-border p-3">
-                    <p className="text-sm font-medium text-foreground">Dijemput oleh</p>
+                    <p className="text-sm font-medium text-foreground">Catat kepulangan {s.name}</p>
+                    <p className="text-small text-muted-foreground">Memilih penjemput langsung mencatat jam pulang sekarang.</p>
                     <div className="flex flex-wrap gap-2">
                       {RELATIONS.filter((r) => r.value !== "OTHER").map((r) => (
                         <Button
@@ -374,7 +381,7 @@ export function GateClient() {
                         </Button>
                       ))}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <label htmlFor={`gate-other-${s.studentId}`} className="sr-only">
                         Nama penjemput lainnya
                       </label>
@@ -393,7 +400,7 @@ export function GateClient() {
                           void record(s, "pickup", "OTHER", otherName.trim())
                         }
                       >
-                        Simpan
+                        Catat pulang
                       </Button>
                     </div>
                   </div>

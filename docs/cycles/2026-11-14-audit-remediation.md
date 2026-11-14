@@ -20,7 +20,7 @@ Assumptions: browser-persisted payment hints are UX safeguards, not a cross-devi
 
 - [x] 1. Fix report reader and journal context — bounded shared reader, deliberate initial focus, coherent date/default and audience; regression tests.
 - [x] 2. Fix payment return persistence and DOKU label compatibility — scoped durable hint and authoritative reconciliation; boundary and component tests.
-- [ ] 3. Fix attendance availability and truthful status — Gate schedule, roster neutrality, Home priorities/decisions, parent calendar state; endpoint/component tests.
+- [x] 3. Fix attendance availability and truthful status — Gate schedule, roster neutrality, Home priorities/decisions, parent calendar state; endpoint/component tests.
 - [ ] 4. Fix admin work priority and loading/billing clarity — recheck historical findings, update affected views and tests.
 - [ ] 5. Integrate and review all slices, update JTBD/report dispositions, run full gates and address failures.
 - [ ] 6. Prepare the verified release record, screenshots and staging verification checklist.

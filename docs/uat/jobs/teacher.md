@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-11-14 in cycle `ui-ux-audit` (JTBD-TEACHER-HOME-03 unreadable-location sheet is titled "Lokasi tidak terbaca"). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
+> Last audited: 2026-11-14 in cycle `audit-remediation` (calendar-aware Gate availability, neutral unrecorded session rows, explicit pickup action and admin attendance decisions; primary class task before campus Gate). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-TEACHER-HOME-03 unreadable-location sheet is titled "Lokasi tidak terbaca"). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
@@ -348,7 +348,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Role:** TEACHER, repeated for homeroom and sentra assignments
 - **Preconditions:** Multiple assigned classes; saved and missing attendance; one fully checked school journal, one partial journal, and an unread guardian reply. Repeat without a generated daily session.
 - **Steps:** Read the class/date context; open the primary action; confirm its selected class/date; save one record; reload; open each child's unread thread; open the session pickup workflow separately.
-- **Done when:** The next action is obvious without interpreting an invented percentage. Attendance counts saved student records. Journal completion requires every active SCHOOL indicator for each active student; zero configured indicators is explained. All assigned-class and session destinations remain available, and each guardian-reply label opens that child's thread.
+- **Done when:** The next action is obvious without interpreting an invented percentage. The primary class/date action precedes campus-wide Gerbang and is not repeated in the unfinished-task list. A class with no session in the school calendar has a neutral **Lihat absensi kelas** link and explicit no-session description, with no missing-work count; manual entry remains available. Attendance counts saved student records. Journal completion requires every active SCHOOL indicator for each active student; zero configured indicators is explained. All assigned-class and session destinations remain available, and each guardian-reply label opens that child's thread.
 - **Leave decisions (cycle `journal-ux`):** when admin approved or rejected the teacher's own leave in the last 7 days, a **Keputusan cuti** section appears above the class card ("Cuti tahunan disetujui" / "Izin ditolak · Alasan: …"); each row opens Kehadiran saya with the Cuti dan izin sheet.
 - **Recovery checks:** Change class/date during a slow or failed save; the late response must not overwrite the new context. Refresh after saving and confirm the summary agrees with the domain record.
 - **Verification status:** Acceptance contract updated after engineering review; results belong in the cycle's Verification section, separately from representative-user observations.
@@ -390,7 +390,8 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   2. B. Outside the radius: tap "Catat masuk". A sheet "Anda di luar area kampus" reads "Anda ± {n} m dari {campus}. Tambahkan catatan agar admin dapat menyetujui." with a "Catatan untuk admin" field.
   3. "Kirim untuk disetujui" stays disabled until the note has at least 3 characters; submit it.
   4. The home shows the chip "Menunggu persetujuan" next to the recorded "Masuk" time.
-  5. C. Location denied or unreadable: the same sheet opens titled "Lokasi tidak terbaca" with "Tambahkan catatan agar admin dapat menyetujui." and the same note path.
+  5. After admin approval or rejection, refresh Home. The decision and review note are explicit; rejection says Alpa and offers no Catat pulang.
+  6. C. Location denied or unreadable: the same sheet opens titled "Lokasi tidak terbaca" with "Tambahkan catatan agar admin dapat menyetujui." and the same note path.
 - **Done when:** Inside the radius the check-in is approved at once (one tap). Outside, or with no location, the record is `PENDING` with the note, distance and nearest campus, and payroll does not count it until an admin approves (JTBD-ADMIN-ATT-01). A rejected day reads Alpa. A tenant with no campus pins checks in with one plain tap.
 - **Why this job matters:** The radius stops check-ins from home, but a teacher who is genuinely off-site (an errand for the school, a bad GPS fix) must never be blocked from recording the day.
 - **Expected perf:** tap to sheet or confirmation <2s on 4G (a location fix may add up to 10s).
@@ -411,10 +412,10 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - The session's class has ≥1 ACTIVE-enrolled student
   - Demo cookie set (pattern from `e2e/teacher.spec.ts`)
 - **Steps (user intent, not UI clicks):**
-  1. Open `/teacher` → the "Sesi Hari Ini" card lists today's session(s)
+  1. Open `/teacher` → "Sesi & penjemputan" lists today's session(s)
   2. Tap a session → navigate to `/teacher/sessions/[id]` roster (`/teacher/sessions` itself redirects to the "Sesi & penjemputan" list on the home page)
-  3. For each student: cycle the status badge (PRESENT/ABSENT/SICK/PERMISSION); tap **Tap Masuk** to stamp `checkInTime`; later tap **Tap Pulang** to stamp `checkOutTime`; pick a `pickedUpByRelation` (PARENT/GUARDIAN/GRANDPARENT/SIBLING/DRIVER/HOUSEHOLD_HELPER/OTHER) and enter `pickedUpByName` (required when OTHER)
-  4. Tap **Simpan** → bulk `POST /api/teacher/sessions/[id]/attendance` upserts the whole roster keyed on `(studentId, sessionId)`
+  3. An unrecorded or voided row starts neutral, **Belum dicatat**, never green Hadir. Explicitly select a status (Hadir → Sakit → Izin → Alpa); tap **Ketuk masuk** to stamp `checkInTime`; later tap **Ketuk pulang** to stamp `checkOutTime`; pick a `pickedUpByRelation` (PARENT/GUARDIAN/GRANDPARENT/SIBLING/DRIVER/HOUSEHOLD_HELPER/OTHER) and enter `pickedUpByName` (required when OTHER)
+  4. Tap **Simpan absensi** → `POST /api/teacher/sessions/[id]/attendance` upserts only changed rows keyed on `(studentId, sessionId)`; untouched students remain unrecorded.
   5. Reload — the persisted state shows again. Until Simpan the page shows **Belum disimpan**; reload, an in-app link (bottom nav / back link) or the Back button asks "Keluar tanpa menyimpan?" (cycle `journal-ux`).
 - **Done when:** Each student's status, times, and pickup info show on reload; the substitute trail (when the session was a swap day) is intact — `defaultTeacherId` is NOT touched.
 - **Why this job matters:** The daily hot path for early-childhood teachers. Tap-In + Tap-Out + pickup is the structured replacement for the legacy session-agnostic attendance entry. Pickup data feeds the late-pickup leaderboard once Layer 2 lands.
@@ -436,8 +437,8 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Role:** TEACHER (or admin)
 - **Preconditions:** As JTBD-TEACHER-SESSION-01, with some students not yet marked
 - **Steps:**
-  1. In the morning open `/teacher/sessions/[id]` and tap "Semua hadir": every student not yet marked turns PRESENT with the arrival time; tap only the exceptions (Sakit, Izin, Alpa).
-  2. Tap Simpan. A toast offers "Urungkan" if the tap was a mistake.
+  1. In the morning open `/teacher/sessions/[id]` and tap "Semua hadir": unknown students and present students lacking a time receive PRESENT and the arrival time; existing Sakit, Izin, Alpa and saved times remain unchanged.
+  2. The bulk-selection toast offers "Urungkan" before saving. Tap Simpan absensi to persist the changed rows.
   3. At pickup tap "Semua pulang": every present student without a pickup time gets one, with Orang tua as the default relation; change the relation only for exceptions.
   4. Tap Simpan.
 - **Done when:** Existing statuses and times are never overwritten by either button; after Simpan and a reload every row shows both times. One tap plus exceptions replaces a tap per child.
@@ -449,14 +450,14 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Role:** TEACHER (or admin with an employee record)
 - **Preconditions:** ≥1 active student on the campus; the teacher is not necessarily the child's homeroom teacher
 - **Steps:**
-  1. On Beranda, tap the "Gerbang" row under Kehadiran pribadi (`/teacher/gate`; it shows "N dari M sudah masuk · K pulang"). The campus defaults to the teacher's own; switch it if the tablet covers another.
+  1. On Beranda, tap "Gerbang kampus" after the primary class task (`/teacher/gate`; "N dari M sudah masuk · K pulang" counts scheduled children only). The campus defaults to the teacher's own; switch it if the tablet covers another.
   2. With "Masuk" selected, optionally search by name or class, then tap the child's row once: toast "{nama} masuk" with "Urungkan".
-  3. Switch to "Pulang" later in the day and tap the child: pickup is recorded with Orang tua; tap the relation chooser first when it was someone else (name required for Lainnya).
+  3. Switch to "Pulang" later in the day and tap the child: pickup is recorded with Orang tua; tap the relation chooser first when it was someone else. The picker names the child and explains that choosing a relation records departure immediately; Lainnya requires a name and **Catat pulang**.
   4. Open the child's own class session: the same arrival and pickup times show there.
-- **Done when:** Marked children are greyed with their time; the counter reads "Sudah masuk {n} dari {total}"; the class view shows the same record; a re-tap on a marked child writes nothing. The page works at 390 px with every row at least 48 px tall.
+- **Done when:** Marked children are greyed with their time; the counter counts children with a session; unavailable rows say **Tidak ada sesi kelas hari ini** and their arrival/pickup controls are disabled; the class view shows the same record; a re-tap on a marked child writes nothing. The page works at 390 px with every row at least 48 px tall.
 - **Why this job matters:** Teachers rarely hold a phone at drop-off and pickup; the gate is where the data is created, so it has to be one tap and need no class or piket assignment.
 - **Expected perf:** list load <1.5s for a campus; tap to toast <1s.
-- **Error scenarios to verify:** a child with no session for today and no class day schedule returns a clear message instead of a silent failure; a failed save offers retry.
+- **Error scenarios to verify:** a non-school day has no enabled unavailable row and no 0/0 completion claim; a valid weekday whose session has not yet been generated remains usable through lazy reconciliation. An actual weekend/daycare session stays available. Repeat with two active placements, only the second scheduled. A failed save offers retry.
 
 ---
 

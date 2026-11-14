@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ date, campusId: null, campuses, students: [] });
   }
 
-  const { students: unique, byStudent } = await getGateRoster(tenantId, campusId, date);
+  const { students: unique, byStudent, availableStudents } = await getGateRoster(tenantId, campusId, date);
 
   return NextResponse.json({
     date,
@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
         nickname: e.student.nickname,
         classSectionId: e.classSection.id,
         className: e.classSection.name,
+        available: availableStudents.has(e.student.id),
         status: a?.status ?? null,
         checkInTime: a?.checkInTime?.toISOString() ?? null,
         checkOutTime: a?.checkOutTime?.toISOString() ?? null,
@@ -181,9 +182,17 @@ export async function POST(req: NextRequest) {
       }
     }
     if (sessions.length === 0) {
-      // None has one: reconcile the first placement once before giving up.
-      await reconcileSessions(classSectionId);
-      sessions = await findSessions(classSectionId, date);
+      // A school placement may be out of term while daycare is scheduled.
+      // Try each authorized placement rather than stopping at the first one.
+      for (const id of placementIds) {
+        await reconcileSessions(id);
+        const found = await findSessions(id, date);
+        if (found.length > 0) {
+          classSectionId = id;
+          sessions = found;
+          break;
+        }
+      }
     }
     const chosen = SLOT_PREFERENCE[wanted]
       .map((slot) => sessions.find((s) => s.slot === slot))

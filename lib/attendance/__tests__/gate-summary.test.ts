@@ -1,3 +1,4 @@
+import { scheduledClassIds } from "@/lib/sessions/scheduled-day";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   enrollmentFindMany: vi.fn(),
   attendanceFindMany: vi.fn(),
 }));
+
+vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: vi.fn(async () => new Set(["cs1"])) }));
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -40,6 +43,7 @@ const attendance = (
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(scheduledClassIds).mockResolvedValue(new Set(["cs1"]));
   mocks.campusFindMany.mockResolvedValue([
     { id: "c1", name: "A" },
     { id: "c2", name: "B" },
@@ -159,4 +163,23 @@ describe("getGateRoster", () => {
       pickedUp: 1,
     });
   });
+});
+
+
+it("makes a child available through either active placement and names the scheduled class", async () => {
+  mocks.enrollmentFindMany.mockResolvedValue([enrollment("s1", "school"), { ...enrollment("s1", "care"), classSection: { id: "care", name: "Daycare" } }]);
+  vi.mocked(scheduledClassIds).mockResolvedValue(new Set(["care"]));
+  const roster = await getGateRoster("t1", "c2", "2026-11-14");
+  expect(roster.availableStudents.has("s1")).toBe(true);
+  expect(roster.students[0].classSection.name).toBe("Daycare");
+  expect(scheduledClassIds).toHaveBeenCalledWith("t1", ["school", "care"], "2026-11-14");
+});
+
+
+it("excludes unscheduled children from the Home progress denominator", async () => {
+  mocks.enrollmentFindMany.mockResolvedValue([enrollment("s1", "school"), enrollment("s2", "care")]);
+  vi.mocked(scheduledClassIds).mockResolvedValue(new Set(["care"]));
+  expect(await getGateSummary({ tenantId: "t1", employeeId: "e1" })).toEqual({ total: 1, arrived: 0, pickedUp: 0 });
+  vi.mocked(scheduledClassIds).mockResolvedValue(new Set());
+  expect(await getGateSummary({ tenantId: "t1", employeeId: "e1" })).toEqual({ total: 0, arrived: 0, pickedUp: 0 });
 });

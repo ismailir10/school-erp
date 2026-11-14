@@ -16,11 +16,12 @@ export type KidCardProps = {
   name: string;
   className: string;
   todayStatus: ParentAttendanceStatus | null;
+  todayScheduled?: boolean;
   teacherNote: string | null;
   foot: KidCardFoot;
 };
 
-export function KidCard({ id, name, className, todayStatus, teacherNote, foot }: KidCardProps) {
+export function KidCard({ id, name, className, todayStatus, todayScheduled = true, teacherNote, foot }: KidCardProps) {
   return (
     <Card size="sm" className="gap-3">
       <CardHeader className="grid-cols-[minmax(0,1fr)_auto] gap-x-3">
@@ -28,7 +29,7 @@ export function KidCard({ id, name, className, todayStatus, teacherNote, foot }:
           <CardTitle className="text-foreground"><h3>{name}</h3></CardTitle>
           <p className="text-xs text-muted-foreground">{className}</p>
         </div>
-        <StatusBadge status={todayStatus === "MIXED" ? "UNKNOWN" : todayStatus ?? "UNKNOWN"} label={todayStatus === "MIXED" ? "Catatan berbeda" : todayStatus ? undefined : "Belum dicatat"} />
+        <StatusBadge status={todayStatus === "MIXED" ? "UNKNOWN" : todayStatus ?? "UNKNOWN"} label={todayStatus === "MIXED" ? "Catatan berbeda" : todayStatus ? undefined : todayScheduled ? "Belum dicatat" : "Tidak ada sesi"} />
       </CardHeader>
 
       <CardContent className="space-y-3">

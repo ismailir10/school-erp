@@ -1,22 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), family: vi.fn(), outstanding: vi.fn(), attendance: vi.fn(), sessions: vi.fn(), notes: vi.fn(), development: vi.fn() }));
+const mocks = vi.hoisted(() => ({ session: vi.fn(), family: vi.fn(), outstanding: vi.fn(), attendance: vi.fn(), sessions: vi.fn(), notes: vi.fn(), development: vi.fn(), scheduled: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getSession: mocks.session }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
 vi.mock("@/lib/parent-helpers", () => ({ getParentWithChildren: mocks.family, getParentOutstandingForStudents: mocks.outstanding }));
 vi.mock("@/lib/db", () => ({ prisma: { studentAttendance: { findMany: mocks.attendance }, classSession: {findMany:mocks.sessions}, studentJournalNote: { findMany: mocks.notes } } }));
 vi.mock("@/lib/curriculum/perkembangan-loader", () => ({ loadStudentPerkembangan: mocks.development }));
+vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: mocks.scheduled }));
 import ParentDashboard from "../page";
 
 const children = [
-  { studentId: "child-a", studentName: "Alya Nur Rahma", studentNickname: "Alya", className: "TK A", relationship: "IBU" },
-  { studentId: "child-b", studentName: "Alya Nur Zahra", studentNickname: "Alya", className: "TK B", relationship: "IBU" },
+  { studentId: "child-a", studentName: "Alya Nur Rahma", studentNickname: "Alya", className: "TK A", relationship: "IBU", student: { enrollments: [{ status: "ACTIVE", classSection: { id: "class-a" } }] } },
+  { studentId: "child-b", studentName: "Alya Nur Zahra", studentNickname: "Alya", className: "TK B", relationship: "IBU", student: { enrollments: [{ status: "ACTIVE", classSection: { id: "class-a" } }] } },
 ];
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-09-25T04:00:00Z"));
+  mocks.scheduled.mockResolvedValue(new Set(["class-a"]));
   mocks.session.mockResolvedValue({ role: "GUARDIAN", tenantId: "tenant-a" });
   mocks.family.mockResolvedValue({ parent: { id: "parent-a", name: "Ibu Rina" }, children });
   mocks.outstanding.mockResolvedValue({ count: 0, total: 0, nearestDue: null, items: [] });
@@ -216,5 +218,33 @@ describe("parent home round-2 fixes", () => {
     }
     // Give the full badge label room to wrap independently of the two-line indicator preview.
     expect(html).toContain("line-clamp-2 text-xs text-foreground");
+  });
+});
+
+
+describe("parent Home calendar state", () => {
+  it("includes Saturday in today's attendance lookup and shows its saved status", async () => {
+    vi.setSystemTime(new Date("2026-11-14T04:00:00Z"));
+    mocks.family.mockResolvedValue({ parent: { id: "p", name: "Ibu Rina" }, children: [children[0]] });
+    mocks.attendance.mockResolvedValue([{ studentId: "child-a", classSectionId: "class-a", date: "2026-11-14", sessionId: null, status: "PRESENT", classSection: { name: "Daycare" } }]);
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(mocks.attendance.mock.calls[0][0].where.date.in).toContain("2026-11-14");
+    expect(html).toContain("sudah hadir.");
+    expect(html).not.toContain("Belum dicatat");
+  });
+  it("shows no-session children neutrally, never as unrecorded or present", async () => {
+    mocks.scheduled.mockResolvedValue(new Set());
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).toContain("Tidak ada sesi");
+    expect(html).not.toContain("Belum dicatat");
+    expect(html).not.toContain("sudah hadir.");
+    expect(html).not.toContain("belum memiliki catatan kehadiran hari ini");
+  });
+  it("keeps a saved exception visible even when there is no scheduled session", async () => {
+    mocks.scheduled.mockResolvedValue(new Set());
+    mocks.attendance.mockResolvedValue([{ studentId: "child-a", classSectionId: "class-a", date: "2026-09-25", sessionId: null, status: "SICK", classSection: { name: "TK A" } }]);
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html).toContain("Periksa kehadiran Alya Nur Rahma");
+    expect(html).toContain("Sakit hari ini");
   });
 });

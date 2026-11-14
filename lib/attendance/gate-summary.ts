@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { scheduledClassIds } from "@/lib/sessions/scheduled-day";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /** The school's calendar day for the Gerbang (gate) views. */
@@ -98,7 +99,11 @@ export async function getGateRoster(tenantId: string, campusId: string, date: st
       current.pickedUpByName = row.pickedUpByName;
     }
   }
-  return { students, byStudent };
+  const scheduled = await scheduledClassIds(tenantId, [...new Set(enrollments.map(e => e.classSection.id))], date);
+  const availableStudents = new Set([...placements].filter(([, ids]) => [...ids].some(id => scheduled.has(id))).map(([id]) => id));
+  // Name the active placement whose session this child can use today.
+  const displayStudents = students.map(enrollment => enrollments.find(candidate => candidate.student.id === enrollment.student.id && scheduled.has(candidate.classSection.id)) ?? enrollment);
+  return { students: displayStudents, byStudent, availableStudents };
 }
 
 export type GateSummary = { total: number; arrived: number; pickedUp: number };
@@ -120,13 +125,14 @@ export async function getGateSummary(args: {
       : await resolveDefaultGateCampusId(tenantId, employeeId, campuses);
   if (!campusId) return { total: 0, arrived: 0, pickedUp: 0 };
 
-  const { students, byStudent } = await getGateRoster(tenantId, campusId, getTodayInTimezone(GATE_TZ));
+  const { students, byStudent, availableStudents } = await getGateRoster(tenantId, campusId, getTodayInTimezone(GATE_TZ));
   let arrived = 0;
   let pickedUp = 0;
   for (const s of students) {
+    if (!availableStudents.has(s.student.id)) continue;
     const a = byStudent.get(s.student.id);
     if (a?.checkInTime) arrived++;
     if (a?.checkOutTime) pickedUp++;
   }
-  return { total: students.length, arrived, pickedUp };
+  return { total: availableStudents.size, arrived, pickedUp };
 }
