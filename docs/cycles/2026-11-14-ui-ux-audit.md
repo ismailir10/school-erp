@@ -44,28 +44,28 @@ Inputs from the report (major findings) that this cycle fixes:
 
 ## Acceptance criteria
 
-- [ ] The admin header no longer shows a campus line; the academic-year line still shows.
-- [ ] On Sentra with two campuses, both campus names are visible as one segmented choice, the current one is marked, and switching is one tap. With one campus there is no control.
-- [ ] On staff attendance, a campus picked on one of the three pages is still picked after moving to either of the others through their own links.
-- [ ] Every shared dropdown opens below its field, and the field stays readable while it is open.
-- [ ] Campus option labels show only the distinguishing part when all campus names share a prefix ("Metland Cibitung", "Taman Aster").
-- [ ] On the invoice and payment lists, the invoice number opens the invoice and the student name opens the student.
-- [ ] The invoice detail links the student name and the wali name to their pages.
-- [ ] Class names on student list, student detail (header, Kelas saat ini, Riwayat Kelas), guardian children, and student attendance open the class.
-- [ ] Guardian-list child names and the journal-student page header open the student.
-- [ ] Employee names on staff daily, monthly, pending approvals, payroll detail, class teachers, and wali kelas open the employee for a viewer with HR access, and are plain text otherwise.
-- [ ] Teacher class-attendance, weekly-assessment and center-assessment names open that child's journal week, and the H/S/I/A controls keep working.
-- [ ] Parent profile child cards: the child's name opens Perkembangan, and the rest of the card keeps its link to Kehadiran.
-- [ ] The parent invoice sheet always shows one "Bayar Rp …" button pinned at the bottom without scrolling, at 390×844.
-- [ ] With no payment link, one tap on "Bayar" creates the link and goes to checkout.
-- [ ] If link creation fails, the parent sees why plus a "Coba lagi" path, and sees the school contact when it is configured.
-- [ ] The teacher check-in sheet title reads "Lokasi tidak terbaca" when the location could not be read, and "Anda di luar area kampus" only with a measured distance.
-- [ ] The journal-student and journal-class pages highlight "Buku Penghubung" in the sidebar.
-- [ ] Journal monitoring rows show each class's campus.
-- [ ] Staff daily attendance and Sentra rotation detail show their own loading skeletons.
-- [ ] The payroll delta reads "Rp -118.182 vs periode lalu".
-- [ ] `ui.md` states the "names are doors" rule.
-- [ ] The parent and teacher jobs files match the new behaviour.
+- [x] The admin header no longer shows a campus line; the academic-year line still shows.
+- [x] On Sentra with two campuses, both campus names are visible as one segmented choice, the current one is marked, and switching is one tap. With one campus there is no control.
+- [x] On staff attendance, a campus picked on one of the three pages is still picked after moving to either of the others through their own links.
+- [x] Every shared dropdown opens below its field, and the field stays readable while it is open.
+- [x] Campus option labels show only the distinguishing part when all campus names share a prefix ("Metland Cibitung", "Taman Aster").
+- [x] On the invoice and payment lists, the invoice number opens the invoice and the student name opens the student.
+- [x] The invoice detail links the student name and the wali name to their pages.
+- [x] Class names on student list, student detail (header, Kelas saat ini, Riwayat Kelas), guardian children, and student attendance open the class.
+- [x] Guardian-list child names and the journal-student page header open the student.
+- [x] Employee names on staff daily, monthly, pending approvals, payroll detail, class teachers, and wali kelas open the employee for a viewer with HR access, and are plain text otherwise.
+- [x] Teacher class-attendance, weekly-assessment and center-assessment names open that child's journal week, and the H/S/I/A controls keep working.
+- [x] Parent profile child cards: the child's name opens Perkembangan, and the rest of the card keeps its link to Kehadiran.
+- [x] The parent invoice sheet always shows one "Bayar Rp …" button pinned at the bottom without scrolling, at 390×844.
+- [x] With no payment link, one tap on "Bayar" creates the link and goes to checkout.
+- [x] If link creation fails, the parent sees why plus a "Coba lagi" path, and sees the school contact when it is configured.
+- [x] The teacher check-in sheet title reads "Lokasi tidak terbaca" when the location could not be read, and "Anda di luar area kampus" only with a measured distance.
+- [x] The journal-student and journal-class pages highlight "Buku Penghubung" in the sidebar.
+- [x] Journal monitoring rows show each class's campus.
+- [x] Staff daily attendance and Sentra rotation detail show their own loading skeletons.
+- [x] The payroll delta reads "Rp -118.182 vs periode lalu".
+- [x] `ui.md` states the "names are doors" rule.
+- [x] The parent and teacher jobs files match the new behaviour.
 
 ## Verify flows
 
@@ -171,7 +171,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
 
 ## Implementation
 
-- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5.
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5. The final browser walk ran inline at the driver, because the Sonnet tier hit its rate limit mid-verify.
   - **Wave A (parallel):** W1 = T1 then T2, sequential because they share the campus files. W2 = T3. W3 = T7. W4 = T8, except the payroll space, which moves to T6 because T6 already edits that file.
   - **Wave B (parallel, after T2 and T3):** W5 = T4, W6 = T5, W7 = T6.
   - **Shared tree:** workers edit disjoint files and never commit. They run only targeted Vitest and ESLint. The driver runs tsc, the build and the full Vitest suite, reviews each diff, and commits one task at a time.
@@ -214,6 +214,46 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - **Read in code:** `invoices-client.tsx` student cell links to the invoice; `select.tsx` `alignItemWithTrigger = true`; `app/admin/layout.tsx` static campus text; `lib/admin/header-context.ts` has no per-user scope.
 - design-system: the findings are judged against `.claude/standards/design-system.html`. T1–T8 verification records the design-system check per screen.
 
+### Verified locally — 64ab1ce1, 2026-11-14
+
+- Route: other code, plus a payment-flow change; `needs-staging-verify` applies (Decision 8). Compared `origin/staging` @ `a0afa580` to `64ab1ce1`: 101 files across `app/`, `components/`, `lib/`, `config/`, `e2e/`, `docs/` and `.claude/standards/ui.md`. No schema, dependency or auth-guard changes.
+- Gate:
+  - `npm run lint`: exit 0.
+  - `verify-rls-coverage.sh` and `verify-api-auth.sh`: exit 0.
+  - `npx vitest run`: "Test Files 770 passed | 2 skipped (772), Tests 9430 passed | 42 todo".
+  - `DEMO_MODE=true npm run build`: exit 0.
+  - `npx playwright test`: "296 passed (7.2m)". It ran through a local wrapper config, because the sandbox's preinstalled Chromium differs from the version @playwright/test pins. The wrapper is git-excluded and the repo config is unchanged.
+- App: production build, demo auth and a disposable local Postgres 16, freshly seeded; Xendit and DOKU test stubs as in `playwright.config.ts`.
+- Walked, all PASS:
+  - **F1, `u_school_admin`, 1440:** the invoice list opens the invoice from INV-2026-0005 and the student from "Ahmad Zafran Hidayat", with no nested anchors. The invoice detail links the student and the wali "Siti Nurhaliza Hidayat" (to `/admin/guardians/…`). Payments uses number → invoice and name → student.
+  - **F2 (links):** 34 class links on the students list. Class detail shows 0 employee links for `u_school_admin` and 2 for `u_super_admin` (the **edge case**). 27 employee links on staff monthly. Guardian list and detail give a separate child link and class link, not nested. The journal student page highlights "Buku Penghubung" and shows "Lihat profil siswa" to `/admin/students/…`, with 0 non-Vercel 404s.
+  - **F3 (campus):** the header shows only "2026/2027" at 1440 and at 390. Sentra has 2 campus buttons, and tapping "Taman Aster" sets `?campusId` with it pressed. Dropdowns open below: trigger bottom 379, list top 383. Staff monthly → Taman Aster → "Kembali" keeps `?campusId`, and the control shows "Taman Aster".
+  - **F4, `u_rightjet`, 390×844:** "Bayar Rp 450.000" sits at 784–828 px, visible without scrolling. One tap created the link and navigated the same tab to `https://demo.xendit.local/checkout/…`. The failure path (inline alert, "Coba lagi", contact) is covered by Vitest with the gateway mocked; locally the demo gateway always succeeds. This is the **error case**.
+  - **F5, `u_teacher`, 390:** a roster name opens `/teacher/student-journal/students/…`. "S" still marks Sakit, with no navigation. With location denied, the check-in sheet title is "Lokasi tidak terbaca".
+- Console/network: no app console errors and no ≥ 400 responses across the walk, apart from the local `/_vercel/*` analytics 404s and the expected 422 from check-in without a location.
+- Screenshots: `f1-invoices.png`, `f1-invoice-detail.png`, `f2-guardian-detail.png`, `f3-select-open.png`, `f3-sentra-desktop.png`, `f3-sentra-phone.png`, `f4-parent-sheet.png`, `f5-class-attendance.png` and `f5-checkin.png`, kept in the session scratchpad and not committed.
+- Highlight: `highlight-invoice-names-are-doors.png`, `highlight-parent-pinned-bayar.png`.
+- design-system: checked against `.claude/standards/design-system.html`.
+  - Links use the existing `DataTableLinkCell` underline-on-hover and focus outline.
+  - The Sentra campus control is the shadcn `ToggleGroup`.
+  - The parent footer uses the primary button and the sheet tokens.
+  - No new colours or spacing tokens.
+- Rounds: 3.
+  1. e2e `mobile-layout` caught the 20 px parent-profile name link; the breadcrumb 404 fix followed.
+  2. The parent note's "link" wording.
+  3. Clean.
+- Not checked:
+  - The real Xendit/DOKU checkout and its return (no gateway locally): staging check.
+  - The full "An Nisaa' Sekolahku …" campus names (seed names are short); `campusShortLabels` is unit-tested for them.
+  - SCHOOL_ADMIN negative access beyond the HR-gated links.
+
 ## Ship Notes
 
 - T0: report, cycle doc and 10 PNGs (340 KB) in PR [ismailir10/school-erp#739](https://github.com/ismailir10/school-erp/pull/739).
+- T1–T8: no migrations, no env vars, no new dependencies, no manual production steps.
+- **Post-merge staging check** (`needs-staging-verify`), signed in:
+  1. **Parent** (rightjet account): Tagihan → an unpaid invoice → "Bayar Rp …" is visible without scrolling → tap it → the real gateway checkout opens in the same tab → cancel → you are back on Tagihan.
+  2. **Admin:** the invoice list number and student links; the Sentra campus toggle, with full campus names shortened.
+  3. **Teacher:** class attendance, where a name opens the journal week.
+- Rollback: revert the squash commit on `staging`. No data or schema to undo.
+- Roadmap: UX-R1, R2, R3, R9 and R12 are done in this PR; their status is updated in `docs/uat/reports/2026-11-14-ui-ux-audit.md`.

@@ -57,18 +57,18 @@ Priority: **P1** = user-visible every day, or the user named it; **P2** = clear 
 
 | ID | Item | Prio | Size | Portals | Decision needed | Status |
 |---|---|---|---|---|---|---|
-| UX-R1 | Real campus scope in the admin header; pages stop asking | P1 | L | admin | yes | open |
-| UX-R2 | Every named entity is a link ("names are doors") | P1 | L (split) | all | yes (rule) | open |
-| UX-R3 | Select popup below its trigger; short campus labels; one picker per kind of choice | P1 | S + M | all | no | open |
+| UX-R1 | Real campus scope in the admin header; pages stop asking | P1 | L | admin | yes | done (#739) |
+| UX-R2 | Every named entity is a link ("names are doors") | P1 | L (split) | all | yes (rule) | done (#739) |
+| UX-R3 | Select popup below its trigger; short campus labels; one picker per kind of choice | P1 | S + M | all | no | R3a+R3b done (#739); R3c open |
 | UX-R4 | Admin list pages share one shape | P2 | M | admin | yes | open |
 | UX-R5 | One primary action per screen | P3 | S | admin | no | open |
 | UX-R6 | Undo over confirm; canonical confirm labels | P3 | M | admin, teacher | no | open |
 | UX-R7 | Smart defaults and non-school-day awareness | P2 | M | all | no | open |
 | UX-R8 | Status colours and vocabulary mean one thing | P3 | M | all | yes (glossary) | open |
-| UX-R9 | Parent pay path: one "Bayar" button, always visible | P1 | S | parent | no | open |
+| UX-R9 | Parent pay path: one "Bayar" button, always visible | P1 | S | parent | no | done (#739) |
 | UX-R10 | Parent child context and plain words | P2 | M | parent | no | open |
 | UX-R11 | Teacher: names open the child; journal row; weekly dead end | P2 | S | teacher | no | open |
-| UX-R12 | Small bugs found on the way | P1 | S | admin, teacher | no | open |
+| UX-R12 | Small bugs found on the way | P1 | S | admin, teacher | no | done (#739) |
 
 ---
 
