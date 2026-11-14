@@ -89,6 +89,18 @@ Post-merge verification is a release exit, tracked in Ship Notes; local acceptan
 - Final local Chrome production reload: 67 responses, no app HTTP errors or console errors/warnings; two optional local Vercel analytics script 404s and two canceled script loads. Capture complete (not truncated). No staging network pass is inferred from localhost.
 - Frontend review uses the canonical design-system and matching portal, accessibility, layout and voice standards.
 
+### Verified locally — 2b7e68c8, 2026-11-14
+- Gate: production build/typecheck, lint, `npx vitest run --maxWorkers=1` (9,547 passed), `npx playwright test --retries=0` (299 passed), RLS/API-auth and repository guards passed. Existing Vitest skips/todos remain; no Playwright skips or retries.
+- App: production build on localhost:3000; demo auth and disposable local Postgres `audit_eight`, never staging credentials or data.
+- Walked: full mobile identity, named choices and keyboard dismissal, journal pressed state and offline/retry recovery, parent Home and invoice/history hierarchy, paid receipt detail, current weekend/past/future weeks. Mounted teacher decision refresh and void/re-record persistence also passed the full browser suite.
+- Console/network: no final local console errors/warnings or application HTTP errors; optional Vercel analytics returned two localhost 404s, with two canceled script loads. Bounded capture: 67 responses, complete/not truncated. Deliberate offline journal errors and a stopped-server error from the earlier round are qualified above.
+- Screenshots: `docs/uat/reports/assets/2026-11-14-audit-eight-followups/` contains desktop, 390 px and 320 px captures.
+- Highlight: `local-status-menu-320.png` and `local-invoices-390.png` in that directory.
+- Rounds: 3 — corrected test-only role options; enlarged menu targets and synchronized popup/leave tests; added the approved voided-row restoration and reran all gates. Each round made progress.
+- Diff classification: other code, compared with staging `b6bed7e787c5cff25e17b6eb1c81d82ec1579032`; changed teacher/parent pages and tests, journal/week components, parent week helper, two attendance APIs and regressions, four E2E files, cycle/UAT docs and evidence. No auth, dependency, schema, environment or permission changes. Signed-in staging verification is nevertheless required by the user's request and the restoration release exit.
+- Soft-skip delta: baseline 26, current 24, delta -2.
+- Not checked locally: real Google OAuth and deployment integration; staging check pending (`needs-staging-verify`). Full legacy audit coverage limitations remain in the report.
+
 ## Ship Notes
 
 No migrations, dependencies or environment changes planned. Attendance writes explicitly restore the selected voided row, as approved by the user; no broad unvoid or access changes. Roll back via revert PR. After merge, verify A1–A9 with the role-scoped staging accounts in the user's Chrome and retain exact deployment SHA and screenshots. No production promotion.
