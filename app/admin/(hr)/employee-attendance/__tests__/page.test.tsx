@@ -212,6 +212,20 @@ describe("AttendancePage — campus in the URL", () => {
     );
   });
 
+  it("follows the URL when it changes (browser back/forward)", async () => {
+    search = "campusId=cp2";
+    const { rerender } = render(<AttendancePage />);
+    await screen.findByText("Budi Santoso");
+    await vi.waitFor(() =>
+      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe("/admin/employee-attendance/monthly?campusId=cp2"),
+    );
+    search = "";
+    rerender(<AttendancePage />);
+    await vi.waitFor(() =>
+      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe("/admin/employee-attendance/monthly"),
+    );
+  });
+
   it("writes the chosen campus back to the URL", async () => {
     const user = userEvent.setup();
     render(<AttendancePage />);

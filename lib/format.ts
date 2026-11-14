@@ -427,23 +427,14 @@ export function disambiguateClassLabels<T extends ClassLabelInput>(
  * Use for OPTION LABELS only; detail fields keep the full name.
  */
 export function campusShortLabels(names: string[]): Map<string, string> {
-  const out = new Map<string, string>();
   const trimmed = names.map((n) => n.trim());
   const unique = [...new Set(trimmed)];
-  for (const n of names) out.set(n, n.trim());
-  if (unique.length < 2) return out;
-
+  // Label per trimmed name; identity unless every name shares a leading prefix.
+  const label = new Map<string, string>(unique.map((n) => [n, n]));
   const words = unique.map((n) => n.split(/\s+/));
   let k = 0;
-  while (words.every((w) => k < w.length && w[k] === words[0][k])) k++;
-  if (k === 0) return out;
-
+  while (unique.length >= 2 && words.every((w) => k < w.length && w[k] === words[0][k])) k++;
   const rests = words.map((w) => w.slice(k).join(" ").trim());
-  if (rests.some((r) => r === "")) return out;
-
-  unique.forEach((n, i) => {
-    out.set(n, rests[i]);
-  });
-  for (const n of names) out.set(n, out.get(n.trim()) ?? n.trim());
-  return out;
+  if (k > 0 && rests.every((r) => r !== "")) unique.forEach((n, i) => label.set(n, rests[i]));
+  return new Map(names.map((n) => [n, label.get(n.trim())!]));
 }

@@ -17,6 +17,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -43,7 +44,14 @@ type Holiday = { date: string };
 
 export default function AttendancePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-section px-page-x py-page-y">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      }
+    >
       <AttendancePageInner />
     </Suspense>
   );
@@ -60,14 +68,14 @@ function AttendancePageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [rawCampusId, setRawCampusId] = useState(searchParams?.get("campusId") || "all");
+  // The URL is the single source of truth, so back/forward keeps the control in step.
+  const rawCampusId = searchParams?.get("campusId") || "all";
   const [campuses, setCampuses] = useState<Campus[]>([]);
   // The URL value is only trusted once the campus list confirms it exists.
   const campusId = campuses.length === 0 || campuses.some((c) => c.id === rawCampusId) ? rawCampusId : "all";
   const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const campusQs = campusId === "all" ? "" : `?campusId=${encodeURIComponent(campusId)}`;
   function selectCampus(v: string) {
-    setRawCampusId(v);
     router.replace(v === "all" ? pathname : `${pathname}?campusId=${encodeURIComponent(v)}`, { scroll: false });
   }
   const [data, setData] = useState<EmployeeAttendance[]>([]);

@@ -108,6 +108,42 @@ describe("no link (expired and cleared)", () => {
     release(undefined);
   });
 
+  it("a link not yet prepared (sent a minute ago) behaves like stale: enabled Bayar that creates the link and goes to checkout", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderSheet(
+      { sentAt: new Date().toISOString(), status: "SENT" },
+      { status: 200, body: { paymentUrl: "https://checkout.doku.com/fresh", created: true } },
+    );
+    const pay = await screen.findByRole("button", { name: /Bayar Rp/ });
+    expect(pay).toBeEnabled();
+    expect(screen.queryByText(/sedang disiapkan/)).not.toBeInTheDocument();
+    await user.click(pay);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://checkout.doku.com/fresh"));
+    expect(posts(fetchMock)).toHaveLength(1);
+  });
+
+  it("after a successful redirect the button stays busy and a second tap does not POST again", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderSheet({}, { status: 200, body: { paymentUrl: "https://checkout.doku.com/new", created: true } });
+    await user.click(await screen.findByRole("button", { name: /Bayar Rp/ }));
+    await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    const busy = screen.getByRole("button", { name: /Menyiapkan pembayaran/ });
+    expect(busy).toBeDisabled();
+    await user.click(busy);
+    expect(posts(fetchMock)).toHaveLength(1);
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it("a non-https payment url is never followed: inline error and Coba lagi", async () => {
+    const user = userEvent.setup();
+    renderSheet({}, { status: 200, body: { paymentUrl: "javascript:alert(1)", created: true } });
+    await user.click(await screen.findByRole("button", { name: /Bayar Rp/ }));
+    const footer = screen.getByTestId("invoice-sheet-footer");
+    await waitFor(() => expect(within(footer).getByRole("alert")).toHaveTextContent("Link belum bisa dibuat"));
+    expect(assign).not.toHaveBeenCalled();
+    expect(within(footer).getByRole("button", { name: "Coba lagi" })).toBeEnabled();
+  });
+
   it("a gateway failure shows our calm message inline, never the server's text, with Coba lagi and the school contact beside it", async () => {
     const user = userEvent.setup();
     renderSheet({}, { status: 502, body: { error: "DOKU 5xx raw gateway text" } });
@@ -285,10 +321,4 @@ describe("states that must not offer it", () => {
     expect(screen.queryByRole("button", { name: /Minta link baru/ })).not.toBeInTheDocument();
   });
 
-  it("a link still being prepared (sent a minute ago) keeps its disabled note and no create button", async () => {
-    renderSheet({ sentAt: new Date().toISOString(), status: "SENT" }, { status: 200, body: {} });
-    expect(await screen.findByText(/sedang disiapkan/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Bayar Rp/ })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
-  });
 });

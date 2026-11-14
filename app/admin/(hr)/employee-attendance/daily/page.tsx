@@ -44,7 +44,14 @@ const SOURCE_LABEL: Record<string, string> = { SELF: "Mandiri", ADMIN: "Admin", 
 
 export default function DailyStaffAttendancePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-section px-page-x py-page-y">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      }
+    >
       <DailyStaffAttendancePageInner />
     </Suspense>
   );
@@ -57,14 +64,14 @@ function DailyStaffAttendancePageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [rawCampusId, setRawCampusId] = useState(searchParams?.get("campusId") || "all");
+  // The URL is the single source of truth, so back/forward keeps the control in step.
+  const rawCampusId = searchParams?.get("campusId") || "all";
   const [campuses, setCampuses] = useState<Campus[]>([]);
   // The URL value is only trusted once the campus list confirms it exists.
   const campusId = campuses.length === 0 || campuses.some((c) => c.id === rawCampusId) ? rawCampusId : "all";
   const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const campusQs = campusId === "all" ? "" : `?campusId=${encodeURIComponent(campusId)}`;
   function selectCampus(v: string) {
-    setRawCampusId(v);
     router.replace(v === "all" ? pathname : `${pathname}?campusId=${encodeURIComponent(v)}`, { scroll: false });
   }
   const [rows, setRows] = useState<DailyRow[]>([]);

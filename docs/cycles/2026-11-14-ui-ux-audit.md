@@ -197,7 +197,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   1. **Journal-student header.** The student is reached through a "Lihat profil siswa" header action, because `DetailPageHeader`'s title is a plain string. Widening the title would ripple through every detail page; only `description` was widened.
   2. **"Minta link baru".** It stays as a quiet ghost action under a ready pay link. A checkout page that won't open fails inside the gateway's tab, where the app can't see it, so this is the only recovery path.
   3. **44 px rule.** Inline name links inside a text or meta line take no extra height (`ui.md` "Names are doors"). Links that stand alone carry `touch`.
-- Review fixes (R1): no-link "pending" invoices get the same create-and-go button; the button stays busy after navigating; the pay URL must be `https`; staff-attendance campus is read from the URL on every render, so back and forward stay in sync; two small cleanups.
+- Review fixes (R1): no-link "pending" invoices get the same create-and-go button; the button stays busy after navigating; the pay URL must be `https`; staff-attendance campus is read from the URL on every render, so back and forward stay in sync; two small cleanups. Vitest on the touched dirs: 205 passed; tsc clean.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
