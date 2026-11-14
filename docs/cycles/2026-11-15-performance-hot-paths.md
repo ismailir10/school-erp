@@ -60,7 +60,7 @@ New dependency, schema migration, permission/PII behavior change, shared-environ
 
 - [x] T1 Bound parent Home teacher-note reads — accept: newest note unchanged, maximum one returned note per child. Reuse existing authorized child list and tests.
 - [x] T2 Extract the lightweight development preview and reuse it in Home/detail — accept: Home does not query semester history, existing detail totals unchanged. Can run independently of T3/T4; coordinate with T1 on Home tests.
-- [ ] T3 Aggregate unread counts in Postgres using exact per-student read predicates — accept: equivalence with single-student count semantics, bounded result rows. Independent of T1/T2/T4.
+- [x] T3 Aggregate unread counts in Postgres using exact per-student read predicates — accept: equivalence with single-student count semantics, bounded result rows. Independent of T1/T2/T4.
 - [ ] T4 Replace guardian count-only list requests with one stats endpoint — accept: four requests become two, totals/guards/errors preserved. Independent of T1/T2/T3.
 - [ ] T5 Run local full gate, compare work performed, inspect browser flows and prepare reviewed PR. Depends on T1–T4.
 

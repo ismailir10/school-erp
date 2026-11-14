@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   studentJournalNoteRead: { findMany: vi.fn(), findUnique: vi.fn() },
-  studentJournalNote: { findMany: vi.fn(), count: vi.fn() },
+  studentJournalNote: { findMany: vi.fn(), groupBy: vi.fn(), count: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
@@ -13,100 +13,112 @@ beforeEach(() => vi.resetAllMocks());
 const d = (iso: string) => new Date(iso);
 
 describe("countUnreadNotesByStudent", () => {
-  it("filters guardian authors and tenant, then applies each child's own watermark", async () => {
+  it("counts in the database with each child's exact watermark and eligibility filters", async () => {
     const first = d("2026-09-23T00:00:00Z");
     const second = d("2026-09-24T00:00:00Z");
     db.studentJournalNoteRead.findMany.mockResolvedValue([
       { studentId: "a", lastReadAt: first },
       { studentId: "b", lastReadAt: second },
     ]);
-    db.studentJournalNote.findMany.mockResolvedValue([
-      { studentId: "a", createdAt: second },
-      { studentId: "b", createdAt: second },
-      { studentId: "b", createdAt: d("2026-09-25T00:00:00Z") },
+    db.studentJournalNote.groupBy.mockResolvedValue([
+      { studentId: "a", _count: { _all: 1500 } },
+      { studentId: "b", _count: { _all: 1 } },
     ]);
 
-    expect(
-      await countUnreadNotesByStudent({
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: ["a", "b"], readerUserId: "teacher", authorRole: "GUARDIAN",
+    })).toEqual({ a: 1500, b: 1 });
+    expect(db.studentJournalNoteRead.findMany).toHaveBeenCalledWith({
+      where: { userId: "teacher", studentId: { in: ["a", "b"] } },
+      select: { studentId: true, lastReadAt: true },
+    });
+    expect(db.studentJournalNote.groupBy).toHaveBeenCalledExactlyOnceWith({
+      by: ["studentId"],
+      where: {
         tenantId: "tenant",
-        studentIds: ["a", "b"],
-        readerUserId: "teacher",
+        status: "ACTIVE",
         authorRole: "GUARDIAN",
-      }),
-    ).toEqual({ a: 1, b: 1 });
-    expect(db.studentJournalNote.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          tenantId: "tenant",
-          authorRole: "GUARDIAN",
-          authorUserId: { not: "teacher" },
-          OR: [{ studentId: { in: ["a", "b"] }, createdAt: { gt: first } }],
-        }),
-      }),
-    );
+        authorUserId: { not: "teacher" },
+        // Strictly newer: equality is already read, and b must not use a's older cutoff.
+        OR: [
+          { studentId: "a", createdAt: { gt: first } },
+          { studentId: "b", createdAt: { gt: second } },
+        ],
+      },
+      _count: { _all: true },
+    });
+    expect(db.studentJournalNote.findMany).not.toHaveBeenCalled();
   });
 
-  it("counts every note from the other party on a thread with no read row (X-3)", async () => {
+  it("counts all history on never-opened threads without a timestamp restriction (X-3)", async () => {
     db.studentJournalNoteRead.findMany.mockResolvedValue([]);
-    db.studentJournalNote.findMany.mockResolvedValue([
-      { studentId: "a", createdAt: d("2026-09-28T01:00:00Z") },
-    ]);
+    db.studentJournalNote.groupBy.mockResolvedValue([{ studentId: "a", _count: { _all: 12 } }]);
 
-    expect(
-      await countUnreadNotesByStudent({
-        tenantId: "tenant",
-        studentIds: ["a"],
-        readerUserId: "teacher",
-        authorRole: "GUARDIAN",
-      }),
-    ).toEqual({ a: 1 });
-    // No watermark → the query must not carry a createdAt lower bound for it.
-    expect(db.studentJournalNote.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          authorUserId: { not: "teacher" },
-          OR: [{ studentId: { in: ["a"] } }],
-        }),
-      }),
-    );
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: ["a"], readerUserId: "teacher", authorRole: "GUARDIAN",
+    })).toEqual({ a: 12 });
+    expect(db.studentJournalNote.groupBy.mock.calls[0][0].where.OR).toEqual([
+      { studentId: { in: ["a"] } },
+    ]);
   });
 
-  it("mixes never-opened and opened threads in one roster", async () => {
+  it("mixes opened and never-opened threads without restricting the optional author role", async () => {
     const readAt = d("2026-09-24T00:00:00Z");
     db.studentJournalNoteRead.findMany.mockResolvedValue([{ studentId: "opened", lastReadAt: readAt }]);
-    db.studentJournalNote.findMany.mockResolvedValue([
-      // never opened: an old note and a new one both count
-      { studentId: "fresh", createdAt: d("2026-08-01T00:00:00Z") },
-      { studentId: "fresh", createdAt: d("2026-09-28T00:00:00Z") },
-      // opened: only the note after the watermark counts
-      { studentId: "opened", createdAt: d("2026-09-25T00:00:00Z") },
-      { studentId: "opened", createdAt: d("2026-09-24T00:00:00Z") },
+    db.studentJournalNote.groupBy.mockResolvedValue([
+      { studentId: "fresh", _count: { _all: 2 } },
+      { studentId: "opened", _count: { _all: 1 } },
     ]);
 
-    expect(
-      await countUnreadNotesByStudent({
-        tenantId: "tenant",
-        studentIds: ["fresh", "opened"],
-        readerUserId: "parent",
-      }),
-    ).toEqual({ fresh: 2, opened: 1 });
-    expect(db.studentJournalNote.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          OR: [
-            { studentId: { in: ["fresh"] } },
-            { studentId: { in: ["opened"] }, createdAt: { gt: readAt } },
-          ],
-        }),
-      }),
-    );
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: ["fresh", "opened"], readerUserId: "parent",
+    })).toEqual({ fresh: 2, opened: 1 });
+    const { where } = db.studentJournalNote.groupBy.mock.calls[0][0];
+    expect(where.OR).toEqual([
+      { studentId: { in: ["fresh"] } },
+      { studentId: "opened", createdAt: { gt: readAt } },
+    ]);
+    expect(where).not.toHaveProperty("authorRole");
+  });
+
+  it("omits students with no unread notes and does not multiply counts for duplicate input IDs", async () => {
+    db.studentJournalNoteRead.findMany.mockResolvedValue([]);
+    db.studentJournalNote.groupBy.mockResolvedValue([{ studentId: "a", _count: { _all: 2 } }]);
+
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: ["a", "a", "quiet"], readerUserId: "parent",
+    })).toEqual({ a: 2 });
+    expect(db.studentJournalNote.groupBy).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns an empty map when all requested threads are read", async () => {
+    db.studentJournalNoteRead.findMany.mockResolvedValue([
+      { studentId: "a", lastReadAt: d("2026-09-24T00:00:00Z") },
+    ]);
+    db.studentJournalNote.groupBy.mockResolvedValue([]);
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: ["a"], readerUserId: "parent",
+    })).toEqual({});
   });
 
   it("returns an empty map without querying for an empty roster", async () => {
-    expect(
-      await countUnreadNotesByStudent({ tenantId: "tenant", studentIds: [], readerUserId: "teacher" }),
-    ).toEqual({});
+    expect(await countUnreadNotesByStudent({
+      tenantId: "tenant", studentIds: [], readerUserId: "teacher",
+    })).toEqual({});
     expect(db.studentJournalNoteRead.findMany).not.toHaveBeenCalled();
+    expect(db.studentJournalNote.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("propagates lookup errors so callers can distinguish unavailable counts from zero", async () => {
+    const failure = new Error("database unavailable");
+    db.studentJournalNoteRead.findMany.mockRejectedValueOnce(failure);
+    const args = { tenantId: "tenant", studentIds: ["a"], readerUserId: "teacher" };
+    await expect(countUnreadNotesByStudent(args)).rejects.toBe(failure);
+    expect(db.studentJournalNote.groupBy).not.toHaveBeenCalled();
+
+    db.studentJournalNoteRead.findMany.mockResolvedValue([]);
+    db.studentJournalNote.groupBy.mockRejectedValue(failure);
+    await expect(countUnreadNotesByStudent(args)).rejects.toBe(failure);
   });
 });
 

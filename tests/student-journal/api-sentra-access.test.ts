@@ -29,7 +29,7 @@ vi.mock("@/lib/db", () => {
           if (name === "sentraRotation" && fn === "findMany") return m.sentraRotationFindMany;
           if (name === "studentEnrollment" && fn === "findMany") return m.enrollmentFindMany;
           if (name === "student" && fn === "findUnique") return m.studentFindUnique;
-          return vi.fn().mockResolvedValue(/^find(Many|All)$/.test(fn) ? [] : null);
+          return vi.fn().mockResolvedValue(/^(find(Many|All)|groupBy)$/.test(fn) ? [] : null);
         },
       },
     );
@@ -85,7 +85,7 @@ beforeEach(() => {
 describe("class-grid GET", () => {
   it("allows a guru sentra with no assignment", async () => {
     m.sentraClassFindFirst.mockResolvedValue({ id: "src1" });
-    expect((await classGrid(gridReq())).status).not.toBe(403);
+    expect((await classGrid(gridReq())).status).toBe(200);
     expect(m.sentraClassFindFirst).toHaveBeenCalled();
   });
   it("403s when neither assignment nor sentra matches", async () => {
