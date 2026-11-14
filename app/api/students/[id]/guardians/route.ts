@@ -197,18 +197,21 @@ export async function POST(
     }
   }
 
-  // Find or create a Parent record
-  let parent;
+  // A create action must never mutate an existing family's shared profile.
   if (email) {
-    parent = await prisma.parent.upsert({
-      where: { tenantId_email: { tenantId: session.tenantId, email } },
-      create: { tenantId: session.tenantId, name, email, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
-      update: { name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
-    });
-  } else {
+    const existing = await prisma.parent.findUnique({ where: { tenantId_email: { tenantId: session.tenantId, email } } });
+    if (existing) return NextResponse.json({ error: "Email sudah digunakan wali lain. Pilih wali yang sudah ada atau gunakan email berbeda." }, { status: 409 });
+  }
+  let parent;
+  try {
     parent = await prisma.parent.create({
-      data: { tenantId: session.tenantId, name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
+      data: { tenantId: session.tenantId, name, email, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
     });
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") {
+      return NextResponse.json({ error: "Email sudah digunakan wali lain. Pilih wali yang sudah ada atau gunakan email berbeda." }, { status: 409 });
+    }
+    throw error;
   }
 
   // FIND-010: auto-default isPrimary=true when this is the student's first

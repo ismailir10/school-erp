@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { submitEnrollmentSchema, flattenSubmitErrors, STAFF_EDITABLE_KEYS } from "./submit-validation";
 import { CONSENT_VERSION } from "./consent-clauses";
 
@@ -336,4 +336,27 @@ describe("submitEnrollmentSchema", () => {
       }
     });
   });
+});
+
+it("rejects a future birth date at final submit", () => {
+  const payload = validPayload();
+  payload.studentData.dateOfBirth = "2999-01-01";
+  const result = submitEnrollmentSchema.safeParse(payload);
+  expect(result.success).toBe(false);
+  if (!result.success) expect(result.error.issues.some((issue) => issue.message === "Tanggal lahir tidak boleh di masa depan")).toBe(true);
+});
+
+it("accepts today in Jakarta when the UTC date is still yesterday", () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date("2026-11-14T18:00:00Z"));
+    const payload = validPayload();
+    payload.studentData.dateOfBirth = "2026-11-15";
+    expect(submitEnrollmentSchema.safeParse(payload).success).toBe(true);
+  } finally { vi.useRealTimers(); }
+});
+
+it("accepts explicit null waiver for an ordinary two-parent submission", () => {
+  const payload = validPayload();
+  expect(submitEnrollmentSchema.safeParse({ ...payload, consentData: { ...payload.consentData, onlyParent: null } }).success).toBe(true);
 });

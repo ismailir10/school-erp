@@ -74,6 +74,11 @@ const { state, dbFake } = vi.hoisted(() => {
     findFirst: vi.fn(async () => null),
   },
   parent: {
+    findUnique: vi.fn(async ({ where }: { where: { tenantId_email: { tenantId: string; email: string } } }) => {
+      const key = where.tenantId_email;
+      const found = state.parents.find((p) => p.tenantId === key.tenantId && p.email === key.email);
+      return found ? { ...found } : null;
+    }),
     upsert: vi.fn(async ({ where, create, update }: { where: Row; create: Row; update: Row }) => {
       const key = where.tenantId_email as { tenantId: string; email: string };
       const found = state.parents.find((p) => p.tenantId === key.tenantId && p.email === key.email);

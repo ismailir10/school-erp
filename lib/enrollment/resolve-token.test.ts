@@ -71,7 +71,7 @@ describe("resolveEnrollmentAccess / resolveEnrollmentToken", () => {
   it("access: an INVITED row with an UNPAID fee (sent under pay-first) is OK, and the fee is not even read", async () => {
     findUnique.mockResolvedValue({ id: "a", tenantId: "t-1", status: "INVITED", tokenExpiresAt: future, fee: { status: "UNPAID" } });
     expect(await resolveEnrollmentAccess("tok", new Date())).toEqual({ access: "OK", id: "a", tenantId: "t-1" });
-    expect(findUnique.mock.calls[0][0].select).toEqual({ id: true, status: true, tokenExpiresAt: true, tenantId: true });
+    expect(findUnique.mock.calls[0][0].select).toEqual({ id: true, status: true, tokenExpiresAt: true, tenantId: true, admission: { select: { status: true } } });
   });
 
   it("access: a miss is NOT_FOUND", async () => {
@@ -83,14 +83,14 @@ describe("resolveEnrollmentAccess / resolveEnrollmentToken", () => {
     findUnique.mockResolvedValue({
       id: "a", tenantId: "t-1", status: "INVITED", childName: "", parentEmail: null, programId: "p", dcareAddon: false,
       tokenExpiresAt: future, studentData: {}, ayahData: {}, ibuData: {}, consentData: {}, documents: {}, fee: { status: "UNPAID" },
-      admission: { status: "CANCELLED" },
+      admission: { status: "INVITED" },
     });
     const out = await resolveEnrollmentToken("tok", new Date());
     expect(out.access).toBe("OK");
     expect(out.tenantId).toBe("t-1");
     expect(out.application).not.toHaveProperty("tenantId");
     // Only the lead's status rides along (for isFeeClosed), nothing of its contact data.
-    expect(out.application?.admission).toEqual({ status: "CANCELLED" });
+    expect(out.application?.admission).toEqual({ status: "INVITED" });
     expect(findUnique.mock.calls[0][0].select.admission).toEqual({ select: { status: true } });
     expect(findUnique.mock.calls[0][0].select).not.toHaveProperty("fee");
   });

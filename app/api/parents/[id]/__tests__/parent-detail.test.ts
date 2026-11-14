@@ -236,7 +236,7 @@ describe("GET /api/parents/[id]", () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
     expect((await (await callGet()).json()).canRemind).toBe(true);
 
-    vi.mocked(getSession).mockResolvedValue(makeSession({ role: "SCHOOL_ADMIN", permissions: ["payments.record", "students.edit"] }));
+    vi.mocked(getSession).mockResolvedValue(makeSession({ role: "SCHOOL_ADMIN", permissions: ["payments.record", "students.edit", "students.view", "invoices.view"] }));
     const withPerm = await (await callGet()).json();
     expect(withPerm.canRemind).toBe(true);
     expect(withPerm.canEdit).toBe(true);
@@ -245,6 +245,25 @@ describe("GET /api/parents/[id]", () => {
     const without = await (await callGet()).json();
     expect(without.canRemind).toBe(false);
     expect(without.canEdit).toBe(false);
+  });
+
+  it("does not query or disclose family invoices to a students-only role", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession({ role: "SCHOOL_ADMIN", permissions: ["students.view"] }));
+    parentFindFirst.mockResolvedValue(makeParent());
+    const response = await callGet();
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.canViewFinance).toBe(false);
+    expect(body.invoices).toEqual([]);
+    expect(body.unpaidInvoices).toEqual([]);
+    expect(body.guardians[0].outstanding).toBe(0);
+    expect(invoiceFindMany).not.toHaveBeenCalled();
+  });
+
+  it("denies guardian detail without students.view", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession({ role: "SCHOOL_ADMIN", permissions: ["admissions.view"] }));
+    expect((await callGet()).status).toBe(403);
+    expect(parentFindFirst).not.toHaveBeenCalled();
   });
 
   it("returns 404 for wrong tenant", async () => {

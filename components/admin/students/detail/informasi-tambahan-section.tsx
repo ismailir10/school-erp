@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { DossierSubsection } from "@/components/admin/dossier-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ export function InformasiTambahanSection({
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "rows" });
   const rows = form.watch("rows");
   const dirty = form.formState.isDirty;
+  useUnsavedChangesGuard(dirty);
 
   // Re-seed the form whenever the page hands us a fresh `extra` (post-fetch)
   // and nothing here is unsaved — mirrors `buildStudentMetadata`'s own

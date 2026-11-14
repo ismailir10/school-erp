@@ -3,7 +3,7 @@
  * the autosave stale-closure fix.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import PendaftaranClient from "../client";
@@ -165,6 +165,54 @@ describe("PendaftaranClient", () => {
     expect(await screen.findByText("Belum ada tanda tangan baru.")).toBeInTheDocument();
   });
 
+  it("shows failed-save feedback and retries the unsaved edit", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    vi.mocked(fetch).mockImplementation(async () => ({ ok: !fail, status: fail ? 500 : 200, json: async () => ({}) } as Response));
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
+    fireEvent.change(screen.getByLabelText(/^Nama lengkap/), { target: { value: "Unsaved child" } });
+    await screen.findByText(/Perubahan belum tersimpan/);
+    expect(screen.getByLabelText(/^Nama lengkap/)).toHaveValue("Unsaved child");
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Coba simpan lagi" }));
+    await screen.findByText("Perubahan tersimpan.");
+    const requests = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "PATCH");
+    expect(requests).toHaveLength(2);
+    expect(JSON.parse(requests[1][1]!.body as string).studentData.childName).toBe("Unsaved child");
+  });
+
+  it("retries an uncertain response before sending subsequent edits", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("response lost"));
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
+    const name = screen.getByLabelText(/^Nama lengkap/);
+    fireEvent.change(name, { target: { value: "First committed edit" } });
+    await screen.findByText(/Perubahan belum tersimpan/);
+    fireEvent.change(name, { target: { value: "Latest edit" } });
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3));
+    const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[2].studentData.childName).toBe("Latest edit");
+    expect(bodies[2].baseData.studentData.childName).toBe("First committed edit");
+  });
+
+  it("serializes drafts while preserving the newest edit queued during a slow save", async () => {
+    let release!: (response: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((resolve) => { release = resolve; }));
+    render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
+    const name = screen.getByLabelText(/^Nama lengkap/);
+    fireEvent.change(name, { target: { value: "Older child" } });
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
+    fireEvent.change(name, { target: { value: "Latest child" } });
+    // A page-hide flush while the first request is pending queues, never overtakes it.
+    fireEvent(window, new Event("pagehide"));
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    await act(async () => release({ ok: true, status: 200, json: async () => ({}) } as Response));
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2));
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[1][1]!.body as string);
+    expect(body.studentData.childName).toBe("Latest child");
+    expect(body.baseData.studentData.childName).toBe("Older child");
+  });
+
   it("autosave sends the latest typed value and never signature tokens", async () => {
     const user = userEvent.setup();
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
@@ -266,6 +314,58 @@ describe("PendaftaranClient", () => {
 
     const status = await screen.findByText("Tanda tangan terbaru sudah dimuat.");
     expect(document.activeElement).toBe(status);
+  });
+
+  it("submits the latest edits made while the final draft is held", async () => {
+    let release!: (response: Response) => void;
+    let held = false;
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (init?.method === "PATCH" && !held) {
+        held = true;
+        return new Promise<Response>((resolve) => { release = resolve; });
+      }
+      return String(input).endsWith("/submit")
+        ? Promise.resolve({ ok: true, status: 201, json: async () => ({}) } as Response) : ok({});
+    });
+    const user = userEvent.setup();
+    const both = { ...filled, consentData: { ...filled.consentData, ibu: { name: "Siti", signed: true } } };
+    render(<PendaftaranClient initialStep={6} token="tok" programs={programs} prefill={both} />);
+    await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
+    await waitFor(() => expect(held).toBe(true));
+    await user.click(screen.getByRole("button", { name: "1. Data Anak" }));
+    fireEvent.change(screen.getByLabelText("Nama panggilan"), { target: { value: "Latest during submit" } });
+    await act(async () => release({ ok: true, status: 200, json: async () => ({}) } as Response));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/submit"))).toBe(true));
+    const request = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/submit"))!;
+    const body = JSON.parse(request[1]!.body as string);
+    expect(body.studentData.nickname).toBe("Latest during submit");
+    expect(body.baseData.studentData.nickname).toBe("Latest during submit");
+  });
+
+  it("keeps values and explains a submit conflict without claiming receipt", async () => {
+    vi.mocked(fetch).mockImplementation((input) => String(input).endsWith("/submit")
+      ? Promise.resolve({ ok: false, status: 409, json: async () => ({ error: "DRAFT_CONFLICT" }) } as Response) : ok({}));
+    const user = userEvent.setup();
+    const both = { ...filled, studentData: { ...filled.studentData, nickname: "Keep this nickname" }, consentData: { ...filled.consentData, ibu: { name: "Siti", signed: true } } };
+    render(<PendaftaranClient initialStep={6} token="tok" programs={programs} prefill={both} />);
+    await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
+    expect(await screen.findByText(/Formulir berubah di perangkat lain/)).toBeInTheDocument();
+    expect(screen.queryByText("Formulir ini sudah diterima sebelumnya.")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "1. Data Anak" }));
+    expect(screen.getByLabelText("Nama panggilan")).toHaveValue("Keep this nickname");
+  });
+
+  it.each([
+    ["ALREADY_SUBMITTED", "Formulir ini sudah diterima sebelumnya."],
+    ["OTHER_CONFLICT", "Formulir belum dapat dikirim. Salin perubahan Anda, lalu muat ulang formulir untuk memeriksa status terbaru."],
+  ])("distinguishes submit409 code %s", async (error, message) => {
+    vi.mocked(fetch).mockImplementation((input) => String(input).endsWith("/submit")
+      ? Promise.resolve({ ok: false, status: 409, json: async () => ({ error }) } as Response) : ok({}));
+    const user = userEvent.setup();
+    const both = { ...filled, consentData: { ...filled.consentData, ibu: { name: "Siti", signed: true } } };
+    render(<PendaftaranClient initialStep={6} token="tok" programs={programs} prefill={both} />);
+    await user.click(screen.getByRole("button", { name: "Kirim Formulir" }));
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it("keeps the latest edits in the draft when submit fails", async () => {

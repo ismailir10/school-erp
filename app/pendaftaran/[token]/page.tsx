@@ -100,6 +100,10 @@ export default async function PendaftaranTokenPage({
     );
   }
 
+  if (access === "CLOSED") {
+    return <Shell><MessageCard title="Pendaftaran dibatalkan" body="Formulir ini sudah ditutup. Mohon hubungi tim penerimaan untuk membuka kembali pendaftaran." phone={contactPhone} /></Shell>;
+  }
+
   if (access === "EXPIRED") {
     return (
       <Shell>

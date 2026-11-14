@@ -57,6 +57,8 @@ Destructive migration, new dependency requiring a product tradeoff, live service
 
 - T2 delivered: Sticky invoice idempotency, tariff request isolation, stale payment recovery and completed billing-run state are verified.
 
+- T3 delivered: Queued draft merging, latest-payload submission, guardian preservation, closed invitations and field validation are verified.
+
 ## Finding closure ledger
 
 All rows below describe implemented behavior; final local verification is recorded separately. Original audit IDs remain stable.

@@ -1,5 +1,6 @@
 "use client";
 
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -331,7 +332,7 @@ export default function PendaftaranClient({
         agreed: consent.agreed,
         version: CONSENT_VERSION,
         // Omitted (not "") when both parents fill, so the draft blob carries no stale flag.
-        ...(consent.onlyParent ? { onlyParent: consent.onlyParent } : {}),
+        onlyParent: consent.onlyParent || null,
         ayah: { name: consent.ayahName },
         ibu: { name: consent.ibuName },
       },
@@ -342,23 +343,57 @@ export default function PendaftaranClient({
     buildPayloadRef.current = buildPayload;
   });
 
+  const acknowledged = useRef(buildPayload());
+  const savingDraft = useRef(false);
+  const draftInFlight = useRef<Promise<void> | null>(null);
+  const uncertainDraft = useRef<ReturnType<typeof buildPayload> | null>(null);
+  const [draftStatus, setDraftStatus] = useState<"saved" | "saving" | "error" | "conflict">("saved");
   const sendDraft = useCallback(
-    (keepalive: boolean) => {
-      savePending.current = false;
-      void fetch(`/api/enrollments/token/${token}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayloadRef.current()),
-        keepalive,
-      }).catch(() => undefined);
-    },
-    [token],
+    async (keepalive: boolean) => {
+      if (savingDraft.current) { savePending.current = true; await draftInFlight.current; return; }
+      savingDraft.current = true;
+      const run = async () => {
+      do {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        savePending.current = false;
+        // Retry an uncertain response with the exact same intent before sending
+        // later edits: the server may have committed before the connection failed.
+        const payload = uncertainDraft.current ?? buildPayloadRef.current();
+        setDraftStatus("saving");
+        try {
+          const res = await fetch(`/api/enrollments/token/${token}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, baseData: acknowledged.current }), keepalive,
+          });
+          if (!res.ok) {
+            uncertainDraft.current = payload;
+            setDraftStatus(res.status === 409 ? "conflict" : "error");
+            savePending.current = true;
+            break;
+          }
+          acknowledged.current = payload;
+          uncertainDraft.current = null;
+          if (JSON.stringify(buildPayloadRef.current()) !== JSON.stringify(payload)) savePending.current = true;
+          setDraftStatus("saved");
+        } catch {
+          uncertainDraft.current = payload;
+          setDraftStatus("error");
+          savePending.current = true;
+          break;
+        }
+      } while (savePending.current);
+      savingDraft.current = false;
+      };
+      draftInFlight.current = run();
+      await draftInFlight.current;
+    }, [token],
   );
 
-  // Debounced autosave: fire-and-forget draft PATCH. Failures are silent;
-  // the parent keeps editing and a later save (or final submit) recovers.
+  // Debounced edits join the serial queue; failures retain the pending state.
   const scheduleSave = useCallback(() => {
     savePending.current = true;
+    setDraftStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
@@ -398,6 +433,7 @@ export default function PendaftaranClient({
       if (!student.childGender) e.push("Jenis kelamin wajib dipilih.");
       if (!student.birthPlace.trim()) e.push("Tempat lahir wajib diisi.");
       if (!student.dateOfBirth) e.push("Tanggal lahir wajib diisi.");
+      else if (student.dateOfBirth > getTodayInTimezone("Asia/Jakarta")) e.push("Tanggal lahir tidak boleh di masa depan.");
       if (!student.agama) e.push("Agama wajib dipilih.");
       if (!student.kewarganegaraan) e.push("Kewarganegaraan wajib dipilih.");
     }
@@ -562,12 +598,13 @@ export default function PendaftaranClient({
     setGlobalError(null);
     // A late draft PATCH after submit would only 409; don't send it.
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    savePending.current = false;
     try {
+      await sendDraft(false);
+      if (savePending.current) { setGlobalError("Perubahan belum tersimpan. Selesaikan penyimpanan sebelum mengirim formulir."); return; }
       const res = await fetch(`/api/enrollments/token/${token}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
+        body: JSON.stringify({ ...buildPayloadRef.current(), baseData: acknowledged.current }),
       });
       if (res.status === 201) {
         // The submit succeeded whatever the body says; a missing or odd `fee`
@@ -613,7 +650,15 @@ export default function PendaftaranClient({
         return;
       }
       if (res.status === 409) {
-        setGlobalError("Formulir ini sudah diterima sebelumnya.");
+        const problem = await res.json().catch(() => ({})) as { error?: string };
+        if (problem.error === "ALREADY_SUBMITTED") {
+          setGlobalError("Formulir ini sudah diterima sebelumnya.");
+        } else if (problem.error === "DRAFT_CONFLICT") {
+          setDraftStatus("conflict");
+          setGlobalError("Formulir berubah di perangkat lain. Isian Anda tetap ada di halaman ini. Salin perubahan Anda, lalu muat ulang formulir sebelum mengirim kembali.");
+        } else {
+          setGlobalError("Formulir belum dapat dikirim. Salin perubahan Anda, lalu muat ulang formulir untuk memeriksa status terbaru.");
+        }
         return;
       }
       setGlobalError("Gagal mengirim formulir. Mohon coba lagi.");
@@ -649,6 +694,12 @@ export default function PendaftaranClient({
 
   return (
     <div className="space-y-5">
+      <div role="status" aria-live="polite" className="text-sm">
+        {draftStatus === "saving" && "Menyimpan perubahan…"}
+        {draftStatus === "saved" && "Perubahan tersimpan."}
+        {draftStatus === "error" && <>Perubahan belum tersimpan. Periksa koneksi sebelum menutup formulir. <button type="button" className="inline-flex min-h-11 items-center underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current" onClick={() => void sendDraft(false)}>Coba simpan lagi</button></>}
+        {draftStatus === "conflict" && "Perubahan belum tersimpan karena formulir berubah di perangkat lain atau sudah ditutup. Salin perubahan Anda, lalu muat ulang formulir untuk melanjutkan."}
+      </div>
       <Stepper step={step} reached={reached} onGo={(i) => go(i)} />
 
       {errors.length > 0 && (

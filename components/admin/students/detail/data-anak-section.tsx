@@ -94,7 +94,7 @@ export function DataAnakSection({
         onSaved();
       } else {
         const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Gagal mengunggah foto");
+        toast.error(d.error === "UNSUPPORTED_MEDIA_TYPE" ? "Isi file bukan foto JPG atau PNG yang valid. Pilih foto JPG atau PNG asli, lalu coba lagi." : d.error || "Gagal mengunggah foto");
       }
     } catch {
       toast.error(MESSAGES.network);

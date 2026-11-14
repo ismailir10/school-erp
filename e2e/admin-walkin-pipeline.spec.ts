@@ -142,6 +142,7 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
         await expect(childAddress.getByLabel("Kelurahan / Desa")).toHaveValue("Kuningan Timur");
         await expect(childAddress.getByLabel("Kecamatan")).toHaveValue("Setiabudi");
         await expect(childAddress.getByLabel("Provinsi")).toHaveValue(/Jakarta/);
+        await expect(parentPage.getByText("Perubahan tersimpan.", { exact: true })).toBeVisible();
       } finally {
         await parentCtx.close();
       }
@@ -157,7 +158,13 @@ test.describe("Pendaftaran pipeline — lead to student", () => {
       const results = (await lookup.json()).results as WilayahEntry[];
       const address = results.find((r) => r.kelurahan === "Kuningan Timur")!;
       expect(address).toBeTruthy();
+      // The address UI has already autosaved: fixture replacement must carry
+      // its current baseline, just as the real browser does for edited leaves.
+      const currentDraft = await admin.request.get(`/api/enrollments/${inviteBody.id}`);
+      expect(currentDraft.status()).toBe(200);
+      const baseline = await currentDraft.json();
       const submit = await fillAndSubmit(admin.request, {
+        baseData: { ...baseline, programId: baseline.program?.id ?? null },
         token,
         ip,
         child: CHILD,

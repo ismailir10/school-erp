@@ -145,7 +145,7 @@ describe("single parent / wali: resume and persistence", () => {
     expect(toggle()).toBeChecked();
   });
 
-  it("autosave carries the flag inside consentData; unticking drops it", async () => {
+  it("autosave carries the flag inside consentData; unticking explicitly clears it", async () => {
     const user = userEvent.setup();
     render(<PendaftaranClient initialStep={1} token="tok" programs={programs} prefill={{ ...bothParents, ayahData: {} }} />);
 
@@ -157,7 +157,7 @@ describe("single parent / wali: resume and persistence", () => {
 
     await user.click(toggle());
     await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 4000 });
-    expect(JSON.parse((patches()[1][1] as RequestInit).body as string).consentData).not.toHaveProperty("onlyParent");
+    expect(JSON.parse((patches()[1][1] as RequestInit).body as string).consentData.onlyParent).toBeNull();
   });
 
   it("submit sends the flag and no ayah requirement; success shows the thank-you card", async () => {

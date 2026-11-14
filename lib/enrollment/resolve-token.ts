@@ -14,12 +14,13 @@ import { isTokenExpired } from "./token";
  * so an INVITED row is OK whether or not it already has a fee (a formulir sent
  * under the short-lived pay-first order may hold an UNPAID one).
  */
-export type EnrollmentAccess = "OK" | "NOT_FOUND" | "EXPIRED" | "SUBMITTED";
+export type EnrollmentAccess = "OK" | "NOT_FOUND" | "EXPIRED" | "SUBMITTED" | "CLOSED";
 
 export type EnrollmentRow = {
   id: string;
   status: string;
   tokenExpiresAt: Date | null;
+  admission?: { status: string } | null;
 };
 
 /**
@@ -29,6 +30,7 @@ export type EnrollmentRow = {
  */
 export function classifyEnrollmentAccess(row: EnrollmentRow | null, now: Date): EnrollmentAccess {
   if (!row) return "NOT_FOUND";
+  if (row.admission?.status === "CANCELLED") return "CLOSED";
   if (row.status !== "INVITED") return "SUBMITTED";
   if (isTokenExpired(row.tokenExpiresAt, now)) return "EXPIRED";
   return "OK";
@@ -68,7 +70,7 @@ export async function resolveEnrollmentAccess(
 ): Promise<{ access: EnrollmentAccess; id: string | null; tenantId: string | null }> {
   const row = await prisma.enrollmentApplication.findUnique({
     where: { accessToken: token },
-    select: { id: true, status: true, tokenExpiresAt: true, tenantId: true },
+    select: { id: true, status: true, tokenExpiresAt: true, tenantId: true, admission: { select: { status: true } } },
   });
   return { access: classifyEnrollmentAccess(row, now), id: row?.id ?? null, tenantId: row?.tenantId ?? null };
 }

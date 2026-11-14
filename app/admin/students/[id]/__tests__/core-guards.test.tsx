@@ -370,18 +370,18 @@ describe("ADM-3 / ADM-2 — Data Anak edit", () => {
     vi.stubGlobal("fetch", stubFetch(makeStudent()));
     render(<StudentDetailPage />);
 
-    expect(guardCalls.at(-1)?.dirty ?? false).toBe(false);
+    expect(guardCalls.filter((call) => call.message === "Perubahan data siswa yang belum disimpan akan hilang.").at(-1)?.dirty ?? false).toBe(false);
     await user.click(await screen.findByRole("button", { name: "Edit data anak" }));
     await screen.findByRole("button", { name: "Simpan Perubahan" });
-    expect(guardCalls.at(-1)?.dirty).toBe(false);
+    expect(guardCalls.filter((call) => call.message === "Perubahan data siswa yang belum disimpan akan hilang.").at(-1)?.dirty).toBe(false);
 
     await user.type(screen.getByLabelText("Nama Panggilan"), "Eef");
-    await waitFor(() => expect(guardCalls.at(-1)?.dirty).toBe(true));
-    expect(guardCalls.at(-1)?.message).toMatch(/belum disimpan/);
+    await waitFor(() => expect(guardCalls.filter((call) => call.message === "Perubahan data siswa yang belum disimpan akan hilang.").at(-1)?.dirty).toBe(true));
+    expect(guardCalls.filter((call) => call.message === "Perubahan data siswa yang belum disimpan akan hilang.").at(-1)?.message).toMatch(/belum disimpan/);
 
     // Cancelling leaves edit mode, so nothing is left to protect.
     await user.click(screen.getByRole("button", { name: "Batal" }));
-    await waitFor(() => expect(guardCalls.at(-1)?.dirty).toBe(false));
+    await waitFor(() => expect(guardCalls.filter((call) => call.message === "Perubahan data siswa yang belum disimpan akan hilang.").at(-1)?.dirty).toBe(false));
   });
 
   it("a double click on Simpan Perubahan sends one PUT", async () => {
