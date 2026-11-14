@@ -146,7 +146,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
 
 - [x] **T0** — Audit and roadmap report. Accept: report and screenshots committed (e0a788d9).
 - [x] **T1** — Dropdown opens below its field, plus the campus short-label helper, applied to campus options. Accept: helper Vitest; dropdowns open below at 1440 and 390. Reuse: `components/ui/select.tsx`, `lib/format.ts`.
-- [ ] **T2** — Remove the header campus line; Sentra segmented campus choice; staff-attendance campus carried between its pages; controls hidden with one campus. Accept: verify flow 3; `sentra.spec.ts` updated. Deps: T1 (short labels).
+- [x] **T2** — Remove the header campus line; Sentra segmented campus choice; staff-attendance campus carried between its pages; controls hidden with one campus. Accept: verify flow 3; `sentra.spec.ts` updated. Deps: T1 (short labels).
 - [x] **T3** — The "names are doors" rule in `ui.md`, and an entity-link helper (hrefs plus the HR rule). Accept: helper Vitest; `ui.md` section.
 - [ ] **T4** — Finance links: invoice list (number = identity, student link), payments, invoice-detail student and wali, guardian-detail invoice rows. Accept: verify flow 1; list tests updated. Deps: T3.
 - [ ] **T5** — Academic links:
@@ -189,6 +189,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - **One button:** "Bayar Rp …" in every state. With a link it is an anchor in a new tab. Without one, the tap creates the link and then `location.assign`. The checkout success and cancel URLs return to `/parent/invoices` (`lib/payments/session.ts`).
   - **Failure:** an inline alert, "Coba lagi" and the contact box.
   - JTBD-PARENT-INV-01 is updated, and `e2e/parent.spec.ts` asserts the button is in the viewport.
+- T2: The admin header drops its campus line; the year stays. Sentra uses a `ToggleGroup` with short campus labels, hidden when there is one campus, with an empty state when there are none. On the three staff-attendance pages, the campus lives in `?campusId`: links between them carry it, the options use short labels, and the control is hidden when there is one campus. `e2e/sentra.spec.ts` now uses the toggle.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification

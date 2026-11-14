@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCheck, Lock } from "lucide-react";
 import { MESSAGES } from "@/lib/feedback";
-import { formatDate, formatTime } from "@/lib/format";
+import { campusShortLabels, formatDate, formatTime } from "@/lib/format";
 import { PageHeader } from "@/components/admin/page-header";
 import { BackLink } from "@/components/portal/back-link";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,30 @@ const QUICK = [
 const SOURCE_LABEL: Record<string, string> = { SELF: "Mandiri", ADMIN: "Admin", KIOSK: "Kios" };
 
 export default function DailyStaffAttendancePage() {
+  return (
+    <Suspense fallback={null}>
+      <DailyStaffAttendancePageInner />
+    </Suspense>
+  );
+}
+
+function DailyStaffAttendancePageInner() {
   // Empty until the server answers with today in the school's timezone.
   const [date, setDate] = useState("");
   const [today, setToday] = useState("");
-  const [campusId, setCampusId] = useState("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [rawCampusId, setRawCampusId] = useState(searchParams?.get("campusId") || "all");
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  // The URL value is only trusted once the campus list confirms it exists.
+  const campusId = campuses.length === 0 || campuses.some((c) => c.id === rawCampusId) ? rawCampusId : "all";
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
+  const campusQs = campusId === "all" ? "" : `?campusId=${encodeURIComponent(campusId)}`;
+  function selectCampus(v: string) {
+    setRawCampusId(v);
+    router.replace(v === "all" ? pathname : `${pathname}?campusId=${encodeURIComponent(v)}`, { scroll: false });
+  }
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -159,7 +179,7 @@ export default function DailyStaffAttendancePage() {
 
   return (
     <>
-      <BackLink href="/admin/employee-attendance" label="Kembali ke Kehadiran" className="mb-2" />
+      <BackLink href={`/admin/employee-attendance${campusQs}`} label="Kembali ke Kehadiran" className="mb-2" />
       <PageHeader
         title="Absensi Staf Harian"
         description={date ? formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : undefined}
@@ -173,17 +193,19 @@ export default function DailyStaffAttendancePage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <DatePicker value={date} onChange={setDate} className="w-full sm:w-44" />
+        {campuses.length > 1 && (
         <Select
           value={campusId}
-          onValueChange={(v) => v && setCampusId(v)}
-          items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}
+          onValueChange={(v) => v && selectCampus(v)}
+          items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, campusShort.get(c.name) ?? c.name])) }}
         >
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>
-            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{campusShort.get(c.name) ?? c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        )}
       </div>
 
       {loading && rows.length === 0 ? (

@@ -35,8 +35,7 @@ test.describe("Sentra", () => {
     await page.goto("/admin/sentra");
     await expect(page.getByRole("heading", { name: "Sentra", level: 1 })).toBeVisible();
 
-    await page.getByRole("combobox", { name: "Kampus" }).click();
-    await page.getByRole("option", { name: /Taman Aster/ }).click();
+    await page.getByRole("group", { name: "Kampus" }).getByRole("button", { name: /Taman Aster/ }).click();
 
     // Seeded sentra with its guru.
     const balokRow = page.getByRole("row", { name: /Sentra Balok/ });

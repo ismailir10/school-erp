@@ -17,9 +17,7 @@ export default async function AdminLayout({
   if (!isAdminRole(session.role)) redirect(homePathForRole(session.role));
 
   const header = session.tenantId ? await getAdminHeaderContext(session.tenantId).catch(() => null) : null;
-  const campuses = header?.campuses ?? null;
   const years = header?.years ?? null;
-  const campusContext = campuses === null ? "Kampus belum tersedia" : campuses.length === 1 ? campuses[0] : campuses.length ? `Semua kampus (${campuses.length})` : "Kampus belum diatur";
   const yearContext = years === null ? "Tahun ajaran belum tersedia" : years.length ? years.join(", ") : "Belum ada tahun ajaran aktif";
 
   return (
@@ -36,8 +34,7 @@ export default async function AdminLayout({
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 !h-4" />
             <div className="min-w-0 flex-1">
-              <p className="text-body font-semibold break-words">{campusContext}</p>
-              <p className="text-small text-muted-foreground break-words">{yearContext}</p>
+              <p className="text-body font-semibold break-words">{yearContext}</p>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <div className="flex size-7 items-center justify-center rounded-full bg-muted">

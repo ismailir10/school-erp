@@ -12,6 +12,14 @@ import userEvent from "@testing-library/user-event";
 
 import AttendancePage from "../page";
 
+const replace = vi.fn();
+let search = "";
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace }),
+  usePathname: () => "/admin/employee-attendance",
+  useSearchParams: () => new URLSearchParams(search),
+}));
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
@@ -34,7 +42,7 @@ const EMPLOYEES = [
   },
 ];
 
-function stubFetch(orgConfig: unknown = null) {
+function stubFetch(orgConfig: unknown = null, campuses: unknown[] = []) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url.includes("/api/config/org")) {
@@ -44,7 +52,7 @@ function stubFetch(orgConfig: unknown = null) {
       return Promise.resolve({ ok: true, json: async () => EMPLOYEES } as Response);
     }
     if (url.includes("/api/config/campuses")) {
-      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+      return Promise.resolve({ ok: true, json: async () => campuses } as Response);
     }
     if (url.includes("/api/config/holidays")) {
       return Promise.resolve({ ok: true, json: async () => [] } as Response);
@@ -164,5 +172,50 @@ describe("AttendancePage — Perlu persetujuan tab", () => {
       const call = calls.find((c) => c.url === "/api/attendance/att-1/reject");
       expect(call && JSON.parse(String(call.init?.body))).toEqual({ note: "Tidak sesuai" });
     });
+  });
+});
+
+describe("AttendancePage — campus in the URL", () => {
+  const campuses = [{ id: "cp1", name: "An Nisaa' Metland" }, { id: "cp2", name: "An Nisaa' Aster" }];
+  beforeEach(() => {
+    replace.mockClear();
+    search = "";
+    vi.stubGlobal("fetch", stubFetch(null, campuses));
+  });
+
+  it("applies ?campusId and carries it to the sibling pages", async () => {
+    search = "campusId=cp2";
+    render(<AttendancePage />);
+    await screen.findByText("Budi Santoso");
+    await vi.waitFor(() =>
+      expect(screen.getByRole("link", { name: /Absensi Staf Harian/ }).getAttribute("href")).toBe(
+        "/admin/employee-attendance/daily?campusId=cp2",
+      ),
+    );
+    expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe(
+      "/admin/employee-attendance/monthly?campusId=cp2",
+    );
+    expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes("campusId=cp2"))).toBe(true);
+  });
+
+  it("falls back to all for an unknown campus and omits it from links", async () => {
+    search = "campusId=nope";
+    render(<AttendancePage />);
+    await screen.findByText("Budi Santoso");
+    await vi.waitFor(() =>
+      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe(
+        "/admin/employee-attendance/monthly",
+      ),
+    );
+  });
+
+  it("writes the chosen campus back to the URL", async () => {
+    const user = userEvent.setup();
+    render(<AttendancePage />);
+    await screen.findByText("Budi Santoso");
+    await vi.waitFor(() => expect(screen.getAllByRole("combobox").some((e) => /Semua Kampus/.test(e.textContent ?? ""))).toBe(true));
+    await user.click(screen.getAllByRole("combobox").find((e) => /Semua Kampus/.test(e.textContent ?? ""))!);
+    await user.click(await screen.findByRole("option", { name: "Aster" }));
+    expect(replace).toHaveBeenCalledWith("/admin/employee-attendance?campusId=cp2", { scroll: false });
   });
 });

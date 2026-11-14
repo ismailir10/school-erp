@@ -14,11 +14,12 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/lib/format";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { campusShortLabels, formatDate } from "@/lib/format";
 import { sentraLabel } from "@/lib/sentra/rotation";
 
 type Campus = { id: string; name: string };
@@ -204,29 +205,38 @@ export function SentraClient({
     [],
   );
 
-  const hasCampuses = campuses.length > 0;
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
 
   return (
     <div>
       <PageHeader title="Sentra" description="Atur sentra, guru sentra, dan putaran kelas." />
 
-      <div className="mb-section max-w-xs space-y-1.5">
-        <Label htmlFor="sentra-campus">Kampus</Label>
-        <Select value={campusId} onValueChange={(v) => v && selectCampus(v)} disabled={!hasCampuses}>
-          <SelectTrigger id="sentra-campus">
-            <SelectValue placeholder={campusesLoaded ? "Belum ada kampus" : "Memuat kampus..."} />
-          </SelectTrigger>
-          <SelectContent>
+      {campuses.length > 1 && (
+        <div className="mb-section space-y-1.5">
+          <Label id="sentra-campus-label">Kampus</Label>
+          <ToggleGroup
+            aria-labelledby="sentra-campus-label"
+            variant="outline"
+            value={[campusId]}
+            onValueChange={(v) => v[0] && v[0] !== campusId && selectCampus(v[0])}
+            className="flex-wrap"
+          >
             {campuses.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
+              <ToggleGroupItem
+                key={c.id}
+                value={c.id}
+                className="aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+              >
+                {campusShort.get(c.name) ?? c.name}
+              </ToggleGroupItem>
             ))}
-          </SelectContent>
-        </Select>
-      </div>
+          </ToggleGroup>
+        </div>
+      )}
 
-      {loadError ? (
+      {campusesLoaded && campuses.length === 0 ? (
+        <EmptyState title="Belum ada kampus" description="Tambahkan kampus di Pengaturan dulu ya." />
+      ) : loadError ? (
         <ErrorState
           title="Gagal memuat sentra"
           description="Coba lagi sebentar ya."
