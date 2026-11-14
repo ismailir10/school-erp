@@ -19,9 +19,9 @@ const TONE_CLASS: Record<StatTone, string> = {
   critical: "text-destructive",
 };
 
-// Icon chip: tinted fill + matching `-text` glyph, per tone.
+// Routine icons stay quiet; explicit semantic tones carry meaningful states.
 const CHIP_CLASS: Record<StatTone, string> = {
-  default: "bg-secondary text-primary-text",
+  default: "bg-muted text-muted-foreground",
   muted: "bg-muted text-muted-foreground",
   positive: "bg-success-subtle text-success-text",
   warning: "bg-warning-subtle text-warning-text",

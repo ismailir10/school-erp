@@ -310,8 +310,8 @@ export function DocumentsStep({
                     size="sm"
                     variant={doc ? "outline" : "default"}
                     className={cn(
-                      "min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8",
-                      !doc && "bg-primary-text text-white hover:bg-primary-text/90",
+                      "min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-100 aria-disabled:bg-muted aria-disabled:text-muted-foreground sm:min-h-8",
+                      !doc && "bg-action text-action-foreground hover:bg-action-hover",
                     )}
                     aria-disabled={!!state}
                     aria-busy={state === "upload"}
@@ -340,7 +340,7 @@ export function DocumentsStep({
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
+                      className="min-h-11 aria-disabled:pointer-events-none aria-disabled:opacity-100 aria-disabled:bg-muted aria-disabled:text-muted-foreground sm:min-h-8"
                       aria-disabled={!!state}
                       aria-busy={state === "delete"}
                       aria-describedby={errId}

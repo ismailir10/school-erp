@@ -19,13 +19,16 @@
 
     --primary: #5DB4B8;
     --primary-foreground: #173536;
+    --action: #28777B;
+    --action-foreground: #FFFFFF;
+    --action-hover: #206468;
     /* Readable teal for text and glyphs on light or tinted surfaces. */
     --primary-text: #2E7578;
 
     --secondary: #E8F5F6;
     --secondary-foreground: #1C1917;
 
-    --muted: #F0F0F3;
+    --muted: #F0F4F4;
     --muted-foreground: #57534E;
 
     --accent: #E8F5F6;
@@ -33,7 +36,7 @@
 
     /* AA-darkened error red (4.83:1 on white). #FF3B3B survives only as --status-absent, the attendance dot/bar */
     --destructive: #DC2626;
-    --border: #E5E2DE;
+    --border: #DFE6E6;
     --input: #89837D;
     --ring: var(--primary-foreground);
 
@@ -293,8 +296,9 @@
     transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
     text-decoration: none; line-height: 1;
   }
-  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
-  .btn-primary:hover { background: color-mix(in oklab, var(--primary) 80%, transparent); }
+  .btn-primary { background: var(--action); color: var(--action-foreground); }
+  .btn-selected, .btn-selected:hover { background: var(--primary); color: var(--primary-foreground); }
+  .btn-primary:hover { background: var(--action-hover); }
   .btn-secondary { background: var(--secondary); color: var(--secondary-foreground); }
   .btn-secondary:hover { background: color-mix(in oklab, var(--secondary) 85%, var(--foreground) 5%); }
   .btn-outline { background: transparent; border-color: var(--border); color: var(--foreground); }
@@ -313,6 +317,7 @@
   .btn-icon { width: 32px; padding: 0; }
   @media (pointer: coarse) { .btn { min-height: 2.75rem; } .btn-icon { min-width: 2.75rem; } }
   .btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary:disabled, .btn-primary[aria-disabled="true"] { background: var(--muted); color: var(--muted-foreground); opacity: 1; }
 
   /* ─────────── Badges (match StatusBadge) ─────────── */
   .badge {
@@ -657,7 +662,7 @@
   .tab-dot {
     display: inline-flex; align-items: center; justify-content: center;
     width: 16px; height: 16px; border-radius: 50%;
-    background: var(--primary); color: white;
+    background: var(--primary); color: var(--primary-foreground);
     font-size: 0.625rem; font-weight: 700;
     margin-left: 0.25rem;
   }
@@ -736,7 +741,7 @@
   .flow-num {
     position: absolute; top: -8px; left: -8px; z-index: 2;
     width: 22px; height: 22px; border-radius: 50%;
-    background: var(--primary); color: white;
+    background: var(--primary); color: var(--primary-foreground);
     font-weight: 700; font-size: 0.6875rem;
     display: flex; align-items: center; justify-content: center;
   }
@@ -753,8 +758,8 @@
     display: flex; align-items: center; justify-content: center;
     color: white; font-weight: 700; font-size: 0.8125rem; letter-spacing: 0.04em;
   }
-  .flow-btn-idle { background: var(--primary); box-shadow: 0 8px 20px -6px color-mix(in oklab, var(--primary) 45%, transparent); }
-  .flow-btn-loading { background: color-mix(in oklab, var(--primary) 60%, var(--muted)); font-size: 1.5rem; }
+  .flow-btn-idle { background: var(--action); box-shadow: 0 8px 20px -6px color-mix(in oklab, var(--primary) 45%, transparent); }
+  .flow-btn-loading { background: var(--action); font-size: 1.5rem; }
   .flow-btn-success { background: var(--status-present); }
   .flow-btn-pulang { background: var(--status-late); }
   .flow-mini-caption {
@@ -790,7 +795,7 @@
     max-height: 340px; overflow-y: auto;
   }
   .roster-row {
-    display: flex; align-items: center; gap: 0.625rem;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem;
     padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--border);
   }
@@ -974,7 +979,7 @@
         <div class="card">
           <div style="display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: center;">
             <div style="display: grid; place-items: center; aspect-ratio: 1; background: var(--sidebar); border-radius: var(--radius-lg);">
-              <div style="width: 80px; height: 80px; border-radius: 18px; background: var(--primary); display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 2.25rem; letter-spacing: -0.03em;">A</div>
+              <div style="width: 80px; height: 80px; border-radius: 18px; background: var(--primary); display: grid; place-items: center; color: var(--primary-foreground); font-weight: 700; font-size: 2.25rem; letter-spacing: -0.03em;">A</div>
             </div>
             <div>
               <p class="text-muted" style="margin: 0 0 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Product</p>
@@ -1021,7 +1026,7 @@
         <div class="grid-4" style="margin-bottom: 2rem;">
           <div class="swatch">
             <div class="swatch-preview" style="background: var(--primary);"></div>
-            <div class="swatch-body"><div class="swatch-name">Primary (teal)</div><div class="swatch-var">--primary</div><div class="swatch-hex">#5DB4B8</div></div>
+            <div class="swatch-body"><div class="swatch-name">Brand / selection (teal)</div><div class="swatch-var">--primary</div><div class="swatch-hex">#5DB4B8</div></div>
           </div>
           <div class="swatch">
             <div class="swatch-preview" style="background: var(--sidebar);"></div>
@@ -1037,6 +1042,11 @@
           </div>
         </div>
 
+        <div class="swatch" style="max-width:240px;margin-bottom:1rem;">
+          <div class="swatch-preview" style="background:var(--action);color:var(--action-foreground);display:grid;place-items:center;">Primary action</div>
+          <div class="swatch-body"><div class="swatch-name">Deep teal action</div><div class="swatch-var">--action / --action-foreground</div><div class="swatch-hex">#28777B / #FFFFFF</div></div>
+        </div>
+        <p class="caption-note">Primary actions use <code>--action</code> with <code>--action-foreground</code>; opaque <code>--action-hover</code> preserves readable white labels. Soft <code>--primary</code> with dark <code>--primary-foreground</code> identifies selections, not action priority. Use <code>Button variant="selection"</code> with selection semantics for selected filters or state choices; hover retains the opaque soft fill.</p>
         <h3 class="card-title" style="margin-bottom: 0.75rem;">Status scale <span class="text-muted mono" style="font-weight: 400; font-size: 0.6875rem;">· solid / subtle / text</span></h3>
         <div class="grid-3" style="gap: 0.75rem;">
           <!-- Present -->
@@ -1301,6 +1311,7 @@
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">Variants</div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button class="btn btn-primary">Primary</button>
+              <button class="btn btn-selected" aria-pressed="true">Selected context</button>
               <button class="btn btn-secondary">Secondary</button>
               <button class="btn btn-outline">Outline</button>
               <button class="btn btn-ghost">Ghost</button>
@@ -1331,7 +1342,7 @@
             <div class="mono text-muted" style="font-size: 0.6875rem; text-transform: uppercase;">States</div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
               <button class="btn btn-primary">Idle</button>
-              <button class="btn btn-primary" style="background: color-mix(in oklab, var(--primary) 80%, transparent);">Hover</button>
+              <button class="btn btn-primary" style="background: var(--action-hover);">Hover</button>
               <button class="btn btn-primary" disabled>Disabled</button>
               <button class="btn btn-primary"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="animation: spin 800ms linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>Menyimpan…</button>
             </div>
@@ -1623,7 +1634,7 @@
             <div>Menampilkan <strong style="color: var(--foreground);">1–5</strong> dari <strong style="color: var(--foreground);">127</strong> siswa</div>
             <div style="display: flex; gap: 0.25rem;">
               <button class="btn btn-outline btn-sm" disabled>‹ Sebelumnya</button>
-              <button class="btn btn-primary btn-sm" style="min-width: 32px;">1</button>
+              <button class="btn btn-selected btn-sm" style="min-width: 32px;">1</button>
               <button class="btn btn-outline btn-sm" style="min-width: 32px;">2</button>
               <button class="btn btn-outline btn-sm" style="min-width: 32px;">3</button>
               <span style="padding: 0 0.25rem; align-self: center; color: var(--muted-foreground);">…</span>
@@ -2128,7 +2139,7 @@
                     <span>TK B Anggur</span>
                     <p><strong>Catatan guru</strong> · Berbagi mainan dengan teman.</p>
                     <div class="phone-line">
-                      <button class="btn btn-primary btn-sm" type="button">Baca catatan</button>
+                      <button class="btn btn-outline btn-sm" type="button">Baca catatan</button>
                       <button class="btn btn-outline btn-sm" type="button">Lihat kehadiran</button>
                     </div>
                   </div>
@@ -2298,55 +2309,26 @@
             <div class="select-wrap" style="flex: 1;"><select class="input"><option>TK-B · Anggur — Taman Kanak-Kanak</option></select></div>
             <input class="input" type="date" value="2026-04-22" style="width: 140px;">
           </div>
-          <div class="class-att-summary">
-            <div class="card class-summary-card">
-              <div class="font-currency" style="font-size: 1.5rem; font-weight: 700; color: var(--status-present-text);">18</div>
-              <div class="t-meta">Hadir</div>
-            </div>
-            <div class="card class-summary-card">
-              <div class="font-currency" style="font-size: 1.5rem; font-weight: 700; color: var(--status-absent-text);">2</div>
-              <div class="t-meta">Tidak Hadir</div>
-            </div>
-            <div class="card class-summary-card">
-              <div class="font-currency" style="font-size: 1.5rem; font-weight: 700;">22</div>
-              <div class="t-meta">Total</div>
-            </div>
+          <div class="class-att-summary" style="grid-template-columns:repeat(5,1fr);">
+            <div class="t-meta">Hadir <strong>2</strong></div>
+            <div class="t-meta">Sakit <strong>1</strong></div>
+            <div class="t-meta">Izin <strong>1</strong></div>
+            <div class="t-meta">Alpa <strong>1</strong></div>
+            <div class="t-meta">Belum <strong>1</strong></div>
           </div>
           <div class="roster">
-            <div class="roster-row">
-              <div class="roster-avatar" style="background: var(--status-present);"><svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-              <div style="flex: 1;"><div class="t-name">Aisyah Putri Rahman</div><div class="t-meta">Aisyah</div></div>
-              <span class="badge badge-present"><span class="dot"></span>Hadir</span>
-            </div>
-            <div class="roster-row">
-              <div class="roster-avatar" style="background: var(--status-present);"><svg width="12" height="12" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-              <div style="flex: 1;"><div class="t-name">Muhammad Fauzan Akbar</div><div class="t-meta">Fauzan</div></div>
-              <span class="badge badge-present"><span class="dot"></span>Hadir</span>
-            </div>
-            <div class="roster-row">
-              <div class="roster-avatar" style="background: var(--status-absent);">I</div>
-              <div style="flex: 1;"><div class="t-name">Ibrahim Hafizh Maulana</div><div class="t-meta">Ibrahim</div></div>
-              <span class="badge badge-absent"><span class="dot"></span>Tidak Hadir</span>
-            </div>
-            <div class="roster-row">
-              <div class="roster-avatar" style="background: var(--status-late);">F</div>
-              <div style="flex: 1;"><div class="t-name">Fatimah Zahra</div><div class="t-meta">Fatimah</div></div>
-              <span class="badge badge-late"><span class="dot"></span>Sakit</span>
-            </div>
-            <div class="roster-row">
-              <div class="roster-avatar" style="background: var(--status-leave);">K</div>
-              <div style="flex: 1;"><div class="t-name">Khadijah Nur Aini</div><div class="t-meta">Khadijah</div></div>
-              <span class="badge badge-leave"><span class="dot"></span>Izin</span>
-            </div>
+            <div class="roster-row"><div style="flex:1;min-width:100px;"><div class="t-name">Aisyah Putri Rahman</div><div class="t-meta">Hadir</div></div><div role="radiogroup" aria-label="Kehadiran Aisyah Putri Rahman" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="true" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--status-present-subtle); color: var(--status-present-text); border: 2px solid var(--status-present-text);">H</button><button class="btn" role="radio" aria-checked="false" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">S</button><button class="btn" role="radio" aria-checked="false" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">I</button><button class="btn" role="radio" aria-checked="false" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">A</button></div></div>
+            <div class="roster-row"><div style="flex:1;min-width:100px;"><div class="t-name">Muhammad Fauzan Akbar</div><div class="t-meta">Hadir</div></div><div role="radiogroup" aria-label="Kehadiran Muhammad Fauzan Akbar" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="true" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--status-present-subtle); color: var(--status-present-text); border: 2px solid var(--status-present-text);">H</button><button class="btn" role="radio" aria-checked="false" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">S</button><button class="btn" role="radio" aria-checked="false" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">I</button><button class="btn" role="radio" aria-checked="false" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">A</button></div></div>
+            <div class="roster-row" style="background: var(--status-absent-subtle);"><div style="flex:1;min-width:100px;"><div class="t-name">Ibrahim Hafizh Maulana</div><div class="t-meta">Alpa</div></div><div role="radiogroup" aria-label="Kehadiran Ibrahim Hafizh Maulana" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="false" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">H</button><button class="btn" role="radio" aria-checked="false" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">S</button><button class="btn" role="radio" aria-checked="false" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">I</button><button class="btn" role="radio" aria-checked="true" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--status-absent-subtle); color: var(--status-absent-text); border: 2px solid var(--status-absent-text);">A</button></div></div>
+            <div class="roster-row" style="background: var(--status-late-subtle);"><div style="flex:1;min-width:100px;"><div class="t-name">Fatimah Zahra</div><div class="t-meta">Sakit</div></div><div role="radiogroup" aria-label="Kehadiran Fatimah Zahra" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="false" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">H</button><button class="btn" role="radio" aria-checked="true" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--status-late-subtle); color: var(--status-late-text); border: 2px solid var(--status-late-text);">S</button><button class="btn" role="radio" aria-checked="false" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">I</button><button class="btn" role="radio" aria-checked="false" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">A</button></div></div>
+            <div class="roster-row" style="background: var(--status-leave-subtle);"><div style="flex:1;min-width:100px;"><div class="t-name">Khadijah Nur Aini</div><div class="t-meta">Izin</div></div><div role="radiogroup" aria-label="Kehadiran Khadijah Nur Aini" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="false" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">H</button><button class="btn" role="radio" aria-checked="false" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">S</button><button class="btn" role="radio" aria-checked="true" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--status-leave-subtle); color: var(--status-leave-text); border: 2px solid var(--status-leave-text);">I</button><button class="btn" role="radio" aria-checked="false" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">A</button></div></div>
+            <div class="roster-row"><div style="flex:1;min-width:100px;"><div class="t-name">Yusuf Abdullah</div><div class="t-meta">Belum dicatat</div></div><div role="radiogroup" aria-label="Kehadiran Yusuf Abdullah" style="display:flex;gap:4px;"><button class="btn" role="radio" aria-checked="false" aria-label="Hadir" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">H</button><button class="btn" role="radio" aria-checked="false" aria-label="Sakit" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">S</button><button class="btn" role="radio" aria-checked="false" aria-label="Izin" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">I</button><button class="btn" role="radio" aria-checked="false" aria-label="Alpa" style="min-width:44px;min-height:44px;background: var(--card); color: var(--muted-foreground); border: 1px solid var(--input);">A</button></div></div>
           </div>
-          <div class="class-att-cta">
-            <div class="cycle-hint">Ketuk nama siswa untuk mengubah status <span class="cycle-chain">Hadir <span style="opacity:.5;">→</span> Tidak Hadir <span style="opacity:.5;">→</span> Sakit <span style="opacity:.5;">→</span> Izin</span></div>
-            <button class="btn btn-primary" style="width: 100%;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Simpan Kehadiran · 22 siswa</button>
-          </div>
+          <div class="class-att-cta"><button class="btn btn-primary" style="width:100%;">Tandai 1 siswa lainnya Hadir</button></div>
         </div>
 
         <div class="callout" style="margin-top: 1rem;">
-          <strong>Superseded 2026-09-27 (see <code>portal.md</code> § Class Attendance Entry) →</strong> rows now use an explicit H · S · I · A radio group instead of a cycle, and the sticky CTA is "Tandai N siswa lainnya Hadir" (records every child without a status in one request). Intent unchanged: the common case — everyone present — costs one tap; summary tally updates live; sticky CTA above the bottom nav.
+          <strong>Exception-first entry →</strong> H · S · I · A saves each choice immediately. Present and unrecorded rows stay neutral; exceptions have subtle tints. Every selected control adds a visible border. The sticky action records only children without a status; retries and corrections retain the same controls.
         </div>
       </section>
 

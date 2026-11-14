@@ -114,7 +114,7 @@ export function StudentDetailMock() {
         <div className="px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 text-xs text-muted-foreground">Siswa tidak ditagih untuk bulan yang dicatat cuti.</p>
-            <span className="flex h-7 shrink-0 items-center gap-1 rounded-lg bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground">
+            <span className="flex h-7 shrink-0 items-center gap-1 rounded-lg bg-action px-2.5 text-[0.8rem] font-medium text-action-foreground">
               <Plus className="size-3.5" />
               Catat cuti
             </span>

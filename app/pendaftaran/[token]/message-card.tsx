@@ -38,7 +38,7 @@ export function MessageCard({
       {(wa || tel) && (
         <div className="mt-5 flex flex-wrap justify-center gap-3">
           {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" className={linkClass + " bg-primary-text text-white hover:bg-primary-text/90"}>
+            <a href={wa} target="_blank" rel="noopener noreferrer" className={linkClass + " bg-action text-action-foreground hover:bg-action-hover"}>
               <MessageCircle size={18} aria-hidden /> Chat WhatsApp
             </a>
           )}

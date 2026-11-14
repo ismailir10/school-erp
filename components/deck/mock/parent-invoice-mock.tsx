@@ -95,7 +95,7 @@ export function ParentInvoiceMock() {
         </div>
 
         <div className="border-t border-border bg-background px-4 py-2">
-          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-action text-sm font-medium text-action-foreground">
             <ExternalLink size={16} />
             Bayar sekarang
           </div>

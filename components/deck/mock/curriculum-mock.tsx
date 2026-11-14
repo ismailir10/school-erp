@@ -148,7 +148,7 @@ export function CurriculumMock() {
 
         <div className="flex justify-end gap-1.5 px-4 pb-3 pt-2.5">
           <span className="flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-medium">Mulai ulang</span>
-          <span className="flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground">Konfirmasi &amp; simpan</span>
+          <span className="flex h-8 items-center rounded-lg bg-action px-3 text-xs font-medium text-action-foreground">Konfirmasi &amp; simpan</span>
         </div>
       </Float>
     </Stage>

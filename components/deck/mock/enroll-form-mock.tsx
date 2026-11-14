@@ -103,7 +103,7 @@ export function EnrollFormMock() {
             <span className="inline-flex h-8 items-center whitespace-nowrap gap-1 rounded-lg border border-border bg-background px-2 text-[0.8125rem] font-medium">
               <Eraser size={14} /> Hapus
             </span>
-            <span className="inline-flex h-8 items-center whitespace-nowrap rounded-lg bg-primary-text px-2 text-[0.8125rem] font-medium text-white">Simpan tanda tangan</span>
+            <span className="inline-flex h-8 items-center whitespace-nowrap rounded-lg bg-action px-2 text-[0.8125rem] font-medium text-action-foreground">Simpan tanda tangan</span>
           </div>
         </div>
 

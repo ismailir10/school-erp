@@ -97,7 +97,7 @@ export function ChangelogView({
           <Button
             type="button"
             size="sm"
-            variant={scope === "mine" ? "default" : "outline"}
+            variant={scope === "mine" ? "selection" : "outline"}
             aria-pressed={scope === "mine"}
             onClick={() => changeScope("mine")}
           >
@@ -106,7 +106,7 @@ export function ChangelogView({
           <Button
             type="button"
             size="sm"
-            variant={scope === "all" ? "default" : "outline"}
+            variant={scope === "all" ? "selection" : "outline"}
             aria-pressed={scope === "all"}
             onClick={() => changeScope("all")}
           >

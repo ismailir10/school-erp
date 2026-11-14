@@ -285,7 +285,7 @@ export function ThemeCard({
               <Button
                 key={value}
                 size="sm"
-                variant={kelompokFilter === value ? "default" : "outline"}
+                variant={kelompokFilter === value ? "selection" : "outline"}
                 aria-pressed={kelompokFilter === value}
                 onClick={() => setKelompokFilter(value)}
               >

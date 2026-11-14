@@ -109,7 +109,7 @@ export function BillingRunMock() {
 
               <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-2.5">
                 <span className="flex h-8 items-center rounded-lg px-2.5 text-sm font-medium">Tutup</span>
-                <span className="flex h-8 items-center rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground">Lanjutkan</span>
+                <span className="flex h-8 items-center rounded-lg bg-action px-2.5 text-sm font-medium text-action-foreground">Lanjutkan</span>
               </div>
             </div>
           </div>
@@ -143,7 +143,7 @@ export function BillingRunMock() {
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <span className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg bg-primary px-2 text-sm font-medium text-primary-foreground">
+          <span className="flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg bg-action px-2 text-sm font-medium text-action-foreground">
             <span className="truncate">Catat Rp 2.550.000 lunas</span>
           </span>
         </div>

@@ -70,7 +70,7 @@ describe("student header — action by state", () => {
     const user = userEvent.setup();
     await renderStudent({ enrollments: [] });
     expect(headerButtons()).toEqual(["Daftarkan ke Kelas", "Aksi lainnya"]);
-    expect(screen.getByRole("button", { name: "Daftarkan ke Kelas" }).className).toContain("bg-primary");
+    expect(screen.getByRole("button", { name: "Daftarkan ke Kelas" })).toHaveClass("bg-action", "text-action-foreground");
     // Not repeated in the menu; Naik Kelas and Luluskan have nothing to act on.
     expect(await menuLabels(user)).toEqual(["Keluarkan"]);
     await user.keyboard("{Escape}");

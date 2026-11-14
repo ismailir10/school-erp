@@ -721,7 +721,7 @@ export function CenterSessionClient({
               {hasClassFilter && (
                 <Button
                   type="button"
-                  variant={showAllClasses ? "default" : "outline"}
+                  variant={showAllClasses ? "selection" : "outline"}
                   className="tap-target"
                   aria-pressed={showAllClasses}
                   data-testid="center-all-classes"

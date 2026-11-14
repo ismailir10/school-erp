@@ -42,7 +42,7 @@ function Kid({ name, foot, chip, warn }: { name: string; foot: string; chip: str
   );
 }
 
-/** Parent Beranda: the family's day in one screen, with the new note from Bu Guru lifted beside it. */
+/** Parent Beranda: the family's day in one screen, with the teacher note lifted beside it. */
 export function ParentHomeMock() {
   return (
     <Stage label="parent-home">
@@ -94,7 +94,7 @@ export function ParentHomeMock() {
             <MessageCircle size={20} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-snug">Catatan baru dari Bu Guru</p>
+            <p className="text-sm font-semibold leading-snug">Catatan dari Bu Guru</p>
             <p className="truncate text-xs text-muted-foreground">Aisyah Putri · TK A Al-Fatih</p>
           </div>
         </div>
@@ -103,7 +103,7 @@ export function ParentHomeMock() {
         </p>
         <p className="text-xs text-muted-foreground">Bu Guru Rina · 29 Oktober</p>
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex h-9 items-center justify-center rounded-lg bg-primary text-xs font-medium text-primary-foreground">Baca catatan</div>
+          <div className="flex h-9 items-center justify-center rounded-lg border border-border bg-background text-xs font-medium text-foreground">Baca catatan</div>
           <div className="flex h-9 items-center justify-center rounded-lg border border-border bg-background text-xs font-medium">Lihat kehadiran</div>
         </div>
         <div className="flex items-center gap-4 border-t border-border pt-2.5 text-xs font-medium text-primary-text">

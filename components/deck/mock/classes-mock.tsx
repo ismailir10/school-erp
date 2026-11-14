@@ -50,7 +50,7 @@ export function ClassesMock() {
                   <ArrowUpRight className="size-3.5" />
                   Naik Kelas Massal
                 </span>
-                <span className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-xs font-medium text-primary-foreground">
+                <span className="flex h-8 items-center gap-1.5 rounded-lg bg-action px-2.5 text-xs font-medium text-action-foreground">
                   <Plus className="size-3.5" />
                   Tambah Kelas
                 </span>
@@ -107,7 +107,7 @@ export function ClassesMock() {
           </div>
           <div className="flex justify-end gap-1.5 pt-0.5">
             <span className="flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-medium">Batal</span>
-            <span className="flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground">Simpan</span>
+            <span className="flex h-8 items-center rounded-lg bg-action px-3 text-xs font-medium text-action-foreground">Simpan</span>
           </div>
         </div>
       </Float>

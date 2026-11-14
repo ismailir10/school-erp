@@ -298,7 +298,7 @@ export function FilterGroup({
         <Button
           key={opt.value}
           size="sm"
-          variant={value === opt.value ? "default" : "outline"}
+          variant={value === opt.value ? "selection" : "outline"}
           aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
         >
