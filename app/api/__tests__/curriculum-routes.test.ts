@@ -466,6 +466,7 @@ describe("PUT /weeks/[id] — reactivation overlap", () => {
     const { PUT } = await import("@/app/api/admin/curriculum/weeks/[id]/route");
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(superAdmin);
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null, semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") } } });
     weekFindFirst.mockResolvedValue({
       id: "w-dormant",
       subThemeId: "st1",
@@ -1232,13 +1233,13 @@ describe("POST /weeks — overlap detection", () => {
     const { POST } = await import("@/app/api/admin/curriculum/weeks/route");
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(superAdmin);
-    subThemeFindFirst.mockResolvedValue({ id: "st1" });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null, semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") } } });
     weekFindMany.mockResolvedValue([
       { id: "w-existing", startDate: "2026-07-13", endDate: "2026-07-17", status: "ACTIVE" },
     ]);
 
     const res = await POST(
-      jsonReq({ subThemeId: "st1", number: 2, startDate: "2026-07-15", endDate: "2026-07-21" }) as never,
+      jsonReq({ subThemeId: "st1", number: 2, startDate: "2026-07-13", endDate: "2026-07-17" }) as never,
     );
     expect(res.status).toBe(409);
     const body = await res.json();
@@ -1250,7 +1251,7 @@ describe("POST /weeks — overlap detection", () => {
     const { POST } = await import("@/app/api/admin/curriculum/weeks/route");
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(superAdmin);
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null, semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") } } });
     weekFindMany.mockResolvedValue([
       { id: "w-existing", startDate: "2026-07-13", endDate: "2026-07-17", status: "ACTIVE" },
     ]);

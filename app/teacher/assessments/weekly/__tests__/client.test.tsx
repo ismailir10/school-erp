@@ -230,3 +230,73 @@ describe("WeeklyClient with no IKTP for the week (TCH-5)", () => {
   });
 });
 
+
+describe("weekly audit regressions", () => {
+  it.each([true, false])("serializes rapid same-cell taps and keeps the newest choice when first success=%s", async (firstOk) => {
+    const user = userEvent.setup();
+    const first = deferred<{ ok: boolean; json?: () => Promise<unknown> }>();
+    const fetchMock = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    renderWeeklyClient();
+    await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+    await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Belum untuk Aisyah" })).toBeChecked();
+    first.resolve({ ok: firstOk, json: async () => ({ error: "old failure" }) });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).entries[0].level).toBe("EMERGING");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+    expect(screen.getByRole("radio", { name: "Belum untuk Aisyah" })).toBeChecked();
+  });
+
+  it("restores the last committed choice when the newest queued write fails", async () => {
+    const user = userEvent.setup();
+    const first = deferred<{ ok: boolean }>();
+    vi.stubGlobal("fetch", vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue({ ok: false, json: async () => ({ error: "failed" }) }));
+    renderWeeklyClient();
+    await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+    await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
+    first.resolve({ ok: true });
+    await screen.findByRole("alert");
+    expect(screen.getByRole("radio", { name: "Mampu untuk Aisyah" })).toBeChecked();
+  });
+
+  it("resets date and entries when navigating from Friday to the next week", async () => {
+    const user = userEvent.setup();
+    const props = {
+      initialDate: "2026-05-15", week,
+      classSection: { id: "class-1", name: "TK-B Anggur", ageGroup: "B" as const },
+      students: [{ id: "student-1", name: "Aisyah", nickname: null, status: "ACTIVE" }],
+      indicators: [{ id: "indicator-1", content: "Mengikuti kegiatan", order: 1, objective: { id: "objective-1", ageGroup: "B", element: "Karakter" } }],
+      initialEntries: [{ id: "e1", studentId: "student-1", indicatorId: "indicator-1", date: "2026-05-15", level: "CONSISTENT", note: null }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(<WeeklyClient {...props} />);
+    expect(screen.getByRole("radio", { name: "Mampu untuk Aisyah" })).toBeChecked();
+    view.rerender(<WeeklyClient {...props} initialDate="2026-05-18" week={{ ...week, id: "week-2", startDate: "2026-05-18", endDate: "2026-05-22" }} initialEntries={[]} />);
+    expect(screen.getByRole("radio", { name: "Sen 18" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Mampu untuk Aisyah" })).not.toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).entries[0].date).toBe("2026-05-18");
+  });
+});
+
+it("ignores an old failed-save retry after a newer choice has saved", async () => {
+  const { toast } = await import("sonner");
+  vi.mocked(toast.error).mockClear();
+  const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({ error: "first failed" }) }).mockResolvedValue({ ok: true });
+  vi.stubGlobal("fetch", fetchMock);
+  const user = userEvent.setup();
+  renderWeeklyClient();
+  await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+  await screen.findByRole("alert");
+  const action = vi.mocked(toast.error).mock.calls[0][1]?.action;
+  if (!action || typeof action !== "object" || !("onClick" in action) || typeof action.onClick !== "function") throw new Error("missing retry action");
+  await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+  action.onClick({} as never);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole("radio", { name: "Belum untuk Aisyah" })).toBeChecked();
+});

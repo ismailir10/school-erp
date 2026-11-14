@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
   // set per indicator to enforce the "indicator belongs to active week's
   // theme" check below.
   const indicators = await prisma.achievementIndicator.findMany({
-    where: { tenantId: session.tenantId, id: { in: indicatorIds } },
+    where: { tenantId: session.tenantId, id: { in: indicatorIds }, status: "ACTIVE", objective: { status: "ACTIVE", semester: { status: "ACTIVE" } } },
     select: {
       id: true,
       objective: { select: { ageGroup: true } },

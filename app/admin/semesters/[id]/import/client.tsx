@@ -160,13 +160,14 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       });
       const body = (await res.json()) as Partial<Preview> & {
         error?: string;
+        errors?: Array<{ field?: string; message: string }>;
         duplicates?: Array<{ element: CurriculumElement; number: number }>;
       };
       if (!res.ok && res.status !== 409) {
         const msg =
           body.error ??
           "Gagal mengunggah berkas PROMES. Periksa format berkas lalu coba lagi.";
-        setFormError(msg);
+        setFormError([msg, ...(body.errors ?? []).map((e) => `${e.field ? `${e.field}: ` : ""}${e.message}`)].join(" · "));
         setSubmitting(false);
         return;
       }
@@ -208,6 +209,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       );
       const body = (await res.json()) as {
         error?: string;
+        errors?: Array<{ field?: string; message: string }>;
         counts?: { objectives: number; indicators: number };
         applied?: {
           created: number;
@@ -219,7 +221,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         };
       };
       if (!res.ok) {
-        setFormError(body.error ?? MESSAGES.saveFailed);
+        setFormError([body.error ?? MESSAGES.saveFailed, ...(body.errors ?? []).map((e) => `${e.field ? `${e.field}: ` : ""}${e.message}`)].join(" · "));
         setCommitting(false);
         committingRef.current = false;
         return;

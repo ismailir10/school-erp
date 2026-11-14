@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth-guards";
 
 /**
  * GET /api/admin/class-sessions?classSectionId=<id>&month=<YYYY-MM>
@@ -15,13 +15,9 @@ import { getSession, isAdminRole } from "@/lib/auth";
  * here so no rate-limit (writes live in [id]/route.ts).
  */
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session?.tenantId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.view");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { searchParams } = new URL(req.url);
   const classSectionId = searchParams.get("classSectionId");

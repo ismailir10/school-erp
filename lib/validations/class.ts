@@ -51,6 +51,7 @@ export const enrollmentAddSchema = z.object({
 });
 
 export const teachingAssignmentAddSchema = z.object({
+  replaceAssignmentId: z.string().min(1).optional(),
   employeeId: z.string().min(1, "Guru wajib dipilih"),
   role: z.enum(["HOMEROOM", "ASSISTANT"]).default("HOMEROOM"),
 });
@@ -84,12 +85,10 @@ export const classFormSchema = classCreateSchema.omit({ academicYearId: true }).
   ageGroup: z.enum(["A", "B"], { message: "Kelompok usia wajib dipilih" }),
 });
 
-// Client form schema for the class-detail "Ubah Kelas" dialog (T2, 2026-09-27
-// admin-finish-standard cycle). That dialog only edits name/capacity/
-// slotTemplate — no campus/program/ageGroup fields — so it picks the same
-// three keys off `classFormSchema` rather than redefining the capacity
-// blank-handling preprocessor a second time.
+// Class-detail editing uses the same program and age fields as list editing.
 export const classEditFormSchema = classFormSchema.pick({
+  programId: true,
+  ageGroup: true,
   name: true,
   capacity: true,
   slotTemplate: true,

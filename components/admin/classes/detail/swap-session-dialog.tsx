@@ -192,6 +192,7 @@ export function SwapSessionDialog({
                 id="session-substitute-teacher"
                 render={({ field, controlProps }) => (
                   <Select
+                    items={employeeOptions.map((e) => ({ value: e.id, label: e.nama }))}
                     value={field.value}
                     onValueChange={(v) => v != null && field.onChange(v)}
                   >

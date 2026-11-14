@@ -228,7 +228,7 @@ describe("GET /api/teacher/assessment-entries/center/[center]", () => {
       params: Promise.resolve({ center: "sen1" }),
     });
     const callArgs = achievementIndicatorFindMany.mock.calls[0][0];
-    expect(callArgs.where.objective).toEqual({ ageGroup: "A" });
+    expect(callArgs.where.objective).toEqual({ ageGroup: "A", status: "ACTIVE", semester: { status: "ACTIVE" } });
   });
   it("R2-T-7: each student carries class label + id, and the payload lists the teacher's own class ids (tenant-scoped)", async () => {
     vi.mocked(getSession).mockResolvedValue(teacher);

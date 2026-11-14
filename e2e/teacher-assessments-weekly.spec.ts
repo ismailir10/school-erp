@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createCurriculumSemester } from "./helpers/curriculum-semester";
 
 // E2E for the C4 walas weekly UI. Demo TEACHER resolves to a live HOMEROOM
 // employee in demo mode, so the walas-gate path renders across staging seeds.
@@ -132,16 +133,8 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
 
   test("TK A homeroom sees the TK A theme, not a TK B theme on the same dates", async ({ page }) => {
     const admin = { headers: { Cookie: `school-erp-session=${ADMIN_USER_ID}` } };
-    const yearsRes = await page.request.get("/api/academic-years", admin);
-    const years = (await yearsRes.json()) as Array<{ name: string; status: string }>;
-    const yearName = years.find((y) => y.status === "ACTIVE")?.name;
-    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=100", admin);
-    const sems = (await semRes.json()).data as Array<{ id: string; number: number; academicYear: { name: string } }>;
-    const semesterId = sems.find((s) => s.number === 1 && s.academicYear.name === yearName)?.id;
-    test.skip(!semesterId, "seed produced no Semester 1 for the ACTIVE academic year");
-
-    // Far-future Monday that varies per run, clear of the seeded (shared) weeks.
-    const monday = new Date(Date.UTC(2040, 0, 2 + 7 * (Math.floor(Date.now() / 1000) % 3000)));
+    // Keep the paired kelompok weeks inside their own semester, clear of seeds.
+    const { semesterId, monday } = await createCurriculumSemester(page, admin.headers);
     const friday = new Date(monday.getTime() + 4 * 86_400_000);
     const ymd = (d: Date) => d.toISOString().slice(0, 10);
     const stamp = Date.now();

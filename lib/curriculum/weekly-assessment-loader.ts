@@ -122,7 +122,7 @@ export async function loadWeeklyAssessment(
       tenantId,
       status: "ACTIVE",
       themeLinks: { some: { themeId: week.subTheme.theme.id } },
-      objective: { ageGroup },
+      objective: { ageGroup, status: "ACTIVE", semester: { status: "ACTIVE" } },
     },
     select: {
       id: true,
@@ -142,6 +142,7 @@ export async function loadWeeklyAssessment(
             weekId: week.id,
             studentId: { in: studentIds },
             source: "HOMEROOM",
+            voidedAt: null,
           },
           select: {
             id: true,

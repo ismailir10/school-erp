@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/auth-guards";
 /**
  * `POST /api/admin/academic-years/[id]/roll-forward`
  *
@@ -13,7 +14,6 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
@@ -56,10 +56,9 @@ export async function POST(
     );
   }
 
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
   const { id: targetYearId } = await params;
   const tenantId = session.tenantId;
 
@@ -85,7 +84,7 @@ export async function POST(
   const [targetYear, sourceYear] = await Promise.all([
     prisma.academicYear.findFirst({
       where: { id: targetYearId, tenantId },
-      select: { id: true },
+      select: { id: true, status: true },
     }),
     prisma.academicYear.findFirst({
       where: { id: sourceYearId, tenantId },
@@ -94,6 +93,10 @@ export async function POST(
   ]);
   if (!targetYear || !sourceYear) {
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
+  }
+
+  if (targetYear.status === "ARCHIVED") {
+    return NextResponse.json({ error: "Tahun ajaran sudah diarsipkan. Kelas tidak dapat disalin." }, { status: 409 });
   }
 
   // Only ACTIVE sections under ACTIVE tracks roll forward.

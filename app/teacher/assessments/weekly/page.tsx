@@ -82,6 +82,7 @@ export default async function TeacherAssessmentsWeeklyPage({
 
   return (
     <WeeklyClient
+      key={`${data.week.id}:${data.classSection.id}`}
       initialDate={dateParam}
       week={data.week}
       classSection={data.classSection}

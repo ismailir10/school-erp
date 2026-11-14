@@ -15,6 +15,7 @@ export type ClassDetail = {
   name: string;
   capacity: number;
   slotTemplate: SlotTemplate;
+  ageGroup: "A" | "B";
   status: "ACTIVE" | "INACTIVE";
   campusId: string;
   programId: string;

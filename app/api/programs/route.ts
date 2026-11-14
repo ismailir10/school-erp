@@ -1,6 +1,8 @@
+import { hasPermission } from "@/lib/permissions";
+import { requirePermission } from "@/lib/auth-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { createProgramSchema } from "@/lib/validations/program";
@@ -11,6 +13,9 @@ export const revalidate = 3600;
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  if (!["academic.view", "students.view", "invoices.view", "fees.view", "admissions.view", "curriculum.read"].some((permission) => hasPermission(session, permission))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const programs = await prisma.program.findMany({
     where: { tenantId: session.tenantId },
@@ -24,10 +29,9 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`create-program:${getClientIp(req)}`, 5, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const result = await validateBody(createProgramSchema, await req.json());
   if (result.error) return result.error;

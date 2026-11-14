@@ -107,3 +107,15 @@ describe("program name normalization", () => {
     expect(createProgramSchema.safeParse({ code: "X", name: "a".repeat(121) }).success).toBe(false);
   });
 });
+
+it("rejects inverted month intervals on create, update and form", () => {
+  expect(createProgramSchema.safeParse({ code: "X", name: "X", ageMin: 100, ageMax: 12 }).success).toBe(false);
+  expect(updateProgramSchema.safeParse({ ageMin: 100, ageMax: 12 }).success).toBe(false);
+  const form = programFormSchema.safeParse({ code: "X", name: "X", ageMin: "100", ageMax: "12" });
+  expect(form.success).toBe(false);
+  if (!form.success) expect(form.error.issues[0].path).toEqual(["ageMax"]);
+});
+
+it("preserves editable program codes in update payloads", () => {
+  expect(updateProgramSchema.parse({ code: "NEW" }).code).toBe("NEW");
+});

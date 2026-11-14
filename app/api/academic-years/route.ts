@@ -1,3 +1,5 @@
+import { hasPermission } from "@/lib/permissions";
+import { requirePermission } from "@/lib/auth-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
@@ -13,6 +15,9 @@ export const revalidate = 86400; // 24h — academic years rarely change
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  if (!["academic.view", "students.view", "invoices.view", "fees.view", "admissions.view", "curriculum.read"].some((permission) => hasPermission(session, permission))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   // HR-16: only admin screens fetch academic years over the API.
   if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
@@ -27,10 +32,9 @@ export async function POST(req: NextRequest) {
   const { success } = rateLimit(`create-academic-year:${getClientIp(req)}`, 5, 60_000);
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const parsed = await validateBody(createAcademicYearSchema, await req.json().catch(() => null));
   if (parsed.error) return parsed.error;
