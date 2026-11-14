@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
@@ -39,5 +39,26 @@ describe("ReportCardsList — 'Diterbitkan' on the Asia/Jakarta day", () => {
   it("falls back to 'Sudah terbit' without a publish date", () => {
     render(<ReportCardsList data={[latest(), card({ publishedAt: null })]} studentId="s1" />);
     expect(screen.getByText("Sudah terbit")).toBeInTheDocument();
+  });
+});
+
+
+describe("ReportCardsList reader", () => {
+  it("starts with child and period focused, keeps PDF available, and reopens at the beginning", async () => {
+    const openPdf = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<ReportCardsList data={[card({ sections: [{ label: "Perkembangan", narrative: "Narasi panjang. ".repeat(1000), level: null }] })]} studentId="s1" childName="Aisyah" />);
+    fireEvent.click(screen.getByRole("button", { name: "Buka rapor" }));
+    const title = await screen.findByRole("heading", { name: "Rapor — Aisyah" });
+    await waitFor(() => expect(title).toHaveFocus());
+    const viewport = document.querySelector('[data-slot="scroll-area-viewport"]')!;
+    viewport.scrollTop = 2000;
+    fireEvent.click(screen.getByRole("button", { name: "Unduh PDF" }));
+    expect(openPdf).toHaveBeenCalledWith("/api/guardian/report-cards/s1/t1/pdf", "_blank");
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Buka rapor" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Rapor — Aisyah" })).toHaveFocus());
+    expect(document.querySelector('[data-slot="scroll-area-viewport"]')?.scrollTop).toBe(0);
+    openPdf.mockRestore();
   });
 });

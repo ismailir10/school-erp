@@ -154,3 +154,69 @@ describe("NoteComposeDialog length cap (TCHX-16)", () => {
     expect(box.className).toContain("[overflow-wrap:anywhere]");
   });
 });
+
+
+describe("NoteComposeDialog child and school date", () => {
+  it("uses the latest available school day when today is outside the displayed week", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    setup({ childName: "Aisyah", audience: "parent", weekDates: ["2020-11-09", "2020-11-10", "2020-11-13"], initialDate: undefined });
+    expect(screen.getByRole("heading", { name: "Tulis catatan untuk Aisyah" })).toBeInTheDocument();
+    expect(screen.getByText(/Anak: Aisyah.*dibaca Ustadzah/)).toBeInTheDocument();
+    expect(screen.getByText(/Catatan untuk 13 Nov 2020, bukan hari ini/)).toBeInTheDocument();
+    type("Kegiatan di rumah");
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ studentId: "stu-1", date: "2020-11-13" });
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the original date when editing an older note outside the visible week", () => {
+    setup({ mode: "edit", childName: "Aisyah", initialDate: "2020-11-02", initialBody: "Catatan lama", noteId: "old-note" });
+    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.getByText(/Catatan untuk 2 Nov 2020, bukan hari ini/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Isi catatan")).toHaveValue("Catatan lama");
+  });
+});
+
+
+it("preserves a draft when the same school week is refetched as a new array", () => {
+  const props = { open: true, onOpenChange: vi.fn(), mode: "create" as const, studentId: "stu-1", onSaved: vi.fn() };
+  const { rerender } = render(<NoteComposeDialog {...props} weekDates={["2020-11-09", "2020-11-13"]} />);
+  type("Draft yang belum disimpan");
+  rerender(<NoteComposeDialog {...props} weekDates={["2020-11-09", "2020-11-13"]} />);
+  expect(screen.getByLabelText("Isi catatan")).toHaveValue("Draft yang belum disimpan");
+});
+
+it("retains a failed-save draft and retries without a false delivery or close", async () => {
+  const fetchMock = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ ok: true });
+  vi.stubGlobal("fetch", fetchMock);
+  const { onSaved, onOpenChange } = setup({ childName: "Aisyah" });
+  type("Catatan yang perlu diterima Ustadzah");
+  fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Koneksi terputus");
+  expect(screen.getByLabelText("Isi catatan")).toHaveValue("Catatan yang perlu diterima Ustadzah");
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(onOpenChange).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
+  vi.unstubAllGlobals();
+});
+
+
+it("explains forbidden saves without offering a futile retry or losing the draft", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: "Forbidden" }) }));
+  const { onSaved, onOpenChange } = setup({ childName: "Aisyah" });
+  type("Catatan tetap tersedia");
+  fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Hubungi admin sekolah.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/Forbidden|Coba Simpan lagi/);
+  expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
+  expect(screen.getByLabelText("Isi catatan")).toHaveValue("Catatan tetap tersedia");
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(onOpenChange).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
+});

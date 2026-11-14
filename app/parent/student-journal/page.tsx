@@ -543,6 +543,7 @@ export default function ParentStudentJournalPage() {
           }}
           mode={noteDialog?.mode ?? "create"}
           studentId={childId}
+          childName={selectedChildLabel ?? undefined}
           weekDates={dates}
           audience="parent"
           initialDate={
