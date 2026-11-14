@@ -165,8 +165,13 @@ test.describe("FieldLabel required asterisk", () => {
       hasText: "Nama Lengkap",
     }).first();
     await expect(namaLabel).toHaveAttribute("data-required", "true");
-    await expect(namaLabel).toHaveAttribute("aria-required", "true");
+    const namaInput = dialog.getByRole("textbox", { name: "Nama Lengkap", exact: true });
+    await expect(namaInput).toHaveAttribute("aria-required", "true");
+    await expect(namaInput).toHaveAccessibleName("Nama Lengkap");
+    await expect(namaLabel).toHaveAttribute("for", await namaInput.getAttribute("id") as string);
+    await expect(namaLabel).not.toHaveAttribute("aria-required");
     await expect(namaLabel.locator('span[aria-hidden="true"]')).toHaveText("*");
+    await expect(namaLabel.locator('span[aria-hidden="true"]')).toBeVisible();
   });
 });
 

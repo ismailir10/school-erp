@@ -22,7 +22,6 @@ import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Users, UserCheck, UserX } from "lucide-react";
@@ -171,6 +170,7 @@ const columns: ColumnDef<Guardian>[] = [
 
 export default function GuardiansPage() {
   const listRequest = useRef(0);
+  const [restoredList, setRestoredList] = useState(false);
   const [data, setData] = useState<Guardian[]>([]);
   const [canEdit, setCanEdit] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
@@ -180,6 +180,30 @@ export default function GuardiansPage() {
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [stats, setStats] = useState<{ total: number; active: number; inactive: number } | null>(null);
+
+  // A per-tab list snapshot survives both browser Back and the detail page's
+  // explicit list link. Storage is optional; filtering still works without it.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("admin.guardians.listState") ?? "null");
+      if (saved && typeof saved === "object") {
+        if (typeof saved.search === "string") setSearch(saved.search);
+        if (["all", "ACTIVE", "INACTIVE"].includes(saved.status)) setStatus(saved.status);
+        if (["name", "email", "phone", "createdAt"].includes(saved.sortBy)) setSortBy(saved.sortBy);
+        if (["asc", "desc"].includes(saved.sortOrder)) setSortOrder(saved.sortOrder);
+        if ([10, 20, 50, 100].includes(saved.pageSize)) setPagination(p => ({ ...p, pageSize: saved.pageSize }));
+        if (Number.isInteger(saved.page) && saved.page > 0) setPagination(p => ({ ...p, page: saved.page }));
+      }
+    } catch { /* Storage can be unavailable or contain an obsolete snapshot. */ }
+    setRestoredList(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restoredList) return;
+    try {
+      sessionStorage.setItem("admin.guardians.listState", JSON.stringify({ search, status, sortBy, sortOrder, page: pagination.page, pageSize: pagination.pageSize }));
+    } catch { /* Storage is optional. */ }
+  }, [restoredList, search, status, sortBy, sortOrder, pagination.page, pagination.pageSize]);
 
   const editRequest = useRef(0);
   const [editLoad, setEditLoad] = useState<"loading" | "ready" | "error">("loading");
@@ -230,9 +254,9 @@ export default function GuardiansPage() {
 
   useEffect(() => {
     const requests = listRequest;
-    fetchGuardians();
+    if (restoredList) fetchGuardians();
     return () => { ++requests.current; };
-  }, [fetchGuardians]);
+  }, [fetchGuardians, restoredList]);
 
   const handleSearchChange = useCallback((value: string) => { setSearch(value); setPagination(p => ({ ...p, page: 1 })); }, []);
   const handleStatusChange = useCallback((value: string) => { setStatus(value); setPagination(p => ({ ...p, page: 1 })); }, []);
@@ -386,8 +410,6 @@ export default function GuardiansPage() {
     [canEdit],
   );
 
-  if (loading && data.length === 0) return <Skeleton className="h-96 rounded-xl" />;
-
   return (
     <>
       <PageHeader title="Wali Murid" description="Kelola data wali murid dan hubungannya dengan siswa." />
@@ -403,6 +425,7 @@ export default function GuardiansPage() {
 
       <DataTableToolbar
         searchPlaceholder="Cari nama, email, atau telepon..."
+        value={search}
         onSearchChange={handleSearchChange}
         filters={[
           {
@@ -422,7 +445,7 @@ export default function GuardiansPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
-        defaultSort={{ field: "name", order: "asc" }}
+        defaultSort={{ field: sortBy, order: sortOrder }}
         loading={loading}
         isFiltered={!!search.trim() || status !== "all"}
         emptyTitle="Belum ada wali terdaftar"

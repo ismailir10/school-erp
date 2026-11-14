@@ -66,7 +66,7 @@ function adminSession(): Session {
     name: "A",
     employeeId: null,
     parentId: null,
-    permissions: ["students.create", "students.edit"],
+    permissions: ["students.view", "students.create", "students.edit"],
     customRoleCode: null,
   };
 }

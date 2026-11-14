@@ -16,6 +16,8 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+beforeEach(() => { sessionStorage.clear(); });
+
 const guardian = {
   id: "g1",
   name: "Ibu Fatimah",
@@ -416,4 +418,33 @@ describe("Guardian filtered empty state", () => {
     await user.clear(search);
     expect(await screen.findByRole("link", { name: "Ibu Fatimah" })).toBeInTheDocument();
   });
+});
+
+describe("guardian list context recovery", () => {
+ it("keeps search through an empty status filter and restores it on remount", async () => {
+  const user = userEvent.setup();
+  const fallback = stubFetch();
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+   const url = new URL(String(input), "http://localhost");
+   if (url.searchParams.get("status") === "INACTIVE" && url.searchParams.get("pageSize") !== "1") return Promise.resolve({ ok: true, json: async () => ({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } }) } as Response);
+   return fallback(input);
+  }));
+  const view = render(<GuardiansPage />);
+  await screen.findByRole("link", { name: "Ibu Fatimah" });
+  const search = screen.getByPlaceholderText("Cari nama, email, atau telepon...");
+  await user.type(search, "Fatimah");
+  await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+  await user.click(await screen.findByRole("option", { name: "Tidak Aktif" }));
+  await screen.findByText("Tidak ada hasil yang cocok");
+  expect(search).toHaveValue("Fatimah");
+  await user.click(screen.getByRole("combobox", { name: "Filter Status" }));
+  await user.click(await screen.findByRole("option", { name: "Aktif" }));
+  await screen.findByRole("link", { name: "Ibu Fatimah" });
+  expect(search).toHaveValue("Fatimah");
+  view.unmount();
+  render(<GuardiansPage />);
+  await screen.findByRole("link", { name: "Ibu Fatimah" });
+  expect(screen.getByPlaceholderText("Cari nama, email, atau telepon...")).toHaveValue("Fatimah");
+  expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Aktif");
+ });
 });

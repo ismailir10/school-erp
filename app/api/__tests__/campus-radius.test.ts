@@ -20,7 +20,7 @@ import { PUT } from "../config/campuses/[id]/route";
 
 const ADMIN: SessionUser = {
   id: "u1", email: "a@t.local", name: "Admin", role: "SCHOOL_ADMIN", tenantId: "t-1",
-  employeeId: null, parentId: null, permissions: [], customRoleCode: null,
+  employeeId: null, parentId: null, permissions: ["settings.edit", "academic.edit"], customRoleCode: null,
 };
 const req = (method: string, body: unknown) =>
   new Request("http://localhost/api/x", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) as never;
@@ -57,4 +57,12 @@ describe("campus radiusMeters", () => {
     await PUT(req("PUT", { status: "ACTIVE" }), params);
     expect(db.campus.update.mock.calls[1][0].data.radiusMeters).toBeUndefined();
   });
+});
+
+it("denies campus mutations to a read-only academic administrator before any write", async () => {
+ vi.mocked(getSession).mockResolvedValue({ ...ADMIN, permissions: ["academic.view"] });
+ expect((await POST(req("POST", { name: "K" }))).status).toBe(403);
+ expect((await PUT(req("PUT", { name: "K" }), params)).status).toBe(403);
+ expect(db.campus.create).not.toHaveBeenCalled();
+ expect(db.campus.update).not.toHaveBeenCalled();
 });

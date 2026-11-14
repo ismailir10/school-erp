@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { usePermission } from "@/hooks/use-permission";
+
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -42,6 +44,7 @@ type StatusFilter = "all" | "ACTIVE" | "INACTIVE";
 const EMPTY_FORM = { name: "", address: "", lat: "", lng: "", radiusMeters: "50" };
 
 export default function CampusesPage() {
+  const canEdit = usePermission("settings.edit");
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -55,20 +58,24 @@ export default function CampusesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [query, setQuery] = useState("");
 
+  const requestSequence = useRef(0);
   const fetchCampuses = useCallback(async (filter: StatusFilter) => {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     setLoadFailed(false);
     const param = filter === "all" ? "ALL" : filter;
     try {
       const res = await fetch(`/api/config/campuses?status=${param}`);
       if (!res.ok) throw new Error("load failed");
-      setCampuses(await res.json());
+      const rows = await res.json();
+      if (sequence === requestSequence.current) setCampuses(rows);
     } catch (err) {
+      if (sequence !== requestSequence.current) return;
       console.error(err);
       setLoadFailed(true);
       toast.error(MESSAGES.loadFailed("Daftar kampus"));
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
   }, []);
 
@@ -211,16 +218,16 @@ export default function CampusesPage() {
           return (
             <DataTableRowActions
               rowLabel={c.name}
-              onEdit={isActive ? () => openEdit(c) : undefined}
-              onDeactivate={isActive ? () => setDeleteTarget(c) : undefined}
-              onActivate={!isActive ? () => handleReactivate(c) : undefined}
+              onEdit={canEdit && isActive ? () => openEdit(c) : undefined}
+              onDeactivate={canEdit && isActive ? () => setDeleteTarget(c) : undefined}
+              onActivate={canEdit && !isActive ? () => handleReactivate(c) : undefined}
               isActive={isActive}
             />
           );
         },
       },
     ],
-    [openEdit, handleReactivate],
+    [openEdit, handleReactivate, canEdit],
   );
 
   return (
@@ -228,7 +235,7 @@ export default function CampusesPage() {
       <PageHeader
         title="Kampus"
         description="Kelola lokasi kampus/cabang sekolah"
-        actions={
+        actions={canEdit &&
           <Button onClick={openNew} size="sm">
             <Plus size={14} data-icon="inline-start" /> Tambah Kampus
           </Button>
@@ -279,7 +286,7 @@ export default function CampusesPage() {
         // page, so the empty-state CTA mirrors it unconditionally. Only
         // offered on the ACTIVE/default view; "Tidak ada kampus nonaktif"
         // isn't a place to create a new (active) campus from.
-        emptyAction={statusFilter !== "INACTIVE" ? { label: "Tambah Kampus", onClick: openNew } : undefined}
+        emptyAction={canEdit && statusFilter !== "INACTIVE" ? { label: "Tambah Kampus", onClick: openNew } : undefined}
       />
       )}
 

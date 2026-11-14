@@ -179,6 +179,18 @@ function FormFieldLayout<
   }, [registerRef, id])
 
   const invalid = fieldState.invalid
+  // Focus alone only reveals the control. In a docked-footer dialog the
+  // explanation can remain below the scroll viewport, so reveal the whole
+  // field once the error message has committed to the DOM.
+  React.useEffect(() => {
+    const fieldElement = fieldRef.current
+    if (!invalid || !fieldElement?.contains(document.activeElement)) return
+    const frame = requestAnimationFrame(() => {
+      if (!fieldElement.contains(document.activeElement)) return
+      fieldElement.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [invalid, fieldState.error?.message])
   const descriptionId = description ? `${id}-description` : undefined
   const errorId = invalid ? `${id}-error` : undefined
   const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined

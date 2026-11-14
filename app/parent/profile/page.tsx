@@ -186,7 +186,7 @@ export default async function ParentProfilePage({ searchParams }: {
       {/* The old literal read "v3.4.2" while package.json said 0.1.0 — a
           number nobody could act on. The deploy sha is the thing support
           actually asks for, and it is absent locally, where it is noise. */}
-      <p className="pt-4 text-center text-xs text-muted-foreground/70">
+      <p className="pt-4 text-center text-xs text-muted-foreground">
         Talib · An Nisaa&apos; Sekolahku
         {buildRef ? <span className="ml-1">· {buildRef}</span> : null}
       </p>

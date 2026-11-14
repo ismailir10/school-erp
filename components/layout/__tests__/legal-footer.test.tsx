@@ -12,9 +12,9 @@ describe("LegalFooter", () => {
     expect(screen.getByText(`© ${new Date().getFullYear()} An Nisaa' Sekolahku`)).toBeInTheDocument()
   })
 
-  it("keeps the dark-shell default unchanged (xs links, sidebar tone)", () => {
+  it("uses opaque sidebar ink for readable dark-shell links", () => {
     render(<LegalFooter />)
-    expect(screen.getByRole("contentinfo").className).toContain("text-sidebar-foreground/70")
+    expect(screen.getByRole("contentinfo").className).toContain("text-sidebar-foreground")
     const link = screen.getByRole("link", { name: "Kebijakan Privasi" })
     expect(link.className).toContain("hover:text-white")
     expect(link.className).not.toContain("text-sm")

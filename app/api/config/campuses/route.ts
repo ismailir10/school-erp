@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
   // HR-16: campus coordinates and employee counts are read by admin screens only.
-  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
+  if (!isAdminRole(session.role) || !(hasPermission(session, "settings.view") || hasPermission(session, "academic.view") || hasPermission(session, "students.view") || hasPermission(session, "employees.view") || hasPermission(session, "attendance.view") || hasPermission(session, "invoices.view"))) return NextResponse.json([], { status: 403 });
 
   // FIND-004: support an optional `?status=` query so the Campus page can
   // surface deactivated rows for the reactivate flow. Default remains ACTIVE
@@ -43,11 +44,11 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "settings.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await validateBody(createCampusSchema, await req.json());
+  const result = await validateBody(createCampusSchema, await req.json().catch(() => null));
   if (result.error) return result.error;
   const { name, address, lat, lng, radiusMeters } = result.data;
 

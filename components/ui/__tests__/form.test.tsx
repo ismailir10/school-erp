@@ -338,3 +338,19 @@ describe("FormDialogFooter", () => {
     expect(submit).toHaveAttribute("form", "my-form");
   });
 });
+
+it("reveals the full focused invalid field including its error explanation", async () => {
+ const scroll = vi.fn();
+ const original = HTMLElement.prototype.scrollIntoView;
+ HTMLElement.prototype.scrollIntoView = scroll;
+ try {
+  render(<Harness onSubmit={vi.fn()} />);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Kirim" }));
+  const input = screen.getByRole("textbox", { name: /Nama/ });
+  await waitFor(() => expect(input).toHaveFocus());
+  await waitFor(() => expect(scroll).toHaveBeenCalled());
+  const field = scroll.mock.instances.find((element) => element instanceof HTMLElement && element.contains(input));
+  expect(field).toHaveTextContent("Nama wajib diisi");
+  expect(scroll).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+ } finally { HTMLElement.prototype.scrollIntoView = original; }
+});

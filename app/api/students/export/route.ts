@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (!session?.tenantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -72,7 +72,7 @@ const APPLICATION = {
 };
 
 beforeEach(() => {
-  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
+  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "admissions.view"] };
   state.application = { ...APPLICATION };
   state.lastQuery = null;
 });
@@ -151,7 +151,7 @@ describe("GET /api/students/[id]/enrollment-application", () => {
 
   it("canEditDocuments follows admissions.edit", async () => {
     expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(false);
-    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view", "admissions.edit"] };
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "admissions.view", "admissions.edit"] };
     expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
     state.session = { id: "u1", role: "SUPER_ADMIN", tenantId: "t1" };
     expect((await (await GET(req(), ctx())).json()).data.canEditDocuments).toBe(true);
@@ -172,7 +172,7 @@ describe("GET /api/students/[id]/enrollment-application", () => {
   });
 
   it("shows documents read-only to an admissions viewer", async () => {
-    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["admissions.view"] };
+    state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "admissions.view"] };
     const body = await (await GET(req(), ctx())).json();
     expect(body.data.documents.kk).toMatchObject({ hasFile: true });
     expect(body.data.canEditDocuments).toBe(false);

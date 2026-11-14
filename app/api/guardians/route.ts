@@ -7,7 +7,7 @@ import { paginatedResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

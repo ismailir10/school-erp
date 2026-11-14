@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -9,7 +10,7 @@ export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
   // HR-16: only the admin holiday / employee-attendance screens call this.
-  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
+  if (!isAdminRole(session.role) || !(hasPermission(session, "settings.view") || hasPermission(session, "attendance.view"))) return NextResponse.json([], { status: 403 });
 
   const holidays = await prisma.holiday.findMany({
     where: { tenantId: session.tenantId },
@@ -26,11 +27,11 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "settings.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const parsed = holidaySchema.safeParse(await req.json());
+  const parsed = holidaySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },

@@ -19,7 +19,7 @@ export function LegalFooter({
       className={cn(
         "mt-8 flex flex-col items-center gap-2 text-xs",
         // onLight: --muted-foreground (#57534E) is 7.6:1 on --card; the © line keeps it.
-        onDark ? "text-sidebar-foreground/70" : "text-muted-foreground",
+        onDark ? "text-sidebar-foreground" : "text-muted-foreground",
         className,
       )}
     >

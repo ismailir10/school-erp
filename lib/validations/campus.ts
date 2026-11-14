@@ -43,7 +43,7 @@ const nullableCoordinate = (inner: z.ZodType<number>) =>
   z.preprocess((v) => (v === "" ? null : v), inner.optional().nullable());
 
 export const updateCampusSchema = z.object({
-  name: z.string().min(1, "Nama wajib diisi").max(120).optional(),
+  name: z.string().trim().min(1, "Nama wajib diisi").max(120).optional(),
   address: z.string().max(500).optional().nullable(),
   lat: nullableCoordinate(latitude),
   lng: nullableCoordinate(longitude),
