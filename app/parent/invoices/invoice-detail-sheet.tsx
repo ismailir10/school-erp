@@ -299,7 +299,7 @@ export function InvoiceDetailSheet({
       <div className="flex items-start gap-2">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          Bila link belum bisa dibuat, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
+          Bila pembayaran belum bisa dibuka, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
           pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
         </span>
       </div>

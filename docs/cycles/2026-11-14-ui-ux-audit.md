@@ -200,6 +200,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
 - Review fixes (R1): no-link "pending" invoices get the same create-and-go button; the button stays busy after navigating; the pay URL must be `https`; staff-attendance campus is read from the URL on every render, so back and forward stay in sync; two small cleanups. Vitest on the touched dirs: 205 passed; tsc clean.
 - Verify round 1: `e2e/mobile-layout.spec.ts` flagged the parent profile child-name links at 20 px on a phone emulated without touch. The coarse-pointer-only target missed it. The link is now always `min-h-11`, like the Kehadiran link beside it.
 - Verify round 1, browser walk: the T8 breadcrumb alias linked "Kelas" and "Siswa" crumbs to `/admin/student-journal/{classes,students}`, which have no index page; the RSC prefetch returned 404. Known alias crumbs are now plain labels, and only the enrollment-form alias, a real page, stays a link.
+- Verify round 2: the parent sheet note still said "Bila link belum bisa dibuat"; parents no longer see a "link" step, so it now reads "Bila pembayaran belum bisa dibuka".
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
