@@ -44,6 +44,8 @@ export type PerkembanganPayload = {
   hasActiveWeek: boolean;
 };
 
+type PerkembanganPreview = Pick<PerkembanganPayload, "latestThisWeek" | "hasActiveWeek">;
+
 const ELEMENT_ORDER = [
   "RELIGIOUS_MORAL",
   "IDENTITY",
@@ -99,15 +101,7 @@ export async function loadStudentPerkembangan(
   tenantId: string,
   studentId: string,
 ): Promise<PerkembanganPayload> {
-  const semester = await prisma.semester.findFirst({
-    where: { tenantId, status: "ACTIVE" },
-    orderBy: { startDate: "desc" },
-    select: {
-      id: true,
-      number: true,
-      academicYear: { select: { id: true, name: true } },
-    },
-  });
+  const semester = await loadActiveSemester(tenantId);
   if (!semester) {
     return {
       semester: null,
@@ -117,33 +111,61 @@ export async function loadStudentPerkembangan(
     };
   }
 
-  // All assessment entries for this student whose indicator's objective
-  // belongs to the active semester. Tenant comes from session — we still
-  // tenant-scope the entry as defense in depth.
-  const entries = await prisma.assessmentEntry.findMany({
-    where: {
-      tenantId,
-      studentId,
-      indicator: { objective: { semesterId: semester.id } },
-    },
-    select: {
-      level: true,
-      indicator: {
-        select: {
-          content: true,
-          objective: { select: { element: true } },
-        },
+  // The detail page needs semester totals; Home uses only the bounded preview.
+  // These reads are independent once the active-semester gate has passed.
+  const [entries, preview] = await Promise.all([
+    prisma.assessmentEntry.findMany({
+      where: {
+        tenantId,
+        studentId,
+        indicator: { objective: { semesterId: semester.id } },
       },
+      select: {
+        level: true,
+        indicator: { select: { objective: { select: { element: true } } } },
+      },
+    }),
+    loadLatestThisWeek(tenantId, studentId),
+  ]);
+
+  return {
+    semester,
+    elements: aggregateByElement(entries.map((entry) => ({
+      element: entry.indicator.objective.element,
+      level: entry.level as PerkembanganLevel,
+    }))),
+    ...preview,
+  };
+}
+
+function loadActiveSemester(tenantId: string) {
+  return prisma.semester.findFirst({
+    where: { tenantId, status: "ACTIVE" },
+    orderBy: { startDate: "desc" },
+    select: {
+      id: true,
+      number: true,
+      academicYear: { select: { id: true, name: true } },
     },
   });
+}
 
-  const aggregateRows = entries.map((e) => ({
-    element: e.indicator.objective.element,
-    level: e.level as PerkembanganLevel,
-  }));
+/** Home's three-entry preview, without loading or aggregating semester history. */
+export async function loadStudentPerkembanganPreview(
+  tenantId: string,
+  studentId: string,
+): Promise<PerkembanganPreview> {
+  // Preserve the detail loader's gate: no active semester means no preview.
+  if (!await loadActiveSemester(tenantId)) {
+    return { latestThisWeek: [], hasActiveWeek: false };
+  }
+  return loadLatestThisWeek(tenantId, studentId);
+}
 
-  // Latest-this-week preview: cheap follow-up query so the rollup math
-  // above stays a single index scan.
+async function loadLatestThisWeek(
+  tenantId: string,
+  studentId: string,
+): Promise<PerkembanganPreview> {
   const todayUtc = parseJakartaYmd(getTodayInTimezone(JAKARTA_TZ));
   // The preview follows the child's own kelompok; no active class, no week.
   const studentGroup = (await getStudentAgeGroups(tenantId, [studentId])).get(
@@ -192,8 +214,6 @@ export async function loadStudentPerkembangan(
   }
 
   return {
-    semester,
-    elements: aggregateByElement(aggregateRows),
     latestThisWeek,
     hasActiveWeek: !!week,
   };

@@ -34,7 +34,7 @@ import {
 import { formatHijri } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
-import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
+import { loadStudentPerkembanganPreview } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_LONG } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
 
@@ -157,14 +157,10 @@ export default async function ParentDashboard() {
       select: { studentId: true, body: true, createdAt: true },
     }))),
     getParentOutstandingForStudents(kidIds, session.tenantId),
-    // Per-kid perkembangan rollup — drives the "Perkembangan pekan ini"
-    // card section below. Fan out across children in parallel; the
-    // loader itself is two cheap queries per kid (semester + entries
-    // joined on indicator.objective.semesterId), so the round-trip
-    // count stays bounded by the active-children count.
+    // Home needs only the latest three entries, not the full semester rollup.
     Promise.all(
       kidIds.map((id) =>
-        loadStudentPerkembangan(session.tenantId as string, id).then(
+        loadStudentPerkembanganPreview(session.tenantId as string, id).then(
           (data) => [id, data] as const,
         ),
       ),

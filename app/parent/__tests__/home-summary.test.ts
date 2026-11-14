@@ -6,7 +6,7 @@ vi.mock("@/lib/auth", () => ({ getSession: mocks.session }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
 vi.mock("@/lib/parent-helpers", () => ({ getParentWithChildren: mocks.family, getParentOutstandingForStudents: mocks.outstanding }));
 vi.mock("@/lib/db", () => ({ prisma: { studentAttendance: { findMany: mocks.attendance }, classSession: {findMany:mocks.sessions}, studentJournalNote: { findFirst: mocks.notes } } }));
-vi.mock("@/lib/curriculum/perkembangan-loader", () => ({ loadStudentPerkembangan: mocks.development }));
+vi.mock("@/lib/curriculum/perkembangan-loader", () => ({ loadStudentPerkembanganPreview: mocks.development }));
 vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: mocks.scheduled }));
 import ParentDashboard from "../page";
 
