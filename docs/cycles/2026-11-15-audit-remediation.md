@@ -55,6 +55,8 @@ Destructive migration, new dependency requiring a product tradeoff, live service
 
 - T1 delivered: Permission checks cover reads, writes, exports and private student documents; shared field, idle-expiry and contrast fixes are verified.
 
+- T2 delivered: Sticky invoice idempotency, tariff request isolation, stale payment recovery and completed billing-run state are verified.
+
 ## Finding closure ledger
 
 All rows below describe implemented behavior; final local verification is recorded separately. Original audit IDs remain stable.

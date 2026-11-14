@@ -240,3 +240,18 @@ it.each(["lost-response", "finished-in-another-request"])("confirms persisted co
   }
   await waitFor(() => expect(onCommitted).toHaveBeenCalledTimes(1));
 });
+
+
+it("persists completion before closing an all-skipped DRAFT", async () => {
+  const onCommitted = vi.fn();
+  const rows = [row("r-leave", "Siswa cuti", 0, { status: "SKIPPED_ON_LEAVE" })];
+  const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") return { ok: true, json: async () => ({ created: 0, skipped: 1, results: [] }) } as Response;
+    return { ok: true, json: async () => ({ ...runPayload(rows), status: "DRAFT" }) } as Response;
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<CommitStep runId="run-1" onClose={vi.fn()} onCommitted={onCommitted} onRebuilt={vi.fn()} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Selesai" }));
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith("/api/billing-runs/run-1/commit", expect.objectContaining({ method: "POST", body: JSON.stringify({ rowIds: ["r-leave"] }) })));
+  expect(onCommitted).toHaveBeenCalledOnce();
+});

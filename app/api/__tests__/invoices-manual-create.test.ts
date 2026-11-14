@@ -590,3 +590,77 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
     expect(txMock.invoice.create).toHaveBeenCalledTimes(3);
   });
 });
+
+
+describe("manual invoice lost-response idempotency", () => {
+  const key = "15ec6115-96bb-4af1-8bcd-c6748a73cacb";
+  it("replays an existing attempt without issuing another payment session", async () => {
+    const { createHash } = await import("node:crypto");
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    const hash = createHash("sha256").update(JSON.stringify(validBody)).digest("hex");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ id: "already-created", manualRequestHash: hash, lines: [] } as never);
+    const response = await POST(makeReq({ ...validBody, idempotencyKey: key }) as never);
+    expect(response.status).toBe(200);
+    expect((await response.json()).id).toBe("already-created");
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
+    expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
+  });
+  it("rejects changed details for an existing attempt", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ id: "already-created", manualRequestHash: "different", lines: [] } as never);
+    const response = await POST(makeReq({ ...validBody, idempotencyKey: key }) as never);
+    expect(response.status).toBe(409);
+    expect(txMock.invoice.create).not.toHaveBeenCalled();
+  });
+  it("replays the winning invoice after a same-key unique race", async () => {
+    const { createHash } = await import("node:crypto");
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s-1" } as never);
+    vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([{ id: "fc-1", label: "SPP" }, { id: "fc-2", label: "Seragam" }] as never);
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(null);
+    const hash = createHash("sha256").update(JSON.stringify(validBody)).digest("hex");
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "concurrent-winner", manualRequestHash: hash, lines: [] } as never);
+    txMock.$queryRaw.mockResolvedValue([{ lastNumber: 1 }]);
+    txMock.invoice.create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("unique request", { code: "P2002", clientVersion: "test" }));
+    const response = await POST(makeReq({ ...validBody, idempotencyKey: key }) as never);
+    expect(response.status).toBe(200);
+    expect((await response.json()).id).toBe("concurrent-winner");
+    expect(txMock.invoice.create).toHaveBeenCalledOnce();
+    expect(createPaymentSessionForInvoice).not.toHaveBeenCalled();
+  });
+});
+
+
+it("concurrent identical attempts resolve to one invoice and one gateway call", async () => {
+  const { getSession } = await import("@/lib/auth");
+  const { prisma } = await import("@/lib/db");
+  const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+  vi.mocked(getSession).mockResolvedValue(adminSession());
+  vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s-1" } as never);
+  vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([{ id: "fc-1", label: "SPP" }, { id: "fc-2", label: "Seragam" }] as never);
+  vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(null);
+  let persisted: Record<string, unknown> | null = null;
+  vi.mocked(prisma.invoice.findUnique).mockImplementation(() => Promise.resolve(persisted) as never);
+  txMock.$queryRaw.mockResolvedValue([{ lastNumber: 1 }]);
+  txMock.invoice.create.mockImplementation(async ({ data }) => {
+    if (persisted) throw new Prisma.PrismaClientKnownRequestError("unique request", { code: "P2002", clientVersion: "test" });
+    persisted = { ...data, id: "only-invoice", lines: [] };
+    return { id: "only-invoice" };
+  });
+  vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({ paymentUrl: "https://pay.test/one", created: true });
+  vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+  const body = { ...validBody, idempotencyKey: "20ba166f-cb08-4688-9f47-e5112a0b4a58" };
+  const responses = await Promise.all([POST(makeReq(body) as never), POST(makeReq(body) as never)]);
+  expect(responses.map(r => r.status).sort()).toEqual([200, 201]);
+  const invoices = await Promise.all(responses.map(r => r.json()));
+  expect(invoices.map(i => i.id)).toEqual(["only-invoice", "only-invoice"]);
+  expect(createPaymentSessionForInvoice).toHaveBeenCalledOnce();
+});

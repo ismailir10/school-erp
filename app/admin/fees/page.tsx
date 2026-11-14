@@ -1,7 +1,8 @@
 "use client";
 
+import { hasPermission } from "@/lib/permissions";
 import { MESSAGES } from "@/lib/feedback";
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Coins, Plus, Save } from "lucide-react";
@@ -49,15 +50,16 @@ const CATEGORY_LABELS: Record<string, string> = { TUITION: "SPP", REGISTRATION: 
 type TarifContextValue = {
   amounts: Record<string, number>;
   setAmount: (componentId: string, amount: number) => void;
+  canEdit: boolean;
 };
-const TarifContext = createContext<TarifContextValue>({ amounts: {}, setAmount: () => {} });
+const TarifContext = createContext<TarifContextValue>({ amounts: {}, setAmount: () => {}, canEdit: false });
 
 function TarifCell({ component: c }: { component: FeeComponent }) {
-  const { amounts, setAmount } = useContext(TarifContext);
+  const { amounts, setAmount, canEdit } = useContext(TarifContext);
   // Inactive-but-stored rows are read-only — editing them would let an
   // admin change an amount `saveStructure()` never sends, which would
   // look saved but silently do nothing.
-  if (!c.isEnabled) {
+  if (!c.isEnabled || !canEdit) {
     return (
       <div className="text-right font-currency text-sm tabular-nums text-muted-foreground">
         {formatRupiah(amounts[c.id] ?? 0)}
@@ -124,7 +126,9 @@ export default function FeesPage() {
   const [components, setComponents] = useState<FeeComponent[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
+  const [canEdit, setCanEdit] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [componentDialog, setComponentDialog] = useState(false);
   const [editingFee, setEditingFee] = useState<FeeComponent | null>(null);
   const [componentSearch, setComponentSearch] = useState("");
@@ -152,8 +156,12 @@ export default function FeesPage() {
   // and gate "Simpan Tarif". Same JSON.stringify-equality approach as
   // app/admin/report-cards/raport-editor.tsx's `isDirty`.
   const [structureBaseline, setStructureBaseline] = useState<Record<string, number>>({});
+  const structureRequest = useRef(0);
+  const [loadedStructureKey, setLoadedStructureKey] = useState("");
+  const [structureError, setStructureError] = useState(false);
   const [structureLoading, setStructureLoading] = useState(false);
   const [structureSaving, setStructureSaving] = useState(false);
+  const [structureSaveError, setStructureSaveError] = useState<string | null>(null);
   // Set when the admin picks a different program/year while `structureDirty`
   // is true — gates the switch behind a ConfirmDialog instead of letting
   // `fetchStructure()`'s effect silently overwrite the unsaved amounts.
@@ -166,19 +174,25 @@ export default function FeesPage() {
   const [bundleRefreshKey, setBundleRefreshKey] = useState(0);
 
   async function fetchAll() {
+    setLoading(true);
+    setLoadError(false);
     try {
-      const [cRes, pRes, yRes] = await Promise.all([
+      const [cRes, pRes, yRes, meRes] = await Promise.all([
         fetch("/api/fee-components"),
         fetch("/api/programs"),
         fetch("/api/academic-years"),
+        fetch("/api/auth/me"),
       ]);
       if (!cRes.ok || !pRes.ok || !yRes.ok) {
+        setLoadError(true);
         toast.error(MESSAGES.loadFailed("Data biaya"));
         return;
       }
       const [c, p, y] = await Promise.all([cRes.json(), pRes.json(), yRes.json()]);
       setComponents(c); setPrograms(p); setYears(y);
+      if (meRes.ok) setCanEdit(hasPermission(await meRes.json(), "fees.edit"));
     } catch {
+      setLoadError(true);
       toast.error(MESSAGES.loadFailed("Data biaya"));
     } finally {
       setLoading(false);
@@ -250,11 +264,20 @@ export default function FeesPage() {
 
   async function fetchStructure() {
     if (!selectedProgram || !selectedYear) return;
+    const request = ++structureRequest.current;
+    setLoadedStructureKey("");
+    setStructures([]);
+    setStructureAmounts({});
+    setStructureBaseline({});
+    setStructureError(false);
+    setStructureSaveError(null);
     setStructureLoading(true);
     try {
       const res = await fetch(`/api/fee-structure?programId=${selectedProgram}&academicYearId=${selectedYear}`);
-      if (!res.ok) { toast.error(MESSAGES.loadFailed("Struktur biaya")); return; }
+      if (!res.ok) throw new Error("load failed");
       const data: FeeStructure[] = await res.json();
+      if (request !== structureRequest.current) return;
+      setLoadedStructureKey(`${selectedProgram}:${selectedYear}`);
       setStructures(data);
       const amounts: Record<string, number> = {};
       // API returns Prisma Decimal serialized as string — coerce on ingest.
@@ -262,9 +285,11 @@ export default function FeesPage() {
       setStructureAmounts(amounts);
       setStructureBaseline(amounts);
     } catch {
+      if (request !== structureRequest.current) return;
+      setStructureError(true);
       toast.error(MESSAGES.loadFailed("Struktur biaya"));
     } finally {
-      setStructureLoading(false);
+      if (request === structureRequest.current) setStructureLoading(false);
     }
   }
 
@@ -272,6 +297,7 @@ export default function FeesPage() {
   useEffect(() => { fetchStructure(); }, [selectedProgram, selectedYear]);
 
   async function saveStructure() {
+    if (!canEdit || loadedStructureKey !== `${selectedProgram}:${selectedYear}` || structureLoading || structureError) return;
     // FIN-5: catch an oversized tarif here with the component named, instead
     // of a server round trip that used to end in a bare "Gagal menyimpan".
     const tooBig = components.find((c) => c.isEnabled && (structureAmounts[c.id] ?? 0) > MAX_FEE_AMOUNT);
@@ -280,18 +306,26 @@ export default function FeesPage() {
       return;
     }
     setStructureSaving(true);
+    setStructureSaveError(null);
     // Unchanged payload shape — inactive components are read-only in the UI
     // (see `storedIds` below) and are deliberately never sent here,
     // so their previously-saved amount is left untouched by this PUT.
     const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
-    const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
-    if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); setBundleRefreshKey((k) => k + 1); }
-    else {
-      // Show the server's reason (e.g. nominal too large) rather than a bare failure.
-      const d = await res.json().catch(() => ({}));
-      toast.error(typeof d.error === "string" && d.error ? d.error : "Gagal menyimpan struktur biaya");
-    }
-    setStructureSaving(false);
+    try {
+      const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
+      if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); setBundleRefreshKey((k) => k + 1); }
+      else {
+        // Show the server's reason (e.g. nominal too large) rather than a bare failure.
+        const d = await res.json().catch(() => ({}));
+        const message = typeof d.error === "string" && d.error ? d.error : "Gagal menyimpan struktur biaya";
+        setStructureSaveError(message);
+        toast.error(message);
+      }
+    } catch {
+      const message = "Gagal menyimpan struktur biaya. Perubahan tetap tersimpan di formulir, coba lagi.";
+      setStructureSaveError(message);
+      toast.error(message);
+    } finally { setStructureSaving(false); }
   }
 
   // Components that were deactivated but still carry a saved fee-structure
@@ -328,8 +362,8 @@ export default function FeesPage() {
     [],
   );
   const tarifContext = useMemo(
-    () => ({ amounts: structureAmounts, setAmount: setTarifAmount }),
-    [structureAmounts, setTarifAmount],
+    () => ({ amounts: structureAmounts, setAmount: setTarifAmount, canEdit }),
+    [structureAmounts, setTarifAmount, canEdit],
   );
 
   // Program/year Select handlers — go straight through when there's nothing
@@ -398,7 +432,7 @@ export default function FeesPage() {
     },
     {
       id: "actions",
-      cell: ({ row }) => (
+      cell: ({ row }) => canEdit ? (
         <DataTableRowActions
           rowLabel={row.original.label}
           onEdit={() => openEditFee(row.original)}
@@ -406,11 +440,12 @@ export default function FeesPage() {
           onActivate={!row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
           isActive={row.original.isEnabled}
         />
-      ),
+      ) : null,
     },
-  ], [openEditFee, toggleComponent]);
+  ], [openEditFee, toggleComponent, canEdit]);
 
   if (loading) return <Skeleton className="h-96 rounded-xl" />;
+  if (loadError) return <div role="alert" className="space-y-3"><p>Data biaya gagal dimuat.</p><Button variant="outline" onClick={fetchAll}>Coba Lagi</Button></div>;
 
   const filteredComponents = components.filter((c) => {
     const q = componentSearch.trim().toLowerCase();
@@ -473,7 +508,7 @@ export default function FeesPage() {
                 ],
               },
             ]}
-            actions={
+            actions={canEdit &&
               <Button
                 size="sm"
                 onClick={() => {
@@ -516,7 +551,9 @@ export default function FeesPage() {
               actionLabel="Buka Tahun Ajaran & Program"
               actionHref="/admin/academic-years"
             />
-          ) : structureLoading || !selectedProgram || !selectedYear ? (
+          ) : structureError ? (
+            <div role="alert"><p>Struktur biaya gagal dimuat.</p><Button variant="outline" onClick={fetchStructure}>Coba Lagi</Button></div>
+          ) : structureLoading || loadedStructureKey !== `${selectedProgram}:${selectedYear}` || !selectedProgram || !selectedYear ? (
             <Skeleton className="h-40 rounded-xl" />
           ) : (
             <>
@@ -526,12 +563,13 @@ export default function FeesPage() {
                     {structureDirty && (
                       <span className="text-xs text-muted-foreground">Ada perubahan belum disimpan</span>
                     )}
-                    <Button size="sm" onClick={saveStructure} disabled={structureSaving || !structureDirty}>
+                    <Button size="sm" onClick={saveStructure} disabled={!canEdit || structureSaving || !structureDirty}>
                       <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Tarif"}
                     </Button>
                   </div>
                 }
               />
+              {structureSaveError && <p role="alert" className="mb-3 text-sm text-destructive">{structureSaveError}</p>}
               <TarifContext.Provider value={tarifContext}>
                 <DataTable
                   columns={STRUCTURE_COLUMNS}
@@ -563,7 +601,7 @@ export default function FeesPage() {
 
         {/* Keringanan — durable per-student fee adjustments (Cycle A) */}
         <AdminTabsContent value="keringanan">
-          <KeringananTab />
+          <KeringananTab canEdit={canEdit} />
         </AdminTabsContent>
       </AdminTabs>
 

@@ -62,9 +62,13 @@ const BUNDLE_INPUT = "Harga paket SPP Bulanan, Program Aktif + Day Care";
 // `fetchStructure()` fetch + re-render it triggers in the background) never
 // fires. Without this, that unrelated re-render intermittently races the
 // row-action dropdown's open transition in jsdom (flaky, not a real app bug).
-function fixture({ withStructure = true }: { withStructure?: boolean } = {}) {
+function fixture({ withStructure = true, intercept }: { withStructure?: boolean; intercept?: (url: string, init?: RequestInit) => unknown } = {}) {
   const fetchMock = vi.fn(async (input: string, _init?: RequestInit) => {
-    if (input.startsWith("/api/fee-components")) return { ok: true, json: async () => COMPONENTS };
+    const intercepted = intercept?.(input, _init);
+    if (intercepted !== undefined) return intercepted;
+    if (input === "/api/auth/me") return { ok: true, json: async () => ({ role: "SUPER_ADMIN" }) };
+    if (input === "/api/auth/me") return { ok: true, json: async () => ({ role: "SUPER_ADMIN" }) };
+        if (input.startsWith("/api/fee-components")) return { ok: true, json: async () => COMPONENTS };
     if (input.startsWith("/api/programs")) return { ok: true, json: async () => (withStructure ? PROGRAMS : []) };
     if (input.startsWith("/api/academic-years")) return { ok: true, json: async () => (withStructure ? YEARS : []) };
     if (input.startsWith("/api/fee-structure")) return { ok: true, json: async () => STRUCTURES };
@@ -177,6 +181,7 @@ describe("FeesPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string) => {
+        if (input === "/api/auth/me") return { ok: true, json: async () => ({ role: "SUPER_ADMIN" }) };
         if (input.startsWith("/api/fee-components")) return { ok: true, json: async () => COMPONENTS };
         if (input.startsWith("/api/programs")) return { ok: true, json: async () => PROGRAMS };
         if (input.startsWith("/api/academic-years")) return { ok: true, json: async () => YEARS };
@@ -402,4 +407,63 @@ describe("FeesPage", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Struktur biaya disimpan"));
     await waitFor(() => expect(bundleReads()).toBe(before + 1));
   });
+});
+
+
+it("keeps a catalog failure visible and reloads it through explicit retry", async () => {
+  let failed = true;
+  fixture({ intercept: url => url === "/api/fee-components" && failed ? { ok: false } : undefined });
+  render(<FeesPage />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Data biaya gagal dimuat");
+  expect(screen.queryByText("Belum ada komponen biaya")).not.toBeInTheDocument();
+  failed = false;
+  await userEvent.click(screen.getByRole("button", { name: "Coba Lagi" }));
+  expect(await screen.findByText("SPP Bulanan")).toBeInTheDocument();
+});
+
+it("does not expose old rates after a newly selected program fails to load", async () => {
+  fixture({ intercept: url => url.startsWith("/api/fee-structure?programId=prog-inactive") ? { ok: false } : undefined });
+  const user = userEvent.setup();
+  render(<FeesPage />);
+  fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+  expect(await screen.findByRole("textbox", { name: "Tarif SPP Bulanan" })).toHaveValue("500.000");
+  await user.click(screen.getByRole("combobox", { name: "Program" }));
+  await user.click(await screen.findByRole("option", { name: "Program Lama" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Struktur biaya gagal dimuat");
+  expect(screen.queryByRole("textbox", { name: "Tarif SPP Bulanan" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Simpan Tarif" })).not.toBeInTheDocument();
+});
+
+it("ignores a slow tariff response from a program that is no longer selected", async () => {
+  let release!: (response: unknown) => void;
+  fixture({ intercept: url => url.startsWith("/api/fee-structure?programId=prog-inactive") ? new Promise(resolve => { release = resolve; }) : undefined });
+  const user = userEvent.setup();
+  render(<FeesPage />);
+  fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+  await screen.findByRole("textbox", { name: "Tarif SPP Bulanan" });
+  await user.click(screen.getByRole("combobox", { name: "Program" }));
+  await user.click(await screen.findByRole("option", { name: "Program Lama" }));
+  await user.click(screen.getByRole("combobox", { name: "Program" }));
+  await user.click(await screen.findByRole("option", { name: "Program Aktif" }));
+  expect(await screen.findByRole("textbox", { name: "Tarif SPP Bulanan" })).toHaveValue("500.000");
+  release({ ok: true, json: async () => [{ ...STRUCTURES[0], amount: "999999" }] });
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Tarif SPP Bulanan" })).toHaveValue("500.000"));
+});
+
+it("preserves edited rates and restores save after a network failure", async () => {
+  let failSave = true;
+  fixture({ intercept: (url, init) => url === "/api/fee-structure" && init?.method === "PUT" && failSave ? Promise.reject(new TypeError("offline")) : undefined });
+  const user = userEvent.setup();
+  render(<FeesPage />);
+  fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+  const amount = await screen.findByRole("textbox", { name: "Tarif SPP Bulanan" });
+  await user.clear(amount);
+  await user.type(amount, "600000");
+  await user.click(screen.getByRole("button", { name: "Simpan Tarif" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Perubahan tetap tersimpan");
+  expect(screen.getByRole("textbox", { name: "Tarif SPP Bulanan" })).toHaveValue("600.000");
+  expect(screen.getByRole("button", { name: "Simpan Tarif" })).toBeEnabled();
+  failSave = false;
+  await user.click(screen.getByRole("button", { name: "Simpan Tarif" }));
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Struktur biaya disimpan"));
 });

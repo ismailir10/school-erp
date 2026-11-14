@@ -1028,6 +1028,8 @@ model InvoiceNumberSequence {
 // Restrict on tenant + student — financial records, never silently drop.
 // Parent is optional billing contact: SetNull on parent removal.
 model Invoice {
+  manualRequestKey String?
+  manualRequestHash String?
   id               String    @id @default(cuid())
   tenantId         String
   studentId        String
@@ -1058,6 +1060,7 @@ model Invoice {
   payments Payment[]
 
   @@unique([tenantId, invoiceNumber])
+  @@unique([tenantId, manualRequestKey])
   @@index([studentId, status])
   @@index([tenantId, status, dueDate])
   @@index([dueDate])

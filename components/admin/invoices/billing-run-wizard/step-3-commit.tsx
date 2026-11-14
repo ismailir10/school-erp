@@ -53,6 +53,7 @@ type Summary = {
   createdAt: string;
   canRebuild: boolean;
   finalizeRowId: string | null;
+  cancelEmptyDraft: boolean;
   periodLabel: string;
   billableCount: number;
   billableTotal: number;
@@ -88,9 +89,10 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
   const withAdjustments = billable.filter((r) => rowHasKeringanan(r.lines));
 
   return {
+    cancelEmptyDraft: run.status === "DRAFT" && rows.length === 0,
     createdAt: run.createdAt,
     canRebuild: run.status === "DRAFT" && alreadyCommitted.length === 0,
-    finalizeRowId: run.status === "COMMITTING" && pending.length === 0 ? (rows[0]?.id ?? null) : null,
+    finalizeRowId: (run.status === "COMMITTING" || run.status === "DRAFT") && pending.length === 0 ? (rows[0]?.id ?? null) : null,
     periodLabel: run.periodLabel,
     billableCount: billable.length,
     billableTotal: billable.reduce((sum, r) => sum + Number(r.totalDue), 0),
@@ -324,7 +326,7 @@ export function CommitStep({
 
   async function handleFinish() {
     if (committingRef.current) return;
-    if (!summary?.finalizeRowId) { onCommitted(); return; }
+    if (!summary?.finalizeRowId && !summary?.cancelEmptyDraft) { onCommitted(); return; }
     committingRef.current = true;
     setPhase("running");
     setErrorMessage(null);
@@ -332,10 +334,10 @@ export function CommitStep({
       // Replay a resolved row through the existing idempotent endpoint. No
       // invoice or gateway work is performed; its final pending-row check
       // repairs COMMITTING after an interrupted final status write.
-      const res = await fetch(`/api/billing-runs/${runId}/commit`, {
-        method: "POST",
+      const res = await fetch(summary.cancelEmptyDraft ? `/api/billing-runs/${runId}` : `/api/billing-runs/${runId}/commit`, {
+        method: summary.cancelEmptyDraft ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowIds: [summary.finalizeRowId] }),
+        body: JSON.stringify(summary.cancelEmptyDraft ? { status: "CANCELLED" } : { rowIds: [summary.finalizeRowId] }),
       });
       if (!res.ok) throw new ApiError("Status pembuatan tagihan belum tersimpan. Coba Selesai lagi.");
       onCommitted();
@@ -346,7 +348,7 @@ export function CommitStep({
       // read is still uncertain, so keep the dialog and retry action open.
       try {
         const check = await fetch(`/api/billing-runs/${runId}?pageSize=1`, { cache: "no-store" });
-        if (check.ok && (await check.json()).status === "COMMITTED") {
+        if (check.ok && ["COMMITTED", "CANCELLED"].includes((await check.json()).status)) {
           onCommitted();
           return;
         }

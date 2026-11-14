@@ -107,6 +107,7 @@ const columns: ColumnDef<Invoice>[] = [
                 <DataTableMobileMeta className="mt-1">
                   <StatusBadge status={inv.status} />
                   <span>Tempo {formatDateShort(inv.dueDate)}</span>
+                  <span className="basis-full font-currency font-semibold tabular-nums">{formatRupiah(Number(inv.totalDue))}{Number(inv.totalPaid) > 0 && ` · Sisa ${formatRupiah(Math.max(0, Number(inv.totalDue) - Number(inv.totalPaid)))}`}</span>
                   <PaymentLinkExpiryCell invoice={inv} variant="meta" />
                 </DataTableMobileMeta>
               </>
@@ -134,6 +135,7 @@ const columns: ColumnDef<Invoice>[] = [
   {
     id: "amount",
     header: "Jumlah",
+    meta: { priority: "low" },
     cell: ({ row }) => {
       const inv = row.original;
       const remaining = Number(inv.totalDue) - Number(inv.totalPaid);

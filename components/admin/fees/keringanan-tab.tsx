@@ -134,7 +134,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 // Component
 // ------------------------------------------------------------------
 
-export function KeringananTab() {
+export function KeringananTab({ canEdit = false }: { canEdit?: boolean }) {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -450,7 +450,7 @@ export function KeringananTab() {
       header: "",
       cell: ({ row }) => {
         const adj = row.original;
-        return (
+        return canEdit ? (
           <DataTableRowActions
             rowLabel={adj.student.name}
             onEdit={() => openEdit(adj)}
@@ -458,10 +458,10 @@ export function KeringananTab() {
             onDeactivate={togglingId === adj.id ? undefined : () => setConfirmTarget(adj)}
             onActivate={togglingId === adj.id ? undefined : () => setStatus(adj, "ACTIVE")}
           />
-        );
+        ) : null;
       },
     },
-  ], [openEdit, setStatus, togglingId]);
+  ], [openEdit, setStatus, togglingId, canEdit]);
 
   const dialogTitle = editing ? "Edit Keringanan" : "Tambah Keringanan";
   const nilaiDescription =
@@ -488,7 +488,7 @@ export function KeringananTab() {
             ],
           },
         ]}
-        actions={
+        actions={canEdit &&
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Tambah Keringanan
           </Button>

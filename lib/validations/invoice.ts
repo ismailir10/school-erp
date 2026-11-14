@@ -136,7 +136,7 @@ export const PAYMENT_MODE_RETIRED_MESSAGE =
 // already received lives in "Catat pembayaran di muka". The key stays declared as
 // `never` so a stale client gets a 400 naming it, instead of the money silently dropped.
 export const createManualInvoiceSchema = manualInvoiceBaseSchema
-  .extend({ payment: z.never({ error: PAYMENT_MODE_RETIRED_MESSAGE }).optional() })
+  .extend({ idempotencyKey: z.string().uuid().optional(), payment: z.never({ error: PAYMENT_MODE_RETIRED_MESSAGE }).optional() })
   .superRefine(rejectDuplicateFeeComponents);
 
 export type CreateManualInvoiceInput = z.infer<typeof createManualInvoiceSchema>;

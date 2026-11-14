@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination, parseSort, cleanSearch, escapeLike } from "@/lib/api/pagination";
@@ -19,7 +20,7 @@ import { createStudentFeeAdjustmentSchema } from "@/lib/validations/student-fee-
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "fees.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "fees.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
