@@ -91,7 +91,7 @@ function buildKidFoot(
     return { tone: "warn", text: "Sakit hari ini · semoga lekas sehat" };
   }
   if (todayStatus === "ABSENT") {
-    return { tone: "warn", text: "Alpa hari ini" };
+    return { tone: "danger", text: "Alpa hari ini" };
   }
   if (todayStatus === "PERMISSION") {
     return { tone: "info", text: "Izin hari ini" };
@@ -106,7 +106,7 @@ function buildKidFoot(
     if (weekCounts.alpa) parts.push(`Alpa ${weekCounts.alpa}`);
     if (weekCounts.izin) parts.push(`Izin ${weekCounts.izin}`);
     const tone: KidCardFoot["tone"] =
-      weekCounts.sakit + weekCounts.alpa > 0 ? "warn" : "info";
+      weekCounts.alpa > 0 ? "danger" : weekCounts.sakit > 0 ? "warn" : "info";
     return { tone, text: `${parts.join(" · ")} pekan ini` };
   }
   return { tone: "info", text: "Pekan ini belum tercatat" };
@@ -298,7 +298,7 @@ export default async function ParentDashboard() {
         title={attendanceNeedsAttention.length > 0 ? `Periksa kehadiran ${attendanceFocus?.name}` : `Kehadiran ${attendanceFocus?.name} belum dicatat`}
         description={attendanceDescription}
         icon={<CalendarDays className="size-5" />}
-        tone="warm"
+        tone={attendanceFocus?.todayStatus === "ABSENT" ? "danger" : attendanceFocus?.todayStatus === "SICK" ? "warm" : attendanceFocus?.todayStatus === "PERMISSION" ? "info" : "neutral"}
       />
     </TaskList>
   );

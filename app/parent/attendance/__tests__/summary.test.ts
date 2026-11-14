@@ -57,3 +57,14 @@ describe("parent attendance mixed-day recovery",()=>{
   expect(html).toContain("Kembali ke pekan ini");expect(html).toContain("bg-background");
  });
 });
+
+
+it.each([
+ ["SICK", "late"], ["PERMISSION", "leave"], ["ABSENT", "absent"],
+])("keeps %s summary and calendar on the same semantic tone", async (status, token) => {
+ mocks.rows.mockResolvedValue([{studentId:"child",classSectionId:"school",sessionId:null,date:"2026-09-21",status,notes:null,classSection:{name:"TK A"}}]);
+ const html=renderToStaticMarkup(await Page({searchParams:Promise.resolve({child:"child",week:"2026-09-21"})}));
+ expect(html).toContain(`border-status-${token} bg-status-${token}-subtle`);
+ expect(html).toContain(`text-status-${token}-text`);
+ expect(html).not.toContain("text-muted-foreground/70");
+});

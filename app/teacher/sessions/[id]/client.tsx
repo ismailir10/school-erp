@@ -44,10 +44,10 @@ type Status = (typeof STATUS_CHOICES)[number];
 
 // Unrecorded rows remain neutral; the selected status is a draft until saved.
 const ROW_TINT: Record<Status, string> = {
-  PRESENT: "bg-[color:var(--status-present-subtle)]",
-  ABSENT: "bg-[color:var(--status-absent-subtle)]",
-  SICK: "bg-[color:var(--status-late-subtle)]",
-  PERMISSION: "bg-[color:var(--status-leave-subtle)]",
+  PRESENT: "bg-card",
+  ABSENT: "bg-status-absent-subtle",
+  SICK: "bg-status-late-subtle",
+  PERMISSION: "bg-status-leave-subtle",
 };
 
 // pickedUpByRelation enum → Indonesian display labels.

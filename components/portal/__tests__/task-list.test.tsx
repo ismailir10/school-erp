@@ -29,7 +29,7 @@ describe("portal task primitives", () => {
     expect(screen.queryByRole("button", { name: /Check-in/ })).not.toBeInTheDocument();
   });
 
-  it("lets a status line wrap to 3 lines instead of truncating it to one", () => {
+  it("lets a status line wrap fully in narrow rows and to 3 lines in wider rows", () => {
     render(
       <TaskList>
         <TaskRow title="Tagihan Ahmad" description="4 tagihan belum dibayar · 2 lewat tempo" meta="Rp 3.000.000" onClick={() => {}} />
@@ -37,6 +37,7 @@ describe("portal task primitives", () => {
     );
     const status = screen.getByText(/lewat tempo/);
     expect(status.className).toContain("line-clamp-3");
+    expect(status.className).toContain("@max-[15rem]:line-clamp-none");
     expect(status.className).not.toContain("truncate");
     expect(status.className).not.toContain("line-clamp-1");
   });

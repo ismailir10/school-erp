@@ -42,20 +42,20 @@ const OPTIONS: { status: Status; letter: string; label: string }[] = [
 ];
 const STATUSES = OPTIONS.map((o) => o.status);
 
-// Selected option fill via status tokens (no inline hex)
+// Dark semantic ink and a thicker border keep selection readable without color alone.
 const SELECTED: Record<Status, string> = {
-  PRESENT: "border-transparent bg-status-present text-white",
-  SICK: "border-transparent bg-status-late text-white",
-  PERMISSION: "border-transparent bg-status-leave text-white",
-  ABSENT: "border-transparent bg-destructive text-white",
+  PRESENT: "border-2 border-status-present-text bg-status-present-subtle text-status-present-text",
+  SICK: "border-2 border-status-late-text bg-status-late-subtle text-status-late-text",
+  PERMISSION: "border-2 border-status-leave-text bg-status-leave-subtle text-status-leave-text",
+  ABSENT: "border-2 border-status-absent-text bg-status-absent-subtle text-status-absent-text",
 };
 
-// Recorded rows carry a subtle tint of their status (portal.md); unknown stays plain.
+// Keep the common case quiet; only recorded exceptions tint the row.
 const ROW_TINT: Record<Status, string> = {
-  PRESENT: "bg-[color:var(--status-present-subtle)]",
-  SICK: "bg-[color:var(--status-late-subtle)]",
-  PERMISSION: "bg-[color:var(--status-leave-subtle)]",
-  ABSENT: "bg-[color:var(--status-absent-subtle)]",
+  PRESENT: "bg-card",
+  SICK: "bg-status-late-subtle",
+  PERMISSION: "bg-status-leave-subtle",
+  ABSENT: "bg-status-absent-subtle",
 };
 
 const SUMMARY_TONE: Record<Status, string> = {
@@ -413,7 +413,7 @@ export default function ClassAttendancePage() {
                             onClick={() => { if (!selected) persist([s.student.id], o.status); }}
                             className={cn(
                               "size-11 @max-[20rem]:w-full rounded-lg border text-sm font-semibold transition-colors focus-visible:focus-outline [--focus-outline-offset:-2px]",
-                              selected ? SELECTED[o.status] : "border-border bg-background text-muted-foreground hover:bg-muted",
+                              selected ? SELECTED[o.status] : "border-input bg-background text-muted-foreground hover:bg-muted",
                             )}
                           >
                             <span aria-hidden="true">{o.letter}</span>

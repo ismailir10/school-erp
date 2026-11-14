@@ -18,7 +18,7 @@ type TaskRowBaseProps = {
   description?: ReactNode;
   icon?: ReactNode;
   meta?: ReactNode;
-  tone?: "teal" | "warm" | "purple" | "danger";
+  tone?: "teal" | "warm" | "purple" | "danger" | "info" | "neutral";
   /**
    * For a wide `meta` such as a Rupiah amount. When the row is narrow (a 320-360 px
    * phone) the meta drops under the text instead of squeezing the title and status
@@ -64,6 +64,8 @@ export function TaskRow({
           aria-hidden="true"
           className={cn(
             "size-10 rounded-lg bg-secondary text-primary-text",
+            tone === "neutral" && "bg-muted text-muted-foreground",
+            tone === "info" && "bg-status-leave-subtle text-status-leave-text",
             tone === "warm" && "bg-status-late-subtle text-status-late-text",
             tone === "purple" && "bg-status-holiday-subtle text-status-holiday-text",
             tone === "danger" && "bg-status-absent-subtle text-status-absent-text",
@@ -74,7 +76,7 @@ export function TaskRow({
       ) : null}
       {/*
         The outer div is the container (its width is the row minus the icon); the inner
-        one reflows against it. A status line is clamped to 3 lines, not 2: at 320 px
+        one reflows against it. A status line wraps fully in narrow rows and otherwise allows 3 lines: at 320 px
         "Lewat tempo · Dibayar sebagian · Jatuh tempo 15 Sep 2026" needs three.
       */}
       <div data-slot="task-row-body" className="@container min-w-0 flex-1">
@@ -86,7 +88,7 @@ export function TaskRow({
         >
           <ItemContent className="min-w-0 gap-0.5">
             <ItemTitle className="w-auto text-body font-semibold leading-snug">{title}</ItemTitle>
-            {description ? <ItemDescription className="line-clamp-3 break-words text-small">{description}</ItemDescription> : null}
+            {description ? <ItemDescription className="line-clamp-3 @max-[15rem]:line-clamp-none break-words text-small">{description}</ItemDescription> : null}
           </ItemContent>
           {meta || interactive ? (
             <ItemActions

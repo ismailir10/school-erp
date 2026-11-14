@@ -96,7 +96,7 @@ None planned. New dependency, migration, auth/PII change, paid API or production
 
 - [x] T1 Shared action palette and neutral surfaces, specimens and documentation — accept: button/selection
       separation, contrast and reference parity pass (parallel with T2/T3; owns shared tokens/primitives/standards).
-- [ ] T2 Teacher and parent color semantics and action hierarchy — accept: attendance behavior, exception styling,
+- [x] T2 Teacher and parent color semantics and action hierarchy — accept: attendance behavior, exception styling,
       date legibility and secondary child actions pass focused tests (parallel; owns portal pages/components).
 - [ ] T3 Admin finance emphasis and readable amounts — accept: normal/overdue distinction and quiet summaries pass
       focused tests (parallel; owns admin invoice screens/components).
@@ -127,6 +127,9 @@ None planned. New dependency, migration, auth/PII change, paid API or production
   disabled action treatment, journal checks and public enrollment CTA color pairs; their behavior remains unchanged.
 
 ## Verification
+
+- T2: integrated task gate passed on the frozen runtime: production build and 775 unit files / 9,572 tests;
+  focused acceptance checks and independent reviews are clear.
 
 - T1: integrated task gate passed on the frozen runtime: production build and 775 unit files / 9,572 tests;
   focused acceptance checks and independent reviews are clear.
