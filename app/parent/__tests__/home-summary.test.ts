@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ session: vi.fn(), family: vi.fn(), outstanding
 vi.mock("@/lib/auth", () => ({ getSession: mocks.session }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
 vi.mock("@/lib/parent-helpers", () => ({ getParentWithChildren: mocks.family, getParentOutstandingForStudents: mocks.outstanding }));
-vi.mock("@/lib/db", () => ({ prisma: { studentAttendance: { findMany: mocks.attendance }, classSession: {findMany:mocks.sessions}, studentJournalNote: { findMany: mocks.notes } } }));
+vi.mock("@/lib/db", () => ({ prisma: { studentAttendance: { findMany: mocks.attendance }, classSession: {findMany:mocks.sessions}, studentJournalNote: { findFirst: mocks.notes } } }));
 vi.mock("@/lib/curriculum/perkembangan-loader", () => ({ loadStudentPerkembangan: mocks.development }));
 vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: mocks.scheduled }));
 import ParentDashboard from "../page";
@@ -23,7 +23,7 @@ beforeEach(() => {
   mocks.family.mockResolvedValue({ parent: { id: "parent-a", name: "Ibu Rina" }, children });
   mocks.outstanding.mockResolvedValue({ count: 0, total: 0, nearestDue: null, items: [] });
   mocks.attendance.mockResolvedValue([]); mocks.sessions.mockResolvedValue([]);
-  mocks.notes.mockResolvedValue([{ studentId: "child-a", body: "Berbagi mainan dengan teman.", createdAt: new Date("2026-09-24T04:00:00Z"), date: "2026-09-24" }]);
+  mocks.notes.mockImplementation(async ({ where }) => where.studentId === "child-a" ? { studentId: "child-a", body: "Berbagi mainan dengan teman.", createdAt: new Date("2026-09-24T04:00:00Z"), date: "2026-09-24" } : null);
   mocks.development.mockResolvedValue({ hasActiveWeek: false, latestThisWeek: [] });
 });
 afterEach(() => vi.useRealTimers());
@@ -47,7 +47,14 @@ describe("parent home authoritative household summary", () => {
   it("scopes all summary queries to guardian-linked children and teacher-authored active notes", async () => {
     const html = renderToStaticMarkup(await ParentDashboard());
     expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ studentId: { in: ["child-a", "child-b"] }, student: { tenantId: "tenant-a" }, isVoided: false }) }));
-    expect(mocks.notes).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: "tenant-a", studentId: { in: ["child-a", "child-b"] }, status: "ACTIVE", authorRole: "TEACHER" } }));
+    expect(mocks.notes).toHaveBeenCalledTimes(2);
+    for (const child of children) {
+      expect(mocks.notes).toHaveBeenCalledWith({
+        where: { tenantId: "tenant-a", studentId: child.studentId, status: "ACTIVE", authorRole: "TEACHER" },
+        orderBy: { createdAt: "desc" },
+        select: { studentId: true, body: true, createdAt: true },
+      });
+    }
     expect(mocks.outstanding).toHaveBeenCalledWith(["child-a", "child-b"], "tenant-a");
     expect(mocks.development.mock.calls).toEqual([["tenant-a", "child-a"], ["tenant-a", "child-b"]]);
     expect(html).toContain("Alya Nur Rahma");
@@ -298,4 +305,29 @@ it("uses absence ink for a weekly child foot that also includes sickness", async
  const html = renderToStaticMarkup(await ParentDashboard());
  const foot = (html.match(/<p\b[^>]*>[\s\S]*?<\/p>/g) ?? []).find(p => p.includes("Sakit 1 · Alpa 1"));
  expect(foot).toContain("text-status-absent-text");
+});
+
+
+describe("parent Home latest teacher notes", () => {
+  it.each([
+    ["2026-09-11T04:00:00.000Z", true],
+    ["2026-09-11T03:59:59.999Z", false],
+  ])("keeps the inclusive 14-day boundary for %s", async (createdAt, visible) => {
+    mocks.notes.mockImplementation(async ({ where }) => where.studentId === "child-a" ? {
+      studentId: "child-a", body: "Catatan batas dua pekan", createdAt: new Date(createdAt),
+    } : null);
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html.includes("Catatan batas dua pekan")).toBe(visible);
+  });
+
+  it("does not show a sibling's note for a child with no teacher note", async () => {
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html.match(/Berbagi mainan dengan teman\./g)).toHaveLength(1);
+    expect(html).toContain("Alya Nur Zahra");
+  });
+
+  it("propagates a failed note lookup to recovery", async () => {
+    mocks.notes.mockRejectedValue(new Error("note read unavailable"));
+    await expect(ParentDashboard()).rejects.toThrow("note read unavailable");
+  });
 });

@@ -18,10 +18,10 @@ Recent parent/teacher work is recorded in the November 14 audit cycle. Its behav
 
 ## Acceptance criteria
 
-- [ ] Parent Home shows the same latest eligible teacher note for each child while returning at most one note per child from the database; missing and older-than-14-day notes behave as before.
-- [ ] Parent Home shows the same latest three development entries and empty states without reading the full semester assessment history.
-- [ ] Unread counts remain exact for mixed read times, never-opened threads and multiple students; note query results contain at most one count row per student, with existing tenant/author/status restrictions retained.
-- [ ] Guardian summary totals remain correct, including an empty tenant and after edits/status changes. Initial loading uses one list request and one aggregate request, replacing four list requests.
+- [x] Parent Home shows the same latest eligible teacher note for each child while returning at most one note per child from the database; missing and older-than-14-day notes behave as before.
+- [x] Parent Home shows the same latest three development entries and empty states without reading the full semester assessment history.
+- [x] Unread counts remain exact for mixed read times, never-opened threads and multiple students; note query results contain at most one count row per student, with existing tenant/author/status restrictions retained.
+- [x] Guardian summary totals remain correct, including an empty tenant and after edits/status changes. Initial loading uses one list request and one aggregate request, replacing four list requests.
 - [ ] Focused regressions, repository gates and local browser flows pass. Before/after evidence reports query calls, returned rows and request counts; any timing result names its local dataset and environment.
 
 ## Verify flows
@@ -58,7 +58,7 @@ New dependency, schema migration, permission/PII behavior change, shared-environ
 
 ## Tasks
 
-- [ ] T1 Bound parent Home teacher-note reads — accept: newest note unchanged, maximum one returned note per child. Reuse existing authorized child list and tests.
+- [x] T1 Bound parent Home teacher-note reads — accept: newest note unchanged, maximum one returned note per child. Reuse existing authorized child list and tests.
 - [ ] T2 Extract the lightweight development preview and reuse it in Home/detail — accept: Home does not query semester history, existing detail totals unchanged. Can run independently of T3/T4; coordinate with T1 on Home tests.
 - [ ] T3 Aggregate unread counts in Postgres using exact per-student read predicates — accept: equivalence with single-student count semantics, bounded result rows. Independent of T1/T2/T4.
 - [ ] T4 Replace guardian count-only list requests with one stats endpoint — accept: four requests become two, totals/guards/errors preserved. Independent of T1/T2/T3.
@@ -68,6 +68,11 @@ New dependency, schema migration, permission/PII behavior change, shared-environ
 
 - Plan: driver=gpt-6, workers=gpt-6; T1 then T2 sequential in one worker because they share Home and its tests; T3 and T4 in parallel workers; T5 integration, review and verification driven centrally.
 - User explicitly approved all four optimizations and confirmed staging as the base on 2026-11-15.
+- T1: parent Home now queries the newest active teacher note per authorized child; the returned note payload is bounded by household size. The existing 14-day display check stays unchanged.
+- T2: shared current-week preview logic is reused by Home and detail. Home skips semester history entirely; detail loads its rollup and preview concurrently and omits unused indicator content from its rollup projection.
+- T3: unread counts use exact per-student watermark predicates and a database groupBy, retaining tenant/status/author filters and zero-count omission.
+- T4: guardian summary cards use one tenant-scoped stats endpoint; mutation refresh remains in place. An unsuccessful request displays unknown totals rather than false zeros, using existing StatTile and toast components (design-system unchanged).
+- Independent standards, specification and security reviews found no blocking issues. The first production build caught a nullable test email and loss of tenant narrowing inside a callback; both were corrected before the passing production build.
 
 ### Audit evidence
 
@@ -80,6 +85,8 @@ New dependency, schema migration, permission/PII behavior change, shared-environ
 
 Additional findings, deferred: teacher Home repeats two unread queries per class and waits for schedule resolution before independent class reads (`app/teacher/page.tsx:78–90`); student list URL mirroring calls `router.replace` in addition to its data fetch (`app/admin/students/page.tsx:692`); enrollment detail eagerly imports its conditional edit form (`app/admin/enrollments/[id]/page.tsx:14,300`). The latter needs actual bundle measurement before prioritization; raw source size is not transfer size.
 
+The driver reproduced the student-list follow-up in the production build after initial requests settled: one search produced a GET to `/api/students?...&search=performance-audit-no-match` plus `/admin/students?q=performance-audit-no-match&_rsc=...`. The latter carried `rsc: 1` and `next-router-state-tree`, without prefetch headers; clearing search repeated the pair. This confirms an extra navigation request, not a measured production delay. No navigation behavior was changed in this cycle.
+
 Already sound: admin work queue limits/projections, receivables SQL aggregation, parallel dashboard sources and streamed analytics. PDF/Excel libraries are server-side; no broad package surgery justified.
 
 ## Verification
@@ -87,7 +94,16 @@ Already sound: admin work queue limits/projections, receivables SQL aggregation,
 - Baseline: Prisma Client generation passed; the existing curriculum loader, journal note-read and parent Home summary suites passed: **3 files, 44 tests**, 1.55 seconds. These validate existing behavior, not a proposed fix.
 - Isolated worktree and hooks installed; Node 24.22.1. Dependencies installed from the unchanged lockfile with a writable temporary npm cache after the default cache caused installation failures.
 - Documentation audit regenerated the cycle count and passed; the pre-existing ADR-age warning remains. Whitespace check passed.
-- Production build, full suite, browser walk, timing measurements and database query-plan verification are pending implementation. No performance validation or speedup is yet claimed.
+- Production build/typecheck and lint passed after the two type corrections. RLS coverage: 51/51; API-auth coverage: 240/240. Hook tests: 32 passed; documentation regression: 7 passed; vendored workflow checksum passed.
+- Driver-rerun disposable-Postgres comparison: 6,011 synthetic notes; old unread query returned 6,006 candidate rows (6,004 with guardian filter), new query returned 3 aggregate rows. Counts matched independent per-student queries across mixed watermarks, exact timestamp boundaries, never-opened threads, own/inactive/foreign-tenant notes, duplicate IDs and empty rosters. Synthetic rows were removed in finally. Script: `/tmp/school-erp-note-count-check.ts`.
+- Driver-rerun read-only parent comparison: three seeded children returned identical latest notes, 5 history rows → 3 latest rows, with SQL calls increasing 1 → 3. Seven alternating warm local samples had median 3.17 → 5.44 ms: this is a bounded-history tradeoff, not a demonstrated latency win on a tiny fixture.
+- Development fixture: 13 entries in the selected week and 27 semester entries. Home's assessment rows fell 30 → 3 and SQL calls 14 → 11 (including relation reads); top-level Prisma calls fell 5 → 4. Actual SQL retained recordedAt descending and LIMIT. Original detail and new detail outputs were identical; preview matched the original subset. The harness temporarily fixed its own clock to November 2 within the seeded week, restored it afterwards, and wrote no database rows. No-semester tenant returned empty after only the semester operation. Script: `/tmp/perf-parent-db-verify.ts`; seven alternating warm loader medians 31.55 → 24.64 ms on local seeded Postgres while other checks ran. These are not production or whole-page timings.
+- First full Vitest: 775 passed files / 9,596 passed tests, one failed test, two pre-existing skipped files and 42 todo. The sentra-access integration test's generic Prisma mock returned null for groupBy; corrected it to return an array and tightened the allowed class-grid assertion to HTTP 200. Runtime code was unchanged. Final typecheck and changed-file lint passed.
+- Final full Vitest: **776 passed files, 9,597 passed tests**, two pre-existing skipped files and 42 todo; exit 0, 513.26 seconds with three workers. No new skips or timeout overrides.
+- Full Playwright: **303 passed, retries disabled (12.3 minutes)**. Includes guardian initial request-count assertion and edit/persistence flow. No production latency or query-plan measurement is claimed.
+- Driver-rerun browser walk: guardian list made exactly one list and one stats request; displayed totals matched the endpoint. Browser-only injected stats 503 showed three unknown counters and the existing toast, reload recovered, and a simulated successful zero response showed zeros. This zero-response check is not an actual empty-tenant browser fixture; that endpoint case is unit-tested. Both admin roles returned 200 with stats matching list totals; teacher, parent and anonymous requests returned 403.
+- Parent Home at 390x844 and 1440x900, development detail, and teacher Home at 390x844 passed with no horizontal overflow. On port 3001 only, a temporary server-clock preload set November 2 within the seeded week: two sibling cards each showed exactly three entries matching their detail API; clicking through preserved the 27-entry semester totals. The teacher note appeared once and two siblings retained their empty-note state. The separate server stopped afterwards; no product configuration or database rows changed.
+- Browser captures had no JavaScript page errors or unexpected application HTTP errors. Optional localhost Vercel telemetry scripts returned 404/MIME errors; the stats 503 was deliberately injected; canceled RSC prefetch requests came from navigation/reloads/context closure. Visual inspection of guardian, parent, teacher and active-week cards passed. Screenshots: `/tmp/school-erp-performance-shots/`; highlights are `guardian-list-desktop.png` and `parent-active-week-cards.png`.
 
 ## Ship Notes
 
