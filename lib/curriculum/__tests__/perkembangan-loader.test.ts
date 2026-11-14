@@ -271,7 +271,22 @@ describe("loadStudentPerkembanganPreview", () => {
       orderBy: { recordedAt: "desc" }, take: 3,
       select: expect.objectContaining({ activity: true, sentra: { select: { name: true } } }),
     }));
-    expect(weekFindFirst.mock.calls[0][0].where.subTheme.theme).toEqual({ OR: [{ ageGroup: "B" }, { ageGroup: null }] });
+    const weekWhere = weekFindFirst.mock.calls[0][0].where;
+    expect(weekWhere.status).toBe("ACTIVE");
+    expect(weekWhere.subTheme).toEqual({
+      status: "ACTIVE",
+      theme: {
+        OR: [{ ageGroup: "B" }, { ageGroup: null }],
+        status: "ACTIVE",
+        semester: {
+          status: "ACTIVE",
+          startDate: { lte: weekWhere.startDate.lte },
+          endDate: { gte: weekWhere.endDate.gte },
+        },
+      },
+    });
+    expect(weekWhere.startDate.lte).toBeInstanceOf(Date);
+    expect(weekWhere.endDate.gte).toEqual(weekWhere.startDate.lte);
   });
 
   it("propagates unavailable preview data rather than claiming an empty week", async () => {

@@ -13,7 +13,7 @@ vi.mock("@/lib/auth", async (importOriginal) => ({
 const session: SessionUser = {
   id: "admin", name: "Admin", email: "admin@example.test", role: "SCHOOL_ADMIN",
   tenantId: "tenant-a", employeeId: null, parentId: null,
-  permissions: [], customRoleCode: null,
+  permissions: ["students.view"], customRoleCode: null,
 };
 
 describe("GET /api/guardians/stats", () => {
@@ -39,6 +39,14 @@ describe("GET /api/guardians/stats", () => {
     expect(prisma.parent.groupBy).toHaveBeenCalledExactlyOnceWith({
       by: ["status"], where: { tenantId: "tenant-a" }, _count: { status: true },
     });
+  });
+
+  it.each([{ permissions: [] }, { permissions: ["admissions.view"] }])("denies a custom admin without students.view ($permissions) before reading family counts", async ({ permissions }) => {
+    vi.mocked(getSession).mockResolvedValue({ ...session, permissions, customRoleCode: "restricted-audit-role" });
+    const response = await GET();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Forbidden" });
+    expect(prisma.parent.groupBy).not.toHaveBeenCalled();
   });
 
   it("returns real zeros for a tenant with no guardians", async () => {
