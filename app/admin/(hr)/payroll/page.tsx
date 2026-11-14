@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
+import { usePermissions } from "@/hooks/use-permission";
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -120,6 +123,7 @@ function defaultPayrollPeriod() {
 }
 
 export default function PayrollListPage() {
+  const can = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<PayrollRun[]>([]);
@@ -168,7 +172,7 @@ export default function PayrollListPage() {
         setBlockers({ error: String(d.error ?? fallback), employees: d.employees });
         return;
       }
-      applyServerErrors(createForm, new ApiError(d.error || fallback, { status: res.status }), fallback);
+      applyServerErrors(createForm, new ApiError(d.error || fallback, { status: res.status, fieldErrors: d.errors }), fallback);
     } catch (err) {
       applyServerErrors(createForm, err, fallback);
     }
@@ -181,6 +185,7 @@ export default function PayrollListPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("periodStart");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -211,6 +216,7 @@ export default function PayrollListPage() {
 
   const fetchRuns = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -221,10 +227,12 @@ export default function PayrollListPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const res = await fetch(`/api/payroll?${params}`);
+      if (!res.ok) throw new Error();
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
+      setLoadError(true);
       toast.error("Data penggajian belum bisa dimuat. Coba lagi sebentar.");
     } finally {
       setLoading(false);
@@ -254,7 +262,7 @@ export default function PayrollListPage() {
       <PageHeader
         title="Penggajian"
         description="Kelola periode penggajian dan slip gaji karyawan"
-        actions={
+        actions={can("payroll.create") &&
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Buat Penggajian
           </Button>
@@ -299,7 +307,7 @@ export default function PayrollListPage() {
         ]}
       />
 
-      <DataTable
+      {loadError ? <ErrorState title="Data belum bisa dimuat." onRetry={fetchRuns} /> : (      <DataTable
         columns={columns}
         data={data}
         pagination={pagination}
@@ -310,7 +318,7 @@ export default function PayrollListPage() {
         loading={loading}
         emptyTitle="Belum ada penggajian"
         emptyDescription="Mulai dengan membuat penggajian baru."
-      />
+      />)}
 
       {/* Create Payroll */}
       <ResponsiveFormDialog

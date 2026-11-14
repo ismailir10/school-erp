@@ -160,11 +160,12 @@ export async function firstProgramId(admin: APIRequestContext): Promise<string> 
  */
 export async function prefillDraft(
   request: APIRequestContext,
-  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string> },
+  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string>; baseData?: Record<string, unknown> },
 ): Promise<void> {
   const res = await request.patch(`/api/enrollments/token/${opts.token}`, {
     headers: { "X-Forwarded-For": opts.ip },
     data: {
+      ...(opts.baseData ? { baseData: opts.baseData } : {}),
       programId: opts.programId,
       ...(opts.dcareAddon !== undefined ? { dcareAddon: opts.dcareAddon } : {}),
       studentData: {
@@ -226,7 +227,7 @@ export function submitBody(opts: {
  */
 export async function fillAndSubmit(
   request: APIRequestContext,
-  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string> },
+  opts: { token: string; ip: string; child: string; programId: string; dcareAddon?: boolean; address?: Record<string, string>; baseData?: Record<string, unknown> },
 ) {
   await prefillDraft(request, opts);
   for (const which of ["ayah", "ibu"] as const) {

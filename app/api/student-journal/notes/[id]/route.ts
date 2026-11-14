@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { noteUpdateSchema } from "@/lib/validations/student-journal";
@@ -15,6 +16,8 @@ export async function PUT(
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  if (isAdminRole(session.role) && (!hasPermission(session, "students.view") || !hasPermission(session, "students.edit"))) return NextResponse.json({ error: "Akses mengubah catatan tidak tersedia. Hubungi admin sekolah." }, { status: 403 });
 
   const rl = rateLimit(`sj-note-put:${getClientIp(req)}`, 20, 60_000);
   if (!rl.success) {
@@ -95,6 +98,8 @@ export async function DELETE(
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  if (isAdminRole(session.role) && (!hasPermission(session, "students.view") || !hasPermission(session, "students.edit"))) return NextResponse.json({ error: "Akses mengubah catatan tidak tersedia. Hubungi admin sekolah." }, { status: 403 });
 
   const rl = rateLimit(`sj-note-delete:${getClientIp(req)}`, 20, 60_000);
   if (!rl.success) {

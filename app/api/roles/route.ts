@@ -12,7 +12,7 @@ export const revalidate = 3600;
 
 export async function GET() {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "users.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

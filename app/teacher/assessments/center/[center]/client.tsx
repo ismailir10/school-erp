@@ -154,6 +154,8 @@ export function CenterSessionClient({
       // because the new payload's indicators don't match the old IDs.
       setPickedIndicatorIds([]);
       setCells(new Map());
+      setActivity("");
+      setActivityError("");
       setOpenNotes(new Set());
       setDirty(false);
       try {
@@ -204,7 +206,7 @@ export function CenterSessionClient({
           setPickedIndicatorIds((curr) =>
             curr.length > 0 ? curr : Array.from(picked).slice(0, MAX_PICKED_INDICATORS),
           );
-          setActivity((curr) => curr || body.lastActivity || "");
+          setActivity(body.lastActivity || "");
         }
       } catch (err) {
         if (cancelled || requestId !== loadRequestId.current) return;

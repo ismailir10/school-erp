@@ -1,3 +1,4 @@
+import { validateWeekSemester } from "@/lib/curriculum/week-dates";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
@@ -68,6 +69,9 @@ export async function POST(req: NextRequest) {
 
   const parent = await ensureActiveParent("subTheme", body.subThemeId, session.tenantId, "Subtema");
   if (parent instanceof NextResponse) return parent;
+
+  const dateError = await validateWeekSemester(body.subThemeId, session.tenantId, body.startDate, body.endDate);
+  if (dateError) return NextResponse.json({ error: dateError, errors: [{ field: "endDate", message: dateError }] }, { status: 400 });
 
   // Overlap check against sibling ACTIVE Weeks in the same SubTheme.
   const siblings = await prisma.week.findMany({

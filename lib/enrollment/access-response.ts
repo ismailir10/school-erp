@@ -12,6 +12,8 @@ export function denyTokenAccess(access: EnrollmentAccess): NextResponse | null {
   switch (access) {
     case "NOT_FOUND":
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    case "CLOSED":
+      return NextResponse.json({ error: "Pendaftaran dibatalkan. Hubungi sekolah untuk membuka kembali formulir." }, { status: 410 });
     case "EXPIRED":
       return NextResponse.json({ error: "EXPIRED" }, { status: 410 });
     case "SUBMITTED":

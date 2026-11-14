@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => () => true, usePermission: () => true }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -171,6 +172,17 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("places the future-period explanation under the start date", async () => {
+    mockCoarsePointer();
+    fixture({ postStatus: 400, post: { error: "Validasi gagal", errors: [{ field: "periodStart", message: "Periode penggajian belum dimulai" }] } });
+    render(<PayrollListPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Buat Penggajian" }));
+    const dialog = await screen.findByRole("dialog", { name: "Buat Penggajian Baru" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draf Penggajian" }));
+    expect(await within(dialog).findByText("Periode penggajian belum dimulai")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Tanggal Mulai", { exact: false })).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("keeps the 422 missing-rekening list on screen as an inline alert with a link per employee (HR-3)", async () => {
     mockCoarsePointer();
     fixture({
@@ -192,5 +204,23 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     // Not a vanishing toast, and the dialog stays open for retry.
     expect(toast.error).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Buat Penggajian Baru" })).toBeInTheDocument();
+  });
+});
+
+
+describe("list load recovery", () => {
+  it("shows a persistent read error and recovers with an explicit retry", async () => {
+    let failed = true;
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.startsWith("/api/payroll?")) return failed
+        ? { ok: false, json: async () => ({ error: "Gagal memuat" }) }
+        : { ok: true, json: async () => ({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 } }) };
+      return { ok: true, json: async () => ({ total: 0, draft: 0, approved: 0, slipsSent: 0 }) };
+    }));
+    render(<PayrollListPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Data belum bisa dimuat.");
+    failed = false;
+    fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 });

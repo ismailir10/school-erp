@@ -344,13 +344,18 @@ describe("SppPrepayDialog", () => {
       expect(screen.getByText(/Beri nama biayanya, mis\. "Biaya Sekolah Tahap 1 TA 2027\/2028"/)).toBeInTheDocument();
       await setLabel(user, LABEL);
 
-      const table = await screen.findByRole("table");
-      expect(within(table).getByText(LABEL)).toBeInTheDocument();
-      expect(within(table).getByText("Uang Pangkal Rp 4.000.000")).toBeInTheDocument();
-      expect(within(table).getByText("Buat & lunasi")).toBeInTheDocument();
-      expect(within(table).getAllByText("Rp 4.000.000")).toHaveLength(2);
+      // An earlier preview can remain visible while the latest label/amount
+      // is being calculated. Wait for the current content and confirm together.
+      await waitFor(() => {
+        const table = screen.getByRole("table");
+        expect(within(table).getByText(LABEL)).toBeInTheDocument();
+        expect(within(table).getByText("Uang Pangkal Rp 4.000.000")).toBeInTheDocument();
+        expect(within(table).getByText("Buat & lunasi")).toBeInTheDocument();
+        expect(within(table).getAllByText("Rp 4.000.000")).toHaveLength(2);
+        expect(screen.getByRole("button", { name: "Catat Rp 4.000.000 lunas" })).toBeEnabled();
+      });
 
-      await user.click(await screen.findByRole("button", { name: "Catat Rp 4.000.000 lunas" }));
+      await user.click(screen.getByRole("button", { name: "Catat Rp 4.000.000 lunas" }));
       await waitFor(() => expect(onRecorded).toHaveBeenCalledTimes(1));
 
       const body = bodyOf(calls(f, "/api/invoices/spp-prepay")[0]!);
@@ -520,14 +525,14 @@ describe("SppPrepayDialog", () => {
       await pickStudent(user);
       await screen.findByRole("table");
 
-      const add = () => screen.getByRole("button", { name: "Tambah biaya" });
-      for (let i = 0; i < 19; i += 1) await user.click(add());
+      const add = screen.getByRole("button", { name: "Tambah biaya" });
+      for (let i = 0; i < 19; i += 1) await user.click(add);
       expect(hint(/Maksimal 20 biaya/)).not.toBeInTheDocument();
-      await user.click(add());
+      await user.click(add);
 
       const text = await screen.findByText("Maksimal 20 biaya dalam satu pencatatan.");
-      expect(add()).toBeDisabled();
-      expect(add()).toHaveAttribute("aria-describedby", text.id);
+      expect(add).toBeDisabled();
+      expect(add).toHaveAttribute("aria-describedby", text.id);
       expect(screen.queryByRole("link", { name: /halaman Biaya/ })).not.toBeInTheDocument();
       expect(hint(/sudah dipakai/)).not.toBeInTheDocument();
     });
@@ -806,7 +811,7 @@ describe("SppPrepayDialog", () => {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     // A caution, not a block.
-    expect(screen.getByRole("button", { name: "Catat Rp 5.000.000 lunas" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Catat Rp 5.000.000 lunas" })).toBeEnabled());
   });
 
   it("shows a destructive alert and disables the confirm for any blocking issue", async () => {

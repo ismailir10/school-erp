@@ -34,7 +34,7 @@ const ADMIN: SessionUser = {
   tenantId: "t-1",
   employeeId: null,
   parentId: null,
-  permissions: [],
+  permissions: ["academic.edit"],
   customRoleCode: null,
 };
 

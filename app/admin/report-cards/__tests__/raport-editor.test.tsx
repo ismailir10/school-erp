@@ -78,7 +78,7 @@ function stubFetchPublished() {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce({ ok: true, json: async () => publishedPayload() })
-    .mockResolvedValue({ ok: true, json: async () => ({}) });
+    .mockResolvedValue({ ok: true, json: async () => ({ data: { updatedAt: "2026-11-14T11:00:00.000Z" } }) });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -532,5 +532,29 @@ describe("RaportEditor parent preview", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByLabelText("Hafalan (surah / hadis / doa)")).toHaveValue("Hafalan belum disimpan");
     vi.unstubAllGlobals();
+  });
+});
+
+describe("RaportEditor concurrency and read access", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
+
+  it("disables authoring and publishing when the reader lacks those grants", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: { ...publishedPayload().data, canWrite: false, canPublish: false } }) }));
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+    expect(await screen.findByLabelText("Hafalan (surah / hadis / doa)")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Tarik penerbitan" })).toBeDisabled();
+  });
+
+  it("keeps unsaved text and provides recovery after a stale save", async () => {
+    const mock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => publishedPayload() }).mockResolvedValue({ ok: false, status: 409, json: async () => ({ error: "Rapor telah diubah di tab lain." }) });
+    vi.stubGlobal("fetch", mock);
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+    const hafalan = await screen.findByLabelText("Hafalan (surah / hadis / doa)");
+    fireEvent.change(hafalan, { target: { value: "Teks saya belum tersimpan" } });
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    expect(await screen.findByText("Rapor telah berubah")).toBeInTheDocument();
+    expect(hafalan).toHaveValue("Teks saya belum tersimpan");
+    expect(screen.getByRole("button", { name: "Muat ulang rapor" })).toBeInTheDocument();
   });
 });

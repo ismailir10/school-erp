@@ -29,9 +29,9 @@ export async function GET(
   if (!payroll || payroll.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (payroll.status !== "APPROVED") {
+  if (!["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(payroll.status)) {
     return NextResponse.json(
-      { error: "Hanya penggajian berstatus APPROVED yang bisa diekspor" },
+      { error: "Hanya penggajian yang sudah disetujui yang bisa diekspor" },
       { status: 409 }
     );
   }
@@ -49,18 +49,18 @@ export async function GET(
   const csv = generateBsiCsv(rows);
   const filename = sanitizeFilename(`payroll_${payroll.periodStart}_${payroll.periodEnd}_bsi.csv`);
 
-  // Compare-and-swap: only write EXPORTED if run is still APPROVED. Two
-  // concurrent BSI export clicks cannot both pass the status guard and both
-  // write — the second arrival gets count=0 and bails with 409.
-  const swap = await prisma.payrollRun.updateMany({
-    where: { id, status: "APPROVED" },
-    data: { status: "EXPORTED", exportedAt: new Date() },
-  });
-  if (swap.count === 0) {
-    return NextResponse.json(
-      { error: "Penggajian sudah diekspor atau statusnya berubah" },
-      { status: 409 }
-    );
+  // Record the first export only; subsequent downloads preserve delivery status.
+  if (payroll.status === "APPROVED") {
+    const swap = await prisma.payrollRun.updateMany({
+      where: { id, tenantId: session.tenantId, status: "APPROVED" },
+      data: { status: "EXPORTED", exportedAt: new Date() },
+    });
+    if (swap.count === 0) {
+      const current = await prisma.payrollRun.findUnique({ where: { id }, select: { status: true } });
+      if (!current || !["EXPORTED", "SLIPS_SENT"].includes(current.status)) {
+        return NextResponse.json({ error: "Status penggajian berubah. Muat ulang sebelum mengekspor." }, { status: 409 });
+      }
+    }
   }
 
   return new NextResponse(csv, {

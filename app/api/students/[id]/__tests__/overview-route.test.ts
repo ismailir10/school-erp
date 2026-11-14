@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-type Session = { id: string; role: string; tenantId: string | null };
+type Session = { id: string; role: string; tenantId: string | null; permissions?: string[] };
 
 const state = {
   session: null as Session | null,
@@ -102,7 +102,7 @@ function liveTerm() {
 }
 
 beforeEach(() => {
-  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1" };
+  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "invoices.view"] };
   state.student = { id: "s1", tenantId: "t1", photoUrl: "photo.jpg", guardians: [] };
   state.invoiceGroups = [];
   state.attendanceGroups = [];
@@ -294,4 +294,12 @@ describe("GET /api/students/[id]/overview — stays an aggregate route", () => {
       expect(state.calls).not.toContain(forbidden);
     }
   });
+});
+
+it("omits finance aggregates for a students-only viewer", async () => {
+ state.session = { id: "u", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view"] };
+ const response = await GET(req(), ctx());
+ expect(response.status).toBe(200);
+ expect((await response.json()).finance).toBeNull();
+ expect(state.calls).not.toContain("invoice.groupBy");
 });

@@ -36,7 +36,7 @@ const ADMIN: SessionUser = {
   tenantId: "t-1",
   employeeId: null,
   parentId: null,
-  permissions: [],
+  permissions: ["settings.edit", "academic.edit"],
   customRoleCode: null,
 };
 
@@ -111,4 +111,17 @@ describe("PUT /api/programs/[id] partial body", () => {
     await programPut(req("PUT", { description: " Program A " }), params);
     expect(db.program.update.mock.calls[1][0].data.description).toBe("Program A");
   });
+});
+
+it("persists an edited program code", async () => {
+  db.program.findFirst.mockResolvedValueOnce({ id: "id-1", tenantId: "t-1", code: "OLD" }).mockResolvedValueOnce(null);
+  const res = await programPut(req("PUT", { code: "NEW" }), params);
+  expect(res.status).toBe(200);
+  expect(db.program.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ code: "NEW" }) }));
+});
+it("checks age intervals against the stored bound on partial program updates", async () => {
+  db.program.findFirst.mockResolvedValue({ id: "id-1", tenantId: "t-1", ageMin: 48, ageMax: 84 });
+  const res = await programPut(req("PUT", { ageMax: 12 }), params);
+  expect(res.status).toBe(400);
+  expect(db.program.update).not.toHaveBeenCalled();
 });

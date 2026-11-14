@@ -157,7 +157,7 @@ export async function getParentDoc(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   // Admin-only — KTP/KK are sensitive PII; portal users do not read these.
-  if (!isAdminRole(session.role) || !session.tenantId) {
+  if (!isAdminRole(session.role) || !session.tenantId || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

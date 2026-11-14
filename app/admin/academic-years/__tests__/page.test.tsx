@@ -11,7 +11,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.f
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }) }));
 
 import { toast } from "sonner";
-import AcademicPage from "../page";
+import AcademicPage from "../client";
 
 const years = [
   { id: "y2", name: "2027/2028", startDate: "2027-07-12", endDate: "2028-07-09", status: "PLANNING" },
@@ -38,7 +38,7 @@ function stub(postResult?: { status: number; body: unknown }) {
 
 async function openAdd() {
   const user = userEvent.setup();
-  render(<AcademicPage />);
+  render(<AcademicPage canWrite />);
   await screen.findByText("2027/2028");
   await user.click(screen.getAllByRole("button", { name: /Tambah Tahun Ajaran/ })[0]);
   const dialog = await screen.findByRole("dialog", { name: "Tambah Tahun Ajaran" });
@@ -87,10 +87,28 @@ describe("AcademicPage — Tambah Tahun Ajaran defaults (R2-ADMIN-15)", () => {
   it("names where the roll-forward copies from", async () => {
     stub();
     const user = userEvent.setup();
-    render(<AcademicPage />);
+    render(<AcademicPage canWrite />);
     await screen.findByText("2027/2028");
     await user.click(screen.getAllByRole("button", { name: /Aksi untuk|Buka menu/ })[0]);
     expect(await screen.findByRole("menuitem", { name: "Salin kelas dari tahun sebelumnya" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /ke Tahun Ini/ })).not.toBeInTheDocument();
   });
+});
+
+it("recovers a rejected initial programs fetch with a local retry", async () => {
+  let fail = true;
+  vi.stubGlobal("fetch", vi.fn((url: string) => url === "/api/programs" && fail ? Promise.reject(new Error("offline")) : Promise.resolve(json(url === "/api/programs" ? [] : years))));
+  const user = userEvent.setup();
+  render(<AcademicPage canWrite />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Gagal memuat program");
+  fail = false;
+  await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+  await screen.findByText("2027/2028");
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+it("hides academic write controls for a read-only viewer", async () => {
+  stub();
+  render(<AcademicPage canWrite={false} />);
+  await screen.findByText("2027/2028");
+  expect(screen.queryByRole("button", { name: /Tambah Tahun Ajaran|Tambah Program|Aksi untuk|Buka menu/ })).toBeNull();
 });

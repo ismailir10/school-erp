@@ -72,7 +72,7 @@ export async function setPublishState(
       status: publish ? "PUBLISHED" : "DRAFT",
       publishedAt: publish ? new Date() : null,
     },
-    select: { id: true, status: true, publishedAt: true },
+    select: { id: true, status: true, publishedAt: true, updatedAt: true },
   });
   await recordAudit({
     tenantId: session.tenantId,

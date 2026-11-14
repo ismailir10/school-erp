@@ -46,7 +46,7 @@ export async function POST(
     await req.json(),
   );
   if (parsed.error) return parsed.error;
-  const { employeeId, role } = parsed.data;
+  const { employeeId, role, replaceAssignmentId } = parsed.data;
 
   const classSection = await prisma.classSection.findFirst({
     where: { id: classId, tenantId: session.tenantId },
@@ -91,7 +91,12 @@ export async function POST(
             employee: { select: { id: true, nama: true } },
           },
         });
-        if (existing) {
+        if (replaceAssignmentId && existing?.id !== replaceAssignmentId) {
+          throw new HomeroomExists({ existingAssignmentId: existing?.id ?? "", existingEmployeeId: existing?.employeeId ?? "", existingEmployeeName: existing?.employee.nama ?? "" });
+        }
+        if (existing && replaceAssignmentId === existing.id) {
+          await tx.teachingAssignment.delete({ where: { id: existing.id } });
+        } else if (existing) {
           throw new HomeroomExists({
             existingAssignmentId: existing.id,
             existingEmployeeId: existing.employeeId,

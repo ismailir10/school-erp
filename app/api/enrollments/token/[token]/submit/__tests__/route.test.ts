@@ -104,6 +104,24 @@ beforeEach(() => {
 });
 
 describe("POST /api/enrollments/token/[token]/submit", () => {
+  it("rejects an invitation cancelled after the initial access check", async () => {
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) => arg.where.accessToken
+      ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" }
+      : { admission: { status: "CANCELLED" }, consentData: {} });
+    expect((await POST(req(validBody()), ctx)).status).toBe(410);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("submitting from one browser preserves another parent's independently saved phone", async () => {
+    const body = validBody();
+    const stored = { ...body, ayahData: { ...body.ayahData, phone: "08123456789" }, consentData: { ...body.consentData, ayah: { ...body.consentData.ayah, signatureToken: DB_AYAH }, ibu: { ...body.consentData.ibu, signatureToken: DB_IBU } } };
+    findUnique.mockImplementation(async (arg: { where: { accessToken?: string } }) => arg.where.accessToken
+      ? { id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" } : stored);
+    const response = await POST(req({ ...body, baseData: body }), ctx);
+    expect(response.status).toBe(201);
+    expect(updateMany.mock.calls[0][0].data.ayahData.phone).toBe("08123456789");
+  });
+
   it("422 on validation failure (missing required field)", async () => {
     const b = validBody();
     b.studentData.childName = "";

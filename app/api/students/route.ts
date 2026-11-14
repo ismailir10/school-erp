@@ -13,7 +13,7 @@ import { invalidateParentChildren } from "@/lib/parent-helpers";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

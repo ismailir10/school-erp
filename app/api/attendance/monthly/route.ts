@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       if (r.status === "PRESENT" || r.status === "PRESENT_NO_CHECKOUT") summary.present++;
       else if (r.status === "LATE") summary.late++;
       else if (r.status === "ABSENT") summary.absent++;
-      else if (r.status === "LEAVE") summary.leave++;
+      else if (["LEAVE", "SICK", "PERMISSION"].includes(r.status)) summary.leave++;
     }
 
     return {

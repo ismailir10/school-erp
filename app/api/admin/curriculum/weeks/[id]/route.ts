@@ -1,3 +1,4 @@
+import { validateWeekSemester } from "@/lib/curriculum/week-dates";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
@@ -62,6 +63,10 @@ export async function PUT(
       { status: 400 },
     );
   }
+
+  const dateError = (body.startDate !== undefined || body.endDate !== undefined || body.status === "ACTIVE")
+    ? await validateWeekSemester(before.subThemeId, session.tenantId, formatJakartaYmd(finalStart), formatJakartaYmd(finalEnd)) : null;
+  if (dateError) return NextResponse.json({ error: dateError, errors: [{ field: "endDate", message: dateError }] }, { status: 400 });
 
   // Overlap check only if the row is (still) ACTIVE after the update — a row
   // being deactivated cannot conflict with anything.

@@ -81,32 +81,27 @@ export function NoteThreadPanel({
       setNotes(json.data.notes);
       setNextCursor(json.data.nextCursor);
       onUnreadChange?.(json.data.unreadCount);
+      if (markReadOnOpen && markedFor.current !== studentId) {
+        const read = await fetch("/api/student-journal/notes/read", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ studentId }),
+        }).catch(() => null);
+        if (read?.ok && id === requestId.current) {
+          markedFor.current = studentId;
+          onUnreadChange?.(0);
+        }
+      }
     } catch {
       if (id !== requestId.current) return;
       setError(true);
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [studentId, onUnreadChange]);
+  }, [studentId, onUnreadChange, markReadOnOpen]);
 
   useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage, reloadToken]);
-
-  // Clearing the badge is a side effect of arriving, not of scrolling: one
-  // upsert per student per mount, never once per note.
-  useEffect(() => {
-    if (!markReadOnOpen) return;
-    if (markedFor.current === studentId) return;
-    markedFor.current = studentId;
-    void fetch("/api/student-journal/notes/read", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId }),
-    }).catch(() => {
-      // Non-fatal: the badge simply stays until the next visit.
-    });
-  }, [studentId, markReadOnOpen]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;

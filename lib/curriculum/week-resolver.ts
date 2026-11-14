@@ -51,7 +51,7 @@ export async function getCurrentWeek(
       status: "ACTIVE",
       startDate: { lte: targetUtcMidnight },
       endDate: { gte: targetUtcMidnight },
-      subTheme: { theme: themesVisibleTo(ageGroup) },
+      subTheme: { status: "ACTIVE", theme: { ...themesVisibleTo(ageGroup), status: "ACTIVE", semester: { status: "ACTIVE", startDate: { lte: targetUtcMidnight }, endDate: { gte: targetUtcMidnight } } } },
     },
     select: {
       id: true,

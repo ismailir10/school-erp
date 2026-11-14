@@ -1,6 +1,6 @@
+import { requirePermission } from "@/lib/auth-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -31,10 +31,9 @@ export async function PATCH(
 ) {
   // Auth runs before rate-limit so an unauthenticated burst can't drain the
   // per-IP budget and lock out a legitimate admin behind the same NAT/proxy.
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
 
   const { success } = rateLimit(
     `swap-class-session-teacher:${getClientIp(req)}`,

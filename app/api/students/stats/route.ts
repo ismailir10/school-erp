@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -14,7 +15,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 export async function GET(_req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

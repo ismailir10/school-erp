@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { requirePermission } from "@/lib/auth-guards";
@@ -84,6 +86,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   return NextResponse.json({
     data: {
+      canWrite: hasPermission(session, "reportCard.write"),
+      canPublish: hasPermission(session, "reportCard.publish"),
       student,
       term: {
         id: term.id,
@@ -134,7 +138,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   const body = result.data;
 
   const tenantId = session.tenantId;
-  const { heightCm, weightKg, ...entryFields } = body;
+  const { heightCm, weightKg, expectedUpdatedAt, ...entryFields } = body;
 
   // JSON column: distinguish omitted (undefined → skip) from explicit clear
   // (null → SQL NULL via Prisma.DbNull) so a wired parentMeetingAttendance
@@ -146,9 +150,11 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         ? Prisma.DbNull
         : entryFields.parentMeetingAttendance;
 
-  const saved = await prisma.$transaction(async (tx) => {
+  let saved;
+  try {
+  saved = await prisma.$transaction(async (tx) => {
     const entry = await tx.reportCardEntry.upsert({
-      where: { tenantId_studentId_termId: { tenantId, studentId, termId } },
+      where: { tenantId_studentId_termId: { tenantId, studentId, termId }, updatedAt: expectedUpdatedAt ? new Date(expectedUpdatedAt) : new Date(0) },
       create: {
         tenantId,
         studentId,
@@ -201,5 +207,12 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     return entry;
   });
 
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2025"].includes(error.code)) {
+      return NextResponse.json({ error: "Rapor telah diubah di tab lain. Salin perubahan Anda, lalu muat ulang rapor sebelum menyimpan." }, { status: 409 });
+    }
+    throw error;
+  }
+  revalidateTag("parent-report-cards", { expire: 0 });
   return NextResponse.json({ data: saved });
 }

@@ -109,6 +109,8 @@ export function AddTeacherDialog({
         new ApiError(body.error ?? "Gagal menambahkan guru", { status: res.status }),
         "Gagal menambahkan guru",
       );
+    } catch {
+      toast.error("Gagal menyimpan guru. Coba lagi.");
     } finally {
       setAddingTeacher(false);
     }
@@ -118,20 +120,12 @@ export function AddTeacherDialog({
     if (!replaceHomeroom) return;
     setAddingTeacher(true);
     try {
-      const delRes = await fetch(
-        `/api/admin/classes/${classId}/teaching-assignments?employeeId=${replaceHomeroom.existingEmployeeId}`,
-        { method: "DELETE" },
-      );
-      if (!delRes.ok) {
-        const d = await delRes.json().catch(() => ({}));
-        toast.error(d.error ?? "Gagal mengganti wali kelas");
-        return;
-      }
       const postRes = await fetch(`/api/admin/classes/${classId}/teaching-assignments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employeeId: replaceHomeroom.newEmployeeId,
+          replaceAssignmentId: replaceHomeroom.existingAssignmentId,
           role: "HOMEROOM",
         }),
       });
@@ -144,6 +138,8 @@ export function AddTeacherDialog({
         const d = await postRes.json().catch(() => ({}));
         toast.error(d.error ?? "Gagal menambahkan wali kelas baru");
       }
+    } catch {
+      toast.error("Gagal menyimpan guru. Coba lagi.");
     } finally {
       setAddingTeacher(false);
     }
@@ -178,7 +174,7 @@ export function AddTeacherDialog({
             required
             id="class-teacher"
             render={({ field, controlProps }) => (
-              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+              <Select items={employeeOptions.map((e) => ({ value: e.id, label: e.nama }))} value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
                 <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                   <SelectValue placeholder="Pilih guru..." />
                 </SelectTrigger>

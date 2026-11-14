@@ -76,3 +76,21 @@ describe("hari tanpa buku penghubung", () => {
   expect(screen.queryByTestId("day-mark-open")).toBeNull();
  });
 });
+
+it("explains revoked class access and offers an allowed class instead of connection retry", async () => {
+ nav.params = new URLSearchParams("classId=revoked&date=2026-08-03");
+ vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url.includes("class-grid") ? { ok: false, status: 403, json: async () => ({ error: "Forbidden" }) } : ok([]))));
+ render(<Page />);
+ expect(await screen.findByText("Akses kelas telah berubah")).toBeInTheDocument();
+ expect(screen.getByRole("link", { name: "Pilih kelas lain" })).toHaveAttribute("href", "/teacher/student-journal?pick=1");
+ expect(screen.queryByText("Periksa koneksi, lalu coba lagi.")).not.toBeInTheDocument();
+});
+
+it("prevents a future deep link from offering a writable checklist", async () => {
+ nav.params = new URLSearchParams("classId=c&date=2999-11-16");
+ const fetchMock = vi.fn();vi.stubGlobal("fetch", fetchMock);
+ render(<Page />);
+ expect(await screen.findByText("Tanggal belum dapat diisi")).toBeInTheDocument();
+ expect(screen.queryByTestId("grid")).not.toBeInTheDocument();
+ expect(fetchMock).not.toHaveBeenCalled();
+});

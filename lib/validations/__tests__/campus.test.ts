@@ -96,3 +96,7 @@ describe("campus coordinates are range-checked (HR-9)", () => {
     expect(updateCampusSchema.parse({ status: "ACTIVE" })).toEqual({ status: "ACTIVE" });
   });
 });
+
+it("rejects whitespace campus update names", () => {
+  expect(updateCampusSchema.safeParse({ name: "   " }).success).toBe(false);
+});

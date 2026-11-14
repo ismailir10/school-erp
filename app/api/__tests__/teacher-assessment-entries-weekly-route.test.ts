@@ -174,7 +174,7 @@ describe("GET /api/teacher/assessment-entries/weekly", () => {
     setHomeroomActiveWeek();
     await GET(req() as never);
     const callArgs = achievementIndicatorFindMany.mock.calls[0][0];
-    expect(callArgs.where.objective).toEqual({ ageGroup: "A" });
+    expect(callArgs.where.objective).toEqual({ ageGroup: "A", status: "ACTIVE", semester: { status: "ACTIVE" } });
   });
 
   it("200 indicators are ageGroup-filtered for every class (heuristic null path removed 2026-05-20)", async () => {
@@ -197,7 +197,7 @@ describe("GET /api/teacher/assessment-entries/weekly", () => {
     });
     await GET(req() as never);
     const callArgs = achievementIndicatorFindMany.mock.calls[0][0];
-    expect(callArgs.where.objective).toEqual({ ageGroup: "B" });
+    expect(callArgs.where.objective).toEqual({ ageGroup: "B", status: "ACTIVE", semester: { status: "ACTIVE" } });
   });
 
   it("200 entries are scoped to source HOMEROOM + this week", async () => {
@@ -206,6 +206,7 @@ describe("GET /api/teacher/assessment-entries/weekly", () => {
     await GET(req() as never);
     const callArgs = assessmentEntryFindMany.mock.calls[0][0];
     expect(callArgs.where.source).toBe("HOMEROOM");
+    expect(callArgs.where.voidedAt).toBeNull();
     expect(callArgs.where.weekId).toBe("wk1");
     expect(callArgs.where.studentId).toEqual({ in: ["stu1", "stu2"] });
   });

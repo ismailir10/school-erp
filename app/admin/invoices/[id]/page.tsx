@@ -382,6 +382,7 @@ export default function InvoiceDetailPage() {
     } catch (err) {
       // Back to the form so the server's field error (e.g. overpayment) is
       // shown next to the field it belongs to.
+      await fetchInvoice();
       setPayStep("form");
       applyServerErrors(payForm, err, "Hasil pencatatan belum dapat dipastikan. Coba lagi dengan rincian yang sama agar pembayaran tidak tercatat dua kali.");
     } finally {

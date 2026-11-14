@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
@@ -136,7 +137,8 @@ export async function POST(req: NextRequest) {
   const validated = await validateBody(createManualInvoiceSchema, body);
   if (validated.error) return validated.error;
 
-  const { studentId, periodLabel, dueDate, lines } = validated.data;
+  const { studentId, periodLabel, dueDate, lines, idempotencyKey } = validated.data;
+  const requestHash = createHash("sha256").update(JSON.stringify({ studentId, periodLabel, dueDate, lines })).digest("hex");
   const tenantId = session.tenantId;
 
   // Outer try/catch is the only thing that turns an unexpected DB/Xendit/
@@ -144,6 +146,14 @@ export async function POST(req: NextRequest) {
   // generic "Gagal membuat tagihan" toast with no server-side breadcrumb,
   // which masked a P2002-from-FK incident on staging in 2026-05.
   try {
+
+  if (idempotencyKey) {
+    const previous = await prisma.invoice.findUnique({ where: { tenantId_manualRequestKey: { tenantId, manualRequestKey: idempotencyKey } }, include: { lines: true } });
+    if (previous) {
+      if (previous.manualRequestHash !== requestHash) return NextResponse.json({ error: "Tagihan sebelumnya sudah dibuat dengan rincian berbeda. Buka tagihan sebelumnya sebelum membuat tagihan baru.", ...(hasPermission(session, "invoices.view") ? { invoiceId: previous.id } : {}) }, { status: 409 });
+      return NextResponse.json(previous, { status: 200 });
+    }
+  }
 
   // Verify the student is ACTIVE in *this* tenant. Deliberately no class
   // enrollment check: a newly converted SPMB applicant has no class until the
@@ -204,6 +214,8 @@ export async function POST(req: NextRequest) {
           const invoice = await tx.invoice.create({
             data: {
               tenantId,
+              manualRequestKey: idempotencyKey ?? null,
+              manualRequestHash: idempotencyKey ? requestHash : null,
               studentId,
               parentId: guardian?.parentId ?? null,
               invoiceNumber,
@@ -250,6 +262,13 @@ export async function POST(req: NextRequest) {
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2002"
       ) {
+        if (idempotencyKey) {
+          const previous = await prisma.invoice.findUnique({ where: { tenantId_manualRequestKey: { tenantId, manualRequestKey: idempotencyKey } }, include: { lines: true } });
+          if (previous) {
+            if (previous.manualRequestHash !== requestHash) return NextResponse.json({ error: "Tagihan sebelumnya sudah dibuat dengan rincian berbeda. Buka tagihan sebelumnya sebelum membuat tagihan baru.", ...(hasPermission(session, "invoices.view") ? { invoiceId: previous.id } : {}) }, { status: 409 });
+            return NextResponse.json(previous, { status: 200 });
+          }
+        }
         lastP2002 = e;
         if (attempt < 2) {
           const jitter = Math.random() * 100 - 50;

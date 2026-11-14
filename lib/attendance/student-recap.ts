@@ -1,3 +1,4 @@
+import { studentDays } from "@/lib/attendance/student-days";
 import { prisma } from "@/lib/db";
 
 /**
@@ -129,14 +130,13 @@ export async function getStudentRecap(
         classSection: { select: { name: true } },
       },
     }),
-    prisma.studentAttendance.groupBy({
-      by: ["studentId", "classSectionId", "status"],
+    prisma.studentAttendance.findMany({
       where: {
         isVoided: false,
         classSection: sectionWhere,
         date: { gte: window.gte, lt: window.lt },
       },
-      _count: { status: true },
+      select: { studentId: true, classSectionId: true, date: true, sessionId: true, status: true },
     }),
   ]);
 
@@ -145,11 +145,11 @@ export async function getStudentRecap(
     string,
     { present: number; absent: number; sick: number; permission: number }
   >();
-  for (const g of grouped) {
+  for (const g of studentDays(grouped)) {
     const key = `${g.studentId}:${g.classSectionId}`;
     const row =
       counts.get(key) ?? { present: 0, absent: 0, sick: 0, permission: 0 };
-    const n = g._count.status;
+    const n = 1;
     if (g.status === "PRESENT") row.present += n;
     else if (g.status === "ABSENT") row.absent += n;
     else if (g.status === "SICK") row.sick += n;

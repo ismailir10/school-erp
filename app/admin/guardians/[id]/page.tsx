@@ -437,18 +437,18 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
           <DossierSection
             id={SECTION_INVOICES}
             label="Tagihan"
-            badge={
+            badge={parent.canViewFinance !== false &&
               (openSections[SECTION_INVOICES] ?? true) ? (
                 <Badge variant="neutral">
                   {summary.invoiceCount} tagihan
                 </Badge>
               ) : undefined
             }
-            summary={invoicesSummary(summary)}
+            summary={parent.canViewFinance === false ? "Anda tidak memiliki akses ke data tagihan." : invoicesSummary(summary)}
             open={openSections[SECTION_INVOICES] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_INVOICES, o)}
           >
-            <InvoicesList summary={summary} invoices={parent.invoices} guardians={parent.guardians} />
+            {parent.canViewFinance === false ? <p className="text-sm text-muted-foreground">Anda tidak memiliki akses ke data tagihan.</p> : <InvoicesList summary={summary} invoices={parent.invoices} guardians={parent.guardians} />}
           </DossierSection>
 
           {/* ---------- Data Wali — View/Edit toggle ---------- */}

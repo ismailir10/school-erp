@@ -41,3 +41,16 @@ describe("proxy: public static assets", () => {
     expect(res.headers.get("location")).toContain("http://localhost/");
   });
 });
+
+describe("idle session revocation", () => {
+  it.each(["admin", "teacher", "parent"])("clears authentication credentials for expired %s sessions", async (portal) => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    const request = new NextRequest(`http://localhost/${portal}`, { headers: { cookie: `school-erp-session=u_super_admin; school-erp-last-active=${Date.now() - 48 * 60 * 60 * 1000}; sb-project-auth-token=expired` } });
+    const response = await proxy(request);
+    expect(response.status).toBe(307);
+    for (const name of ["school-erp-session", "school-erp-last-active", "sb-project-auth-token"]) {
+      expect(response.cookies.get(name)?.value).toBe("");
+    }
+    vi.unstubAllEnvs();
+  });
+});

@@ -155,3 +155,9 @@ describe("GET /api/students/export", () => {
     expect(data).toBe('"Aisyah Putri","1234567890"');
   });
 });
+
+it("denies CSV disclosure to an admissions-only admin", async () => {
+ await mockSession({ ...adminSession(), role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
+ expect((await call()).status).toBe(403);
+ expect(studentFindMany).not.toHaveBeenCalled();
+});

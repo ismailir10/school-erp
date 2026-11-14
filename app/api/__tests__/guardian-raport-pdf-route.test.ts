@@ -15,6 +15,7 @@ const { getSession, renderToBuffer, db } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ getSession }));
 vi.mock("@react-pdf/renderer", () => ({
+  Font: { register: vi.fn() },
   renderToBuffer,
   StyleSheet: { create: (x: unknown) => x },
   Document: "Document",

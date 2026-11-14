@@ -13,7 +13,7 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
-  if (!isAdminRole(session.role)) {
+  if (!isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

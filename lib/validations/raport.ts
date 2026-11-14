@@ -142,6 +142,7 @@ export const raportUpsertSchema = z
     // Partial maps keyed by section (zod v4 `record` with an enum key is
     // exhaustive — `partialRecord` allows a subset). Bucketed sections carry a
     // level; any section may carry a narrative. Closing sections never carry a level.
+    expectedUpdatedAt: z.iso.datetime().nullable().optional(),
     sectionLevels: z.partialRecord(bucketedSectionSchema, achievementLevelSchema),
     sectionNarratives: z.partialRecord(reportSectionSchema, z.string().max(10_000)),
 

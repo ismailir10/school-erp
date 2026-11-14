@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createCurriculumSemester } from "./helpers/curriculum-semester";
 
 // E2E for the C1 admin curriculum surface. Demo session as SUPER_ADMIN —
 // only role with curriculum.write. The seed is date-relative (prisma/seed.ts):
@@ -41,7 +42,7 @@ test.describe("Admin curriculum", () => {
     // Calendar popover on a fine pointer (desktop Chromium's default). Force
     // `(pointer: coarse)` so it takes its native-`<input type="date">` branch,
     // same as a real touch device gets; `.fill()` below targets that native
-    // input by id — far simpler than paging a calendar to the 2030 dates this
+    // input by id — far simpler than paging a calendar to the isolated dates this
     // suite seeds to dodge overlap with real data.
     await page.addInitScript(() => {
       const realMatchMedia = window.matchMedia.bind(window);
@@ -90,12 +91,7 @@ test.describe("Admin curriculum", () => {
   });
 
   test("theme create + subtheme create + week create end-to-end", async ({ page }) => {
-    // Semester 1 of the ACTIVE academic year (name discovered, not pinned):
-    // prior test runs may have left other `number: 1` semesters under
-    // different years, so match BOTH the AY name and the semester number
-    // rather than relying on list order.
-    const { id: semesterId, yearName } = await findActiveYearSemesterOne(page);
-    test.skip(!semesterId, "seed produced no Semester 1 for the ACTIVE academic year — skipping");
+    const { semesterId, yearName, monday } = await createCurriculumSemester(page);
 
     await page.goto(`/admin/semesters/${semesterId}/themes`);
     await expect(
@@ -124,11 +120,7 @@ test.describe("Admin curriculum", () => {
     // Select the new subtheme.
     await page.locator('[data-testid="subtheme-row"]').filter({ hasText: subThemeName }).click();
 
-    // Create a Mon–Fri week in a far-future range clear of seeded weeks. The
-    // week varies per run: weeks of every shared theme in the semester must
-    // not overlap, so a fixed date would collide with a previous run's week
-    // on a reused DB. Mondays from 2030-01-07, within 2030–2037.
-    const monday = new Date(Date.UTC(2030, 0, 7 + 7 * (Math.floor(Date.now() / 1000) % 400)));
+    // School weeks must stay within their semester; this fixture is isolated.
     const ymd = (d: Date) => d.toISOString().slice(0, 10);
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
     await page.locator("#week-start-date").fill(ymd(monday));

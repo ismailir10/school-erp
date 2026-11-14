@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-type Session = { id: string; role: string; tenantId: string | null };
+type Session = { id: string; role: string; tenantId: string | null; permissions?: string[] };
 
 const state = {
   session: null as Session | null,
@@ -79,7 +79,7 @@ function term(
 }
 
 beforeEach(() => {
-  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1" };
+  state.session = { id: "u1", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "invoices.view"] };
   state.student = { id: "s1", tenantId: "t1" };
   state.terms = [
     term("old1", 1, "2024-07-15", "2024-09-30", "ARCHIVED", "2024/2025", "sem-old"),

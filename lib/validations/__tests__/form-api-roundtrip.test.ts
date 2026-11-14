@@ -625,10 +625,12 @@ describe("Class-session swap: swapClassSessionTeacherFormSchema (form) -> swapCl
 
 // ── Ubah Kelas (class detail) — components/admin/classes/detail/edit-class-dialog.tsx ─
 describe("Class detail edit: classEditFormSchema (form) -> classUpdateSchema (route)", () => {
-  it("round-trips name/capacity/slotTemplate with capacity coerced from a string input", async () => {
+  it("round-trips program/ageGroup/name/capacity/slotTemplate with capacity coerced from a string input", async () => {
     const { classEditFormSchema, classUpdateSchema } = await import("../class");
     const form = classEditFormSchema.safeParse({
       name: "KB 1",
+      programId: "prog-1",
+      ageGroup: "A",
       capacity: "25",
       slotTemplate: "MORNING_AND_AFTERNOON",
     });
@@ -637,6 +639,8 @@ describe("Class detail edit: classEditFormSchema (form) -> classUpdateSchema (ro
     expect(form.data.capacity).toBe(25);
     const body = wire({
       name: form.data.name,
+      programId: form.data.programId,
+      ageGroup: form.data.ageGroup,
       capacity: form.data.capacity,
       slotTemplate: form.data.slotTemplate,
     }); // edit-class-dialog.tsx's `save`
@@ -647,6 +651,8 @@ describe("Class detail edit: classEditFormSchema (form) -> classUpdateSchema (ro
     const { classEditFormSchema } = await import("../class");
     const form = classEditFormSchema.safeParse({
       name: "KB 1",
+      programId: "prog-1",
+      ageGroup: "A",
       capacity: "",
       slotTemplate: "FULL_DAY",
     });

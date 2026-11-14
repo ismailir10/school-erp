@@ -17,7 +17,11 @@ export const holidaySchema = z.object({
   date: z
     .string()
     .min(1, "Tanggal wajib diisi")
-    .regex(ymdRegex, "Format tanggal harus YYYY-MM-DD"),
+    .regex(ymdRegex, "Format tanggal harus YYYY-MM-DD")
+    .refine((date) => {
+      const parsed = new Date(`${date}T00:00:00.000Z`);
+      return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+    }, "Tanggal tidak valid"),
   name: z
     .string()
     .trim()

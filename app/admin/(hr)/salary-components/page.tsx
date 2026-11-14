@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
+import { usePermissions } from "@/hooks/use-permission";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useWatch } from "react-hook-form";
@@ -55,8 +58,10 @@ const EMPTY_FORM = {
 };
 
 export default function SalaryComponentsPage() {
+  const can = usePermissions();
   const [components, setComponents] = useState<Component[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Component | null>(null);
   const [search, setSearch] = useState("");
@@ -71,12 +76,17 @@ export default function SalaryComponentsPage() {
   const [confirmTarget, setConfirmTarget] = useState<Component | null>(null);
 
   const fetchComponents = useCallback(async () => {
-    const res = await fetch("/api/salary-components");
-    setComponents(await res.json());
-    setLoading(false);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/salary-components");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error();
+      setComponents(data);
+    } catch { setLoadError(true); } finally { setLoading(false); }
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchComponents(); }, [fetchComponents]);
 
   function openNew() {
@@ -202,24 +212,24 @@ export default function SalaryComponentsPage() {
       header: "",
       cell: ({ row }) => {
         const c = row.original;
-        return (
+        return can("payroll.create") ? (
           <DataTableRowActions
             onEdit={() => openEdit(c)}
             isActive={c.isEnabled}
             onDeactivate={() => setConfirmTarget(c)}
             onActivate={() => toggleEnabled(c)}
           />
-        );
+        ) : null;
       },
     },
-  ], [openEdit, toggleEnabled]);
+  ], [openEdit, toggleEnabled, can]);
 
   return (
     <>
       <PageHeader
         title="Komponen Gaji"
         description="Konfigurasi komponen pendapatan dan potongan"
-        actions={
+        actions={can("payroll.create") &&
           <Button onClick={openNew} size="sm">
             <Plus size={16} className="mr-1.5" /> Tambah Komponen
           </Button>
@@ -257,7 +267,7 @@ export default function SalaryComponentsPage() {
         ]}
       />
 
-      <DataTable
+      {loadError ? <ErrorState title="Data belum bisa dimuat." onRetry={fetchComponents} /> : (      <DataTable
         columns={columns}
         data={filteredComponents}
         pagination={{ page: 1, pageSize: 10, total: filteredComponents.length, totalPages: Math.max(1, Math.ceil(filteredComponents.length / 10)) }}
@@ -265,7 +275,7 @@ export default function SalaryComponentsPage() {
         defaultSort={{ field: "sortOrder", order: "asc" }}
         emptyTitle="Belum ada komponen gaji"
         emptyDescription="Ubah kata kunci atau filter, atau tambahkan komponen pendapatan dan potongan."
-      />
+      />)}
 
       <ResponsiveFormDialog
         open={dialogOpen}

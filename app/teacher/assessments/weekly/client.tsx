@@ -2,7 +2,7 @@
 
 import { EntityLink } from "@/components/entity-link";
 import { entityHref } from "@/lib/entity-links";
-import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toastError } from "@/lib/feedback";
 import { NotebookPen, Users } from "lucide-react";
@@ -141,7 +141,7 @@ function handleRadioGroupKeyDown<T extends string>(
     ?.focus();
 }
 
-export function WeeklyClient({
+function WeeklyEntry({
   initialDate,
   week,
   classSection,
@@ -169,7 +169,13 @@ export function WeeklyClient({
   // "saving" while any tap is in flight, "saved" only when none is left and the
   // last one landed, "error" until the next tap (DOC-4).
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const inFlight = useRef(0);
+  const failedCells = useRef(new Set<string>());
+  const cellQueues = useRef(new Map<string, Promise<void>>());
+  const cellVersions = useRef(new Map<string, number>());
+  const committedCells = useRef(new Map(initialEntries.map((e) => [`${e.studentId}:${e.indicatorId}:${e.date}`, e])));
 
   const days = useMemo(() => weekDays(week), [week]);
 
@@ -195,9 +201,18 @@ export function WeeklyClient({
     // has since moved to another indicator or day.
     target?: { indicatorId: string; day: string },
   ): Promise<void> {
+    if (!mounted.current) return;
     const indicatorId = target?.indicatorId ?? activeIndicatorId;
     if (!indicatorId) return;
     const day = target?.day ?? activeDay;
+    if (!weekDays(week).includes(day) || !indicators.some((i) => i.id === indicatorId)) return;
+    const cellKey = `${student.id}:${indicatorId}:${day}`;
+    const version = (cellVersions.current.get(cellKey) ?? 0) + 1;
+    cellVersions.current.set(cellKey, version);
+    const previous = cellQueues.current.get(cellKey) ?? Promise.resolve();
+    let release!: () => void;
+    const finished = new Promise<void>((resolve) => { release = resolve; });
+    cellQueues.current.set(cellKey, finished);
     const matchesCell = (e: Entry): boolean =>
       e.studentId === student.id &&
       e.indicatorId === indicatorId &&
@@ -219,6 +234,7 @@ export function WeeklyClient({
     setEntries((curr) => [...curr.filter((e) => !matchesCell(e)), provisional]);
     inFlight.current += 1;
     setSaveState("saving");
+    await previous;
     try {
       const res = await fetch("/api/teacher/assessment-entries", {
         method: "POST",
@@ -239,12 +255,17 @@ export function WeeklyClient({
         const body = await res.json().catch(() => ({}));
         throw new ApiError(body.error ?? "Gagal menyimpan penilaian.");
       }
+      committedCells.current.set(cellKey, provisional);
+      if (!mounted.current) return;
+      failedCells.current.delete(cellKey);
       // Refresh server payload to get the persisted entry id.
       startTransition(() => router.refresh());
       inFlight.current -= 1;
-      setSaveState((current) => (inFlight.current === 0 && current !== "error" ? "saved" : current));
+      setSaveState(inFlight.current === 0 ? (failedCells.current.size ? "error" : "saved") : "saving");
     } catch (err) {
       inFlight.current -= 1;
+      if (!mounted.current || cellVersions.current.get(cellKey) !== version) return;
+      failedCells.current.add(cellKey);
       setSaveState("error");
       const message = userMessage(
         err,
@@ -255,12 +276,18 @@ export function WeeklyClient({
       // wins or rolls back independently in its own setLevel call.
       setEntries((curr) => {
         const without = curr.filter((e) => !matchesCell(e));
-        return priorCell ? [...without, priorCell] : without;
+        const committed = committedCells.current.get(cellKey);
+        return committed ? [...without, committed] : without;
       });
       toastError(message, {
-        retry: () => void setLevel(student, level, { indicatorId, day }),
+        retry: () => {
+          if (mounted.current && cellVersions.current.get(cellKey) === version) void setLevel(student, level, { indicatorId, day });
+        },
         id: `weekly-save-${student.id}-${indicatorId}-${day}`,
       });
+    } finally {
+      release();
+      if (cellQueues.current.get(cellKey) === finished) cellQueues.current.delete(cellKey);
     }
   }
 
@@ -480,4 +507,9 @@ export function WeeklyClient({
       )}
     </div>
   );
+}
+
+/** Each week/class owns its own drafts, active date and pending write queue. */
+export function WeeklyClient(props: Parameters<typeof WeeklyEntry>[0]) {
+  return <WeeklyEntry key={`${props.week.id}:${props.week.startDate}:${props.classSection.id}`} {...props} />;
 }

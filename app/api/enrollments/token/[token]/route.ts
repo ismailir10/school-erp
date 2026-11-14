@@ -2,10 +2,10 @@
 // accessToken is the credential. See proxy.ts public allow-list.
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { mergeDraft } from "@/lib/enrollment/draft-merge";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { resolveEnrollmentAccess, programBelongsToTenant } from "@/lib/enrollment/resolve-token";
-import { writeConsentPreservingSignatures } from "@/lib/enrollment/json-merge";
 import { programIdSchema } from "@/lib/validations/program-id";
 import { denyTokenAccess } from "@/lib/enrollment/access-response";
 
@@ -13,11 +13,12 @@ const RATE_LIMIT_PER_MIN = 30; // generous — autosave can fire often
 const RATE_WINDOW_MS = 60_000;
 
 // Draft save is intentionally loose — the parent may save a half-filled form.
-// Blobs are stored as-is (validated only at final submit). passthrough() keeps
-// nested keys; the whole blob is replaced per save (client sends current state).
+// Blobs allow incomplete fields (validated at final submit). A client baseline
+// lets the locked write merge only edited leaves and refuse stale conflicts.
 // Not accepted here, by design: `documents` (owned by the documents routes) —
 // zod strips unknown keys, so a client-sent `documents` never reaches the row.
 const draftSchema = z.object({
+  baseData: z.record(z.string(), z.unknown()).optional(),
   studentData: z.object({}).passthrough().optional(),
   ayahData: z.object({}).passthrough().optional(),
   ibuData: z.object({}).passthrough().optional(),
@@ -71,40 +72,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     return NextResponse.json({ error: "validation_failed" }, { status: 400 });
   }
   const d = parsed.data;
+  if (Object.keys(d).every((key) => key === "baseData")) return NextResponse.json({ ok: true });
 
-  // Only persist keys the client actually sent. childName mirror keeps the
-  // admin list column in sync with the in-progress student blob.
-  const data: Record<string, unknown> = {};
-  if (d.studentData !== undefined) {
-    data.studentData = d.studentData;
-    const cn = (d.studentData as { childName?: unknown }).childName;
-    if (typeof cn === "string" && cn.trim()) data.childName = cn.trim().slice(0, 80);
-  }
-  if (d.ayahData !== undefined) data.ayahData = d.ayahData;
-  if (d.ibuData !== undefined) data.ibuData = d.ibuData;
-  // consentData is written separately (below) in one UPDATE that carries the
-  // stored signature tokens over, so autosave can never clear a signature.
-  if (d.programId !== undefined) {
-    // Drop a cross-tenant program ref silently — this is an autosave, not a
-    // hard gate; the final submit re-checks and 422s if still invalid.
-    if (d.programId && d.programId !== "" && (await programBelongsToTenant(d.programId, tenantId))) {
-      data.programId = d.programId;
-    } else if (d.programId === "" || d.programId === null) {
-      data.programId = null;
+  {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "EnrollmentApplication" WHERE id = ${id} FOR UPDATE`;
+        const stored = await tx.enrollmentApplication.findUnique({ where: { id }, include: { admission: { select: { status: true } } } });
+        if (!stored || stored.status !== "INVITED" || stored.admission?.status === "CANCELLED") throw new Error("DRAFT_CLOSED");
+        const incoming: Record<string, unknown> = { ...d };
+        delete incoming.baseData;
+        // The wire uses an empty option while persistence uses null. Normalize
+        // both snapshots before comparison so a lost-response clear is retryable.
+        const baseData = { programId: null, dcareAddon: false, ...(d.baseData ?? {}) } as Record<string, unknown>;
+        if (incoming.programId === "") incoming.programId = null;
+        if (baseData.programId === "") baseData.programId = null;
+        // Tokens belong to the upload route; they are never draft edits.
+        if (incoming.consentData) incoming.consentData = normalizeConsentDraft(d.consentData!);
+        if (d.programId && !(await programBelongsToTenant(d.programId, tenantId))) delete incoming.programId;
+        const merged = mergeDraft(baseData, incoming, stored) as Record<string, unknown>;
+        const data: Record<string, unknown> = {};
+        for (const key of Object.keys(incoming)) data[key] = merged[key];
+        if (data.programId === "") data.programId = null;
+        const child = data.studentData as { childName?: string } | undefined;
+        if (child?.childName?.trim()) data.childName = child.childName.trim().slice(0, 80);
+        if (Object.keys(data).length > 0) await tx.enrollmentApplication.update({ where: { id }, data });
+      });
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      if (error instanceof Error && ["DRAFT_CONFLICT", "DRAFT_CLOSED"].includes(error.message)) return NextResponse.json({ error: error.message }, { status: 409 });
+      throw error;
     }
   }
-  if (d.dcareAddon !== undefined) data.dcareAddon = d.dcareAddon;
 
-  if (d.consentData !== undefined) {
-    const written = await writeConsentPreservingSignatures(id, normalizeConsentDraft(d.consentData));
-    // Submitted between the access check and the write: leave the row alone.
-    if (!written) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
-  }
-  if (Object.keys(data).length > 0) {
-    // Same INVITED guard as the consent write: a submit that landed in between
-    // must not be overwritten by a late autosave.
-    const result = await prisma.enrollmentApplication.updateMany({ where: { id, status: "INVITED" }, data });
-    if (result.count === 0) return NextResponse.json({ error: "ALREADY_SUBMITTED" }, { status: 409 });
-  }
-  return NextResponse.json({ ok: true });
 }

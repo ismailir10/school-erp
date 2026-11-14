@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 
 /** Summary cards need counts, not three paginated lists with child relations. */
 export async function GET() {
   const session = await getSession();
   // Match GET /api/guardians, including its 403 for a missing session/tenant.
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

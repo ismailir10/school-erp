@@ -316,3 +316,11 @@ describe("POST /api/admin/academic-years/[id]/roll-forward", () => {
     );
   });
 });
+
+it("rejects copying classes into an archived year before creating any class", async () => {
+  academicYearFindFirst.mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve({ id: where.id, status: where.id === "target" ? "ARCHIVED" : "ACTIVE" }));
+  const res = await call("target", { sourceYearId: "source" });
+  expect(res.status).toBe(409);
+  expect(classSectionCreate).not.toHaveBeenCalled();
+  expect(classSectionFindMany).not.toHaveBeenCalled();
+});

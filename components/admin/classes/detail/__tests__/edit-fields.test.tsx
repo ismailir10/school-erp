@@ -1,0 +1,22 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { expect, it, vi } from "vitest";
+import { EditClassDialog } from "../edit-class-dialog";
+vi.mock("@/components/admin/classes/program-change-impact", () => ({ ProgramChangeImpact: ({ nextProgramId }: { nextProgramId: string }) => <div data-testid="impact">{nextProgramId}</div> }));
+it("edits program and age group from the detail entry point", async () => {
+  const user = userEvent.setup();
+  const saved = vi.fn();
+  const fetchMock = vi.fn().mockImplementation((url: string) => Promise.resolve({ ok: true, json: async () => url === "/api/programs" ? [{ id: "p1", name: "TK", code: "TK", status: "ACTIVE" }, { id: "p2", name: "KB", code: "KB", status: "ACTIVE" }] : {} }));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<EditClassDialog open onOpenChange={vi.fn()} classId="c1" data={{ name: "Kelas", capacity: 20, slotTemplate: "FULL_DAY", programId: "p1", program: { id: "p1", name: "TK", code: "TK" }, ageGroup: "A" }} onSaved={saved} />);
+  await waitFor(() => expect(screen.getByLabelText(/Program/)).toHaveTextContent("TK"));
+  await user.click(screen.getByLabelText(/Program/));
+  await user.click(await screen.findByRole("option", { name: "KB (KB)" }));
+  await user.click(screen.getByLabelText(/Kelompok usia/));
+  await user.click(await screen.findByRole("option", { name: /B · 5–6/ }));
+  expect(screen.getByTestId("impact")).toHaveTextContent("p2");
+  await user.click(screen.getByRole("button", { name: "Simpan" }));
+  await waitFor(() => expect(saved).toHaveBeenCalled());
+  const patch = fetchMock.mock.calls.find(([url]) => url === "/api/admin/classes/c1");
+  expect(JSON.parse(patch![1].body)).toMatchObject({ programId: "p2", ageGroup: "B" });
+});

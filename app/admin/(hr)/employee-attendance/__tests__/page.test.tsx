@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => () => true, usePermission: () => true }));
 /**
  * Cycle 3 T7/T8 — regression test for the "Alpa" bug: a weekend `today`
  * with no attendance records used to render every employee as "Alpa" (the

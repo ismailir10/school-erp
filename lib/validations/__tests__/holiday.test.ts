@@ -49,3 +49,10 @@ describe("holidaySchema", () => {
     expect(holidaySchema.safeParse({ ...valid, type: "" }).success).toBe(false);
   });
 });
+
+ it.each(["2026-02-30", "2026-02-29", "2026-13-01", "2026-00-12"])("rejects impossible date %s", (date) => {
+   expect(holidaySchema.safeParse({ ...valid, date }).success).toBe(false);
+ });
+ it("accepts leap day", () => {
+   expect(holidaySchema.safeParse({ ...valid, date: "2028-02-29" }).success).toBe(true);
+ });

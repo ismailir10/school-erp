@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
@@ -11,7 +12,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "settings.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -48,7 +49,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "settings.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

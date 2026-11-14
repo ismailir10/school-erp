@@ -154,6 +154,7 @@ export default function ParentStudentJournalPage() {
   const data = loadedWeek?.childId === childId && loadedWeek.week === currentWeek
     ? loadedWeek.data
     : null;
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [noteDialog, setNoteDialog] = useState<
@@ -229,6 +230,7 @@ export default function ParentStudentJournalPage() {
         activeWeekRef.current.week === ws;
 
       setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch(
           `/api/student-journal/children/${cid}/week?weekStart=${ws}`,
@@ -236,6 +238,7 @@ export default function ParentStudentJournalPage() {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           if (isCurrentRequest()) {
+            setLoadError(true);
             toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
           }
           return;
@@ -246,6 +249,7 @@ export default function ParentStudentJournalPage() {
         }
       } catch {
         if (isCurrentRequest()) {
+          setLoadError(true);
           toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
         }
       } finally {
@@ -369,7 +373,7 @@ export default function ParentStudentJournalPage() {
       />
 
       {/* Main content */}
-      {loading || !data ? (
+      {loadError ? <div role="alert" className="p-4 border rounded-md">Jurnal belum bisa dimuat. <Button variant="outline" onClick={() => { if (childId) void loadWeekData(childId, currentWeek); }}>Coba lagi</Button></div> : loading || !data ? (
         <div className="space-y-3">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-48 w-full" />

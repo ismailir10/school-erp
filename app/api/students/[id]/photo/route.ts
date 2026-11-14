@@ -153,6 +153,10 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (isAdminRole(session.role) && !hasPermission(session, "students.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Authorisation: admin OR an active guardian of this student.
   // We resolve the guardian's Parent row via User.parentId so a guardian
   // cannot view siblings they are not linked to.

@@ -128,7 +128,7 @@ function adminSession(): Session {
     name: "Admin",
     employeeId: null,
     parentId: null,
-    permissions: ["students.create", "students.edit"],
+    permissions: ["students.view", "students.create", "students.edit"],
     customRoleCode: null,
   };
 }
@@ -400,4 +400,10 @@ describe("DELETE /api/students/[id]/photo", () => {
     const res = await runDelete();
     expect(res.status).toBe(204);
   });
+});
+
+it("denies a private photo to an admissions-only admin", async () => {
+ state.session = { ...adminSession(), permissions: ["admissions.view"] };
+ state.student = { id: "stu_1", tenantId: "t_default", photoUrl: "students/stu_1/photo.png" };
+ expect((await runGet()).status).toBe(403);
 });

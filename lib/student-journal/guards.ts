@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, isAdminRole, type SessionUser } from "@/lib/auth";
+import { hasPermission, type PermissionCode } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { getStudentSentraAccess, teacherCanAccessClass } from "@/lib/sentra/access";
 import {
@@ -11,14 +12,15 @@ import {
  * Admin guard for Student Journal routes.
  *
  * Returns `{ session }` when the caller is authenticated AND carries an admin
- * role (SUPER_ADMIN or SCHOOL_ADMIN) AND has a tenantId. Otherwise returns
+ * role (SUPER_ADMIN or SCHOOL_ADMIN), a tenantId, `students.view`, and the
+ * requested mutation grant when supplied. Otherwise returns
  * `{ error: NextResponse }` ready to be returned from the handler.
  *
  * Using `isAdminRole()` (not `session.role === "SCHOOL_ADMIN"`) — the
  * latter pattern caused a bug during the student CRUD cycle where
  * SUPER_ADMIN users were denied their own tenant's data.
  */
-export async function requireAdmin(): Promise<
+export async function requireAdmin(permission: PermissionCode = "students.view"): Promise<
   | { session: SessionUser & { tenantId: string }; error?: undefined }
   | { session?: undefined; error: NextResponse }
 > {
@@ -32,6 +34,7 @@ export async function requireAdmin(): Promise<
   if (!session.tenantId) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
+  if (!hasPermission(session, "students.view") || !hasPermission(session, permission)) return { error: NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 }) };
   return { session: session as SessionUser & { tenantId: string } };
 }
 
@@ -98,7 +101,8 @@ export async function requireTeacherForClass(
 /**
  * Guard for writing a class-day mark ("hari tanpa buku penghubung").
  *
- * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): any class of their own tenant, so a
+ * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): `students.view` + `students.edit`
+ *   and any class of their own tenant, so a
  *   past day can be corrected from the monitoring side. A class id from another
  *   tenant answers 404 — same as the rest of the admin journal routes.
  * - **Teacher**: delegates to `requireTeacherForClass(…, { viaSentra: true })`.
@@ -113,6 +117,7 @@ export async function requireDayMarkWriter(classSectionId: string): Promise<
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   if (!isAdminRole(session.role)) return requireTeacherForClass(classSectionId, { viaSentra: true });
+  if (!hasPermission(session, "students.view") || !hasPermission(session, "students.edit")) return { error: NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 }) };
   if (!session.tenantId) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
@@ -135,7 +140,8 @@ export async function requireDayMarkWriter(classSectionId: string): Promise<
  * three copies of the branching is exactly how one of them ends up subtly
  * looser than the others, so they share this.
  *
- * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): tenant scope only. Admins write on
+ * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): tenant scope and `students.view`,
+ *   plus `students.edit` for writes. Admins write on
  *   behalf of staff and are not assigned to classes.
  * - **Teacher**: must hold a TeachingAssignment, or be guru sentra of a putaran
  *   (`getStudentSentraAccess`), for at least ONE of the student's ACTIVE enrollments. A student may sit in several (day-care plus
@@ -147,7 +153,7 @@ export async function requireDayMarkWriter(classSectionId: string): Promise<
  * to the student's tenant, not the author's, so a guru pengganti reading across
  * a tenant boundary cannot strand a note where the wali will never see it.
  */
-export async function requireNoteAccessForStudent(studentId: string): Promise<
+export async function requireNoteAccessForStudent(studentId: string, write = false): Promise<
   | { session: SessionUser; studentTenantId: string; error?: undefined }
   | { session?: undefined; studentTenantId?: undefined; error: NextResponse }
 > {
@@ -168,6 +174,7 @@ export async function requireNoteAccessForStudent(studentId: string): Promise<
     NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
 
   if (isAdminRole(session.role)) {
+    if (!hasPermission(session, "students.view") || (write && !hasPermission(session, "students.edit"))) return { error: forbidden() };
     if (!session.tenantId) return { error: forbidden() };
     const studentInTenant = await prisma.student.findFirst({
       where: { id: studentId, tenantId: session.tenantId },

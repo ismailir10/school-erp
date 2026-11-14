@@ -1,10 +1,12 @@
 "use client";
 
 import { MESSAGES } from "@/lib/feedback";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { ProgramChangeImpact } from "@/components/admin/classes/program-change-impact";
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -21,20 +23,7 @@ import { classEditFormSchema } from "@/lib/validations/class";
 
 import type { ClassDetail } from "./types";
 
-/**
- * "Ubah Kelas" dialog (class-detail page) — split out of
- * `app/admin/classes/[id]/client.tsx` (T2, 2026-09-27 admin-finish-standard
- * cycle) and migrated onto `useZodForm(classEditFormSchema)` +
- * `FormField`/`FormDialogFooter`. Only name/capacity/slotTemplate are
- * editable here (no campus/program/ageGroup, unlike the classes-list
- * dialog) — same three fields the pre-migration `useState` form held, and
- * the PATCH body still sends exactly those three keys.
- *
- * Submit label stays "Simpan" (not "Simpan Perubahan"): that was the
- * original copy on this specific dialog and no test/e2e selector depends on
- * it changing, so it is preserved rather than "fixed" to match the
- * classes-list dialog's wording.
- */
+/** Detail and list edit the same class fields and share the billing-impact guard. */
 export function EditClassDialog({
   open,
   onOpenChange,
@@ -45,21 +34,41 @@ export function EditClassDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   classId: string;
-  data: Pick<ClassDetail, "name" | "capacity" | "slotTemplate"> | null;
+  data: Pick<ClassDetail, "name" | "capacity" | "slotTemplate" | "programId" | "program" | "ageGroup"> | null;
   onSaved: () => void;
 }) {
   const formId = useId();
   const form = useZodForm(classEditFormSchema, {
-    defaultValues: { name: "", capacity: 20, slotTemplate: "FULL_DAY" },
+    defaultValues: { name: "", capacity: 20, slotTemplate: "FULL_DAY", programId: "", ageGroup: "A" },
   });
+
+  const [programs, setPrograms] = useState<Array<{ id: string; name: string; code: string; status?: string }>>([]);
+  const [programsError, setProgramsError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [programBlocked, setProgramBlocked] = useState(false);
+  const nextProgramId = form.watch("programId");
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setProgramsError(false);
+    fetch("/api/programs", { signal: controller.signal }).then(async (response) => {
+      if (!response.ok) throw new Error();
+      const rows = await response.json();
+      if (!Array.isArray(rows)) throw new Error();
+      if (!controller.signal.aborted) setPrograms(rows);
+    }).catch(() => { if (!controller.signal.aborted) setProgramsError(true); });
+    return () => controller.abort();
+  }, [open, retryKey]);
 
   useEffect(() => {
     if (!open || !data) return;
-    form.reset({ name: data.name, capacity: data.capacity, slotTemplate: data.slotTemplate });
+    setProgramBlocked(false);
+    form.reset({ name: data.name, capacity: data.capacity, slotTemplate: data.slotTemplate, programId: data.programId, ageGroup: data.ageGroup });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, data]);
 
   const save = form.handleSubmit(async (values) => {
+    if (programBlocked) return;
     try {
       await sendJson(
         `/api/admin/classes/${classId}`,
@@ -69,6 +78,8 @@ export function EditClassDialog({
             name: values.name,
             capacity: values.capacity,
             slotTemplate: values.slotTemplate,
+            ageGroup: values.ageGroup,
+            ...(values.programId !== data?.programId ? { programId: values.programId } : {}),
           },
         },
         MESSAGES.saveFailed,
@@ -86,11 +97,12 @@ export function EditClassDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Ubah Kelas"
-      description="Perbarui nama, kapasitas, atau pola slot."
+      description="Perbarui program, kelompok usia, nama, kapasitas, atau pola slot."
       footer={
         <FormDialogFooter
           formId={formId}
           pending={form.formState.isSubmitting}
+          disabled={programBlocked}
           onCancel={() => onOpenChange(false)}
           submitLabel="Simpan"
         />
@@ -98,6 +110,22 @@ export function EditClassDialog({
     >
       <form id={formId} onSubmit={save} noValidate className="space-y-field">
         <FormRootError formState={form.formState} />
+        <FormField control={form.control} name="programId" label="Program" required id="class-detail-program" render={({ field, controlProps }) => {
+          const options = [...programs.filter((p) => p.status === "ACTIVE" || p.id === data?.programId)];
+          if (data && !options.some((p) => p.id === data.programId)) options.push(data.program);
+          return <Select items={options.map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))} value={field.value} onValueChange={(value) => value != null && field.onChange(value)}>
+            <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih program" /></SelectTrigger>
+            <SelectContent>{options.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>)}</SelectContent>
+          </Select>;
+        }} />
+        {programsError && <div role="alert" className="text-sm"><p>Gagal memuat pilihan program.</p><Button type="button" variant="link" onClick={() => setRetryKey((key) => key + 1)}>Coba lagi</Button></div>}
+        {data && <ProgramChangeImpact classId={classId} currentProgramId={data.programId} nextProgramId={nextProgramId} onBlockedChange={setProgramBlocked} />}
+        <FormField control={form.control} name="ageGroup" label="Kelompok usia" required id="class-detail-age-group" render={({ field, controlProps }) => (
+          <Select items={[{ value: "A", label: "A · 4–5 tahun (TK A)" }, { value: "B", label: "B · 5–6 tahun (TK B)" }]} value={field.value} onValueChange={(value) => value != null && field.onChange(value)}>
+            <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih kelompok usia" /></SelectTrigger>
+            <SelectContent><SelectItem value="A">A · 4–5 tahun (TK A)</SelectItem><SelectItem value="B">B · 5–6 tahun (TK B)</SelectItem></SelectContent>
+          </Select>
+        )} />
         <FormField
           control={form.control}
           name="name"

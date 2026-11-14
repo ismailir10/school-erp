@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
 
-  const guard = await requireAdmin();
+  const guard = await requireAdmin("students.edit");
   if (guard.error) return guard.error;
   const { session } = guard;
 

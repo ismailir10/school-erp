@@ -126,6 +126,7 @@ vi.mock("@/lib/db", () => ({
       }),
     },
     parent: {
+      findUnique: vi.fn(async ({ where }: { where: { tenantId_email: { email: string } } }) => state.existingParents.find((p) => p.email === where.tenantId_email.email) ?? null),
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         const p = state.parent;
         if (!p) return null;
@@ -397,6 +398,15 @@ describe("POST guardians — duplicate guard on the create path", () => {
     expect(state.parentUpsertCalls).toBe(0);
   });
 
+  it("refuses confirmNew with an existing email without changing the shared profile", async () => {
+    state.existingParents = [existingParent({ id: "original", name: "Original", email: "same@example.com" })];
+    const res = await post({ name: "Different", email: "same@example.com", relationship: "IBU", confirmNew: true });
+    expect(res.status).toBe(409);
+    expect(state.parentUpsertCalls).toBe(0);
+    expect(state.parentCreateCalls).toBe(0);
+    expect(state.existingParents[0].name).toBe("Original");
+  });
+
   it("creates the parent when confirmNew is set", async () => {
     state.existingParents = [
       existingParent({ id: "p9", name: "Siti Aminah" }),
@@ -474,7 +484,7 @@ describe("POST guardians — create-new-parent persists address/childrenTotal/ch
     expect(state.created).toMatchObject({ childOrder: 1 });
   });
 
-  it("persists address + childrenTotal on parent.upsert's create branch (has email)", async () => {
+  it("persists address + childrenTotal on parent.create (has email)", async () => {
     const res = await post({
       name: "Siti Aminah",
       relationship: "IBU",
@@ -484,7 +494,7 @@ describe("POST guardians — create-new-parent persists address/childrenTotal/ch
       childrenTotal: 2,
     });
     expect(res.status).toBe(201);
-    expect(state.parentUpsertCreateData).toMatchObject({ address: "Jl. Merdeka No. 1", childrenTotal: 2 });
+    expect(state.parentCreateData).toMatchObject({ address: "Jl. Merdeka No. 1", childrenTotal: 2 });
   });
 
   it("defaults address/childrenTotal/childOrder to null when omitted, same as every other optional field", async () => {

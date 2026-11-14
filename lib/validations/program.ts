@@ -25,7 +25,10 @@ const programNameField = z
   .transform((s) => s.replace(/\s+/g, " ").trim())
   .pipe(z.string().min(1, "Nama wajib diisi").max(120));
 
-export const createProgramSchema = z.object({
+const programAgeRange = (value: { ageMin?: number | null; ageMax?: number | null }) => value.ageMin == null || value.ageMax == null || value.ageMin <= value.ageMax;
+const ageRangeError = { message: "Usia minimum tidak boleh melebihi usia maksimum", path: ["ageMax"] };
+
+const programBaseSchema = z.object({
   code: z.string().min(1, "Kode wajib diisi").max(32),
   name: programNameField,
   description: z.string().max(500).optional().nullable(),
@@ -34,14 +37,17 @@ export const createProgramSchema = z.object({
   ageMax: ageMonthsField,
 });
 
+export const createProgramSchema = programBaseSchema.refine(programAgeRange, ageRangeError);
+
 export const updateProgramSchema = z.object({
+  code: z.string().trim().min(1, "Kode wajib diisi").max(32).optional(),
   name: programNameField.optional(),
   description: z.string().max(500).optional().nullable(),
   type: z.enum(["SEMESTER", "YEAR_ROUND", "SESSION"]).optional(),
   ageMin: ageMonthsField,
   ageMax: ageMonthsField,
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
-});
+}).refine(programAgeRange, ageRangeError);
 
 // Client form schema — the admin dialog's <Input type="number"> for Usia
 // Min/Max binds ageMin/ageMax as strings ("" when empty). `z.coerce.number()`
@@ -62,9 +68,9 @@ const optionalAgeMonthsInput = z.preprocess(
     .nullable(),
 );
 
-export const programFormSchema = createProgramSchema.extend({
+export const programFormSchema = programBaseSchema.extend({
   ageMin: optionalAgeMonthsInput,
   ageMax: optionalAgeMonthsInput,
-});
+}).refine(programAgeRange, ageRangeError);
 
 export type ProgramFormInput = z.infer<typeof programFormSchema>;

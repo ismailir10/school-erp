@@ -1,8 +1,9 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
-import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { weekStart, weekDates, weekReadDates } from "@/lib/student-journal/week";
 import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
 import { getDayMarksForStudentWeek } from "@/lib/student-journal/day-marks";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
@@ -40,7 +41,7 @@ export async function GET(
     ws = weekStart(today);
   }
 
-  const dates = weekDates(ws);
+  const dates = weekReadDates(ws);
   const weekEnd = dates[dates.length - 1];
 
   // Verify student belongs to this tenant
@@ -61,8 +62,9 @@ export async function GET(
   if (!template) {
     return NextResponse.json({
       data: {
-        weekStart: ws,
-        dates,
+        canWrite: hasPermission(session, "students.edit"),
+      weekStart: ws,
+        dates: weekDates(ws),
         schoolCategories: [],
         homeCategories: [],
         schoolEntries: [],
@@ -151,8 +153,9 @@ export async function GET(
 
   return NextResponse.json({
     data: {
+      canWrite: hasPermission(session, "students.edit"),
       weekStart: ws,
-      dates,
+      dates: weekDates(ws, [...schoolEntries, ...homeEntries, ...notes].map((row) => row.date).concat(Object.keys(dayMarks))),
       schoolCategories: schoolCategories.map((c) => ({
         id: c.id,
         name: c.name,

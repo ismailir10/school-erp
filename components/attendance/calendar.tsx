@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
@@ -20,13 +20,13 @@ type AttendanceRecord = {
 // getStatusConfig() — single source of truth — so "Tidak Hadir" → "Alpa"
 // drift cannot recur here.
 const STATUS_CELL_BG: Record<string, string> = {
-  PRESENT: "bg-status-present",
-  LATE: "bg-status-late",
-  ABSENT: "bg-status-absent",
-  LEAVE: "bg-status-leave",
-  HOLIDAY: "bg-status-holiday",
-  HALF_DAY: "bg-status-late",
-  PRESENT_NO_CHECKOUT: "bg-status-late",
+  PRESENT: "bg-status-present-subtle text-status-present-text",
+  LATE: "bg-status-late-subtle text-status-late-text",
+  ABSENT: "bg-status-absent-subtle text-status-absent-text",
+  LEAVE: "bg-status-leave-subtle text-status-leave-text",
+  HOLIDAY: "bg-status-holiday-subtle text-status-holiday-text",
+  HALF_DAY: "bg-status-late-subtle text-status-late-text",
+  PRESENT_NO_CHECKOUT: "bg-status-late-subtle text-status-late-text",
 };
 
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -42,6 +42,7 @@ export function AttendanceCalendar({
   year: number;
   onMonthChange: (month: number, year: number) => void;
 }) {
+  const dayButton = useRef<HTMLButtonElement | null>(null);
   const [selectedDay, setSelectedDay] = useState<AttendanceRecord | null>(null);
 
   const recordMap = new Map<string, AttendanceRecord>();
@@ -120,10 +121,10 @@ export function AttendanceCalendar({
           return (
             <button
               key={i}
-              onClick={() => record && setSelectedDay(record)}
+              onClick={(event) => { if (record) { dayButton.current = event.currentTarget; setSelectedDay(record); } }}
               className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium relative transition-colors ${
                 cellBg
-                  ? `${cellBg} text-white`
+                  ? cellBg
                   : isWeekend
                   ? "bg-muted/50 text-muted-foreground"
                   : "text-foreground hover:bg-accent"
@@ -148,10 +149,10 @@ export function AttendanceCalendar({
       {/* Summary */}
       <div className="grid grid-cols-4 gap-3 mt-4 bg-card border border-border rounded-xl p-3">
         {[
-          { label: getStatusConfig("PRESENT").label, value: summary.present, color: "text-status-present" },
-          { label: getStatusConfig("LATE").label, value: summary.late, color: "text-status-late" },
+          { label: getStatusConfig("PRESENT").label, value: summary.present, color: "text-status-present-text" },
+          { label: getStatusConfig("LATE").label, value: summary.late, color: "text-status-late-text" },
           { label: getStatusConfig("ABSENT").label, value: summary.absent, color: "text-destructive" },
-          { label: getStatusConfig("LEAVE").label, value: summary.leave, color: "text-status-leave" },
+          { label: getStatusConfig("LEAVE").label, value: summary.leave, color: "text-status-leave-text" },
         ].map((s) => (
           <div key={s.label} className="text-center">
             <p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -161,34 +162,10 @@ export function AttendanceCalendar({
       </div>
 
       {/* Day detail modal */}
-      <AnimatePresence>
-        {selectedDay && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-overlay flex items-end sm:items-center justify-center p-4"
-            onClick={() => setSelectedDay(null)}
-          >
-            <motion.div
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-card rounded-2xl p-5 w-full max-w-sm"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">
-                  {new Date(selectedDay.date + "T00:00:00").toLocaleDateString("id-ID", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  })}
-                </h3>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedDay(null)} aria-label="Tutup">
-                  <X size={16} />
-                </Button>
-              </div>
+      <Dialog open={!!selectedDay} onOpenChange={(open) => { if (!open) setSelectedDay(null); }}>
+        <DialogContent className="max-w-sm" finalFocus={dayButton}>
+          {selectedDay && <>
+            <DialogTitle>{new Date(selectedDay.date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}</DialogTitle>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm items-center">
                   <span className="text-muted-foreground">Status</span>
@@ -203,10 +180,9 @@ export function AttendanceCalendar({
                   <span className="font-currency font-medium">{formatTime(selectedDay.checkOutTime)}</span>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

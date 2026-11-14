@@ -40,6 +40,8 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (!hasPermission(session, "students.view")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const { id } = await params;
 
   const parent = await prisma.parent.findFirst({
@@ -105,7 +107,8 @@ export async function GET(
 
   // Every invoice billed to this wali (minimal fields, no cap): the totals on
   // the page must not depend on how many rows the list shows.
-  const invoiceRows = await prisma.invoice.findMany({
+  const canViewFinance = hasPermission(session, "invoices.view");
+  const invoiceRows = canViewFinance ? await prisma.invoice.findMany({
     where: { tenantId: session.tenantId, parentId: parent.id },
     select: {
       id: true,
@@ -120,7 +123,7 @@ export async function GET(
       student: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
-  });
+  }) : [];
   const { invoiceSummary, invoices, unpaidInvoices, owedByStudent } = buildParentInvoiceView(invoiceRows);
 
   const guardians = parent.guardians.map(({ student: { enrollments, ...student }, ...g }) => ({
@@ -144,8 +147,9 @@ export async function GET(
     invoices,
     invoiceSummary,
     unpaidInvoices,
+    canViewFinance,
     canEdit: hasPermission(session, "students.edit"),
-    canRemind: hasPermission(session, "payments.record"),
+    canRemind: canViewFinance && hasPermission(session, "payments.record"),
     hasKtp: !!ktpUrl,
     hasKk: !!kkUrl,
   });

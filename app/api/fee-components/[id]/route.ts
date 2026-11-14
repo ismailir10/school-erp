@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateFeeComponentSchema } from "@/lib/validations/fee-component";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "fees.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

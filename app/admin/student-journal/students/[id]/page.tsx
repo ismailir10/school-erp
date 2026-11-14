@@ -31,6 +31,8 @@ type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
 type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
 type AuditRow = {
+  entryLabel?: string | null;
+  entryDate?: string | null;
   id: string;
   entityType: string;
   entityId: string;
@@ -43,6 +45,7 @@ type AuditRow = {
 };
 
 type WeekData = {
+  canWrite?: boolean;
   weekStart: string;
   dates: string[];
   schoolCategories: Category[];
@@ -67,12 +70,12 @@ function addWeeks(ymd: string, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function formatWeekLabel(ws: string): string {
+function formatWeekLabel(ws: string, dates?: string[]): string {
   const d = new Date(`${ws}T00:00:00Z`);
   const fri = new Date(d);
   fri.setUTCDate(d.getUTCDate() + 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  const friYmd = fri.toISOString().slice(0, 10);
+  const friYmd = dates?.at(-1) ?? fri.toISOString().slice(0, 10);
   return `${formatDate(ws, opts)} – ${formatDate(friYmd, opts)}`;
 }
 
@@ -102,6 +105,7 @@ export default function StudentJournalDetailPage({
   const [weekData, setWeekData] = useState<WeekData | null>(null);
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   const [studentName, setStudentName] = useState<string>("");
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [auditLoading, setAuditLoading] = useState(false);
 
@@ -119,11 +123,13 @@ export default function StudentJournalDetailPage({
   const fetchWeekData = useCallback(
     async (weekStartYmd: string) => {
       setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch(
           `/api/student-journal/admin/students/${studentId}/week?weekStart=${weekStartYmd}`,
         );
         if (!res.ok) {
+          setLoadError(true);
           const err = await res.json().catch(() => ({}));
           toast.error(err.error || MESSAGES.loadFailed("Data jurnal"));
           return;
@@ -133,6 +139,7 @@ export default function StudentJournalDetailPage({
         setWeekData(data);
         // Attempt to get student name from the response (or fetch separately)
       } catch {
+        setLoadError(true);
         toast.error(MESSAGES.loadFailed("Data jurnal"));
       } finally {
         setLoading(false);
@@ -291,6 +298,8 @@ export default function StudentJournalDetailPage({
     return <DetailPageSkeleton />;
   }
 
+  if (loadError) return <div role="alert" className="p-4 border rounded-md">Jurnal siswa belum bisa dimuat. <Button variant="outline" onClick={() => fetchWeekData(ws)}>Coba lagi</Button></div>;
+
   return (
     <>
       <DetailPageHeader
@@ -302,7 +311,7 @@ export default function StudentJournalDetailPage({
           <div className="flex flex-wrap items-center gap-2">
             {/* Week picker */}
             <PeriodStepper
-              label={formatWeekLabel(ws)}
+              label={formatWeekLabel(ws, weekData?.dates)}
               onPrev={() => handleWeekChange(-1)}
               onNext={() => handleWeekChange(1)}
               prevLabel="Minggu sebelumnya"
@@ -327,6 +336,7 @@ export default function StudentJournalDetailPage({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={weekData?.canWrite === false}
                 onClick={() => setIsEditing(true)}
                 className="gap-1.5"
               >
@@ -399,7 +409,7 @@ export default function StudentJournalDetailPage({
             /* Gates the action icons only. onEdit is deliberately not passed —
                admins delete any note but never edit note bodies; wiring onEdit
                here later would grant edit-any-note and needs a design decision. */
-            canEdit={() => true}
+            canEdit={() => weekData?.canWrite !== false}
             onDelete={(noteId) => setNoteDeleteTarget(noteId)}
             reloadToken={noteReloadToken}
           />
@@ -450,9 +460,8 @@ export default function StudentJournalDetailPage({
                         oleh {row.changedByName}
                       </span>
                     )}
-                    <span className="font-mono text-xs truncate max-w-[120px]">
-                      {row.entityId}
-                    </span>
+                    {row.entryLabel && <span className="break-words">{row.entryLabel} · {row.entryDate && formatDate(row.entryDate)}</span>}
+                    <details><summary>Identitas teknis</summary><span className="font-mono break-all">{row.entityId}</span></details>
                   </div>
                   <AuditDiff before={row.beforeJson} after={row.afterJson} />
                 </div>

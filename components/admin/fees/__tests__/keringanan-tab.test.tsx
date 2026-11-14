@@ -104,7 +104,7 @@ describe("KeringananTab", () => {
   it("create: an empty submit shows every required-field error inline and sends no request", async () => {
     const fetchMock = fixture();
     const user = userEvent.setup();
-    render(<KeringananTab />);
+    render(<KeringananTab canEdit />);
 
     await user.click(await screen.findByRole("button", { name: "Tambah Keringanan" }));
     const dialog = await screen.findByRole("dialog", { name: "Tambah Keringanan" });
@@ -122,7 +122,7 @@ describe("KeringananTab", () => {
   it("create: a PERCENT value over 100 is rejected inline and sends no request", async () => {
     const fetchMock = fixture();
     const user = userEvent.setup();
-    render(<KeringananTab />);
+    render(<KeringananTab canEdit />);
 
     await user.click(await screen.findByRole("button", { name: "Tambah Keringanan" }));
     const dialog = await screen.findByRole("dialog", { name: "Tambah Keringanan" });
@@ -143,7 +143,7 @@ describe("KeringananTab", () => {
   it("edit: a row with feeComponentId null still submits Simpan Perubahan as a PUT", async () => {
     const fetchMock = fixture({ adjustments: [ADJUSTMENT_NULL_COMPONENT] });
     const user = userEvent.setup();
-    render(<KeringananTab />);
+    render(<KeringananTab canEdit />);
 
     await screen.findByText(STUDENT.name);
     await settleBackgroundFetches();
@@ -177,7 +177,7 @@ describe("KeringananTab", () => {
     // unrelated to what this test is about.
     const fetchMock = fixture({ adjustments: [ADJUSTMENT_WITH_VALIDITY] });
     const user = userEvent.setup();
-    render(<KeringananTab />);
+    render(<KeringananTab canEdit />);
 
     await screen.findByText(STUDENT.name);
     await settleBackgroundFetches();

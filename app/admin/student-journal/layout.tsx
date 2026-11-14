@@ -1,7 +1,9 @@
+import { assertPermission } from "@/lib/auth-guards";
 import { pageTitle } from "@/lib/page-title";
 
 export const metadata = pageTitle("Templat Buku Penghubung");
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  await assertPermission("students.view");
   return children;
 }

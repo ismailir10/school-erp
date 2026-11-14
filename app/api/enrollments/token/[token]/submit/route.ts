@@ -1,5 +1,6 @@
 // @public — tokenized enrollment final submit. NO session; the unguessable
 // accessToken is the credential. See proxy.ts public allow-list.
+import { mergeDraft } from "@/lib/enrollment/draft-merge";
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -60,8 +61,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // file that was stored before the form closed.
     const stored = await tx.enrollmentApplication.findUnique({
       where: { id },
-      select: { consentData: true, documents: true, fee: { select: { id: true } } },
+      select: { studentData: true, ayahData: true, ibuData: true, programId: true, dcareAddon: true, admission: { select: { status: true } }, consentData: true, documents: true, fee: { select: { id: true } } },
     });
+    if (stored?.admission?.status === "CANCELLED") return NextResponse.json({ error: "Pendaftaran dibatalkan. Hubungi sekolah." }, { status: 410 });
+    if (body && typeof body === "object" && "baseData" in body) {
+      const incoming = { ...(body as Record<string, unknown>) };
+      const base = incoming.baseData;
+      delete incoming.baseData;
+      try { body = mergeDraft(base, incoming, stored); }
+      catch { return NextResponse.json({ error: "DRAFT_CONFLICT" }, { status: 409 }); }
+    }
     // Normally no fee row exists yet: the fee is priced below, once the form is
     // in. A formulir sent under the short-lived pay-first order already holds one
     // (staging only); it is repriced to what the parent chose, never doubled.

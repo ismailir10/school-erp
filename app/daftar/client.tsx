@@ -43,7 +43,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // dense admin screens.
 // Placeholders are dimmed below entered text so an example never reads as an
 // already-typed value (cn/tailwind-merge lets this beat the shared default).
-const PLACEHOLDER_CLASS = "placeholder:text-muted-foreground/70";
+const PLACEHOLDER_CLASS = "placeholder:text-muted-foreground";
 const INPUT_CLASS = cn("h-11 px-3 text-base md:text-base", PLACEHOLDER_CLASS);
 const SELECT_CLASS = "h-11 pl-3 text-base";
 // Shared opaque action palette keeps the primary CTA readable at rest and on hover.
@@ -326,7 +326,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
             value={form.parentRelationship}
             onChange={(e) => update("parentRelationship", e.target.value as FormState["parentRelationship"])}
             className="w-full"
-            selectClassName={cn(SELECT_CLASS, form.parentRelationship === "" && "text-muted-foreground/70")}
+            selectClassName={cn(SELECT_CLASS, form.parentRelationship === "" && "text-muted-foreground")}
             aria-invalid={!!errors.parentRelationship}
             aria-describedby={describedBy("parentRelationship")}
             data-testid="field-parent-relationship"
@@ -487,7 +487,7 @@ export default function DaftarClient({ programs }: { programs: Program[] }) {
                   value={form.programId}
                   onChange={(e) => update("programId", e.target.value)}
                   className="w-full"
-                  selectClassName={cn(SELECT_CLASS, form.programId === "" && "text-muted-foreground/70")}
+                  selectClassName={cn(SELECT_CLASS, form.programId === "" && "text-muted-foreground")}
                   aria-invalid={!!errors.programId}
                   aria-describedby={describedBy("programId")}
                   data-testid="field-program-id"

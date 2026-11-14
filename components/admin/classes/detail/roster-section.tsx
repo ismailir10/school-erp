@@ -50,6 +50,7 @@ export function RosterSection({
   const [removeStudentTarget, setRemoveStudentTarget] = useState<Enrollment | null>(null);
 
   const enrolledCount = enrollments.length;
+  const activeCount = enrollments.filter((e) => e.status === "ACTIVE").length;
 
   const rosterColumns: ColumnDef<Enrollment>[] = useMemo(
     () => [
@@ -173,7 +174,7 @@ export function RosterSection({
         }
       >
         <p className="mb-3 text-small text-muted-foreground">
-          {enrolledCount} siswa aktif dari kapasitas {capacity}.
+          {activeCount} siswa aktif dari kapasitas {capacity}. {enrolledCount !== activeCount && `${enrolledCount - activeCount} siswa dalam riwayat kelas.`}
         </p>
         <DataTable
           columns={rosterColumns}

@@ -110,5 +110,15 @@ export async function GET(req: NextRequest) {
     auditRows,
   );
 
-  return NextResponse.json({ data: auditRowsWithChangerNames });
+  const entryIds = auditRows.filter((row) => row.entityType === "ENTRY").map((row) => row.entityId);
+  const contexts = entryIds.length ? await prisma.studentJournalEntry.findMany({
+    where: { tenantId: session.tenantId, id: { in: entryIds } },
+    select: { id: true, date: true, indicator: { select: { label: true } } },
+  }) : [];
+  const contextById = new Map(contexts.map((entry) => [entry.id, entry]));
+  return NextResponse.json({ data: auditRowsWithChangerNames.map((row) => ({
+    ...row,
+    entryLabel: contextById.get(row.entityId)?.indicator?.label ?? null,
+    entryDate: contextById.get(row.entityId)?.date ?? null,
+  })) });
 }

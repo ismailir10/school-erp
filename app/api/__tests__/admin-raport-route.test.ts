@@ -1,3 +1,5 @@
+import { Prisma } from "@/lib/generated/prisma/client";
+import { revalidateTag } from "next/cache";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const {
@@ -38,7 +40,7 @@ import { GET as entryGET, PUT as entryPUT } from "@/app/api/admin/report-cards/[
 import { POST as publishPOST } from "@/app/api/admin/report-cards/[studentId]/[termId]/publish/route";
 import { POST as syncAttendancePOST } from "@/app/api/admin/report-cards/[studentId]/[termId]/sync-attendance/route";
 
-const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
+const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN", permissions: ["reportCard.read", "reportCard.write", "reportCard.publish"] } };
 const DENY = { error: Response.json({ error: "forbidden", missing: "reportCard.read" }, { status: 403 }) };
 
 function req(url: string, init?: RequestInit) {
@@ -177,6 +179,27 @@ describe("PUT /api/admin/report-cards/[studentId]/[termId]", () => {
     unexcusedAbsenceDays: 0,
     totalSchoolDays: 20,
     heightCm: 110.5,
+  });
+
+  it("rejects a stale revision without changing measurements or audit", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.term.findFirst.mockResolvedValue(TERM);
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Ali" });
+    db.reportCardEntry.upsert.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("conflict", { code: "P2002", clientVersion: "test" }));
+    const result = await entryPUT(req("http://t/x", { method: "PUT", body: JSON.stringify({ ...JSON.parse(body), expectedUpdatedAt: "2026-11-14T10:00:00.000Z" }) }), ctx("s1", "term1"));
+    expect(result.status).toBe(409);
+    expect(db.reportCardEntry.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ updatedAt: new Date("2026-11-14T10:00:00.000Z") }) }));
+    expect(db.studentMeasurement.upsert).not.toHaveBeenCalled();
+    expect(recordAudit).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the parent reader after a published edit", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.term.findFirst.mockResolvedValue(TERM);
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Ali" });
+    db.reportCardEntry.upsert.mockResolvedValue({ id: "r1", status: "PUBLISHED" });
+    expect((await entryPUT(req("http://t/x", { method: "PUT", body }), ctx("s1", "term1"))).status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith("parent-report-cards", { expire: 0 });
   });
 
   it("403 when denied (write)", async () => {

@@ -1,230 +1,123 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-
-const { findUnique, updateMany: update, programFindFirst, writeConsent } = vi.hoisted(() => ({
-  findUnique: vi.fn(),
-  updateMany: vi.fn(),
-  programFindFirst: vi.fn(),
-  writeConsent: vi.fn(),
-}));
-
-vi.mock("@/lib/enrollment/json-merge", () => ({ writeConsentPreservingSignatures: writeConsent }));
-
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    enrollmentApplication: { findUnique, updateMany: update },
-    program: { findFirst: programFindFirst },
-  },
-}));
-
+const programFindFirst = vi.hoisted(() => vi.fn(async () => ({ id: "p" }) as { id: string } | null));
+const state = vi.hoisted(() => ({ row: {} as Record<string, unknown>, missing: false }));
+const update = vi.hoisted(() => vi.fn(async ({ data }: { data: Record<string, unknown> }) => { Object.assign(state.row, data); return state.row; }));
+vi.mock("@/lib/db", () => {
+  const db = { enrollmentApplication: { findUnique: vi.fn(async () => state.missing ? null : state.row), update }, $queryRaw: vi.fn(async () => [{ id: "a" }]), program: { findFirst: programFindFirst } };
+  return { prisma: { ...db, $transaction: (fn: (tx: typeof db) => unknown) => fn(db) } };
+});
 import { PATCH } from "../route";
 import { __resetRateLimitForTest } from "@/lib/rate-limit";
-
-function req(body: unknown) {
-  return new NextRequest("http://localhost/api/enrollments/token/tok", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
 const ctx = { params: Promise.resolve({ token: "tok" }) };
-const future = new Date(Date.now() + 86_400_000);
-
+const save = (body: unknown) => PATCH(new NextRequest("http://localhost/api/enrollments/token/tok", { method: "PATCH", body: JSON.stringify(body) }), ctx);
 beforeEach(() => {
-  vi.clearAllMocks();
-  __resetRateLimitForTest();
-  update.mockResolvedValue({ count: 1 });
-  writeConsent.mockResolvedValue(true);
-  programFindFirst.mockResolvedValue({ id: "c" + "a".repeat(24) });
+  vi.clearAllMocks(); __resetRateLimitForTest();
+  state.missing = false;
+  programFindFirst.mockResolvedValue({ id: "p" });
+  state.row = { id: "a", tenantId: "t", programId: null, dcareAddon: false, status: "INVITED", tokenExpiresAt: new Date(Date.now() + 86400000), studentData: { nickname: "" }, ayahData: { phone: "" }, ibuData: { phone: "" }, consentData: { ayah: { signatureToken: "original", signedAt: "yesterday" }, ibu: {} } };
 });
-
-describe("PATCH /api/enrollments/token/[token] (draft save)", () => {
-  it("404 for an unknown token", async () => {
-    findUnique.mockResolvedValue(null);
-    const res = await PATCH(req({ studentData: { childName: "X" } }), ctx);
-    expect(res.status).toBe(404);
+describe("draft saves", () => {
+  it("returns404 for an unknown token without writing", async () => {
+    state.missing = true;
+    expect((await save({ studentData: { childName: "X" } })).status).toBe(404);
     expect(update).not.toHaveBeenCalled();
   });
-
-  it("410 for an expired token", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: new Date(Date.now() - 1000) });
-    const res = await PATCH(req({ studentData: {} }), ctx);
-    expect(res.status).toBe(410);
-  });
-
-  it("409 when already submitted", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "SUBMITTED", tokenExpiresAt: future });
-    const res = await PATCH(req({ studentData: {} }), ctx);
-    expect(res.status).toBe(409);
+  it("returns400 for malformed JSON without writing", async () => {
+    const request = new NextRequest("http://localhost/api/enrollments/token/tok", { method: "PATCH", body: "{broken" });
+    expect((await PATCH(request, ctx)).status).toBe(400);
     expect(update).not.toHaveBeenCalled();
   });
-
-  it("saves only the provided blobs and mirrors childName", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
-    const res = await PATCH(req({ studentData: { childName: "  Aisyah  " }, dcareAddon: true }), ctx);
-    expect(res.status).toBe(200);
-    const arg = update.mock.calls[0][0];
-    expect(arg.where).toEqual({ id: "a", status: "INVITED" });
-    expect(arg.data.studentData).toEqual({ childName: "  Aisyah  " });
-    expect(arg.data.childName).toBe("Aisyah");
-    expect(arg.data.dcareAddon).toBe(true);
-    expect("ayahData" in arg.data).toBe(false);
-    expect(update).toHaveBeenCalledTimes(1);
+  it("keeps empty and stripped-document requests as no-op writes", async () => {
+    expect((await save({})).status).toBe(200);
+    expect((await save({ documents: { photo: "spoof" } })).status).toBe(200);
+    expect(update).not.toHaveBeenCalled();
+  });
+  it("persists a valid prefixed program after checking tenant ownership", async () => {
+    expect((await save({ programId: "program_ab57fd0432e25d5b3013" })).status).toBe(200);
+    expect(programFindFirst).toHaveBeenCalledWith({ where: { id: "program_ab57fd0432e25d5b3013", tenantId: "t" }, select: { id: true } });
+    expect(state.row.programId).toBe("program_ab57fd0432e25d5b3013");
+  });
+  it("permits initial scalar choices without a baseline but protects an existing program", async () => {
+    expect((await save({ programId: "program_first", dcareAddon: true })).status).toBe(200);
+    expect(state.row).toMatchObject({ programId: "program_first", dcareAddon: true });
+    expect((await save({ programId: "program_other" })).status).toBe(409);
+    expect(state.row.programId).toBe("program_first");
+  });
+  it("persists an explicit single-parent flag while preserving signatures", async () => {
+    expect((await save({ consentData: { onlyParent: "ibu" } })).status).toBe(200);
+    expect(state.row.consentData).toMatchObject({ onlyParent: "ibu", ayah: { signatureToken: "original", signedAt: "yesterday" } });
   });
 
-  it("normalizes empty programId to null", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
-    await PATCH(req({ programId: "" }), ctx);
-    expect(update.mock.calls[0][0].data.programId).toBeNull();
+  it("refuses expired and already submitted tokens before writing", async () => {
+    state.row.tokenExpiresAt = new Date(0);
+    expect((await save({ studentData: {} })).status).toBe(410);
+    state.row.status = "SUBMITTED";
+    expect((await save({ studentData: {} })).status).toBe(409);
+    expect(update).not.toHaveBeenCalled();
   });
-
-  it("persists a prefixed (non-cuid) programId that belongs to the tenant", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
-    programFindFirst.mockResolvedValue({ id: "program_ab57fd0432e25d5b3013" });
-    await PATCH(req({ programId: "program_ab57fd0432e25d5b3013" }), ctx);
-    expect(update.mock.calls[0][0].data.programId).toBe("program_ab57fd0432e25d5b3013");
+  it("requires a resolved tenant before any write", async () => {
+    state.row.tenantId = null;
+    expect((await save({ studentData: {} })).status).toBe(404);
+    expect(update).not.toHaveBeenCalled();
   });
-
-  it("drops (does not persist) a programId that fails the tenant-ownership check", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
+  it("does not write a cross-tenant program reference", async () => {
     programFindFirst.mockResolvedValue(null);
-    const res = await PATCH(req({ programId: "program_from-another-tenant" }), ctx);
-    expect(res.status).toBe(200);
-    // Nothing left to write, so no update at all (and certainly no programId).
+    expect((await save({ programId: "program_foreign" })).status).toBe(200);
+    expect(state.row.programId).toBeNull();
     expect(update).not.toHaveBeenCalled();
   });
-});
-
-describe("PATCH — consentData and signatures", () => {
-  const invited = () =>
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
-
-  it("writes consentData through the signature-preserving helper, never via prisma.update", async () => {
-    invited();
-    const res = await PATCH(req({ consentData: { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } } }), ctx);
-    expect(res.status).toBe(200);
-    expect(writeConsent).toHaveBeenCalledWith("a", { agreed: true, ayah: { name: "A" }, ibu: { name: "B" } });
-    expect(update).not.toHaveBeenCalled(); // nothing else to write
+  it("normalizes an explicit empty program to null", async () => {
+    expect((await save({ programId: "" })).status).toBe(200);
+    expect(state.row.programId).toBeNull();
+  });
+  it("retries a cleared program after the first success response is lost", async () => {
+    state.row.programId = "program_original";
+    const payload = { programId: "", baseData: { programId: "program_original" } };
+    expect((await save(payload)).status).toBe(200);
+    expect(state.row.programId).toBeNull();
+    expect((await save(payload)).status).toBe(200);
+    expect(state.row.programId).toBeNull();
   });
 
-  it("strips the staff-recorded marker so a token holder cannot pre-seed it", async () => {
-    invited();
-    await PATCH(
-      req({ consentData: { agreed: true, staffRecorded: true, note: "Disetujui langsung di sekolah", by: "u-1", at: "2026-10-11T00:00:00.000Z" } }),
-      ctx,
-    );
-    expect(writeConsent.mock.calls[0][1]).toEqual({ agreed: true, ayah: {}, ibu: {} });
+  it("rate limits repeated draft writes", async () => {
+    for (let i = 0; i < 30; i++) expect((await save({})).status).toBe(200);
+    expect((await save({})).status).toBe(429);
   });
 
-  it("strips client-sent signatureToken/signedAt and forces ayah/ibu to objects", async () => {
-    invited();
-    await PATCH(
-      req({
-        consentData: {
-          agreed: false,
-          ayah: { name: "A", signatureToken: "", signedAt: "2020-01-01" },
-          ibu: "not-an-object",
-        },
-      }),
-      ctx,
-    );
-    const [, incoming] = writeConsent.mock.calls[0];
-    expect(incoming).toEqual({ agreed: false, ayah: { name: "A" }, ibu: {} });
-    expect(JSON.stringify(incoming)).not.toContain("signatureToken");
+  it("merges independent parents and rejects a stale conflicting leaf", async () => {
+    const baseData = JSON.parse(JSON.stringify(state.row));
+    expect((await save({ baseData, ayahData: { phone: "081111111" } })).status).toBe(200);
+    expect((await save({ baseData, ibuData: { phone: "082222222" }, ayahData: { phone: "" } })).status).toBe(200);
+    expect(state.row.ayahData).toEqual({ phone: "081111111" });
+    expect(state.row.ibuData).toEqual({ phone: "082222222" });
+    expect((await save({ baseData, ayahData: { phone: "old request" } })).status).toBe(409);
+    expect(state.row.ayahData).toEqual({ phone: "081111111" });
   });
-
-  it("keeps the single-parent flag (R2-P-10) in the saved consent blob so resume can restore it", async () => {
-    invited();
-    await PATCH(req({ consentData: { agreed: false, onlyParent: "ibu", ayah: { name: "" }, ibu: { name: "Siti" } } }), ctx);
-    expect(writeConsent.mock.calls[0][1]).toEqual({
-      agreed: false,
-      onlyParent: "ibu",
-      ayah: { name: "" },
-      ibu: { name: "Siti" },
-    });
+  it("accepts retry after a lost success response", async () => {
+    const payload = { baseData: { studentData: { nickname: "" } }, studentData: { nickname: "new" } };
+    expect((await save(payload)).status).toBe(200);
+    expect((await save(payload)).status).toBe(200);
   });
-
-  it("creates ayah/ibu objects when the client sends consentData without them", async () => {
-    invited();
-    await PATCH(req({ consentData: { agreed: true } }), ctx);
-    expect(writeConsent.mock.calls[0][1]).toEqual({ agreed: true, ayah: {}, ibu: {} });
+  it("keeps signatures and cannot forge staff evidence through either blob", async () => {
+    const response = await save({ baseData: { consentData: { ayah: { signatureToken: "spoof" }, staffRecorded: true } }, consentData: { staffRecorded: true, note: "spoof", ayah: { signatureToken: "spoof", signedAt: "tomorrow", name: "Ayah" } } });
+    expect(response.status).toBe(200);
+    expect(state.row.consentData).toEqual({ ayah: { signatureToken: "original", signedAt: "yesterday", name: "Ayah" }, ibu: {} });
   });
-
-  it("409 and no other write when the INVITED-guarded consent write matches no row", async () => {
-    invited();
-    writeConsent.mockResolvedValue(false);
-    const res = await PATCH(req({ consentData: { agreed: true }, dcareAddon: true }), ctx);
-    expect(res.status).toBe(409);
+  it("does not allow legacy snapshots to overwrite a previously stored leaf", async () => {
+    state.row.ayahData = { phone: "saved" };
+    expect((await save({ ayahData: { phone: "stale" } })).status).toBe(409);
+  });
+  it("rejects cancelled invitations", async () => {
+    state.row.admission = { status: "CANCELLED" };
+    expect((await save({ studentData: { nickname: "new" } })).status).toBe(410);
     expect(update).not.toHaveBeenCalled();
   });
-
-  it("still updates the remaining fields alongside consentData", async () => {
-    invited();
-    await PATCH(req({ consentData: { agreed: true }, dcareAddon: true }), ctx);
-    expect(writeConsent).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].data).toEqual({ dcareAddon: true });
-    expect("consentData" in update.mock.calls[0][0].data).toBe(false);
-  });
-
-  it("skips prisma.update entirely for an empty patch", async () => {
-    invited();
-    const res = await PATCH(req({}), ctx);
-    expect(res.status).toBe(200);
-    expect(update).not.toHaveBeenCalled();
-    expect(writeConsent).not.toHaveBeenCalled();
-  });
-
-  it("ignores a client-sent `documents` key (zod strips it; documents are never written here)", async () => {
-    invited();
-    const res = await PATCH(req({ documents: { akta: { fileToken: "evil" } }, dcareAddon: true }), ctx);
-    expect(res.status).toBe(200);
-    expect(JSON.stringify(update.mock.calls[0][0])).not.toContain("evil");
-    expect("documents" in update.mock.calls[0][0].data).toBe(false);
-    // a body with ONLY documents degrades to a no-op
-    update.mockClear();
-    await PATCH(req({ documents: { akta: { fileToken: "evil" } } }), ctx);
-    expect(update).not.toHaveBeenCalled();
-    expect(writeConsent).not.toHaveBeenCalled();
-  });
-
-  it("409 ALREADY_SUBMITTED when the INVITED-guarded update matches no row", async () => {
-    findUnique.mockResolvedValue({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1" });
-    update.mockResolvedValue({ count: 0 });
-    const res = await PATCH(req({ dcareAddon: true }), ctx);
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("ALREADY_SUBMITTED");
-  });
-});
-
-describe("PATCH — the fee never gates or locks the draft (pay after submit)", () => {
-  const row = (fee: { status: string } | null) => ({ id: "a", status: "INVITED", tokenExpiresAt: future, tenantId: "t-1", fee });
-
-  it.each([["UNPAID"], ["PAID"], ["WAIVED"], [null]])(
-    "a form whose fee is %s still saves the draft, program and Day Care included",
-    async (status) => {
-      // A fee row exists only for a formulir sent under the short-lived pay-first order (staging).
-      findUnique.mockResolvedValue(row(status ? { status } : null));
-      const res = await PATCH(
-        req({ programId: "c" + "a".repeat(24), dcareAddon: true, studentData: { childName: "Aisyah" }, ayahData: { name: "Ahmad" } }),
-        ctx,
-      );
-      expect(res.status).toBe(200);
-      expect(update).toHaveBeenCalledTimes(1);
-      expect(update.mock.calls[0][0].where).toEqual({ id: "a", status: "INVITED" });
-      expect(update.mock.calls[0][0].data).toMatchObject({
-        programId: "c" + "a".repeat(24),
-        dcareAddon: true,
-        studentData: { childName: "Aisyah" },
-        ayahData: { name: "Ahmad" },
-      });
-    },
-  );
-
-  it("an UNPAID fee does not stop the consent or a program change from being written", async () => {
-    findUnique.mockResolvedValue(row({ status: "UNPAID" }));
-    const res = await PATCH(req({ consentData: { agreed: true }, programId: "", dcareAddon: false }), ctx);
-    expect(res.status).toBe(200);
-    expect(writeConsent).toHaveBeenCalled();
-    expect(update.mock.calls[0][0].data).toEqual({ programId: null, dcareAddon: false });
+  it("mirrors the child name and strips documents", async () => {
+    expect((await save({ studentData: { childName: " Aisyah " }, documents: { photo: "spoof" } })).status).toBe(200);
+    expect(state.row.childName).toBe("Aisyah");
+    expect(state.row.ayahData).toEqual({ phone: "" });
+    expect(state.row.ibuData).toEqual({ phone: "" });
+    expect(state.row).not.toHaveProperty("documents");
   });
 });

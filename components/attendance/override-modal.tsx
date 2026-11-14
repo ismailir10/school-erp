@@ -44,8 +44,7 @@ export function OverrideModal({
 
   useEffect(() => {
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStatus(currentStatus ?? "PRESENT");
+      setStatus(currentStatus ?? "PRESENT");
     setReason("");
     setCheckInTime("");
   }, [currentStatus, open]);
@@ -59,6 +58,7 @@ export function OverrideModal({
     setSaving(true);
     const sentCheckInTime = showsTime ? checkInTime || undefined : undefined;
 
+    try {
     if (recordId) {
       // Update existing record
       const res = await fetch(`/api/attendance/${recordId}/override`, {
@@ -90,7 +90,11 @@ export function OverrideModal({
         toast.error(data.error || MESSAGES.saveFailed);
       }
     }
-    setSaving(false);
+    } catch {
+      toast.error(MESSAGES.saveFailed);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

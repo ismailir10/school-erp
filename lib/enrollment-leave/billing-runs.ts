@@ -16,8 +16,8 @@ const idsOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is s
  * Open billing runs of the tenant whose period label is a single month inside
  * the leave, and (when `placement` is given) that are for the placement's
  * academic year and cover it: its class is in scope, or the student is
- * explicitly included. A run scoped only to the student's school class never
- * billed the daycare placement, so a daycare leave must not touch it. A label
+ * explicitly included, or has materialized a row for the student (school-only
+ * scopes can include daycare charges through a bundle). A label
  * that is not a single month never matches (a leave only ever affects
  * single-month runs). Read-only.
  */
@@ -30,7 +30,7 @@ export async function findOpenRunsCoveredByLeave(
   if (!start || !end) return [];
   const runs = await db.billingRun.findMany({
     where: { tenantId: input.tenantId, status: { in: [...OPEN_BILLING_RUN_STATUSES] } },
-    select: { id: true, periodLabel: true, status: true, academicYearId: true, scope: true },
+    select: { id: true, periodLabel: true, status: true, academicYearId: true, scope: true, rows: { where: { studentId: input.placement?.studentId ?? "" }, select: { id: true } } },
     orderBy: { createdAt: "asc" },
   });
   const { placement } = input;
@@ -43,7 +43,8 @@ export async function findOpenRunsCoveredByLeave(
       const scope = (run.scope ?? {}) as { classSectionIds?: unknown; includeStudentIds?: unknown };
       return (
         idsOf(scope.classSectionIds).includes(placement.classSectionId) ||
-        idsOf(scope.includeStudentIds).includes(placement.studentId)
+        idsOf(scope.includeStudentIds).includes(placement.studentId) ||
+        (run.rows?.length ?? 0) > 0
       );
     })
     .map(({ id, periodLabel, status }) => ({ id, periodLabel, status }));

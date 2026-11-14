@@ -130,3 +130,18 @@ describe("hasOtherActiveEnrollments", () => {
     ).toBe(false);
   });
 });
+
+
+it("includes school-scoped frozen bundle rows when daycare leave is recorded", async () => {
+  const findMany = vi.fn().mockResolvedValue([
+    { id: "school-bundle", periodLabel: "Februari 2027", status: "DRAFT", academicYearId: "ay", scope: { classSectionIds: ["school"] }, rows: [{ id: "frozen-bundle" }] },
+    { id: "other-student", periodLabel: "Februari 2027", status: "DRAFT", academicYearId: "ay", scope: { classSectionIds: ["school"] }, rows: [] },
+    { id: "other-year", periodLabel: "Februari 2027", status: "DRAFT", academicYearId: "different", scope: {}, rows: [{ id: "old-row" }] },
+  ]);
+  const runs = await findOpenRunsCoveredByLeave({ billingRun: { findMany } } as never, {
+    tenantId: "tenant", startMonth: "2027-02", endMonth: "2027-03",
+    placement: { studentId: "student", classSectionId: "daycare", academicYearId: "ay" },
+  });
+  expect(runs.map(r => r.id)).toEqual(["school-bundle"]);
+  expect(findMany.mock.calls[0][0].select.rows.where).toEqual({ studentId: "student" });
+});

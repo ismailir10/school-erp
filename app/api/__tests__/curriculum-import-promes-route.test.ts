@@ -968,6 +968,7 @@ describe("POST /api/admin/curriculum/import-promes — Zod row rejection", () =>
     });
     const res = await POST(makeReq({ form }) as never);
     expect(res.status).toBe(400);
+    expect((await res.json()).errors[0].field).toContain("RELIGIOUS_MORAL · TP 1");
     expect(transactionFn).not.toHaveBeenCalled();
   });
 });

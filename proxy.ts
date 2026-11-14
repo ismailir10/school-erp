@@ -36,6 +36,12 @@ function enforceIdleTimeout(request: NextRequest, response: NextResponse): NextR
       url.pathname = "/";
       const redirect = NextResponse.redirect(url);
       redirect.cookies.delete(LAST_ACTIVE_COOKIE);
+      // Expiration must revoke the credentials as well as the idle marker.
+      for (const cookie of request.cookies.getAll()) {
+        if (cookie.name === DEMO_COOKIE || cookie.name.startsWith("sb-")) {
+          redirect.cookies.delete(cookie.name);
+        }
+      }
       return redirect;
     }
   }

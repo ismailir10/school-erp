@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
+import { studentHealthMetadataSchema } from "@/lib/validations/student-health";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import type { MetadataExtraRow, StudentSystemMetadata } from "@/lib/student/metadata";
 
 /**
@@ -43,18 +45,26 @@ export function KesehatanSection({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>(known);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  useUnsavedChangesGuard(editing && JSON.stringify(draft) !== JSON.stringify(known));
 
   function startEditing() {
+    setErrors([]);
     setDraft(known);
     setEditing(true);
   }
 
   function cancelEditing() {
+    setErrors([]);
     setEditing(false);
     setDraft(known);
   }
 
   async function save() {
+    const parsed = studentHealthMetadataSchema.safeParse(draft);
+    if (!parsed.success) { setErrors(parsed.error.issues.map((issue) => issue.message)); return; }
+    setErrors([]);
     setSaving(true);
     const ok = await persistMetadata({ known: draft, extra: getExtraRows() });
     if (ok) {
@@ -87,6 +97,7 @@ export function KesehatanSection({
         ))
       }
     >
+      {errors.length > 0 && <div role="alert" className="mb-3 text-sm text-destructive">{errors.map((error) => <p key={error}>{error}</p>)}</div>}
       <StudentHealthBlock
         canEdit={canEdit}
         known={editing ? draft : known}

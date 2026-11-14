@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -6,7 +7,7 @@ import { paginatedResponse } from "@/lib/api/response";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "users.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

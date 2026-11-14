@@ -49,6 +49,7 @@ type Draft = {
   };
 };
 type Saved = {
+  updatedAt: string;
   sectionLevels: Record<string, RaportLevel>;
   sectionNarratives: Record<string, string>;
   permittedAbsenceDays: number;
@@ -90,6 +91,8 @@ type Payload = {
   /** Bank narasi for this student's cohort; null when no active enrolment. */
   templates: TemplateGridPayload | null;
   saved: Saved;
+  canWrite?: boolean;
+  canPublish?: boolean;
   measurement: { heightCm: string | null; weightKg: string | null } | null;
   draft: Draft;
 };
@@ -115,6 +118,8 @@ export function RaportEditor({
   termId: string;
   onBack: () => void;
 }) {
+  const [version, setVersion] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [levels, setLevels] = useState<Record<string, string>>({});
@@ -224,6 +229,8 @@ export function RaportEditor({
       setHafalan(initHafalan);
       setHeight(initHeight);
       setWeight(initWeight);
+      setVersion(p.saved?.updatedAt ?? null);
+      setConflict(false);
       setStatus(p.saved?.status ?? "NONE");
       setBaseline({
         levels: initLevels,
@@ -298,6 +305,7 @@ export function RaportEditor({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          expectedUpdatedAt: version,
           sectionLevels,
           sectionNarratives,
           permittedAbsenceDays: Number(att.permitted) || 0,
@@ -310,6 +318,7 @@ export function RaportEditor({
         }),
       });
       if (!res.ok) {
+        if (res.status === 409) setConflict(true);
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
           errors?: { field?: string; message?: string }[];
@@ -334,6 +343,9 @@ export function RaportEditor({
         }
         return false;
       }
+      const savedBody = await res.json();
+      setVersion(savedBody.data.updatedAt);
+      setConflict(false);
       if (status === "NONE") setStatus("DRAFT");
       // Re-baseline against what was just saved — a saved editor is clean
       // even though the field states themselves haven't changed shape.
@@ -359,6 +371,8 @@ export function RaportEditor({
         toast.error(body.error ?? "Gagal mengubah status terbit.");
         return;
       }
+      const publishedBody = await res.json();
+      setVersion(publishedBody.data.updatedAt);
       setStatus(publish ? "PUBLISHED" : "DRAFT");
       toast.success(publish ? "Rapor diterbitkan." : "Penerbitan ditarik.");
     } finally {
@@ -446,7 +460,7 @@ export function RaportEditor({
               variant="outline"
               className="mt-2"
               onClick={syncAttendance}
-              disabled={syncingAttendance || saving || publishing}
+              disabled={data.canWrite === false || syncingAttendance || saving || publishing}
             >
               {syncingAttendance ? "Memperbarui…" : "Perbarui kehadiran"}
             </Button>
@@ -454,6 +468,8 @@ export function RaportEditor({
         </Alert>
       ) : null}
 
+      {conflict && <Alert variant="destructive"><AlertTitle>Rapor telah berubah</AlertTitle><AlertDescription>Perubahan Anda tetap di formulir. Salin teks yang ingin dipertahankan, lalu <Button variant="outline" onClick={load}>Muat ulang rapor</Button>.</AlertDescription></Alert>}
+      <fieldset disabled={data.canWrite === false}>
       {/* Narrative sections */}
       <Card className="p-4 sm:p-card mb-6 space-y-6">
         <h2 className="text-h2">Narasi Perkembangan</h2>
@@ -529,17 +545,18 @@ export function RaportEditor({
         </Field>
       </Card>
 
+      </fieldset>
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" onClick={() => setPreviewOpen(true)}>Pratinjau rapor</Button>
-        <Button onClick={save} disabled={saving || publishing}>
+        <Button onClick={save} disabled={data.canWrite === false || saving || publishing}>
           {saving ? "Menyimpan…" : "Simpan"}
         </Button>
         {status === "PUBLISHED" ? (
-          <Button variant="destructive" onClick={() => setConfirmUnpublish(true)} disabled={publishing}>
+          <Button variant="destructive" onClick={() => setConfirmUnpublish(true)} disabled={data.canPublish === false || publishing}>
             Tarik penerbitan
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => setConfirmPublish(true)} disabled={publishing}>
+          <Button variant="outline" onClick={() => setConfirmPublish(true)} disabled={data.canPublish === false || publishing}>
             {publishing ? "Memproses…" : "Simpan & Terbitkan"}
           </Button>
         )}

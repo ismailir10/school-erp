@@ -63,7 +63,7 @@ export type PenilaianMonitor = {
  * enrolled in.
  */
 export function aggregateWalas(
-  classSections: { id: string; name: string; program: { name: string } }[],
+  classSections: { id: string; name: string; program: { name: string }; campus?: { name: string } | null }[],
   enrollments: { studentId: string; classSectionId: string }[],
   assessedStudentIds: Set<string>,
 ): WalasClassCompletion[] {
@@ -79,7 +79,7 @@ export function aggregateWalas(
     const b = byClass.get(cs.id)!;
     return {
       classSectionId: cs.id,
-      className: cs.name,
+      className: cs.campus ? `${cs.name} · ${cs.campus.name}` : cs.name,
       programName: cs.program.name,
       enrolled: b.enrolled,
       assessed: b.assessed,
@@ -142,6 +142,7 @@ export async function loadPenilaianMonitor(
       id: true,
       name: true,
       ageGroup: true,
+      campus: { select: { name: true } },
       program: { select: { name: true } },
     },
     orderBy: { name: "asc" },

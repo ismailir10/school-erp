@@ -134,7 +134,7 @@ describe("loadRaportDraft", () => {
       { level: "CONSISTENT", indicator: { objective: { element: "ART" } } },
     ]);
     studentAttendanceFindMany
-      .mockResolvedValueOnce([{ status: "SICK" }, { status: "ABSENT" }, { status: "PRESENT" }]) // student rows
+      .mockResolvedValueOnce([{ studentId: "s1", date: "2026-01-01", sessionId: null, status: "SICK" }, { studentId: "s1", date: "2026-01-02", sessionId: null, status: "ABSENT" }, { studentId: "s1", date: "2026-01-03", sessionId: null, status: "PRESENT" }]) // student rows
       .mockResolvedValueOnce([{ date: "2026-01-05" }, { date: "2026-01-06" }]); // distinct school days
 
     const draft = await loadRaportDraft("t1", "s1", term);

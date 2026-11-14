@@ -61,6 +61,7 @@ describe("HR monthly attendance accessibility contract", () => {
 
     expect(page).toContain("const STATUS_LABELS");
     expect(page).toContain('aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}');
-    expect(page).toContain("disabled={record?.isLocked}");
+    // Locked days and read-only viewers both retain labels while disabling correction.
+    expect(page).toContain("disabled={!canOverride || record?.isLocked}");
   });
 });

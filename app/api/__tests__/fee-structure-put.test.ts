@@ -33,7 +33,7 @@ const ADMIN = {
   tenantId: "t-1",
   employeeId: null,
   parentId: null,
-  permissions: [] as string[],
+  permissions: ["fees.view", "fees.edit"] as string[],
   customRoleCode: null,
 };
 
@@ -130,4 +130,12 @@ describe("PUT /api/fee-structure", () => {
     expect(res.status).toBe(404);
     expect(db.programFeeStructure.upsert).not.toHaveBeenCalled();
   });
+});
+
+
+it("denies an invoice viewer who lacks fees.edit before touching tariffs", async () => {
+  vi.mocked(getSession).mockResolvedValue({ ...ADMIN, permissions: ["invoices.view"] } as never);
+  const res = await PUT(makeReq(VALID_BODY) as never);
+  expect(res.status).toBe(403);
+  expect(db.programFeeStructure.upsert).not.toHaveBeenCalled();
 });

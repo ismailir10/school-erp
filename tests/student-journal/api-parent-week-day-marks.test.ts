@@ -43,7 +43,15 @@ describe("GET /children/[id]/week — dayMarks", () => {
     const res = await GET(req(), ctx);
     expect(res.status).toBe(200);
     expect((await res.json()).data.dayMarks).toEqual({ "2026-10-27": "Renang" });
-    expect(mocks.dayMarks).toHaveBeenCalledWith("t1", "stu-1", ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"]);
+    expect(mocks.dayMarks).toHaveBeenCalledWith("t1", "stu-1", ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01"]);
+  });
+
+  it("keeps the normal five-day display and adds only an observed Saturday", async () => {
+    const normal = await GET(req(), ctx);
+    expect((await normal.json()).data.dates).toHaveLength(5);
+    mocks.dayMarks.mockResolvedValue({ "2026-10-31": "Kegiatan Sabtu" });
+    const weekend = (await (await GET(req(), ctx)).json()).data;
+    expect(weekend.dates).toEqual(["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"]);
   });
 
   it("returns an empty map when the school has no template, without a mark lookup", async () => {

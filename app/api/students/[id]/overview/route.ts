@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -47,7 +48,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "students.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
@@ -70,15 +71,16 @@ export async function GET(
   if (!student) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const month = currentJakartaMonth();
+  const canViewFinance = hasPermission(session, "invoices.view");
 
   const [invoiceGroups, attendanceGroups, terms, raportEntries, ageGroup, application] =
     await Promise.all([
-      prisma.invoice.groupBy({
+      canViewFinance ? prisma.invoice.groupBy({
         by: ["status"],
         where: { studentId: id, tenantId },
         _count: { _all: true },
         _sum: { totalDue: true, totalPaid: true },
-      }),
+      }) : Promise.resolve([]),
       prisma.studentAttendance.groupBy({
         by: ["status"],
         // Voided rows are an admin's "this was marked wrong" — counting them
@@ -119,7 +121,7 @@ export async function GET(
   const consent = (application?.consentData ?? {}) as { agreed?: unknown };
 
   return NextResponse.json({
-    finance: {
+    finance: canViewFinance ? {
       invoiceCount: invoiceGroups.reduce((n, g) => n + g._count._all, 0),
       byStatus: orderInvoiceGroups(
         invoiceGroups.map((g) => ({
@@ -130,7 +132,7 @@ export async function GET(
           totalPaid: g._sum.totalPaid?.toString() ?? "0",
         })),
       ),
-    },
+    } : null,
     attendance: {
       month,
       counts: countAttendanceByStatus(

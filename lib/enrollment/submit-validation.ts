@@ -1,3 +1,4 @@
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { z } from "zod";
 import { optionalTrimmed } from "@/lib/validations/zod-helpers";
 import { programIdSchema } from "@/lib/validations/program-id";
@@ -69,7 +70,7 @@ const studentSchema = z.object({
   nickname: optionalTrimmed(z.string().max(40)),
   childGender: z.enum(["L", "P"], { error: "Pilih jenis kelamin" }),
   birthPlace: z.string({ error: "Tempat lahir wajib diisi" }).trim().min(1, "Tempat lahir wajib diisi").max(80),
-  dateOfBirth: z.string({ error: "Tanggal lahir wajib diisi (format YYYY-MM-DD)" }).regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)"),
+  dateOfBirth: z.string({ error: "Tanggal lahir wajib diisi (format YYYY-MM-DD)" }).regex(ISO_DATE_REGEX, "Tanggal lahir wajib diisi (format YYYY-MM-DD)").refine((v) => Number.isFinite(Date.parse(v)) && v <= getTodayInTimezone("Asia/Jakarta"), "Tanggal lahir tidak boleh di masa depan"),
   agama: inSet(AGAMA_VALUES, "Pilih agama"),
   kewarganegaraan: inSet(KEWARGANEGARAAN_VALUES, "Pilih kewarganegaraan"),
   bloodType: optInSet(BLOOD_TYPE_VALUES, "Golongan darah tidak valid"),

@@ -90,7 +90,7 @@ function mockWeeks(siblings: unknown[], scoped: unknown[]) {
 
 describe("POST /weeks — kelompok scope", () => {
   it("409 with scope label when a week in the same kelompok overlaps", async () => {
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: "A" } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: "A" } });
     mockWeeks([], [otherGroupWeek]);
     const res = await POST(jsonReq(body) as never);
     expect(res.status).toBe(409);
@@ -101,7 +101,7 @@ describe("POST /weeks — kelompok scope", () => {
   });
 
   it("scopes the lookup to themes sharing viewers with the new theme", async () => {
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: "A" } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: "A" } });
     mockWeeks([], []);
     await POST(jsonReq(body) as never);
     const where = weekFindMany.mock.calls[1][0].where;
@@ -110,7 +110,7 @@ describe("POST /weeks — kelompok scope", () => {
   });
 
   it("201 for TK B week on the same dates as a TK A week (disjoint scopes)", async () => {
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: "B" } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: "B" } });
     // The scoped query (A excluded by the where) returns nothing.
     mockWeeks([], []);
     const res = await POST(jsonReq(body) as never);
@@ -119,7 +119,7 @@ describe("POST /weeks — kelompok scope", () => {
   });
 
   it("shared theme checks against every kelompok (no ageGroup filter)", async () => {
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: null } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: null } });
     mockWeeks([], [otherGroupWeek]);
     const res = await POST(jsonReq(body) as never);
     expect(res.status).toBe(409);
@@ -141,7 +141,7 @@ describe("PUT /weeks/[id] — kelompok scope", () => {
 
   it("409 when reactivating into a slot taken within the kelompok; excludes self", async () => {
     weekFindFirst.mockResolvedValue(before);
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: "B" } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: "B" } });
     mockWeeks([], [otherGroupWeek]);
     const res = await PUT(
       jsonReq({ status: "ACTIVE" }, "PUT") as never,
@@ -155,7 +155,7 @@ describe("PUT /weeks/[id] — kelompok scope", () => {
 
   it("200 when the same dates exist only in the other kelompok", async () => {
     weekFindFirst.mockResolvedValue(before);
-    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semesterId: "sem1", ageGroup: "B" } });
+    subThemeFindFirst.mockResolvedValue({ id: "st1", theme: { semester: { startDate: new Date("2026-07-01"), endDate: new Date("2026-12-31") }, semesterId: "sem1", ageGroup: "B" } });
     mockWeeks([], []);
     weekUpdate.mockResolvedValue({ ...before, status: "ACTIVE" });
     const res = await PUT(

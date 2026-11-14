@@ -428,3 +428,15 @@ describe("CenterSessionClient", () => {
     });
   });
 });
+
+it("replaces saved session activity when the selected date changes", async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(ok({ ...session(), lastActivity: "Kegiatan Kamis" })).mockResolvedValueOnce(ok({ ...session(), lastActivity: "Kegiatan Jumat" })).mockResolvedValue(ok({ ...session(), lastActivity: null }));
+  vi.stubGlobal("fetch", fetchMock);
+  renderClient();
+  expect(await screen.findByDisplayValue("Kegiatan Kamis")).toBeInTheDocument();
+  fireEvent.change(screen.getByTestId("center-date"), { target: { value: "2026-11-13" } });
+  expect(await screen.findByDisplayValue("Kegiatan Jumat")).toBeInTheDocument();
+  expect(screen.queryByDisplayValue("Kegiatan Kamis")).toBeNull();
+  fireEvent.change(screen.getByTestId("center-date"), { target: { value: "2026-11-12" } });
+  await waitFor(() => expect(screen.getByRole("textbox", { name: /Kegiatan/ })).toHaveValue(""));
+});

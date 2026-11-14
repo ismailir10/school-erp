@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { studentHealthMetadataSchema } from "./student-health";
 import { optionalTrimmed, partialWithoutDefaults } from "./zod-helpers";
 import { cleanText, labelText, longText, nameText } from "./text";
 
@@ -47,7 +48,7 @@ export const createStudentSchema = z.object({
   nik: idText().optional().nullable(),
   kkNumber: idText().optional().nullable(),
   livingWith: labelText().optional().nullable(),
-  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
+  metadata: studentHealthMetadataSchema.optional().nullable(),
   // Admin-created students normally land ACTIVE; allowing the full enum lets
   // admins backfill historical rows (GRADUATED / WITHDRAWN) without a second PUT.
   status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),

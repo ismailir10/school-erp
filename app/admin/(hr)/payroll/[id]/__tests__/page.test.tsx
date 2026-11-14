@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => () => true }));
 /**
  * T6 — Payroll detail's two sub-forms migrated onto useZodForm + FormField +
  * applyServerErrors: Variabel Kehadiran (4 numbers, all optional-default-0,

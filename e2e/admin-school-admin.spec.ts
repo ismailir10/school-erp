@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createCurriculumSemester } from "./helpers/curriculum-semester";
 import { openInvoiceHeaderMenuItem } from "./helpers/invoice-header";
 
 // SCHOOL_ADMIN persona — restricted role, no salary/payroll access.
@@ -82,7 +83,7 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
   // Cycle 2026-10-27-admin-curriculum-write: the school admin authors Kurikulum.
   test("SCHOOL_ADMIN creates a Tema, Subtema and Pekan", async ({ page }) => {
     // Native date inputs, as a touch device gets (the DatePicker popover is
-    // not worth paging to 2030 — same trick as curriculum-admin.spec.ts).
+    // not worth paging to the isolated fixture year).
     await page.addInitScript(() => {
       const real = window.matchMedia.bind(window);
       window.matchMedia = (q: string) =>
@@ -92,17 +93,8 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
           : real(q);
     });
 
-    const yearsRes = await page.request.get("/api/academic-years");
-    const years = (await yearsRes.json()) as Array<{ name: string; status: string }>;
-    const yearName = years.find((y) => y.status === "ACTIVE")?.name;
-    const semRes = await page.request.get("/api/admin/curriculum/semesters?pageSize=100");
-    const sems = (await semRes.json()) as {
-      data?: Array<{ id: string; number: number; academicYear: { name: string } }>;
-    };
-    const semester = sems.data?.find((x) => x.number === 1 && x.academicYear.name === yearName);
-    test.skip(!semester, "seed produced no Semester 1 for the ACTIVE academic year");
-
-    await page.goto(`/admin/semesters/${semester!.id}/themes`);
+    const { semesterId, monday } = await createCurriculumSemester(page);
+    await page.goto(`/admin/semesters/${semesterId}/themes`);
     const themeCard = page.locator('[data-testid="theme-card"]');
     await expect(themeCard.getByRole("button", { name: /Tambah/ })).toBeVisible({ timeout: 15_000 });
 
@@ -123,10 +115,7 @@ test.describe("SCHOOL_ADMIN role restrictions", () => {
     await subRow.click();
 
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
-    // Per-run Monday (2050–2057): weeks of every shared theme in a semester
-    // must not overlap, so a fixed date collides with an earlier run's week.
-    // Range kept apart from curriculum-admin.spec.ts (2030–2037).
-    const monday = new Date(Date.UTC(2050, 0, 3 + 7 * (Math.floor(Date.now() / 1000) % 400)));
+    // The isolated semester contains this Monday–Friday and has no other weeks.
     const ymd = (d: Date) => d.toISOString().slice(0, 10);
     await page.locator("#week-start-date").fill(ymd(monday));
     await page.locator("#week-end-date").fill(ymd(new Date(monday.getTime() + 4 * 86_400_000)));

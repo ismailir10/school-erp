@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { HEALTH_LIMITS } from "@/lib/validations/student-health";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -93,7 +94,8 @@ function EditField({
         type={field.input === "number" ? "number" : "text"}
         inputMode={field.input === "number" ? "decimal" : undefined}
         min={field.input === "number" ? 0 : undefined}
-        step={field.input === "number" ? "any" : undefined}
+        max={HEALTH_LIMITS[field.key]?.max}
+        step={field.input === "number" ? (HEALTH_LIMITS[field.key]?.integer ? "1" : "any") : undefined}
         value={value}
         placeholder={field.placeholder}
         onChange={(e) => onChange(e.target.value)}

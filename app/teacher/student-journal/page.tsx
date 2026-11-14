@@ -118,9 +118,10 @@ export default function StudentJournalPickerPage() {
     // Mark the missing field(s) at the field, then focus the first one.
     // A toast alone vanishes in seconds and says nothing about which control.
     const missingClass = !selectedClass;
-    const missingDate = !resolveTeacherDate(date, "");
+    const futureDate = date > today;
+    const missingDate = !resolveTeacherDate(date, "") || futureDate;
     setClassError(missingClass ? "Pilih kelas dulu ya." : "");
-    setDateError(missingDate ? "Pilih tanggal dulu ya." : "");
+    setDateError(futureDate ? "Tanggal tidak boleh di masa depan." : missingDate ? "Pilih tanggal dulu ya." : "");
     if (missingClass || missingDate) {
       document.getElementById(missingClass ? "journal-class" : "journal-date")?.focus();
       return;

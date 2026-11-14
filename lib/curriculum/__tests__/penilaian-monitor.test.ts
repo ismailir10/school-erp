@@ -205,3 +205,11 @@ describe("loadPenilaianMonitor (integration)", () => {
     ]);
   });
 });
+
+it("distinguishes same-name classes by campus", () => {
+  const result = aggregateWalas([
+    { id: "north", name: "KB", program: { name: "Kelompok Bermain" }, campus: { name: "Utara" } },
+    { id: "south", name: "KB", program: { name: "Kelompok Bermain" }, campus: { name: "Selatan" } },
+  ], [], new Set());
+  expect(result.map((r) => r.className)).toEqual(["KB · Utara", "KB · Selatan"]);
+});

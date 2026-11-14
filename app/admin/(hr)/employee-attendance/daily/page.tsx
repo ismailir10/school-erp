@@ -1,4 +1,6 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+import { usePermission } from "@/hooks/use-permission";
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -58,6 +60,7 @@ export default function DailyStaffAttendancePage() {
 }
 
 function DailyStaffAttendancePageInner() {
+  const canOverride = usePermission("attendance.override");
   // Empty until the server answers with today in the school's timezone.
   const [date, setDate] = useState("");
   const [today, setToday] = useState("");
@@ -76,15 +79,18 @@ function DailyStaffAttendancePageInner() {
   }
   const [rows, setRows] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams({ campusId });
       if (date) params.set("date", date);
       const res = await fetch(`/api/attendance/daily?${params}`);
       if (!res.ok) {
+        setLoadError(true);
         toast.error(MESSAGES.loadFailed("Data kehadiran"));
         return;
       }
@@ -93,6 +99,7 @@ function DailyStaffAttendancePageInner() {
       setToday(body.today);
       if (!date) setDate(body.date);
     } catch {
+      setLoadError(true);
       toast.error(MESSAGES.loadFailed("Data kehadiran"));
     } finally {
       setLoading(false);
@@ -193,7 +200,7 @@ function DailyStaffAttendancePageInner() {
         title="Absensi Staf Harian"
         description={date ? formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : undefined}
         actions={
-          <Button onClick={markAll} disabled={busy || loading || unmarked === 0 || isFuture}>
+          <Button onClick={markAll} disabled={!canOverride || busy || loading || unmarked === 0 || isFuture}>
             <CheckCheck size={14} className="mr-1.5" />
             Tandai semua hadir{unmarked > 0 ? ` (${unmarked})` : ""}
           </Button>
@@ -217,7 +224,7 @@ function DailyStaffAttendancePageInner() {
         )}
       </div>
 
-      {loading && rows.length === 0 ? (
+      {loadError ? <ErrorState title="Data kehadiran belum bisa dimuat." onRetry={load} /> : loading && rows.length === 0 ? (
         <Skeleton className="h-96 rounded-xl" />
       ) : rows.length === 0 ? (
         <EmptyState
@@ -270,7 +277,7 @@ function DailyStaffAttendancePageInner() {
                               size="sm"
                               variant={active ? "selection" : "outline"}
                               aria-pressed={active}
-                              disabled={locked || busy || (isFuture && (q.status === "PRESENT" || q.status === "ABSENT"))}
+                              disabled={!canOverride || locked || busy || (isFuture && (q.status === "PRESENT" || q.status === "ABSENT"))}
                               onClick={() => setStatus(r, q.status)}
                               className="min-h-11 flex-1 sm:flex-none"
                             >

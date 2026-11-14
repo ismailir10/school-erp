@@ -1,3 +1,4 @@
+import { studentDays } from "@/lib/attendance/student-days";
 import { prisma } from "@/lib/db";
 import { formatJakartaYmd } from "@/lib/validations/curriculum";
 import {
@@ -193,7 +194,7 @@ export async function loadRaportDraft(
       date: { gte: startYmd, lte: endYmd },
       student: { tenantId },
     },
-    select: { status: true },
+    select: { studentId: true, date: true, sessionId: true, status: true },
   });
 
   const schoolDayRows = await prisma.studentAttendance.findMany({
@@ -209,7 +210,7 @@ export async function loadRaportDraft(
   return {
     sections: suggestSectionLevels(rows),
     attendance: summarizeAttendance(
-      studentRows.map((a) => a.status),
+      studentDays(studentRows).map((a) => a.status),
       schoolDayRows.length,
     ),
   };

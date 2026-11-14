@@ -118,7 +118,7 @@ function adminSession(): Session {
     name: "Admin",
     employeeId: null,
     parentId: null,
-    permissions: ["students.edit"],
+    permissions: ["students.view", "students.edit"],
     customRoleCode: null,
   };
 }
@@ -351,4 +351,9 @@ describe("POST /api/parents/[id]/kk — factory dispatch", () => {
     expect(state.lastUpdate?.kkUrl).toBe(body.kkUrl);
     expect(state.lastUpdate?.ktpUrl).toBeUndefined();
   });
+});
+
+it("denies private parent documents to an admissions-only admin", async () => {
+ state.session = { ...adminSession(), permissions: ["admissions.view"] };
+ expect((await runGet()).status).toBe(403);
 });

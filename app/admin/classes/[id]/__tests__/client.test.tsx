@@ -84,6 +84,7 @@ const classDetail = {
   name: "KB 1",
   capacity: 20,
   slotTemplate: "FULL_DAY",
+  ageGroup: "A",
   status: "ACTIVE",
   campusId: "campus-1",
   programId: "program-1",

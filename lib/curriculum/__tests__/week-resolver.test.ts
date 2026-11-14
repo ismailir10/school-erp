@@ -44,7 +44,10 @@ describe("getCurrentWeek", () => {
     weekFindFirst.mockResolvedValue(null);
     await getCurrentWeek("t1", new Date("2026-05-14T00:00:00Z"), "B");
     const where = weekFindFirst.mock.calls[0][0].where;
-    expect(where.subTheme.theme).toEqual({
+    expect(where.subTheme.status).toBe("ACTIVE");
+    expect(where.subTheme.theme).toMatchObject({
+      status: "ACTIVE",
+      semester: { status: "ACTIVE", startDate: { lte: new Date("2026-05-14T00:00:00Z") }, endDate: { gte: new Date("2026-05-14T00:00:00Z") } },
       OR: [{ ageGroup: "B" }, { ageGroup: null }],
     });
   });

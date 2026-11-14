@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => () => true, usePermission: () => true }));
 /**
  * T6 — Komponen Gaji create/edit dialog migrated onto useZodForm + FormField
  * + applyServerErrors (same pattern as the holidays worked example).
@@ -275,5 +276,23 @@ describe("SalaryComponentsPage — Edit Komponen dialog", () => {
       expect(putCall).toBeTruthy();
       expect(JSON.parse((putCall![1] as RequestInit).body as string).calcType).toBe("PCT_OF_BASE");
     });
+  });
+});
+
+
+describe("list load recovery", () => {
+  it("shows a persistent read error and recovers with an explicit retry", async () => {
+    let failed = true;
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.startsWith("/api/salary-components")) return failed
+        ? { ok: false, json: async () => ({ error: "Gagal memuat" }) }
+        : { ok: true, json: async () => [] };
+      return { ok: true, json: async () => ({ total: 0, draft: 0, approved: 0, slipsSent: 0 }) };
+    }));
+    render(<SalaryComponentsPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Data belum bisa dimuat.");
+    failed = false;
+    fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 });

@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { db, requirePermission, backfill } = vi.hoisted(() => {
   const tx = {
     $executeRaw: vi.fn(),
-    teachingAssignment: { findFirst: vi.fn(), create: vi.fn() },
+    teachingAssignment: { findFirst: vi.fn(), create: vi.fn(), delete: vi.fn() },
   };
   const db = {
     classSection: { findFirst: vi.fn() },
@@ -117,4 +117,20 @@ describe("teaching-assignments -> session teacher backfill (DOC-1)", () => {
     expect(res.status).toBe(200);
     expect(backfill).not.toHaveBeenCalled();
   });
+});
+
+it("replaces the confirmed homeroom inside the same transaction", async () => {
+  db.tx.teachingAssignment.findFirst.mockResolvedValue({ id: "old", employeeId: "e2", employee: { id: "e2", nama: "Old" } });
+  const res = await POST(post({ employeeId: "e1", role: "HOMEROOM", replaceAssignmentId: "old" }), ctx);
+  expect(res.status).toBe(201);
+  expect(db.tx.teachingAssignment.delete).toHaveBeenCalledWith({ where: { id: "old" } });
+  expect(db.teachingAssignment.delete).not.toHaveBeenCalled();
+  expect(db.tx.teachingAssignment.delete.mock.invocationCallOrder[0]).toBeLessThan(db.tx.teachingAssignment.create.mock.invocationCallOrder[0]);
+});
+it("refuses a stale replacement confirmation without deleting the current homeroom", async () => {
+  db.tx.teachingAssignment.findFirst.mockResolvedValue({ id: "newer", employeeId: "e2", employee: { id: "e2", nama: "Newer" } });
+  const res = await POST(post({ employeeId: "e1", role: "HOMEROOM", replaceAssignmentId: "old" }), ctx);
+  expect(res.status).toBe(409);
+  expect(db.tx.teachingAssignment.delete).not.toHaveBeenCalled();
+  expect(db.tx.teachingAssignment.create).not.toHaveBeenCalled();
 });

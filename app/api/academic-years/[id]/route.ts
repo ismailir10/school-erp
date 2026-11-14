@@ -1,7 +1,7 @@
+import { requirePermission } from "@/lib/auth-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
-import { getSession, isAdminRole } from "@/lib/auth";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
 import { validateBody } from "@/lib/api/validate";
 import { fieldErrorResponse, isUniqueViolation } from "@/lib/api/field-errors";
@@ -25,10 +25,9 @@ async function getActiveEnrollmentBlocker(yearId: string): Promise<NextResponse 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
   const { id } = await params;
 
   // Verify tenant ownership
@@ -108,10 +107,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requirePermission("academic.edit");
+  if ("error" in auth) return auth.error;
+  const { session } = auth;
   const { id } = await params;
 
   // Verify tenant ownership

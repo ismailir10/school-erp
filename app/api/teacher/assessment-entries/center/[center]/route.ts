@@ -223,7 +223,7 @@ export async function GET(
       tenantId: session.tenantId,
       status: "ACTIVE",
       themeLinks: { some: { themeId: week.subTheme.theme.id } },
-      objective: { ageGroup },
+      objective: { ageGroup, status: "ACTIVE", semester: { status: "ACTIVE" } },
     },
     select: {
       id: true,

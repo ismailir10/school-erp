@@ -251,7 +251,7 @@ describe("ManualInvoiceDialog", () => {
       expect(screen.queryByRole("button", { name: "Simpan sebagai lunas" })).not.toBeInTheDocument();
     });
 
-    it("posts only studentId, periodLabel, dueDate and lines", async () => {
+    it("posts invoice fields and a retry key", async () => {
       const fetchMock = fixture();
       const user = userEvent.setup();
       render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
@@ -260,7 +260,57 @@ describe("ManualInvoiceDialog", () => {
       await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
       await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(1));
       const body = postBody(invoicePosts(fetchMock)[0]!);
-      expect(Object.keys(body).sort()).toEqual(["dueDate", "lines", "periodLabel", "studentId"]);
+      expect(Object.keys(body).sort()).toEqual(["dueDate", "idempotencyKey", "lines", "periodLabel", "studentId"]);
+    });
+
+    it("reuses the same attempt key when retrying an uncertain invoice creation", async () => {
+      const fetchMock = fixture({ invoicePosts: [{ ok: false, status: 500, json: async () => ({ error: "Hasil belum diketahui" }) }] });
+      const user = userEvent.setup();
+      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+      await fillValidInvoice(user);
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      await screen.findByText("Hasil belum diketahui");
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(2));
+      expect(postBody(invoicePosts(fetchMock)[0]!).idempotencyKey).toEqual(postBody(invoicePosts(fetchMock)[1]!).idempotencyKey);
+    });
+
+    it("keeps the key after an uncertain save when details change and links the original invoice", async () => {
+      const fetchMock = fixture({ invoicePosts: [
+        { ok: false, status: 500, json: async () => ({ error: "Hasil belum diketahui" }) },
+        { ok: false, status: 409, json: async () => ({ error: "Tagihan sebelumnya sudah dibuat dengan rincian berbeda.", invoiceId: "inv-original" }) },
+      ] });
+      const user = userEvent.setup();
+      render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+      await fillValidInvoice(user);
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      await screen.findByText("Hasil belum diketahui");
+      await user.clear(screen.getByLabelText(/^Jumlah 1/));
+      await user.type(screen.getByLabelText(/^Jumlah 1/), "150000");
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      const link = await screen.findByRole("link", { name: "Buka tagihan sebelumnya" });
+      expect(link).toHaveAttribute("href", "/admin/invoices/inv-original");
+      expect(postBody(invoicePosts(fetchMock)[0]!).idempotencyKey).toEqual(postBody(invoicePosts(fetchMock)[1]!).idempotencyKey);
+    });
+
+    it("clears an original-invoice conflict when the dialog is closed and reopened", async () => {
+      const fetchMock = fixture({ invoicePosts: [
+        { ok: false, status: 409, json: async () => ({ error: "Tagihan sebelumnya sudah dibuat dengan rincian berbeda.", invoiceId: "inv-old-intent" }) },
+      ] });
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      const { rerender } = render(<ManualInvoiceDialog open onOpenChange={onOpenChange} />);
+      await fillValidInvoice(user);
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      await screen.findByRole("link", { name: "Buka tagihan sebelumnya" });
+      const previousKey = postBody(invoicePosts(fetchMock)[0]!).idempotencyKey;
+      rerender(<ManualInvoiceDialog open={false} onOpenChange={onOpenChange} />);
+      rerender(<ManualInvoiceDialog open onOpenChange={onOpenChange} />);
+      expect(screen.queryByRole("link", { name: "Buka tagihan sebelumnya" })).not.toBeInTheDocument();
+      await fillValidInvoice(user);
+      await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+      await waitFor(() => expect(invoicePosts(fetchMock)).toHaveLength(2));
+      expect(postBody(invoicePosts(fetchMock)[1]!).idempotencyKey).not.toEqual(previousKey);
     });
 
     it("steers the Periode label toward a descriptive name", async () => {

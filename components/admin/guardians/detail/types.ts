@@ -30,6 +30,7 @@ export type UnpaidInvoiceRow = UnpaidInvoice;
 export type ParentInvoiceSummary = StudentInvoiceSummary;
 
 export type ParentDetail = {
+  canViewFinance?: boolean;
   canEdit: boolean;
   /** Viewer holds payments.record, so may send and stamp WhatsApp reminders. */
   canRemind: boolean;

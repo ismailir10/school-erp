@@ -1,7 +1,7 @@
 "use client";
 
 import { MESSAGES } from "@/lib/feedback";
-import { useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useWatch } from "react-hook-form";
 import { toast } from "sonner";
@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/button";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
-import { sendJson } from "@/lib/api/send-json";
+import { ApiError, readApiError } from "@/lib/api/client-errors";
+import Link from "next/link";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
 import { DUPLICATE_LINES_MESSAGE, manualInvoiceFormSchema } from "@/lib/validations/invoice";
@@ -153,34 +154,40 @@ export function ManualInvoiceDialog({ open, onOpenChange, onCreated }: ManualInv
 
   // Reset form whenever the dialog flips closed so the next open starts
   // fresh (avoids a stale student preselected from a previous create).
+  const attemptRef = useRef<string | null>(null);
+  const [priorInvoiceId, setPriorInvoiceId] = useState<string | null>(null);
   useEffect(() => {
     if (!open) {
+      attemptRef.current = null;
+      setPriorInvoiceId(null);
       form.reset(buildInitialForm());
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting the picker when the dialog closes
       setSelectedStudent(null);
     }
   }, [open, form]);
 
-  const handleSubmit = form.handleSubmit(async (values) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => form.handleSubmit(async (values) => {
+    attemptRef.current ??= crypto.randomUUID();
+    setPriorInvoiceId(null);
     try {
-      const created = await sendJson<{
-        id?: string;
-        xenditPaymentUrl?: string | null;
-        xenditError?: string;
-      }>(
-        "/api/invoices",
-        {
-          method: "POST",
-          body: {
-            studentId: values.studentId,
-            periodLabel: values.periodLabel,
-            dueDate: values.dueDate,
-            lines: values.lines,
-          },
-        },
-        "Gagal membuat tagihan",
-      );
+      const response = await fetch("/api/invoices", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idempotencyKey: attemptRef.current,
+          studentId: values.studentId, periodLabel: values.periodLabel,
+          dueDate: values.dueDate, lines: values.lines,
+        }),
+      });
+      if (!response.ok) {
+        if (response.status === 409) {
+          const problem = await response.json().catch(() => ({}));
+          if (typeof problem.invoiceId === "string") setPriorInvoiceId(problem.invoiceId);
+          throw new ApiError(typeof problem.error === "string" ? problem.error : "Gagal membuat tagihan", { status: 409 });
+        }
+        throw await readApiError(response, "Gagal membuat tagihan");
+      }
+      const created: { id?: string; xenditPaymentUrl?: string | null; xenditError?: string } = await response.json();
 
+      attemptRef.current = null;
       onOpenChange(false);
 
       if (created?.xenditPaymentUrl) {
@@ -209,7 +216,7 @@ export function ManualInvoiceDialog({ open, onOpenChange, onCreated }: ManualInv
     } catch (err) {
       applyServerErrors(form, err, "Gagal membuat tagihan");
     }
-  });
+  })(event);
 
   function addLine() {
     append({ feeComponentId: feeComponents[0]?.id ?? "", amount: null });
@@ -237,6 +244,7 @@ export function ManualInvoiceDialog({ open, onOpenChange, onCreated }: ManualInv
     >
       <form id={formId} onSubmit={handleSubmit} noValidate className="space-y-field">
         <FormRootError formState={form.formState} />
+        {priorInvoiceId && <Button variant="outline" nativeButton={false} role="link" render={<Link href={`/admin/invoices/${priorInvoiceId}`} />}>Buka tagihan sebelumnya</Button>}
 
         <FormField
           control={form.control}

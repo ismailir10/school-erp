@@ -200,10 +200,12 @@ export async function POST(req: NextRequest) {
     order: number;
     themeNames: string[];
   }> = [];
+  let validationContext = "";
   try {
     for (const [elementKey, objectives] of Object.entries(parsed.byElement)) {
       const element = elementKey as CurriculumElementInput;
       for (const o of objectives ?? []) {
+        validationContext = `${element} · TP ${o.number}`;
         objectiveRows.push(
           objectiveCreateSchema.parse({
             semesterId,
@@ -215,6 +217,7 @@ export async function POST(req: NextRequest) {
           }),
         );
         for (const i of o.indicators) {
+          validationContext = `${element} · TP ${o.number} · IKTP ${i.order}`;
           indicatorRows.push(
             indicatorCreateSchema.parse({
               semesterId,
@@ -242,7 +245,7 @@ export async function POST(req: NextRequest) {
         {
           error: "Validasi baris PROMES gagal",
           errors: err.issues.map((i) => ({
-            field: i.path.join("."),
+            field: [validationContext, i.path.join(".")].filter(Boolean).join(" · "),
             message: i.message,
           })),
         },
