@@ -22,7 +22,7 @@ Recent parent/teacher work is recorded in the November 14 audit cycle. Its behav
 - [x] Parent Home shows the same latest three development entries and empty states without reading the full semester assessment history.
 - [x] Unread counts remain exact for mixed read times, never-opened threads and multiple students; note query results contain at most one count row per student, with existing tenant/author/status restrictions retained.
 - [x] Guardian summary totals remain correct, including an empty tenant and after edits/status changes. Initial loading uses one list request and one aggregate request, replacing four list requests.
-- [ ] Focused regressions, repository gates and local browser flows pass. Before/after evidence reports query calls, returned rows and request counts; any timing result names its local dataset and environment.
+- [x] Focused regressions, repository gates and local browser flows pass. Before/after evidence reports query calls, returned rows and request counts; any timing result names its local dataset and environment.
 
 ## Verify flows
 
@@ -62,7 +62,7 @@ New dependency, schema migration, permission/PII behavior change, shared-environ
 - [x] T2 Extract the lightweight development preview and reuse it in Home/detail — accept: Home does not query semester history, existing detail totals unchanged. Can run independently of T3/T4; coordinate with T1 on Home tests.
 - [x] T3 Aggregate unread counts in Postgres using exact per-student read predicates — accept: equivalence with single-student count semantics, bounded result rows. Independent of T1/T2/T4.
 - [x] T4 Replace guardian count-only list requests with one stats endpoint — accept: four requests become two, totals/guards/errors preserved. Independent of T1/T2/T3.
-- [ ] T5 Run local full gate, compare work performed, inspect browser flows and prepare reviewed PR. Depends on T1–T4.
+- [x] T5 Run local full gate, compare work performed, inspect browser flows and prepare reviewed PR. Depends on T1–T4.
 
 ## Implementation
 
@@ -105,6 +105,20 @@ Already sound: admin work queue limits/projections, receivables SQL aggregation,
 - Parent Home at 390x844 and 1440x900, development detail, and teacher Home at 390x844 passed with no horizontal overflow. On port 3001 only, a temporary server-clock preload set November 2 within the seeded week: two sibling cards each showed exactly three entries matching their detail API; clicking through preserved the 27-entry semester totals. The teacher note appeared once and two siblings retained their empty-note state. The separate server stopped afterwards; no product configuration or database rows changed.
 - Browser captures had no JavaScript page errors or unexpected application HTTP errors. Optional localhost Vercel telemetry scripts returned 404/MIME errors; the stats 503 was deliberately injected; canceled RSC prefetch requests came from navigation/reloads/context closure. Visual inspection of guardian, parent, teacher and active-week cards passed. Screenshots: `/tmp/school-erp-performance-shots/`; highlights are `guardian-list-desktop.png` and `parent-active-week-cards.png`.
 
+### Verified locally — c176e1ea, 2026-11-15
+
+- Gate: production build, lint, typecheck, `npx vitest run --maxWorkers=3` → 776 passed files / 9,597 passed tests (2 existing skipped files, 42 todo); `npx playwright test --retries=0` → 303 passed. RLS/API-auth, documentation, hooks and workflow guards passed.
+- App: production build, demo auth, disposable local Postgres; no shared database credentials. Port 3000 for normal-date flows; a separate port 3001 harness used a fixed seeded week for positive preview evidence.
+- Walked: guardian list totals/request count/edit persistence; simulated stats failure, recovery and zero response; parent Home at mobile/desktop, sibling notes and active-week previews/detail; teacher Home/unread display. Timestamp/absence/error semantics also covered by unit and real-database checks described above.
+- Console/network: no page errors or unexpected application HTTP errors; optional local telemetry 404/MIME errors, intentional stats 503 and canceled prefetches qualified above.
+- Screenshots: `/tmp/school-erp-performance-shots/`; highlights `guardian-list-desktop.png` and `parent-active-week-cards.png`, to be attached to the PR on its assets branch. Driver visually inspected the captured screens.
+- Rounds: 3 — type fixes; test-only integration mock fix; final clean gate. No runtime change after the passing build/browser run.
+- Not checked: production latency/query plans or real Google OAuth. No auth/permission behavior change; security review passed and no signed-in staging gate is required for this diff.
+
 ## Ship Notes
 
-Not shipped. Isolated branch: `feat/performance-hot-paths`. No PR, merge or deployment.
+- Target: PR from `feat/performance-hot-paths` to `staging`; production promotion is outside this cycle.
+- Migrations, dependencies, environment/config changes and manual steps: none.
+- Blast radius: parent Home read volume, development detail read scheduling, shared unread counts and admin guardian summary loading. Existing authorization and freshness are retained.
+- Rollback: revert the PR. No data migration to reverse.
+- Release checks: all required checks on the current head; after merge, staging deployment READY for the merge SHA and matching DB-aware health response. PR metadata and the final task report carry the merge/deployment result.
