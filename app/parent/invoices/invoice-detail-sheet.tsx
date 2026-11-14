@@ -1,8 +1,10 @@
 "use client";
 
 import { MESSAGES } from "@/lib/feedback";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import {
   Banknote,
   Building2,
@@ -20,7 +22,6 @@ import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SectionCard } from "@/components/ui/section-card";
-import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
@@ -28,6 +29,16 @@ import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone"
 import { parentPaymentMethodLabel } from "@/lib/parent-payment-method";
 import { hasReceipt } from "@/lib/finance/invoice-receipt";
 import { telHref, whatsappHrefWithText } from "@/lib/contact";
+
+/** Only ever send a parent to an https checkout; anything else is treated as "no usable link". */
+function httpsUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
 
 type InvoiceLine = {
   id: string;
@@ -112,7 +123,18 @@ export function InvoiceDetailSheet({
   // whichever invoice the parent opens next, and a response must only ever touch the invoice
   // that asked for it.
   const [requestingLinkFor, setRequestingLinkFor] = useState<string | null>(null);
+  // Why the last try for a link failed, kept with the invoice it belongs to so it is never
+  // shown on another one. Rendered inline in the pinned footer (a toast alone is gone in seconds).
+  const [linkErrorState, setLinkErrorState] = useState<{ id: string; message: string } | null>(null);
   const shownInvoiceIdRef = useRef<string | null>(null);
+  // Back from checkout via the bfcache restores this page mid-"navigating": free the button.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setRequestingLinkFor(null);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
   useEffect(() => {
     shownInvoiceIdRef.current = invoice?.id ?? null;
   }, [invoice]);
@@ -182,7 +204,7 @@ export function InvoiceDetailSheet({
           "Transfer bank (Virtual Account)" onto two lines. Same reason the
           desktop cap has to be written as `data-[side=right]:sm:max-w-md`.
         */}
-        <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+        <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           <div className="p-card">
             <InvoiceDetailSkeleton />
           </div>
@@ -200,22 +222,41 @@ export function InvoiceDetailSheet({
     if (!invoice) return;
     const requestedId = invoice.id;
     const previousUrl = invoice.xenditPaymentUrl;
+    // No link yet: this tap is the parent's "Bayar", so on success go straight to checkout.
+    // Same tab on purpose: window.open after an await is popup-blocked on phones, and the
+    // gateway's success/cancel return URL brings the parent back to /parent/invoices.
+    const goToCheckout = !httpsUrl(previousUrl);
+    // Once we hand the browser to checkout the button stays busy: clearing it would let a
+    // second tap POST again while the page is still navigating away.
+    let navigating = false;
+    const fail = (message: string) => {
+      setLinkErrorState({ id: requestedId, message });
+      toast.error(message);
+    };
     // The parent can close this sheet and open another invoice while the request is out. A
     // late answer for the first must not put ITS checkout link on the second (they would pay
     // a different invoice from the one on screen), nor toast about it.
     const stillShown = () => shownInvoiceIdRef.current === requestedId;
     setRequestingLinkFor(requestedId);
+    setLinkErrorState((cur) => (cur?.id === requestedId ? null : cur));
     try {
       const res = await fetch(`/api/guardian/invoices/${requestedId}/payment-link`, { method: "POST" });
       const d = (await res.json().catch(() => ({}))) as { paymentUrl?: string; created?: boolean };
-      if (res.ok && d.paymentUrl) {
-        const url = d.paymentUrl;
-        setInvoice((prev) => (prev && prev.id === requestedId ? { ...prev, xenditPaymentUrl: url } : prev));
-        if (stillShown()) {
+      const url = httpsUrl(d.paymentUrl);
+      if (res.ok && d.paymentUrl && !url) {
+        if (stillShown()) fail("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
+      } else if (res.ok && url) {
+        if (stillShown() && goToCheckout) {
+          navigating = true;
+          window.location.assign(url);
+        } else {
+          setInvoice((prev) => (prev && prev.id === requestedId ? { ...prev, xenditPaymentUrl: url } : prev));
+        }
+        if (!navigating && stillShown()) {
           toast.success(
             previousUrl && !d.created
-              ? "Link pembayaran masih berlaku. Silakan ketuk Bayar sekarang."
-              : "Link pembayaran sudah siap. Silakan ketuk Bayar sekarang.",
+              ? "Link pembayaran masih berlaku. Silakan ketuk tombol Bayar."
+              : "Link pembayaran sudah siap. Silakan ketuk tombol Bayar.",
           );
         }
       } else if (!stillShown()) {
@@ -224,14 +265,14 @@ export function InvoiceDetailSheet({
         toast.info("Tagihan ini sudah tidak bisa dibayar lewat link. Kami muat ulang statusnya.");
         onRefreshStatus?.();
       } else if (res.status === 429) {
-        toast.error("Terlalu sering mencoba. Tunggu sebentar ya.");
+        fail("Terlalu sering mencoba. Tunggu sebentar ya.");
       } else {
-        toast.error("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
+        fail("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
       }
     } catch {
-      if (stillShown()) toast.error(MESSAGES.network);
+      if (stillShown()) fail(MESSAGES.network);
     } finally {
-      setRequestingLinkFor((current) => (current === requestedId ? null : current));
+      if (!navigating) setRequestingLinkFor((current) => (current === requestedId ? null : current));
     }
   }
 
@@ -247,14 +288,51 @@ export function InvoiceDetailSheet({
   const isPartiallyPaid = !isPaid && !isCancelled && invoice.totalPaid > 0;
   // Same rule as the list rows: outstanding and due before today (Jakarta).
   const isOverdue = isPayable && invoice.dueDate.slice(0, 10) < getTodayInTimezone("Asia/Jakarta");
-  const hasPaymentLink = !!invoice.xenditPaymentUrl;
-  const linkState = paymentLinkState(hasPaymentLink, invoice.sentAt);
+  const safePaymentUrl = httpsUrl(invoice.xenditPaymentUrl);
+  const hasPaymentLink = !!safePaymentUrl;
+  // No link to hand over: one tap creates it (idempotent server-side) and goes to checkout.
+  const linkState = hasPaymentLink ? "ready" : "stale";
+  const linkError = linkErrorState?.id === invoice.id ? linkErrorState.message : null;
+  const payLabel = `Bayar ${formatRupiah(remaining)}`;
+  const contactBox = (
+    <div className="space-y-3 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text" data-testid="contact-school">
+      <div className="flex items-start gap-2">
+        <Info size={14} className="mt-0.5 shrink-0" />
+        <span>
+          Bila pembayaran belum bisa dibuka, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
+          pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
+        </span>
+      </div>
+      {(() => {
+        const message = `Assalamu'alaikum, saya ingin menanyakan pembayaran tagihan ${invoice.invoiceNumber} (${invoice.student.name}) sisa ${formatRupiah(remaining)}.`;
+        const wa = whatsappHrefWithText(invoice.schoolContactPhone, message);
+        const tel = telHref(invoice.schoolContactPhone);
+        if (!wa && !tel) return null;
+        return (
+          <div className="flex flex-wrap gap-2">
+            {wa ? (
+              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                <MessageCircle size={16} aria-hidden="true" /> Hubungi via WhatsApp
+              </a>
+            ) : null}
+            {tel ? (
+              <a href={tel} className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                <Phone size={16} aria-hidden="true" /> Telepon sekolah
+              </a>
+            ) : null}
+          </div>
+        );
+      })()}
+    </div>
+  );
   const focalAmount = isPaid ? invoice.totalDue : remaining;
   const childName = invoice.student.nickname ?? invoice.student.name.split(" ")[0];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+      {/* Header / scrolling body / pinned footer: the sheet itself never scrolls, so the pay
+          button stays on screen. */}
+      <SheetContent className="gap-0 overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         {/* The Frame 6/7 drag-handle bar is gone: this is a side sheet, not a
             bottom sheet, so the handle advertised a drag gesture that does not
             exist. The Lainnya overflow surface is a real bottom Drawer and
@@ -267,7 +345,7 @@ export function InvoiceDetailSheet({
           <p className="text-xs text-muted-foreground">{invoice.invoiceNumber}</p>
         </SheetHeader>
 
-        <div className="px-card pb-card pt-4 space-y-6">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-card pb-card pt-4">
           {/* Focal amount card */}
           <SectionCard as="div">
             {/* PAR-8: name what the big number is. */}
@@ -449,73 +527,70 @@ export function InvoiceDetailSheet({
             </section>
           ) : null}
 
-          {/* Bayar sekarang CTA — rendered when invoice is payable.
-              - linkState "ready":   live link button.
-              - linkState "pending": disabled button + optimistic "sedang disiapkan" copy
-                                     (the gateway normally provisions in minutes).
-              - linkState "stale":   no button; direct parent to contact admin.
-                                     Covers the case where the gateway provision never
-                                     completed (UAT 2026-05-12 parent MINOR-02). */}
-          {isPayable ? (
-            <div className="space-y-2">
-              {paymentPending ? (
-                <div
-                  role="status"
-                  className="space-y-3 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground"
-                  data-testid="payment-pending"
-                >
-                  <div className="flex items-start gap-2">
-                    <Info size={14} className="mt-0.5 shrink-0" />
-                    <span>
-                      Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.
-                    </span>
-                  </div>
-                  {onRefreshStatus ? (
-                    <Button type="button" variant="outline" className="w-full" onClick={onRefreshStatus}>
-                      <RefreshCw size={16} className="mr-2" />
-                      Muat ulang status
-                    </Button>
-                  ) : null}
+          {/* No link and the school may have to help: the contact box lives in the
+              scrolling body until a try fails, then it moves into the pinned footer
+              beside the error (one copy at a time, same testid). */}
+          {isPayable && !paymentPending && !hasPaymentLink && !linkError ? contactBox : null}
+        </div>
+
+        {/* One pinned pay action. Outside the scrolling body so "Bayar Rp …" is
+            on screen at 390x844 however long the Rincian gets. */}
+        {isPayable ? (
+          <SheetFooter
+            data-testid="invoice-sheet-footer"
+            className="max-h-[60dvh] overflow-y-auto border-t border-border bg-popover px-card pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          >
+            {paymentPending ? (
+              <div
+                role="status"
+                className="space-y-3 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground"
+                data-testid="payment-pending"
+              >
+                <div className="flex items-start gap-2">
+                  <Info size={14} className="mt-0.5 shrink-0" />
+                  <span>
+                    Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.
+                  </span>
                 </div>
-              ) : linkState === "ready" ? (
-                <>
-                  <a
-                    href={invoice.xenditPaymentUrl!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <Button className="w-full" size="lg">
-                      <ExternalLink size={16} className="mr-2" />
-                      Bayar sekarang
-                    </Button>
-                  </a>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full text-muted-foreground"
-                    onClick={requestPaymentLink}
-                    disabled={requestingLink}
-                    aria-busy={requestingLink}
-                  >
-                    {requestingLink ? "Memeriksa link…" : "Link tidak bisa dibuka? Minta link baru"}
+                {onRefreshStatus ? (
+                  <Button type="button" variant="outline" className="w-full" onClick={onRefreshStatus}>
+                    <RefreshCw size={16} className="mr-2" />
+                    Muat ulang status
                   </Button>
-                </>
-              ) : linkState === "pending" ? (
-                <>
-                  <Button className="w-full" size="lg" disabled>
-                    <ExternalLink size={16} className="mr-2" />
-                    Bayar sekarang
-                  </Button>
-                  <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-                    <Info size={14} className="mt-0.5 shrink-0" />
-                    <span>
-                      Link pembayaran sedang disiapkan. Silakan coba lagi dalam beberapa saat.
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
+                ) : null}
+              </div>
+            ) : linkState === "ready" ? (
+              <>
+                {/* A real link, tapped by the parent: target=_blank is not popup-blocked. */}
+                <a
+                  href={safePaymentUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(buttonVariants({ size: "lg" }), "w-full")}
+                >
+                  <ExternalLink size={16} className="mr-2" aria-hidden="true" />
+                  {payLabel}
+                </a>
+                {linkError ? (
+                  <p role="alert" className="text-xs text-status-late-text">{linkError}</p>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={requestPaymentLink}
+                  disabled={requestingLink}
+                  aria-busy={requestingLink}
+                >
+                  {requestingLink ? "Memeriksa link…" : "Link tidak bisa dibuka? Minta link baru"}
+                </Button>
+              </>
+            ) : (
+              <>
+                {linkError ? (
+                  <p role="alert" className="text-sm text-status-late-text" data-testid="pay-error">{linkError}</p>
+                ) : null}
                 <Button
                   type="button"
                   className="w-full"
@@ -524,43 +599,25 @@ export function InvoiceDetailSheet({
                   disabled={requestingLink}
                   aria-busy={requestingLink}
                 >
-                  <ExternalLink size={16} className="mr-2" />
-                  {requestingLink ? "Menyiapkan link…" : "Buat link pembayaran"}
+                  {requestingLink ? (
+                    <>
+                      <Spinner aria-hidden className="mr-2" />
+                      Menyiapkan pembayaran…
+                    </>
+                  ) : linkError ? (
+                    "Coba lagi"
+                  ) : (
+                    <>
+                      <ExternalLink size={16} className="mr-2" aria-hidden="true" />
+                      {payLabel}
+                    </>
+                  )}
                 </Button>
-                <div className="space-y-3 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text" data-testid="contact-school">
-                  <div className="flex items-start gap-2">
-                    <Info size={14} className="mt-0.5 shrink-0" />
-                    <span>
-                      Bila link belum bisa dibuat, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
-                      pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
-                    </span>
-                  </div>
-                  {(() => {
-                    const message = `Assalamu'alaikum, saya ingin menanyakan pembayaran tagihan ${invoice.invoiceNumber} (${invoice.student.name}) sisa ${formatRupiah(remaining)}.`;
-                    const wa = whatsappHrefWithText(invoice.schoolContactPhone, message);
-                    const tel = telHref(invoice.schoolContactPhone);
-                    if (!wa && !tel) return null;
-                    return (
-                      <div className="flex flex-wrap gap-2">
-                        {wa ? (
-                          <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
-                            <MessageCircle size={16} aria-hidden="true" /> Hubungi via WhatsApp
-                          </a>
-                        ) : null}
-                        {tel ? (
-                          <a href={tel} className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
-                            <Phone size={16} aria-hidden="true" /> Telepon sekolah
-                          </a>
-                        ) : null}
-                      </div>
-                    );
-                  })()}
-                </div>
-                </>
-              )}
-            </div>
-          ) : null}
-        </div>
+                {linkError ? contactBox : null}
+              </>
+            )}
+          </SheetFooter>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

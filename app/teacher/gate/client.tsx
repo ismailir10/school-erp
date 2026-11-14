@@ -14,7 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { formatTime } from "@/lib/format";
+import { campusShortLabels, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Mode = "arrive" | "pickup";
@@ -49,6 +49,7 @@ const UNDO_TOAST_MS = 6000;
 export function GateClient() {
   const [mode, setMode] = useState<Mode>("arrive");
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const [campusId, setCampusId] = useState<string | null>(null);
   const [students, setStudents] = useState<GateStudent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -253,7 +254,7 @@ export function GateClient() {
             <SelectContent>
               {campuses.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.name}
+                  {campusShort.get(c.name) ?? c.name}
                 </SelectItem>
               ))}
             </SelectContent>

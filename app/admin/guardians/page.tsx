@@ -1,7 +1,7 @@
 "use client";
 
 import { MESSAGES } from "@/lib/feedback";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -11,6 +11,8 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -93,11 +95,25 @@ type Pagination = {
 
 // The API sends the first two children by name; the count stays authoritative.
 // Naming them lets an admin recognise the family without opening the row.
-function childrenSummary(g: Guardian): { total: number; text: string } {
+function childrenSummary(g: Guardian): { total: number; names: ReactNode } {
   const total = g._count.guardians;
-  const names = (g.guardians ?? []).map((x) => x.student.name);
-  const more = total > names.length ? ` +${total - names.length}` : "";
-  return { total, text: names.length > 0 ? `${names.join(", ")}${more}` : "" };
+  const kids = g.guardians ?? [];
+  const more = total > kids.length ? ` +${total - kids.length}` : "";
+  const names =
+    kids.length > 0 ? (
+      <>
+        {kids.map((x, i) => (
+          <span key={x.student.id}>
+            {i > 0 && ", "}
+            <EntityLink href={entityHref.student(x.student.id)} tone="muted">
+              {x.student.name}
+            </EntityLink>
+          </span>
+        ))}
+        {more}
+      </>
+    ) : null;
+  return { total, names };
 }
 
 const columns: ColumnDef<Guardian>[] = [
@@ -130,12 +146,12 @@ const columns: ColumnDef<Guardian>[] = [
     // Count + names sit under the name below `md` (DataTableMobileMeta in the name cell).
     meta: { priority: "low" },
     cell: ({ row }) => {
-      const { total, text } = childrenSummary(row.original);
+      const { total, names } = childrenSummary(row.original);
       if (total === 0) return <span className="text-xs text-muted-foreground">—</span>;
       return (
         <div className="text-sm">
           <span>{total} siswa</span>
-          {text && <span className="text-xs text-muted-foreground ml-1.5">{text}</span>}
+          {names && <span className="text-xs text-muted-foreground ml-1.5">{names}</span>}
         </div>
       );
     },
@@ -327,7 +343,7 @@ export default function GuardiansPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
         cell: ({ row }) => {
-          const { total, text } = childrenSummary(row.original);
+          const { total, names } = childrenSummary(row.original);
           return (
             <DataTableLinkCell
               href={`/admin/guardians/${row.original.id}`}
@@ -335,7 +351,11 @@ export default function GuardiansPage() {
               description={
                 <DataTableMobileMeta>
                   <StatusBadge status={row.original.status} />
-                  {total > 0 && <span>{total} siswa{text ? ` · ${text}` : ""}</span>}
+                  {total > 0 && (
+                    <span>
+                      {total} siswa{names ? <> · {names}</> : null}
+                    </span>
+                  )}
                 </DataTableMobileMeta>
               }
             >

@@ -5,6 +5,8 @@ import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy"
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { DossierSection } from "@/components/admin/dossier-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ export function TeachersSection({
   employeesStatus,
   onRetryEmployees,
   writeAllowed,
+  canViewEmployees = false,
   open,
   onOpenChange,
   onChanged,
@@ -46,6 +49,8 @@ export function TeachersSection({
   employeesStatus: TeacherOptionsStatus;
   onRetryEmployees: () => void;
   writeAllowed: boolean;
+  /** Viewer has `hr.view`; without it employee names stay plain text. */
+  canViewEmployees?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChanged: () => void;
@@ -63,7 +68,11 @@ export function TeachersSection({
         ),
         cell: ({ row }) => (
           <span className="text-sm font-medium">
-            {row.original.employee.nama}
+            <EntityLink
+              href={canViewEmployees ? entityHref.employee(row.original.employee.id) : null}
+            >
+              {row.original.employee.nama}
+            </EntityLink>
           </span>
         ),
       },
@@ -111,7 +120,7 @@ export function TeachersSection({
         ),
       },
     ],
-    [writeAllowed],
+    [writeAllowed, canViewEmployees],
   );
 
   async function removeTeacher() {

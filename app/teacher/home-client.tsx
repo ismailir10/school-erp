@@ -98,7 +98,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   // LATE is stored by the server (work start + grace); the minutes are shown when the page could derive them.
   const pending=record?.approvalStatus==="PENDING";
   const trimmedNote=note.trim();
-  const outsideCopy=outside?(outside.distanceMeters===null?"Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui.":`Anda ± ${outside.distanceMeters} m dari ${outside.campusName??"kampus"}. Tambahkan catatan agar admin dapat menyetujui.`):"";
+  const outsideCopy=outside?(outside.distanceMeters===null?"Tambahkan catatan agar admin dapat menyetujui.":`Anda ± ${outside.distanceMeters} m dari ${outside.campusName??"kampus"}. Tambahkan catatan agar admin dapat menyetujui.`):"";
   const lateLabel=record?.status==="LATE" ? record.minutesLate ? ` · Terlambat ${record.minutesLate} menit` : " · Terlambat" : "";
   const personalAttendance=(
     <div className="space-y-2" aria-label="Kehadiran pribadi">
@@ -125,7 +125,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     </div>
   );
   return <div className="space-y-section">
-    <ResponsiveFormDialog open={outside!==null} onOpenChange={o=>{if(!o&&!saving){setOutside(null);setSaveError(null);}}} title="Anda di luar area kampus" description={outsideCopy} size="md"
+    <ResponsiveFormDialog open={outside!==null} onOpenChange={o=>{if(!o&&!saving){setOutside(null);setSaveError(null);}}} title={outside?.distanceMeters===null?"Lokasi tidak terbaca":"Anda di luar area kampus"} description={outsideCopy} size="md"
       footer={<FormDialogFooter formId={noteFormId} pending={saving} disabled={trimmedNote.length<MIN_NOTE} onCancel={()=>{setOutside(null);setSaveError(null);}} submitLabel="Kirim untuk disetujui" pendingLabel="Mengirim…"/>}>
       <form id={noteFormId} onSubmit={e=>{e.preventDefault();if(trimmedNote.length>=MIN_NOTE)void handleAction(trimmedNote);}} className="space-y-2">
         <label htmlFor="checkin-note" className="text-small font-semibold">Catatan untuk admin</label>

@@ -217,28 +217,34 @@ describe("guardian page — collapsed summaries", () => {
 });
 
 describe("guardian page — Anak Terdaftar", () => {
-  it("shows class, gender, relationship, the amount owed and links to the student", async () => {
+  it("shows class, gender, relationship and the amount owed; name and class are separate links", async () => {
     await renderWith(makeParent());
     const children = document.getElementById("children")!;
     const link = within(children).getByRole("link", { name: /Ahmad Fajar/ });
     expect(link).toHaveAttribute("href", "/admin/students/s1");
-    expect(within(link).getByText("Ibu")).toBeInTheDocument();
-    expect(within(link).getByText("Utama")).toBeInTheDocument();
-    expect(within(link).getByText("KB A · Laki-laki")).toBeInTheDocument();
-    expect(within(link).getByText("Rp 400.000")).toBeInTheDocument();
+    const classLink = within(children).getByRole("link", { name: "KB A" });
+    expect(classLink).toHaveAttribute("href", "/admin/classes/cs1");
+    // Never nested: neither anchor contains the other.
+    expect(link).not.toContainElement(classLink);
+    expect(classLink.closest("a")).toBe(classLink);
+    const row = link.closest("li")!;
+    expect(within(row).getByText("Ibu")).toBeInTheDocument();
+    expect(within(row).getByText("Utama")).toBeInTheDocument();
+    expect(row).toHaveTextContent("KB A · Laki-laki");
+    expect(within(row).getByText("Rp 400.000")).toBeInTheDocument();
   });
 
   it("says a child without a class is not placed, and shows no amount when nothing is owed", async () => {
     await renderWith(
       makeParent({
         guardians: [
-          { id: "g1", relationship: "AYAH", isPrimary: false, status: "ACTIVE", outstanding: 0, student: { id: "s1", name: "Bilal", status: "ACTIVE", gender: null, className: null } },
+          { id: "g1", relationship: "AYAH", isPrimary: false, status: "ACTIVE", outstanding: 0, student: { id: "s1", name: "Bilal", status: "ACTIVE", gender: null, className: null, classSectionId: null } },
         ],
       }),
     );
-    const link = within(document.getElementById("children")!).getByRole("link", { name: /Bilal/ });
-    expect(within(link).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
-    expect(within(link).queryByText(/^Rp/)).not.toBeInTheDocument();
+    const row = within(document.getElementById("children")!).getByRole("link", { name: /Bilal/ }).closest("li")!;
+    expect(within(row).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    expect(within(row).queryByText(/^Rp/)).not.toBeInTheDocument();
   });
 
   it("keeps the empty state when no child is linked", async () => {
@@ -253,8 +259,10 @@ describe("guardian page — Tagihan", () => {
     const invoices = document.getElementById("invoices")!;
     expect(within(invoices).getByText("Belum dibayar")).toBeInTheDocument();
     expect(within(invoices).getByText("1 dari 1 tagihan belum lunas")).toBeInTheDocument();
-    const row = within(invoices).getByText("INV-2026-0001").closest("a")!;
+    const row = within(invoices).getByText("INV-2026-0001").closest("li")!;
     expect(row).toHaveTextContent("Ahmad Fajar · 2026-01 · Rp 500.000");
+    expect(within(row).getByRole("link", { name: "INV-2026-0001" })).toHaveAttribute("href", "/admin/invoices/inv-1");
+    expect(within(row).getByRole("link", { name: "Ahmad Fajar" })).toHaveAttribute("href", "/admin/students/s1");
     expect(within(invoices).queryByText(/Menampilkan/)).not.toBeInTheDocument();
   });
 

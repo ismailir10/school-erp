@@ -1,5 +1,8 @@
 "use client";
 
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
+
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NotebookPen, Save, Search, Users } from "lucide-react";
@@ -759,7 +762,7 @@ export function CenterSessionClient({
                   data-testid={`center-row-${student.id}`}
                 >
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-                    {student.name}
+                    <EntityLink href={entityHref.teacherStudentJournal(student.id)}>{student.name}</EntityLink>
                     {student.className && (
                       <Badge
                         variant="neutral"

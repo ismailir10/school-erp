@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { EntityLink } from "@/components/entity-link";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { REL_LABELS } from "@/lib/constants/parent-options";
+import { entityHref } from "@/lib/entity-links";
 import { formatRupiah } from "@/lib/format";
 import type { GuardianChild } from "./types";
 
@@ -20,34 +21,45 @@ export function ChildrenList({ guardians }: { guardians: GuardianChild[] }) {
         const gender = g.student.gender ? GENDER_LABEL[g.student.gender] : undefined;
         return (
           <li key={g.id}>
-            <Link href={`/admin/students/${g.student.id}`} className="block">
-              <div className="-mx-2 flex flex-col gap-2 rounded-md border-b border-border/50 px-2 py-2.5 transition-colors last:border-0 hover:bg-accent/50 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 break-words text-sm font-medium">{g.student.name}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {REL_LABELS[g.relationship] ?? g.relationship}
-                    </Badge>
-                    {g.isPrimary && <Badge className="bg-primary/10 text-xs text-primary-text">Utama</Badge>}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {g.student.className ?? "Belum terdaftar di kelas"}
-                    {gender ? ` · ${gender}` : ""}
-                  </p>
+            {/* Name and class are separate links (no row-wide anchor around
+                another link): student page and class page. */}
+            <div className="-mx-2 flex flex-col gap-2 rounded-md border-b border-border/50 px-2 py-2.5 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <EntityLink href={entityHref.student(g.student.id)} touch className="min-w-0 break-words text-sm">
+                    {g.student.name}
+                  </EntityLink>
+                  <Badge variant="outline" className="text-xs">
+                    {REL_LABELS[g.relationship] ?? g.relationship}
+                  </Badge>
+                  {g.isPrimary && <Badge className="bg-primary/10 text-xs text-primary-text">Utama</Badge>}
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {g.outstanding > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="border-transparent bg-status-late-subtle font-currency text-xs text-status-late-text"
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {g.student.className ? (
+                    <EntityLink
+                      href={g.student.classSectionId ? entityHref.class(g.student.classSectionId) : null}
+                      tone="muted"
                     >
-                      {formatRupiah(g.outstanding)}
-                    </Badge>
+                      {g.student.className}
+                    </EntityLink>
+                  ) : (
+                    "Belum terdaftar di kelas"
                   )}
-                  <StatusBadge status={g.student.status} />
-                </div>
+                  {gender ? ` · ${gender}` : ""}
+                </p>
               </div>
-            </Link>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {g.outstanding > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="border-transparent bg-status-late-subtle font-currency text-xs text-status-late-text"
+                  >
+                    {formatRupiah(g.outstanding)}
+                  </Badge>
+                )}
+                <StatusBadge status={g.student.status} />
+              </div>
+            </div>
           </li>
         );
       })}

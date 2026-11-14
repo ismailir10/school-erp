@@ -1,5 +1,7 @@
 "use client";
 
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toastError } from "@/lib/feedback";
@@ -407,7 +409,7 @@ export function WeeklyClient({
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">
-                    {student.name}
+                    <EntityLink href={entityHref.teacherStudentJournal(student.id)}>{student.name}</EntityLink>
                   </span>
                   {current && (
                     <span className="text-xs text-muted-foreground">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -8,7 +9,9 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarX } from "lucide-react";
-import { formatMonthLabel } from "@/lib/format";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
+import { campusShortLabels, formatMonthLabel } from "@/lib/format";
 import { BackLink } from "@/components/portal/back-link";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
@@ -41,11 +44,37 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function MonthlyAttendancePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-section px-page-x py-page-y">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      }
+    >
+      <MonthlyAttendancePageInner />
+    </Suspense>
+  );
+}
+
+function MonthlyAttendancePageInner() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const [campusId, setCampusId] = useState("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // The URL is the single source of truth, so back/forward keeps the control in step.
+  const rawCampusId = searchParams?.get("campusId") || "all";
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  // The URL value is only trusted once the campus list confirms it exists.
+  const campusId = campuses.length === 0 || campuses.some((c) => c.id === rawCampusId) ? rawCampusId : "all";
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
+  const campusQs = campusId === "all" ? "" : `?campusId=${encodeURIComponent(campusId)}`;
+  function selectCampus(v: string) {
+    router.replace(v === "all" ? pathname : `${pathname}?campusId=${encodeURIComponent(v)}`, { scroll: false });
+  }
   const [data, setData] = useState<MonthlyData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,7 +129,7 @@ export default function MonthlyAttendancePage() {
 
   return (
     <>
-      <BackLink href="/admin/employee-attendance" label="Kembali ke Harian" className="mb-2" />
+      <BackLink href={`/admin/employee-attendance${campusQs}`} label="Kembali ke Harian" className="mb-2" />
       <PageHeader
         title="Kehadiran Bulanan"
         description="Pilih sel untuk menimpa status kehadiran"
@@ -117,13 +146,15 @@ export default function MonthlyAttendancePage() {
           className="w-full sm:w-auto"
           labelClassName="capitalize sm:w-40"
         />
-        <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
+        {campuses.length > 1 && (
+        <Select value={campusId} onValueChange={(v) => v && selectCampus(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, campusShort.get(c.name) ?? c.name])) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Semua" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>
-            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{campusShort.get(c.name) ?? c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        )}
       </div>
 
       {loading ? (
@@ -167,7 +198,7 @@ export default function MonthlyAttendancePage() {
                 return (
                   <TableRow key={emp.employee.id}>
                     <TableCell className="sticky left-0 z-sticky bg-card px-3 py-1.5 font-medium truncate max-w-[160px]">
-                      {emp.employee.nama}
+                      <EntityLink href={entityHref.employee(emp.employee.id)}>{emp.employee.nama}</EntityLink>
                     </TableCell>
                     {days.map((d) => {
                       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;

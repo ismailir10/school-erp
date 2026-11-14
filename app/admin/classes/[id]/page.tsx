@@ -32,6 +32,7 @@ export default async function ClassDetailPage({
     <ClassDetailClient
       classId={id}
       canWrite={hasPermission(session, "academic.edit")}
+      canViewEmployees={hasPermission(session, "hr.view")}
     />
   );
 }

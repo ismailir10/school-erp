@@ -107,6 +107,12 @@ test.describe("Parent flows", () => {
         .or(page.getByText(/tagihan/i))
         .first()
     ).toBeVisible({ timeout: 10_000 });
+
+    // The unpaid tagihan sheet pins its one pay button: visible without scrolling.
+    await page.getByRole("list", { name: "Tagihan belum dibayar" }).getByRole("button").first().click();
+    const footer = page.getByTestId("invoice-sheet-footer");
+    await expect(footer).toBeVisible({ timeout: 10_000 });
+    await expect(footer.getByRole("link", { name: /^Bayar Rp/ }).or(footer.getByRole("button", { name: /^Bayar Rp|Coba lagi/ })).first()).toBeInViewport();
   });
 
   test("attendance page loads", async ({ page }) => {

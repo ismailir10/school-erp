@@ -29,7 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
-import { DISPLAY_TIME_ZONE, formatDateShort } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, campusShortLabels, formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { createEmployeeSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
@@ -388,9 +388,10 @@ export default function EmployeesPage() {
   );
 
   // Build campus filter options dynamically
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const campusOptions = [
     { value: "all", label: "Semua Kampus" },
-    ...campuses.map((c) => ({ value: c.id, label: c.name })),
+    ...campuses.map((c) => ({ value: c.id, label: campusShort.get(c.name) ?? c.name })),
   ];
 
   return (
@@ -519,6 +520,7 @@ function CreateEmployeeFormBody({
   customPosition: boolean;
   setCustomPosition: (v: boolean) => void;
 }) {
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
   return (
     <>
       <div className="grid grid-cols-2 gap-field">
@@ -600,11 +602,11 @@ function CreateEmployeeFormBody({
             <Select
               value={field.value}
               onValueChange={(v) => v != null && field.onChange(v)}
-              items={campuses.map((c) => ({ label: c.name, value: c.id }))}
+              items={campuses.map((c) => ({ label: campusShort.get(c.name) ?? c.name, value: c.id }))}
             >
               <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
               <SelectContent>
-                {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{campusShort.get(c.name) ?? c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}

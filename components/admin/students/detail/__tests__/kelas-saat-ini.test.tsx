@@ -23,7 +23,8 @@ describe("KelasSaatIniSection", () => {
   it("shows class, tahun ajaran, kampus and masuk sejak for the primary placement", () => {
     render(<KelasSaatIniSection enrollments={[enrollment("e1", "Kelompok Bermain", "KB A")]} joinedDate="2026-07-14" />);
     expect(screen.getByRole("heading", { level: 3, name: "Kelas saat ini" })).toBeInTheDocument();
-    expect(screen.getByText("Kelompok Bermain · KB A")).toBeInTheDocument();
+    expect(screen.getByText(/Kelompok Bermain ·/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "KB A" })).toHaveAttribute("href", "/admin/classes/cs-e1");
     expect(screen.getByText("2026/2027")).toBeInTheDocument();
     expect(screen.getByText("Taman Aster")).toBeInTheDocument();
     expect(screen.getByText("Masuk sejak")).toBeInTheDocument();
@@ -38,7 +39,7 @@ describe("KelasSaatIniSection", () => {
       />,
     );
     expect(screen.getByText("D'Care")).toBeInTheDocument();
-    expect(screen.getByText("DCARE")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "DCARE" })).toHaveAttribute("href", "/admin/classes/cs-e2");
     expect(screen.queryByText("Masuk sejak")).not.toBeInTheDocument();
   });
 

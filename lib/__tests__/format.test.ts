@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  campusShortLabels,
   formatDate,
   formatDateShort,
   formatDateTime,
@@ -217,5 +218,28 @@ describe("formatDate / formatDateShort — Asia/Jakarta day for timestamps", () 
       if (original === undefined) delete process.env.TZ;
       else process.env.TZ = original;
     }
+  });
+});
+
+describe("campusShortLabels", () => {
+  const labels = (names: string[]) => names.map((n) => campusShortLabels(names).get(n));
+
+  it("strips the shared prefix, apostrophe included", () => {
+    expect(
+      labels(["An Nisaa' Sekolahku Metland Cibitung", "An Nisaa' Sekolahku Taman Aster"]),
+    ).toEqual(["Metland Cibitung", "Taman Aster"]);
+  });
+  it("keeps names with no shared prefix", () => {
+    expect(labels(["Metland Cibitung", "Taman Aster"])).toEqual(["Metland Cibitung", "Taman Aster"]);
+  });
+  it("leaves a single campus untouched", () => {
+    expect(labels(["An Nisaa' Sekolahku Taman Aster"])).toEqual(["An Nisaa' Sekolahku Taman Aster"]);
+  });
+  it("never strips a partial word", () => {
+    expect(labels(["Taman Aster", "Taman Asri"])).toEqual(["Aster", "Asri"]);
+    expect(labels(["Tamanku Aster", "Taman Asri"])).toEqual(["Tamanku Aster", "Taman Asri"]);
+  });
+  it("returns originals when stripping would empty a label", () => {
+    expect(labels(["An Nisaa'", "An Nisaa' Taman Aster"])).toEqual(["An Nisaa'", "An Nisaa' Taman Aster"]);
   });
 });

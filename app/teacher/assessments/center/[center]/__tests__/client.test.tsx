@@ -358,6 +358,14 @@ describe("CenterSessionClient", () => {
       expect(screen.getByTestId("center-class-s1")).toHaveTextContent("TKIT A");
     });
 
+    it("links the student name to their journal", async () => {
+      await open();
+      expect(screen.getByRole("link", { name: "Abdul Zahra" })).toHaveAttribute(
+        "href",
+        "/teacher/student-journal/students/s1",
+      );
+    });
+
     it("'Semua kelas' reveals everyone, and same-named children differ by class label", async () => {
       await open();
       const toggle = screen.getByTestId("center-all-classes");

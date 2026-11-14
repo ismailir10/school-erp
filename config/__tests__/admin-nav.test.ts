@@ -244,11 +244,8 @@ describe("getActiveHref — longest-prefix match across sidebar + hub", () => {
     expect(getActiveHref("/admin/student-journal", nav)).toBe(SETTINGS_HUB_HREF);
   });
 
-  it("/admin/student-journal/classes/abc → Pengaturan (longest prefix is the hub template root)", () => {
-    // Edge case, called out in the cycle doc: this sub-path belongs to a
-    // journal-classes feature that isn't itself a nav destination, so the
-    // hub's /admin/student-journal prefix is the longest match available.
-    expect(getActiveHref("/admin/student-journal/classes/abc", nav)).toBe(SETTINGS_HUB_HREF);
+  it.each(["/admin/student-journal/classes/abc", "/admin/student-journal/students/abc"])("%s → Buku Penghubung (alsoMatch beats the hub template root)", (path) => {
+    expect(getActiveHref(path, nav)).toBe("/admin/student-journal/monitoring");
   });
 
   it("/admin/report-cards/templates → Pengaturan (Bank Narasi outranks Rapor)", () => {
@@ -392,18 +389,18 @@ describe("getBreadcrumbs", () => {
   // dynamic id only ever renders "Detail" once.
   it("labels the student-journal class sub-route, no duplicate Detail", () => {
     expect(getBreadcrumbs("/admin/student-journal/classes/cls-1")).toEqual([
-      { label: "Pengaturan", href: "/admin/settings" },
-      { label: "Templat Buku Penghubung", href: "/admin/student-journal" },
-      { label: "Kelas" },
+      { label: "Harian" },
+      { label: "Buku Penghubung", href: "/admin/student-journal/monitoring" },
+      { label: "Kelas" }, // no index page at /admin/student-journal/classes → not a link
       { label: "Detail" },
     ]);
   });
 
   it("labels the student-journal student sub-route, no duplicate Detail", () => {
     expect(getBreadcrumbs("/admin/student-journal/students/s-1")).toEqual([
-      { label: "Pengaturan", href: "/admin/settings" },
-      { label: "Templat Buku Penghubung", href: "/admin/student-journal" },
-      { label: "Siswa" },
+      { label: "Harian" },
+      { label: "Buku Penghubung", href: "/admin/student-journal/monitoring" },
+      { label: "Siswa" }, // no index page at /admin/student-journal/students → not a link
       { label: "Detail" },
     ]);
   });

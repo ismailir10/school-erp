@@ -10,6 +10,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, RotateCcw } from "lucide-react";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { studentDetailEditFormSchema } from "@/lib/validations/student";
@@ -664,15 +666,32 @@ export default function StudentDetailPage() {
         backLabel="Kembali ke Daftar Siswa"
         title={student.name}
         description={
-          [
-            student.nickname,
-            age,
-            orderedEnrollments.length > 0
-              ? orderedEnrollments.map(e => `${e.classSection.program.name} · ${e.classSection.name}`).join(" + ")
-              : "Belum terdaftar di kelas",
-          ]
-            .filter(Boolean)
-            .join(" · ")
+          <>
+            {[
+              student.nickname,
+              age,
+              orderedEnrollments.length > 0 ? (
+                orderedEnrollments.map((e, i) => (
+                  <span key={e.id}>
+                    {i > 0 && " + "}
+                    {e.classSection.program.name} ·{" "}
+                    <EntityLink href={entityHref.class(e.classSection.id)} tone="muted">
+                      {e.classSection.name}
+                    </EntityLink>
+                  </span>
+                ))
+              ) : (
+                "Belum terdaftar di kelas"
+              ),
+            ]
+              .filter(Boolean)
+              .map((part, i) => (
+                <span key={i}>
+                  {i > 0 && " · "}
+                  {part}
+                </span>
+              ))}
+          </>
         }
         badge={
           <div className="flex flex-wrap items-center gap-1.5">

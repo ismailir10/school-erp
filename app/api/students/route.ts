@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
             classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
           },
           include: {
-            classSection: { select: { name: true, program: { select: { name: true, type: true } } } },
+            classSection: { select: { id: true, name: true, program: { select: { name: true, type: true } } } },
           },
           // No `take: 1` — a student may hold one SEMESTER (sekolah) and one
           // YEAR_ROUND (daycare) enrolment at once; the "Kelas" column shows

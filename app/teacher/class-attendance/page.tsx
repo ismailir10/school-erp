@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
 import { SaveStatus } from "@/components/portal/save-status";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { cn } from "@/lib/utils";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { resolveTeacherDate } from "@/lib/teacher/home-progress";
@@ -393,7 +395,9 @@ export default function ClassAttendancePage() {
                 <li key={s.student.id} data-testid="roster-row" className={cn("px-3 py-2 transition-colors", status && ROW_TINT[status])}>
                   <div className="flex items-center gap-3 @max-[20rem]:flex-col @max-[20rem]:items-stretch @max-[20rem]:gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 break-words text-sm font-medium">{s.student.name}</p>
+                      <p className="line-clamp-2 break-words text-sm font-medium">
+                        <EntityLink href={entityHref.teacherStudentJournal(s.student.id)}>{s.student.name}</EntityLink>
+                      </p>
                       {s.student.nickname && <p className="truncate text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
                     <div role="radiogroup" aria-label={`Status ${s.student.name}`} aria-busy={rowState === "saving" || undefined} className="flex shrink-0 gap-1 @max-[20rem]:grid @max-[20rem]:grid-cols-4 @max-[20rem]:gap-2">

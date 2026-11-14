@@ -76,7 +76,7 @@ function makeParent(overrides: Record<string, unknown> = {}) {
           status: "ACTIVE",
           gender: "P",
           enrollments: [
-            { id: "en-1", enrollDate: "2025-07-14", status: "ACTIVE", classSection: { name: "TKIT A", program: { type: "SEMESTER" }, academicYear: { status: "ACTIVE" } } },
+            { id: "en-1", enrollDate: "2025-07-14", status: "ACTIVE", classSection: { id: "cs-1", name: "TKIT A", program: { type: "SEMESTER" }, academicYear: { status: "ACTIVE" } } },
           ],
         },
       },
@@ -202,9 +202,11 @@ describe("GET /api/parents/[id]", () => {
     expect(a.outstanding).toBe(900000);
     expect(a.student.className).toBe("TKIT A");
     expect(a.student).not.toHaveProperty("enrollments");
-    expect(Object.keys(a.student).sort()).toEqual(["className", "gender", "id", "name", "status"]);
+    expect(Object.keys(a.student).sort()).toEqual(["className", "classSectionId", "gender", "id", "name", "status"]);
     expect(b.outstanding).toBe(0);
+    expect(a.student.classSectionId).toBe("cs-1");
     expect(b.student.className).toBeNull();
+    expect(b.student.classSectionId).toBeNull();
   });
 
   it("asks prisma only for ACTIVE enrollments outside archived years", async () => {

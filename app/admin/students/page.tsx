@@ -15,6 +15,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -85,7 +87,7 @@ type Student = {
   enrollments: {
     id: string;
     enrollDate: string;
-    classSection: { name: string; program: { name: string; type: string } };
+    classSection: { id: string; name: string; program: { name: string; type: string } };
   }[];
 };
 
@@ -400,7 +402,15 @@ const columns: ColumnDef<Student>[] = [
               <span>
                 {s.enrollments.length === 0
                   ? "Belum terdaftar"
-                  : s.enrollments.map((e) => `${e.classSection.program.name} · ${e.classSection.name}`).join(" + ")}
+                  : s.enrollments.map((e, i) => (
+                      <span key={e.id}>
+                        {i > 0 && " + "}
+                        {e.classSection.program.name} ·{" "}
+                        <EntityLink href={entityHref.class(e.classSection.id)} tone="muted">
+                          {e.classSection.name}
+                        </EntityLink>
+                      </span>
+                    ))}
               </span>
               <StatusBadge status={s.status} />
             </DataTableMobileMeta>
@@ -458,7 +468,12 @@ const columns: ColumnDef<Student>[] = [
           {ordered.map((e) => (
             <span key={e.id}>
               {e.classSection.program.name}{" "}
-              <span className="text-muted-foreground">· {e.classSection.name}</span>
+              <span className="text-muted-foreground">
+                ·{" "}
+                <EntityLink href={entityHref.class(e.classSection.id)} tone="muted">
+                  {e.classSection.name}
+                </EntityLink>
+              </span>
             </span>
           ))}
         </div>

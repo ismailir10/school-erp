@@ -312,6 +312,16 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 
 The row's identity cell (name, title, code) is a `DataTableLinkCell` (`href` for a detail route, `onClick` for an overlay view), not plain text. There is no separate "Lihat" action; the `⋯` menu keeps Edit and the terminal action. Pass `onView` only for a row with no link target of its own, never alongside a link cell that opens the same view.
 
+### Names are doors
+
+Wherever the UI names a student, guardian, class, employee or invoice — table cell, detail header, fact, card, meta line — the name opens that entity's own page when the viewer can open it. Build the target with `entityHref` (`lib/entity-links.ts`) and render it with `<EntityLink>` (`components/entity-link.tsx`).
+
+- **A list's own subject is the identity link** (`DataTableLinkCell`, above); every *other* entity named in the row links to its own page. Invoice list: invoice number is the identity → invoice; student name → student.
+- **Never nest links.** A whole-row or whole-card link that also names an entity must be restructured: name and row action become separate targets, each ≥44px on touch.
+- **Never render a link the viewer would bounce from.** Employee pages need `hr.view` (`hasPermission`); without it pass `href={null}` so `EntityLink` renders plain text.
+- **Exception:** a row whose only job is switching context (parent "other children" invoice row) stays one link.
+- `EntityLink` is inline: no coarse-pointer `min-h-11` by default (it would stretch a text line). Pass `touch` when the link stands alone in a cell or card.
+
 ### Column header casing — title case
 
 All admin-table column headers are **title case**, never ALL CAPS or lowercase. Pass the literal display string (`"Status Akun"`); `DataTable` applies no CSS `uppercase`.

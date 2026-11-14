@@ -37,3 +37,12 @@ describe("parent profile - Hubungi sekolah (R2-P-17)", () => {
     expect(html).not.toContain("tel:");
   });
 });
+
+describe("parent profile - child card names are doors", () => {
+  it("links the child name to Perkembangan and keeps a separate Kehadiran link (no nested anchors)", async () => {
+    const html = await render();
+    expect(html).toMatch(/<a [^>]*href="\/parent\/perkembangan\/c1"[^>]*>Alya<\/a>/);
+    expect(html).toMatch(/<a [^>]*href="\/parent\/attendance\?child=c1"[^>]*aria-label="Kehadiran Alya"|<a [^>]*aria-label="Kehadiran Alya"[^>]*href="\/parent\/attendance\?child=c1"/);
+    expect(html).not.toMatch(/<a [^>]*>(?:(?!<\/a>).)*<a /);
+  });
+});

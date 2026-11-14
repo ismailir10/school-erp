@@ -3,6 +3,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { formatRupiah } from "@/lib/format";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import type { GuardianChild, ParentInvoiceRow, ParentInvoiceSummary } from "./types";
 
 /**
@@ -43,18 +45,27 @@ export function InvoicesList({
       <ul className="space-y-0">
         {invoices.map((inv) => (
           <li key={inv.id}>
-            <Link href={`/admin/invoices/${inv.id}`} className="block">
-              <div className="-mx-2 flex items-center justify-between gap-3 rounded-md border-b border-border/50 px-2 py-2.5 transition-colors last:border-0 hover:bg-accent/50">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{inv.invoiceNumber}</p>
-                  <p className="mt-0.5 break-words text-xs text-muted-foreground">
-                    {inv.studentName} &middot; {inv.periodLabel} &middot;{" "}
-                    <span className="font-currency">{formatRupiah(inv.totalDue)}</span>
-                  </p>
-                </div>
-                <StatusBadge status={inv.status} />
+            {/* Names are doors: the invoice number is the row link (stretched
+                over the row); the student name is its own target above it, so no
+                anchor nests another. */}
+            <div className="relative -mx-2 flex items-center justify-between gap-3 rounded-md border-b border-border/50 px-2 py-2.5 transition-colors last:border-0 focus-within:bg-accent/50 hover:bg-accent/50">
+              <div className="min-w-0">
+                <Link
+                  href={entityHref.invoice(inv.id)}
+                  className="rounded-sm text-sm font-medium after:absolute after:inset-0 focus-visible:focus-outline"
+                >
+                  {inv.invoiceNumber}
+                </Link>
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                  <EntityLink href={entityHref.student(inv.studentId)} tone="muted" className="relative z-10">
+                    {inv.studentName}
+                  </EntityLink>{" "}
+                  &middot; {inv.periodLabel} &middot;{" "}
+                  <span className="font-currency">{formatRupiah(inv.totalDue)}</span>
+                </p>
               </div>
-            </Link>
+              <StatusBadge status={inv.status} />
+            </div>
           </li>
         ))}
       </ul>

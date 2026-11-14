@@ -32,6 +32,8 @@ import { paymentLinkExpiryState } from "@/lib/finance/payment-link-expiry";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { cn } from "@/lib/utils";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -58,7 +60,7 @@ type InvoiceDetail = {
   lastRemindedAt?: string | null; remindCount?: number; lastRemindedByName?: string | null;
   /** The school's own reminder wording (null = the built-in message). */
   reminderTemplate?: string | null;
-  student: { name: string; nickname: string | null; guardians: { parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
+  student: { id: string; name: string; nickname: string | null; guardians: { parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null } }[] };
   lines: InvoiceLine[]; payments: Payment[];
   /** Gateway payments the app did not credit (or credited past the balance): money to reconcile by hand. */
   paymentProblems?: PaymentProblemView[];
@@ -614,7 +616,14 @@ export default function InvoiceDetailPage() {
         backHref="/admin/invoices"
         backLabel="Kembali ke Daftar Tagihan"
         title={`${invoice.invoiceNumber}`}
-        description={`${invoice.student.name} · ${invoice.periodLabel}`}
+        description={
+          <>
+            <EntityLink href={entityHref.student(invoice.student.id)} tone="muted" className="font-medium">
+              {invoice.student.name}
+            </EntityLink>
+            {` · ${invoice.periodLabel}`}
+          </>
+        }
         badge={<StatusBadge status={invoice.status} />}
         primaryActions={[
           // canRefreshPayment requires an existing xenditPaymentUrl, and "Buat
@@ -828,7 +837,9 @@ export default function InvoiceDetailPage() {
           {guardian && (
             <Card className="p-card">
               <SectionHeading label="Kontak Wali" />
-              <p className="text-sm font-medium">{guardian.name}</p>
+              <p className="text-sm font-medium">
+                <EntityLink href={entityHref.guardian(guardian.id)} touch>{guardian.name}</EntityLink>
+              </p>
               {guardian.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1"><Phone size={12} /> {guardian.phone}</p>}
               {guardian.email && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Mail size={12} /> {guardian.email}</p>}
               {guardian.whatsapp && <p className="text-xs text-muted-foreground mt-0.5">WhatsApp {guardian.whatsapp}</p>}

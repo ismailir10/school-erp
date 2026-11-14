@@ -19,6 +19,7 @@ const payment = {
   reference: "TRX-1",
   invoiceNumber: "INV-0001",
   studentName: "Aisyah Putri",
+  studentId: "stu1",
 };
 
 function stubFetch() {
@@ -43,16 +44,18 @@ describe("PaymentsLedgerPage — name is the link (T7)", () => {
     vi.stubGlobal("fetch", stubFetch());
   });
 
-  it("renders the student name as a link to the invoice detail page and drops the separate Lihat button", async () => {
+  it("renders the invoice number as the link to the invoice, the student name as a link to the student, and drops the separate Lihat button", async () => {
     render(<PaymentsLedgerPage />);
 
     await waitFor(() => {
       expect(screen.queryByText("Belum ada penerimaan")).not.toBeInTheDocument();
     });
 
-    const nameLink = await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(nameLink).toHaveAttribute("href", "/admin/invoices/inv1");
-    expect(screen.getByText("INV-0001")).toBeInTheDocument();
+    const numberLink = await screen.findByRole("link", { name: "INV-0001" });
+    expect(numberLink).toHaveAttribute("href", "/admin/invoices/inv1");
+    const studentLink = screen.getByRole("link", { name: "Aisyah Putri" });
+    expect(studentLink).toHaveAttribute("href", "/admin/students/stu1");
+    expect(numberLink.contains(studentLink)).toBe(false);
     expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
   });
 });

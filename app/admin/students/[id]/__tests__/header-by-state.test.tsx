@@ -51,6 +51,13 @@ describe("student header — action by state", () => {
     expect(await menuLabels(user)).toEqual(["Daftarkan ke Kelas", "Naik Kelas", "Luluskan", "Keluarkan"]);
   });
 
+  it("the header's class name links to the class page", async () => {
+    await renderStudent();
+    const header = screen.getByRole("heading", { level: 1 }).closest("div.mb-section") as HTMLElement;
+    expect(within(header).getByRole("link", { name: "KB A" })).toHaveAttribute("href", "/admin/classes/cs1");
+    expect(header).toHaveTextContent("Kelompok Bermain · KB A");
+  });
+
   it("ACTIVE and placed: the menu's Daftarkan ke Kelas adds a placement", async () => {
     const user = userEvent.setup();
     await renderStudent();

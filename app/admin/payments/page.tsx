@@ -18,6 +18,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatRupiah } from "@/lib/format";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
 import { Wallet, Receipt, Download, AlertCircle } from "lucide-react";
@@ -32,6 +34,7 @@ type LedgerRow = {
   reference: string | null;
   invoiceNumber: string;
   studentName: string;
+  studentId: string;
 };
 
 type Summary = {
@@ -161,21 +164,23 @@ export default function PaymentsLedgerPage() {
       {
         id: "student",
         accessorFn: (row) => row.studentName,
-        header: "Siswa",
+        header: "Tagihan",
         cell: ({ row }) => (
           <DataTableLinkCell
-            href={`/admin/invoices/${row.original.invoiceId}`}
+            href={entityHref.invoice(row.original.invoiceId)}
             className="whitespace-normal"
             description={
               <>
-                {row.original.invoiceNumber}
+                <EntityLink href={entityHref.student(row.original.studentId)} tone="muted">
+                  {row.original.studentName}
+                </EntityLink>
                 <DataTableMobileMeta className="mt-0.5">
                   <span>{`${formatJakartaDateTime(row.original.paidAt)} · ${row.original.methodLabel}`}</span>
                 </DataTableMobileMeta>
               </>
             }
           >
-            {row.original.studentName}
+            <span className="font-currency">{row.original.invoiceNumber}</span>
           </DataTableLinkCell>
         ),
       },

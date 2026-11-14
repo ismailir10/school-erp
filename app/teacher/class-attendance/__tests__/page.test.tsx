@@ -384,7 +384,8 @@ describe("class attendance failure copy (TCHX-4/15, TCH-10, TCH-11)", () => {
     resetAll();
     mockApi(() => Promise.resolve(ok({ saved: 1 })), [{ student: { id: "s1", name: "Abdul Zahra Maulana Ibrahim", nickname: null, gender: null }, attendance: null }]);
     render(<ClassAttendancePage />);
-    const name = await screen.findByText("Abdul Zahra Maulana Ibrahim");
+    // The clamp lives on the <p>; its child is the EntityLink to the journal.
+    const name = (await screen.findByText("Abdul Zahra Maulana Ibrahim")).parentElement!;
     expect(name.className).toContain("line-clamp-2");
     expect(name.className).toContain("break-words");
     expect(name.className).not.toContain("truncate");
@@ -400,7 +401,10 @@ describe("ClassAttendancePage small-phone row", () => {
     render(<ClassAttendancePage />);
     const row = (await screen.findAllByTestId("roster-row"))[0]!;
     expect(row.parentElement!.className).toContain("@container");
-    const name = within(row).getByText("Fatimah Az-Zahra Abdurrahman");
+    // The name is a door to the student's journal; the clamp lives on its <p>.
+    const nameLink = within(row).getByRole("link", { name: "Fatimah Az-Zahra Abdurrahman" });
+    expect(nameLink).toHaveAttribute("href", "/teacher/student-journal/students/s9");
+    const name = nameLink.parentElement!;
     expect(name.className).not.toContain("truncate");
     expect(name.className).toContain("line-clamp-2");
     expect(name.parentElement!.parentElement!.className).toContain("@max-[20rem]:flex-col");

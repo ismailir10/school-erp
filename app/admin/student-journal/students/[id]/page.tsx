@@ -17,7 +17,9 @@ import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel"
 import { AuditDiff } from "@/components/student-journal/audit-diff";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
+import Link from "next/link";
 import { Pencil, Check } from "lucide-react";
+import { entityHref } from "@/lib/entity-links";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { PeriodStepper } from "@/components/ui/period-stepper";
 
@@ -332,6 +334,12 @@ export default function StudentJournalDetailPage({
                 Ubah
               </Button>
             )}
+
+            {/* DetailPageHeader's title is string-only, so the student's name
+                can't be the link; this is its door to the student's own page. */}
+            <Button variant="ghost" size="sm" render={<Link href={entityHref.student(studentId)} />}>
+              Lihat profil siswa
+            </Button>
           </div>
         }
       />

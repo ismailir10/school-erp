@@ -9,6 +9,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -52,6 +54,7 @@ type Invoice = {
   xenditPaymentUrl?: string | null;
   paymentLinkExpiresAt?: string | null;
   createdAt: string;
+  studentId: string;
   student: { name: string; nickname: string | null };
   _count: { payments: number };
 };
@@ -80,7 +83,7 @@ const columns: ColumnDef<Invoice>[] = [
   {
     id: "student",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Siswa" />
+      <DataTableColumnHeader column={column} title="Tagihan" />
     ),
     cell: ({ row }) => {
       const inv = row.original;
@@ -90,11 +93,13 @@ const columns: ColumnDef<Invoice>[] = [
             <FileText size={14} className="text-primary" />
           </div>
           <DataTableLinkCell
-            href={`/admin/invoices/${inv.id}`}
+            href={entityHref.invoice(inv.id)}
             className="whitespace-normal"
             description={
               <>
-                <span className="font-currency">{inv.invoiceNumber}</span>
+                <EntityLink href={entityHref.student(inv.studentId)} tone="muted">
+                  {inv.student.name}
+                </EntityLink>
                 {/* Status + due date follow the name below `md` (FIN-21). */}
                 <DataTableMobileMeta className="mt-1">
                   <StatusBadge status={inv.status} />
@@ -104,7 +109,7 @@ const columns: ColumnDef<Invoice>[] = [
               </>
             }
           >
-            {inv.student.name}
+            <span className="font-currency">{inv.invoiceNumber}</span>
           </DataTableLinkCell>
         </div>
       );

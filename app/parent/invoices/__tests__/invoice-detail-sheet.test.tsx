@@ -116,9 +116,9 @@ describe("InvoiceDetailSheet — no payment link (PAR-7)", () => {
     expect(within(box).queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("a live payment link keeps 'Bayar sekarang' and hides the contact box", async () => {
+  it("a live payment link shows Bayar Rp and hides the contact box", async () => {
     renderSheet({ xenditPaymentUrl: "https://pay.example/abc" });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Bayar sekarang/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: /Bayar Rp 450\.000/ })).toBeInTheDocument());
     expect(screen.queryByTestId("contact-school")).not.toBeInTheDocument();
   });
 });
@@ -177,8 +177,8 @@ describe("InvoiceDetailSheet — pending payment (PARX-8)", () => {
     const note = await screen.findByTestId("payment-pending");
     expect(note).toHaveTextContent("Pembayaran sedang diperiksa");
     expect(note).toHaveTextContent("tidak perlu bayar lagi");
-    expect(screen.queryByRole("button", { name: /Bayar sekarang/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Bayar sekarang/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Bayar Rp/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Bayar Rp/ })).not.toBeInTheDocument();
   });
 
   it("offers 'Muat ulang status' only when a refresh handler is supplied", async () => {
@@ -191,7 +191,7 @@ describe("InvoiceDetailSheet — pending payment (PARX-8)", () => {
 
   it("without the flag the pay button stays", async () => {
     renderSheet({ xenditPaymentUrl: "https://pay.example/abc" });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Bayar sekarang/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: /Bayar Rp/ })).toBeInTheDocument());
     expect(screen.queryByTestId("payment-pending")).not.toBeInTheDocument();
   });
 });

@@ -157,14 +157,19 @@ export interface ClassNameEnrollment {
 }
 
 /**
- * Class name of the student's primary current enrollment: ACTIVE, in a
+ * The class section of the student's primary current enrollment: ACTIVE, in a
  * non-ARCHIVED academic year, preferring the SEMESTER (sekolah) row.
  */
-export function primaryClassName(enrollments: readonly ClassNameEnrollment[]): string | null {
+export function primaryClassSection<E extends ClassNameEnrollment>(enrollments: readonly E[]): E["classSection"] | null {
   const current = enrollments.filter(
     (e) =>
       (e.status === undefined || e.status === "ACTIVE") &&
       e.classSection.academicYear?.status !== "ARCHIVED",
   );
-  return pickPrimaryEnrollment(current)?.classSection.name ?? null;
+  return pickPrimaryEnrollment(current)?.classSection ?? null;
+}
+
+/** Name of the primary current class section (see `primaryClassSection`), or null. */
+export function primaryClassName(enrollments: readonly ClassNameEnrollment[]): string | null {
+  return primaryClassSection(enrollments)?.name ?? null;
 }

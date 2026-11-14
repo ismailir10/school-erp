@@ -26,6 +26,7 @@ export type LedgerRow = {
   reference: string | null;
   invoiceNumber: string;
   studentName: string;
+  studentId: string;
 };
 
 export type LedgerSummary = {
@@ -245,7 +246,7 @@ export async function getPaymentsLedger(
           select: {
             id: true,
             invoiceNumber: true,
-            student: { select: { name: true } },
+            student: { select: { id: true, name: true } },
           },
         },
       },
@@ -272,6 +273,7 @@ export async function getPaymentsLedger(
     reference: p.reference,
     invoiceNumber: p.invoice.invoiceNumber,
     studentName: p.invoice.student.name,
+    studentId: p.invoice.student.id,
   }));
 
   const byMethod = methodSummary

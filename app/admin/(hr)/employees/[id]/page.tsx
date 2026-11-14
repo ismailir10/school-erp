@@ -22,7 +22,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { FormField, FormRootError } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
-import { DISPLAY_TIME_ZONE, formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { DISPLAY_TIME_ZONE, campusShortLabels, formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { employeeEditFormSchema } from "@/lib/validations/employee";
 import { useZodForm } from "@/lib/forms/use-zod-form";
@@ -80,6 +80,7 @@ export default function EmployeeDetailPage() {
   const [salaryValues, setSalaryValues] = useState<SalaryValue[] | null>(null);
   const [salaryComponents, setSalaryComponents] = useState<SalaryComponentRow[] | null>(null);
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingSalary, setSavingSalary] = useState(false);
@@ -436,9 +437,9 @@ export default function EmployeeDetailPage() {
                       required
                       id="employee-detail-campus"
                       render={({ field, controlProps }) => (
-                        <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
+                        <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} items={campuses.map(c => ({ label: campusShort.get(c.name) ?? c.name, value: c.id }))}>
                           <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
-                          <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{campusShort.get(c.name) ?? c.name}</SelectItem>)}</SelectContent>
                         </Select>
                       )}
                     />

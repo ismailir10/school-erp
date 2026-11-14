@@ -3,7 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -16,6 +17,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -23,7 +25,7 @@ import { AdminTabs, AdminTabsContent, AdminTabsList, AdminTabsTrigger } from "@/
 import { PendingApprovals, type PendingCheckIn } from "./pending-approvals";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace, ListChecks } from "lucide-react";
-import { formatDate, formatTime } from "@/lib/format";
+import { campusShortLabels, formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
 import { computeAbsentCount, computeExcusedCount, isNonWorkingDay } from "./absent-stat";
 import { parseWorkingDays } from "@/lib/payroll/working-days";
@@ -41,6 +43,21 @@ type Campus = { id: string; name: string };
 type Holiday = { date: string };
 
 export default function AttendancePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-section px-page-x py-page-y">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      }
+    >
+      <AttendancePageInner />
+    </Suspense>
+  );
+}
+
+function AttendancePageInner() {
   // Per-render, not module-level: a module-level `TODAY_ISO` froze at build/
   // deploy time, so a non-working *today* kept computing as if it were the
   // day of the last deploy (the "Alpa" bug — F-20/Cycle-3-T8). Computed fresh
@@ -48,8 +65,19 @@ export default function AttendancePage() {
   // for even one render across midnight would misclassify "today".
   const today = getTodayInTimezone("Asia/Jakarta");
   const [date, setDate] = useState(today);
-  const [campusId, setCampusId] = useState("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // The URL is the single source of truth, so back/forward keeps the control in step.
+  const rawCampusId = searchParams?.get("campusId") || "all";
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  // The URL value is only trusted once the campus list confirms it exists.
+  const campusId = campuses.length === 0 || campuses.some((c) => c.id === rawCampusId) ? rawCampusId : "all";
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
+  const campusQs = campusId === "all" ? "" : `?campusId=${encodeURIComponent(campusId)}`;
+  function selectCampus(v: string) {
+    router.replace(v === "all" ? pathname : `${pathname}?campusId=${encodeURIComponent(v)}`, { scroll: false });
+  }
   const [data, setData] = useState<EmployeeAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   // F-20: holiday list fetched once. Holidays are non-working days for the
@@ -285,10 +313,10 @@ export default function AttendancePage() {
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
-            <Link href="/admin/employee-attendance/daily">
+            <Link href={`/admin/employee-attendance/daily${campusQs}`}>
               <Button size="sm"><ListChecks size={14} className="mr-1.5" /> Absensi Staf Harian</Button>
             </Link>
-            <Link href="/admin/employee-attendance/monthly">
+            <Link href={`/admin/employee-attendance/monthly${campusQs}`}>
               <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
             </Link>
           </div>
@@ -317,13 +345,15 @@ export default function AttendancePage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
         <DatePicker value={date} onChange={setDate} className="w-full sm:w-44" />
-        <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
+        {campuses.length > 1 && (
+        <Select value={campusId} onValueChange={(v) => v && selectCampus(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, campusShort.get(c.name) ?? c.name])) }}>
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>
-            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{campusShort.get(c.name) ?? c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        )}
       </div>
 
       {/* Stats */}

@@ -63,6 +63,14 @@ describe("WeeklyClient radio groups", () => {
     });
   }
 
+  it("links the student name to their journal", () => {
+    renderWeeklyClient();
+    expect(screen.getByRole("link", { name: "Aisyah" })).toHaveAttribute(
+      "href",
+      "/teacher/student-journal/students/student-1",
+    );
+  });
+
   it("gives each native radio group one tab stop", async () => {
     const user = userEvent.setup();
     renderWeeklyClient();

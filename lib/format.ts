@@ -414,3 +414,27 @@ export function disambiguateClassLabels<T extends ClassLabelInput>(
     };
   });
 }
+
+/**
+ * Short campus labels for option lists. Strips the longest run of leading
+ * whole words shared by ALL names ("An Nisaa' Sekolahku Taman Aster" →
+ * "Taman Aster"), so a dropdown stays scannable without losing the campus.
+ *
+ * Returns a map from each original name to its label. No-op (identity map)
+ * for fewer than two distinct names, no shared leading word, or when
+ * stripping would leave any label empty. Word-boundary only: "Taman Aster"
+ * vs "Taman Asri" share "Taman" but never a partial word.
+ * Use for OPTION LABELS only; detail fields keep the full name.
+ */
+export function campusShortLabels(names: string[]): Map<string, string> {
+  const trimmed = names.map((n) => n.trim());
+  const unique = [...new Set(trimmed)];
+  // Label per trimmed name; identity unless every name shares a leading prefix.
+  const label = new Map<string, string>(unique.map((n) => [n, n]));
+  const words = unique.map((n) => n.split(/\s+/));
+  let k = 0;
+  while (unique.length >= 2 && words.every((w) => k < w.length && w[k] === words[0][k])) k++;
+  const rests = words.map((w) => w.slice(k).join(" ").trim());
+  if (k > 0 && rests.every((r) => r !== "")) unique.forEach((n, i) => label.set(n, rests[i]));
+  return new Map(names.map((n) => [n, label.get(n.trim())!]));
+}
