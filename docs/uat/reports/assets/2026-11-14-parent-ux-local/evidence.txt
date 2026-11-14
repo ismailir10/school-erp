@@ -1,0 +1,385 @@
+Synthetic local audit only.
+
+--- 390-attendance.txt ---
+- main:
+  - tablist "Pilih anak":
+    - tab "Zafran" [selected]
+    - tab "Aisyah"
+    - tab "Fatimah"
+  - text: Ahmad Zafran Hidayat
+  - paragraph: TKIT A · TK Islam Terpadu
+  - heading "Kehadiran" [level=1]
+  - paragraph: Pantau kehadiran harian anak
+  - paragraph: Hadir 4 · Sakit 0 · Alpa 1
+  - paragraph: Zafran tercatat tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar.
+  - link "Pekan sebelumnya":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-02
+  - text: 9 Nov – 13 Nov 2026
+  - link "Pekan berikutnya":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-16
+  - link "Kembali ke pekan ini":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h
+  - table:
+    - rowgroup:
+      - row "Hari Sen 09/11 Sel 10/11 Rab 11/11 Kam 12/11 Jum 13/11":
+        - columnheader "Hari"
+        - columnheader "Sen 09/11"
+        - columnheader "Sel 10/11"
+        - columnheader "Rab 11/11"
+        - columnheader "Kam 12/11"
+        - columnheader "Jum 13/11"
+    - rowgroup:
+      - row "Status Hadir Hadir Alpa Hadir Hadir":
+        - rowheader "Status"
+        - cell "Hadir"
+        - cell "Hadir"
+        - cell "Alpa"
+        - cell "Hadir"
+        - cell "Hadir"
+  - text: Hadir S Sakit A Alpa I Izin Belum dicatat Belum berlangsung
+  - heading "Catatan dari sekolah" [level=3]
+  - list:
+    - listitem:
+      - paragraph: Hari ini sangat aktif di kelas, menyelesaikan tugas dengan baik.
+      - paragraph: Ustadzah · 12 November
+--- attendance-future-week.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "SH Siti":
+    - /url: /parent/profile?child=cmwfqmlrh00j60nx7ks64q54h
+  - button "Keluar"
+- main:
+  - tablist "Pilih anak":
+    - tab "Zafran" [selected]
+    - tab "Aisyah"
+    - tab "Fatimah"
+  - text: Ahmad Zafran Hidayat
+  - paragraph: TKIT A · TK Islam Terpadu
+  - heading "Kehadiran" [level=1]
+  - paragraph: Pantau kehadiran harian anak
+  - link "Pekan sebelumnya":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-09
+  - text: 16 Nov – 20 Nov 2026
+  - link "Pekan berikutnya":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-23
+  - link "Kembali ke pekan ini":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h
+  - paragraph: Pekan ini belum dimulai
+  - paragraph: Catatan kehadiran muncul setiap pagi setelah Ustadzah merekap absensi kelas.
+- navigation "Navigasi utama orang tua":
+  - link "Beranda":
+    - /url: /parent?child=cmwfqmlrh00j60nx7ks64q54h
+  - link "Tagihan":
+    - /url: /parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h
+  - link "Kehadiran":
+    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h
+  - link "Jurnal":
+    - /url: /parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert: Kehadiran · Talib
+--- flows.log ---
+{"label":"open /parent","ms":1434,"code":200,"ttfb":143,"dcl":652,"fullLoad":1283}
+{"label":"home bill hierarchy","firstBill":"Tagihan Ahmad Zafran Hidayat\n\n4 tagihan belum dibayar · 2 lewat tempo\n\nRp3.000.000","extraChildrenCollapsed":1}
+{"label":"home first bill → child-scoped invoices","ms":1595,"bounds":{"x":25,"y":391,"width":340,"height":116},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"switch sibling on Tagihan","ms":275,"bounds":{"x":107,"y":89,"width":75,"height":44},"url":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il"}
+{"label":"Tagihan → Kehadiran bottom nav","ms":874,"bounds":{"x":156,"y":780,"width":78,"height":64},"url":"/parent/attendance?child=cmwfqmls100jc0nx76m35q8il"}
+{"label":"sibling after attendance click","expected":"Aisyah","actual":"Aisyah","child":"cmwfqmls100jc0nx76m35q8il"}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":77}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":85}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":285}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmls100jc0nx76m35q8il/week","status":200,"ms":680}
+{"label":"Kehadiran → Jurnal bottom nav","ms":1562,"bounds":{"x":234,"y":780,"width":78,"height":64},"url":"/parent/student-journal?child=cmwfqmls100jc0nx76m35q8il"}
+{"label":"sibling after journal click","expected":"Aisyah","actual":"Aisyah","child":"cmwfqmls100jc0nx76m35q8il"}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":114}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":208}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":113}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmls100jc0nx76m35q8il/week","status":200,"ms":232}
+{"label":"sibling after reload","expected":"Aisyah","actual":"Aisyah","child":"cmwfqmls100jc0nx76m35q8il"}
+{"label":"open More menu","ms":237,"bounds":{"x":312,"y":780,"width":78,"height":64},"url":"/parent/student-journal?child=cmwfqmls100jc0nx76m35q8il"}
+{"label":"Jurnal → Rapor from More","ms":1836,"bounds":{"x":16,"y":664,"width":358,"height":74},"url":"/parent/reports?child=cmwfqmls100jc0nx76m35q8il"}
+{"label":"sibling after reports click","expected":"Aisyah","actual":"Aisyah","child":"cmwfqmls100jc0nx76m35q8il"}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":138}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":294}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":246}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmls100jc0nx76m35q8il/week","status":200,"ms":480}
+{"label":"sibling after browser back","expected":"Aisyah","actual":"Aisyah","child":"cmwfqmls100jc0nx76m35q8il"}
+{"label":"open /parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h","ms":2931,"code":200,"ttfb":445,"dcl":951,"fullLoad":2774}
+{"label":"invoice row candidates","count":4,"first":"Agustus 2026\n\nLewat tempo · Dibayar sebagian · Jatuh tempo 30 Sep 2026\n\nRp450.000"}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqfa057p0nx70bs0b6lq","status":200,"ms":87}
+{"label":"open oldest visible invoice","ms":233,"bounds":{"x":25,"y":521,"width":340,"height":96},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"oldest invoice amount and link","id":"cmwfqmqfa057p0nx70bs0b6lq","status":"PARTIALLY_PAID","number":"INV-2026-0002","child":"Ahmad Zafran Hidayat","total":850000,"paid":400000,"due":"2026-09-30","lineCount":1,"hasLink":false}
+{"label":"invoice first viewport","primary":{"x":25,"y":703.75,"width":341,"height":44},"viewHeight":844,"scrollTop":0,"nestedPaymentControl":0}
+{"label":"open payment history accordion","ms":236,"bounds":{"x":24,"y":870,"width":342,"height":44},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqdx057m0nx7b4o2mj00","status":200,"ms":247}
+{"label":"open paid item","ms":414,"bounds":{"x":25,"y":737,"width":340,"height":68},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"paid invoice","id":"cmwfqmqdx057m0nx7b4o2mj00","number":"INV-2026-0001","status":"PAID","receipt":0,"payments":1}
+{"label":"api","method":"POST","route":"/api/guardian/invoices/cmwfqmqfa057p0nx70bs0b6lq/check-payment","status":200,"ms":146}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqfa057p0nx70bs0b6lq","status":200,"ms":687}
+INV-00 callback and reload locator.waitFor: Timeout 7000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('dialog').getByTestId('payment-pending') to be visible[22m
+
+{"label":"open /parent","ms":585,"code":200,"ttfb":42,"dcl":209,"fullLoad":236}
+{"label":"home attendance status → week","ms":855,"bounds":{"x":25,"y":218,"width":340,"height":98},"url":"/parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"current week → future week","ms":51,"bounds":{"x":322,"y":435,"width":44,"height":44},"url":"/parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-16"}
+{"label":"future week → current week","ms":66,"bounds":{"x":122,"y":369,"width":145,"height":44},"url":"/parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"weekly return","sameSummary":true,"matchedStatus":true,"mentionsLate":false}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":20}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":22}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":35}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":45}
+{"label":"open /parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h","ms":184,"code":200,"ttfb":12,"dcl":44,"fullLoad":70}
+{"label":"journal → previous week","ms":54,"bounds":{"x":24,"y":320,"width":44,"height":44},"url":"/parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-02"}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":18}
+{"label":"journal → current week","ms":56,"bounds":{"x":122,"y":368,"width":145,"height":44},"url":"/parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h&week=2026-11-02"}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":13}
+{"label":"journal school → home habits","ms":136,"bounds":{"x":139,"y":439,"width":112,"height":44},"url":"/parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h&view=home"}
+{"label":"editable habit controls","count":35}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":12}
+{"label":"toggle habit and see changed cell","ms":124,"bounds":{"x":136,"y":546,"width":44,"height":44},"url":"/parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h&view=home"}
+{"label":"habit save","status":200,"before":"Sholat 5 waktu 2026-11-09 — sudah diisi","after":"Sholat 5 waktu 2026-11-09 — belum diisi"}
+{"label":"api","method":"POST","route":"/api/student-journal/entries/home","status":200,"ms":35}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":11}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":12}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":23}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":30}
+{"label":"habit after refresh","persisted":true}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":10}
+{"label":"api","method":"POST","route":"/api/student-journal/entries/home","status":200,"ms":10}
+{"label":"restore synthetic habit value","ms":117,"bounds":{"x":136,"y":546,"width":44,"height":44},"url":"/parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h&view=home"}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":12}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":12}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":23}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":34}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":22}
+{"label":"open /parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h","ms":177,"code":200,"ttfb":10,"dcl":42,"fullLoad":76}
+{"label":"api","method":"POST","route":"/api/student-journal/notes/read","status":200,"ms":21}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":27}
+{"label":"open note composer","ms":81,"bounds":{"x":235,"y":458,"width":131,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":17}
+JOURNAL-03 date-specific note locator.textContent: Timeout 5000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('tablist', { name: 'Pilih anak' }).getByRole('tab', { selected: true })[22m
+
+{"label":"open /parent/reports?child=cmwfqmlrh00j60nx7ks64q54h","ms":267,"code":200,"ttfb":59,"dcl":133,"fullLoad":227}
+{"label":"open published report","ms":72,"bounds":{"x":24,"y":455,"width":342,"height":44},"url":"/parent/reports?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"report identity and entry","selected":"Zafran","title":"Rapor Triwulan 1 · Semester 1 · 2026/2027","hasChild":false,"download":{"x":24,"y":776,"width":342,"height":44}}
+REP-01 / REP-02 apiRequestContext.get: Invalid URL
+
+--- invoice-oldest-sheet.txt ---
+- dialog "Tagihan Agustus 2026· Zafran":
+  - heading "Tagihan Agustus 2026· Zafran" [level=2]
+  - paragraph: INV-2026-0002
+  - paragraph: Sisa tagihan
+  - text: Rp450.000 Dibayar sebagian Lewat tempo Jatuh tempo 30 September 2026
+  - heading "Rincian" [level=3]
+  - list:
+    - listitem:
+      - paragraph: SPP Bulanan
+      - text: Rp850.000
+  - term: Total tagihan
+  - definition: Rp850.000
+  - term: Sudah dibayar
+  - definition: Rp400.000
+  - term: Sisa tagihan
+  - definition: Rp450.000
+  - heading "Bukti pembayaran" [level=3]
+  - link "Kuitansi.pdf Bukti pembayaran sebagian":
+    - /url: /api/guardian/invoices/cmwfqmqfa057p0nx70bs0b6lq/pdf
+    - paragraph: Kuitansi.pdf
+    - paragraph: Bukti pembayaran sebagian
+  - heading "Riwayat pembayaran" [level=3]
+  - list:
+    - listitem:
+      - paragraph: Tunai
+      - paragraph: 5 Oktober 2026
+      - text: Rp400.000
+  - button "Buat link pembayaran"
+  - text: Bila link belum bisa dibuat, silakan
+  - strong: hubungi bagian tata usaha sekolah
+  - text: untuk info pembayaran dan sebutkan nomor tagihan
+  - strong: INV-2026-0002
+  - text: .
+  - button "Tutup"
+--- invoice-paid-sheet.txt ---
+- dialog "Tagihan Juli 2026· Zafran":
+  - heading "Tagihan Juli 2026· Zafran" [level=2]
+  - paragraph: INV-2026-0001
+  - paragraph: Total tagihan
+  - text: Rp850.000 Lunas Dibayar 5 September 2026
+  - heading "Rincian" [level=3]
+  - list:
+    - listitem:
+      - paragraph: SPP Bulanan
+      - text: Rp850.000
+  - term: Total tagihan
+  - definition: Rp850.000
+  - term: Sudah dibayar
+  - definition: Rp850.000
+  - heading "Bukti pembayaran" [level=3]
+  - link "Kuitansi.pdf Diterbitkan 5 September 2026":
+    - /url: /api/guardian/invoices/cmwfqmqdx057m0nx7b4o2mj00/pdf
+    - paragraph: Kuitansi.pdf
+    - paragraph: Diterbitkan 5 September 2026
+  - heading "Riwayat pembayaran" [level=3]
+  - list:
+    - listitem:
+      - paragraph: Tunai
+      - paragraph: 5 September 2026
+      - text: Rp850.000
+  - button "Tutup"
+--- journal-note-composer.txt ---
+- dialog "Tulis catatan":
+  - heading "Tulis catatan" [level=2]
+  - paragraph: Catatan ini akan dibaca Ustadzah.
+  - group:
+    - text: Tanggal
+    - combobox "Tanggal": 9 Nov 2026
+  - group:
+    - text: Isi catatan
+    - textbox "Isi catatan":
+      - /placeholder: Tulis catatan rumah di sini...
+    - text: 0/2000
+  - button "Batal"
+  - button "Simpan" [disabled]
+  - button "Tutup"
+--- parent-repro.log ---
+{"size":{"width":320,"height":720},"afterWheel":{"x":24,"y":-1085.265625,"width":272,"height":48},"scroll":0}
+{"size":{"width":320,"height":720},"immediate":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","settled":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il"}
+{"size":{"width":320,"height":720},"invoiceUrl":"http://localhost:3000/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","selected":"Aisyah"}
+{"size":{"width":390,"height":844},"afterWheel":{"x":24,"y":-799.515625,"width":342,"height":48},"scroll":0}
+{"size":{"width":390,"height":844},"immediate":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","settled":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il"}
+{"size":{"width":390,"height":844},"invoiceUrl":"http://localhost:3000/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","selected":"Aisyah"}
+{"size":{"width":1440,"height":900},"afterWheel":{"x":801,"y":32,"width":607,"height":24},"scroll":0}
+{"size":{"width":1440,"height":900},"immediate":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","settled":"/parent/invoices?child=cmwfqmls100jc0nx76m35q8il"}
+{"size":{"width":1440,"height":900},"invoiceUrl":"http://localhost:3000/parent/invoices?child=cmwfqmls100jc0nx76m35q8il","selected":"Aisyah"}
+
+--- parent-visual.log ---
+{"role":"home","size":{"width":320,"height":720},"firstNoteButton":{"x":37,"y":835,"width":119,"height":44},"visibleBottom":655,"outerWidth":320}
+{"role":"rapor","size":{"width":320,"height":720},"initial":{"scrollTop":0,"scrollHeight":1829,"height":1829,"cssHeight":"1830.27px","cssMaxHeight":"none","activeText":"Unduh PDF","bodyWidth":320},"title":{"x":24,"y":-1085,"width":272,"height":48},"close":{"x":264,"y":-1locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('link', { name: /^Aisyah Putri Ramadhani/ }).first() to be visible[22m
+[2m    - waiting for "http://localhost:3000/parent/perkembangan/cmwfqmls100jc0nx76m35q8il" navigation to finish...[22m
+[2m    - navigated to "http://localhost:3000/parent/perkembangan/cmwfqmls100jc0nx76m35q8il"[22m
+
+    at main (/private/tmp/talib-ux-20261114/parent-evidence/parent-visual.cjs:32:21) {
+  log: [
+    "  - waiting for getByRole('link', { name: /^Aisyah Putri Ramadhani/ }).first() to be visible",
+    '    - waiting for "http://localhost:3000/parent/perkembangan/cmwfqmls100jc0nx76m35q8il" navigation to finish...',
+    '    - navigated to "http://localhost:3000/parent/perkembangan/cmwfqmls100jc0nx76m35q8il"'
+  ],
+  name: 'TimeoutError'
+}
+.52px","cssMaxHeight":"none","activeText":"Unduh PDF","bodyWidth":390},"title":{"x":24,"y":-800,"width":342,"height":48},"close":{"x":334,"y":-812,"width":44,"height":44},"bodyName":false}
+{"role":"perkembangan-detail","size":{"width":390,"height":844},"nav":"- navigation \"Navigasi utama orang tua\":\n  - link \"Beranda\":\n    - /url: /parent?child=cmwfqmls100jc0nx76m35q8il\n  - link \"Tagihan\":\n    - /url: /parent/invoices?child=cmwfqmls100jc0nx76m35q8il\n  - link \"Kehadiran\":\n    - /url: /parent/attendance?child=cmwfqmls100jc0nx76m35q8il\n  - link \"Jurnal\":\n    - /url: /parent/student-journal?child=cmwfqmls100jc0nx76m35q8il\n  - button \"Lainnya\"","bodyWidth":390}
+{"role":"note","size":{"width":390,"height":844},"controls":"9 Nov 2026"}
+{"role":"home","size":{"width":1440,"height":900},"firstNoteButton":{"x":533,"y":736,"width":183,"height":44},"visibleBottom":835,"outerWidth":1440}
+{"role":"rapor","size":{"width":1440,"height":900},"initial":{"scrollTop":474,"scrollHeight":1374,"height":900,"cssHeight":"900px","cssMaxHeight":"none","activeText":"Unduh PDF","bodyWidth":1440},"title":{"x":801,"y":-442,"width":607,"height":24},"close":{"x":1400,"y":-462,"width":28,"height":28},"bodyName":false}
+{"role":"perkembangan-detail","size":{"width":1440,"height":900},"nav":"- navigation \"Navigasi utama orang tua\":\n  - link \"Beranda\":\n    - /url: /parent?child=cmwfqmlrh00j60nx7ks64q54h\n  - link \"Tagihan\":\n    - /url: /parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h\n  - link \"Kehadiran\":\n    - /url: /parent/attendance?child=cmwfqmlrh00j60nx7ks64q54h\n  - link \"Jurnal\":\n    - /url: /parent/student-journal?child=cmwfqmlrh00j60nx7ks64q54h\n  - button \"Lainnya\"","bodyWidth":1440}
+
+--- payment-flows.log ---
+{"label":"open /parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h","ms":740,"code":200,"ttfb":129,"dcl":335,"fullLoad":478}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z","status":200,"ms":216}
+{"label":"open fully unpaid November invoice","ms":515,"bounds":{"x":93,"y":792,"width":144,"height":19},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"unpaid callback fixture","id":"cmwfqmqil057w0nx75vsqba8z","status":"SENT","number":"INV-2026-0005","total":850000,"paid":0}
+{"label":"api","method":"POST","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z/check-payment","status":200,"ms":8}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z","status":200,"ms":164}
+{"label":"open /parent/invoices?child=cmwfqmls100jc0nx76m35q8il&invoice=cmwfqmqil057w0nx75vsqba8z&paymentStatus=paid","ms":1252,"code":200,"ttfb":101,"dcl":205,"fullLoad":354}
+{"label":"pending before refresh","child":"cmwfqmlrh00j60nx7ks64q54h","selected":"Zafran","message":"Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.\nMuat ulang status","paymentButtonCount":0}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z","status":200,"ms":61}
+{"label":"reload then reopen same unpaid row","ms":222,"bounds":{"x":25,"y":777,"width":340,"height":68},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"pending after refresh","pendingCount":0,"paymentButton":"Bayar sekarang"}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqdx057m0nx7b4o2mj00","status":200,"ms":112}
+{"label":"open /parent/invoices?child=cmwfqmls100jc0nx76m35q8il&invoice=cmwfqmqdx057m0nx7b4o2mj00&paymentStatus=paid","ms":375,"code":200,"ttfb":24,"dcl":59,"fullLoad":124}
+{"label":"paid callback","pendingCount":0,"child":"cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"open /parent/invoices?child=unlinked-uat-child&invoice=unlinked-uat-invoice&paymentStatus=paid","ms":241,"code":200,"ttfb":57,"dcl":106,"fullLoad":174}
+{"label":"foreign callback","openDialogCount":0,"selected":"Zafran","bodyStart":"Anak yang dipilih tidak ditemukan di akun Anda. Menampilkan Zafran.\n\nZafran\nAisyah\nFatimah\nAhmad Zafran Hidayat\n\nTKIT A · TK Islam Terpadu\n\nTagihan\n\nPantau pembayaran SPP & biaya tambahan\n\nBelum dibayar\n\nRp3.000.000\n\n4 tagihan\n·\n2 lewat tem"}
+
+--- report-detail.txt ---
+- dialog "Rapor Triwulan 1 · Semester 1 · 2026/2027":
+  - heading "Rapor Triwulan 1 · Semester 1 · 2026/2027" [level=2]
+  - heading "Pembukaan" [level=3]
+  - paragraph: Pada aspek perkembangan secara umum, ananda sudah konsisten dan menunjukkan perkembangan yang sangat baik.
+  - heading "Nilai Agama & Budi Pekerti" [level=3]
+  - text: Mampu dan Konsisten
+  - paragraph: Pada aspek nilai agama dan budi pekerti, ananda sudah konsisten dan menunjukkan perkembangan yang sangat baik.
+  - heading "Jati Diri" [level=3]
+  - text: Mampu dan Konsisten
+  - paragraph: Pada aspek jati diri, ananda sudah konsisten dan menunjukkan perkembangan yang sangat baik.
+  - heading "STEAM / Literasi" [level=3]
+  - text: Mampu Belum Konsisten
+  - paragraph: Pada aspek dasar literasi dan STEAM, ananda sedang berkembang dan mulai tampak konsisten dengan pendampingan.
+  - heading "Unjuk Kerja" [level=3]
+  - text: Mampu dan Konsisten
+  - paragraph: Pada aspek unjuk kerja motorik dan seni, ananda sudah konsisten dan menunjukkan perkembangan yang sangat baik.
+  - heading "Penutup" [level=3]
+  - paragraph: Alhamdulillah, ananda menjalani triwulan ini dengan semangat. Terima kasih atas kerja sama Ayah dan Bunda.
+  - heading "Rencana Tindak Lanjut" [level=3]
+  - paragraph: Guru akan melanjutkan stimulasi pada aspek yang masih berkembang melalui kegiatan sentra dan pekanan.
+  - heading "Kegiatan Disarankan di Rumah" [level=3]
+  - paragraph: Ajak ananda mengulang doa harian, bercerita sebelum tidur, dan bermain menyusun balok di rumah.
+  - heading "Kehadiran" [level=3]
+  - paragraph: Sakit
+  - paragraph: "2"
+  - paragraph: Izin
+  - paragraph: "1"
+  - paragraph: Alpa
+  - paragraph: "0"
+  - paragraph: Hari sekolah
+  - paragraph: "58"
+  - heading "Pertumbuhan" [level=3]
+  - paragraph: "Tinggi: 104,5 cm · Berat: 16,2 kg"
+  - heading "Hafalan" [level=3]
+  - paragraph: Hafal Surah An-Nas, Al-Falaq, dan Al-Ikhlas.
+  - button "Unduh PDF"
+  - button "Tutup"
+--- targeted-flows.log ---
+{"label":"open /parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h","ms":590,"code":200,"ttfb":81,"dcl":248,"fullLoad":268}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z","status":200,"ms":62}
+{"label":"open fully unpaid November invoice","ms":251,"bounds":{"x":93,"y":792,"width":144,"height":19},"url":"/parent/invoices?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"unpaid callback fixture","id":"cmwfqmqil057w0nx75vsqba8z","status":"SENT","number":"INV-2026-0005","total":850000,"paid":0}
+{"label":"api","method":"POST","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z/check-payment","status":200,"ms":3}
+{"label":"api","method":"GET","route":"/api/guardian/invoices/cmwfqmqil057w0nx75vsqba8z","status":200,"ms":41}
+{"label":"open /parent/invoices?child=cmwfqmls100jc0nx76m35q8il&invoice=cmwfqmqil057w0nx75vsqba8z&paymentStatus=paid","ms":289,"code":200,"ttfb":12,"dcl":44,"fullLoad":77}
+INV-00 callback and reload locator.textContent: Timeout 5000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('tablist', { name: 'Pilih anak' }).getByRole('tab', { selected: true })[22m
+
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":26}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":29}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":33}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":47}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":15}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":11}
+{"label":"api","method":"POST","route":"/api/student-journal/notes/read","status":200,"ms":13}
+{"label":"open /parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h","ms":348,"code":200,"ttfb":47,"dcl":87,"fullLoad":135}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":24}
+{"label":"open note composer","ms":76,"bounds":{"x":235,"y":458,"width":131,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"note defaults","selected":"Zafran","child":"cmwfqmlrh00j60nx7ks64q54h","composer":"Tulis catatan\n\nCatatan ini akan dibaca Ustadzah.\n\nTanggal\n9 Nov 2026\nIsi catatan\n0/2000\nBatal\nSimpan\nTutup"}
+{"label":"save parent note","ms":50,"bounds":{"x":40,"y":784,"width":310,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":24}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":13}
+{"label":"api","method":"POST","route":"/api/student-journal/notes","status":201,"ms":30}
+{"label":"note identity","body":"UAT 14 Nov: Anak batuk semalam; sudah sarapan.","child":"cmwfqmlrh00j60nx7ks64q54h","date":"2026-11-09"}
+{"label":"api","method":"POST","route":"/api/student-journal/notes/read","status":200,"ms":11}
+{"label":"open edit note","ms":265,"bounds":{"x":261,"y":559,"width":44,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":18}
+{"label":"save edited parent note","ms":44,"bounds":{"x":40,"y":784,"width":310,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/auth/me","status":200,"ms":20}
+{"label":"api","method":"GET","route":"/api/parent/children","status":200,"ms":23}
+{"label":"api","method":"GET","route":"/api/student-journal/notes/unread","status":200,"ms":32}
+{"label":"api","method":"GET","route":"/api/student-journal/children/cmwfqmlrh00j60nx7ks64q54h/week","status":200,"ms":54}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":14}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":8}
+{"label":"api","method":"POST","route":"/api/student-journal/notes/read","status":200,"ms":12}
+{"label":"note after refresh","persisted":true,"body":"UAT 14 Nov: Anak batuk semalam; sudah sarapan. Uji simpan.","child":"cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"open delete confirmation","ms":41,"bounds":{"x":309,"y":559,"width":44,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":28}
+{"label":"api","method":"GET","route":"/api/student-journal/notes","status":200,"ms":11}
+{"label":"cancel deletion","ms":75,"bounds":{"x":51,"y":478,"width":288,"height":44},"url":"/parent/student-journal?view=notes&child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"open /parent/reports?child=cmwfqmlrh00j60nx7ks64q54h","ms":93,"code":200,"ttfb":13,"dcl":41,"fullLoad":64}
+{"label":"open published report","ms":42,"bounds":{"x":24,"y":455,"width":342,"height":44},"url":"/parent/reports?child=cmwfqmlrh00j60nx7ks64q54h"}
+{"label":"report identity and entry","selected":"Zafran","title":"Rapor Triwulan 1 · Semester 1 · 2026/2027","hasChild":false,"download":{"x":24,"y":776,"width":342,"height":44}}
+{"label":"report PDF","code":200,"type":"application/pdf","path":"/api/guardian/report-cards/cmwfqmlrh00j60nx7ks64q54h/cmwfqnkgb0x9g0nx779jcijl6/pdf"}

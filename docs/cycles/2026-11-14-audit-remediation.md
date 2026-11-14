@@ -22,8 +22,8 @@ Assumptions: browser-persisted payment hints are UX safeguards, not a cross-devi
 - [x] 2. Fix payment return persistence and DOKU label compatibility — scoped durable hint and authoritative reconciliation; boundary and component tests.
 - [x] 3. Fix attendance availability and truthful status — Gate schedule, roster neutrality, Home priorities/decisions, parent calendar state; endpoint/component tests.
 - [x] 4. Fix admin work priority and loading/billing clarity — recheck historical findings, update affected views and tests.
-- [ ] 5. Integrate and review all slices, update JTBD/report dispositions, run full gates and address failures.
-- [ ] 6. Prepare the verified release record, screenshots and staging verification checklist.
+- [x] 5. Integrate and review all slices, update JTBD/report dispositions, run full gates and address failures.
+- [x] 6. Prepare the verified release record, screenshots and staging verification checklist.
 
 Release milestone (after the implementation gates): open the PR, require green checks, merge to staging, repeat changed journeys and record deployed evidence in this cycle and the audit report.
 
@@ -61,9 +61,24 @@ Dependencies: tasks 1–3 have disjoint ownership and run in parallel; task 4 fo
 - First full Playwright pass: 294 passed, 3 failed, 1 flaky, 1 existing skip (7.8 minutes). Failures were stale billing-entry and attendance-copy assertions; the flaky search locator matched hidden streamed server markup. Tests now follow the chooser and current persistence instructions and scope layout assertions to accessible main content. No application change, skips or timeout increases were introduced. Fresh full run is underway.
 - Second full pass exited successfully with 297 passed, 1 flaky and 1 existing skip (6.3 minutes). The same hidden-streamed-input race remained in the summary-retry test; both invoice-search callers now use accessible main and the exact named textbox. All affected layout/retry cases passed 15 consecutive executions (15.7 seconds), with unchanged assertions and no retry. Typecheck passed after this test-only correction; full browser verification is rerunning. Application inputs to the passing build/unit gates are unchanged.
 - A lint rerun initially scanned generated Playwright trace-viewer JavaScript. Moving that generated report to `/private/tmp/audit-playwright-first-report` restored the clean source-only workspace; the ordinary `npm run lint` then passed without changing lint rules or source exclusions.
-- Pending: final full Playwright and lint; PR checks and deployed staging Chrome verification. No staging resolution is claimed by these local results.
+- Final full Playwright: **298 passed, 1 existing skip, no failures or flaky retries (6.4 minutes)**. Ordinary lint and final typecheck passed. Soft-skip/DEMO_MODE-skip count is unchanged: 26 on `ee955459` and 26 on HEAD.
+- Pending: PR checks and deployed staging Chrome verification. No staging resolution is claimed by these local results.
+
+### Verified locally — 24d9ad16, 2026-11-14
+
+- Gate: production build, `npm run lint`, `npx tsc --noEmit`, `npx vitest run --maxWorkers=1` and full `npx playwright test` passed. Unit result: 774 passing files / 9,522 tests, 2 existing skipped files, 42 todo. Browser result: 298 passed / 1 existing skip, zero failures or retries. The test-only locator follow-up changed no application/build/unit input from `677649a0`; the final typecheck and browser run include that follow-up.
+- App: production Next.js build on localhost:3000, isolated seeded Postgres on loopback port 54329, demo admin/teacher/guardian accounts. Live staging was not used for automated writes.
+- Walked: report first/last section, fixed header, close/reopen, unpublished sibling and unsaved admin preview; pending return reload and explicit staff recovery; parent note failed-save draft retention, retry and teacher readback; closed-day Gate/Home; dashboard action order, loading count, billing choice and invoice detail return context. Automated edge cases cover provider failure/expiry, cross-tab races, role/tenant scope and unscheduled/scheduled attendance.
+- Console/network: normal Chrome flow check returned no warnings/errors; deliberate offline cases produced expected connection failures. Automated browser runs emitted existing report-only CSP evaluation reports and pg query deprecation warnings; no failed changed-flow assertion remains.
+- Screenshots: [desktop report](../uat/reports/assets/2026-11-14-audit-remediation/rapor-desktop-final.jpg), [desktop dashboard](../uat/reports/assets/2026-11-14-audit-remediation/admin-desktop-final.jpg), [payment recovery](../uat/reports/assets/2026-11-14-audit-remediation/payment-recovery-final.jpg), [journal failure](../uat/reports/assets/2026-11-14-audit-remediation/journal-retry-local.jpg).
+- Highlights: [mobile report](../uat/reports/assets/2026-11-14-audit-remediation/rapor-mobile-final.jpg), [mobile dashboard](../uat/reports/assets/2026-11-14-audit-remediation/admin-mobile-final.jpg).
+- Rounds: three production builds; three complete browser runs plus 15 repeated invoice cases. Fixed real schedule/persistence/navigation issues during review, then updated obsolete journey assertions and hidden-streamed-markup locators without weakening business checks.
+- Compared base: `ee955459763f03e535e943eed4896d685f53a3db`; [exact changed paths and verified revision](../uat/reports/assets/2026-11-14-audit-remediation/verified-paths.txt). Conservatively classified auth-impacting/uncertain for post-merge checks; this is not documentation-only.
+- Not checked locally: live Google authentication and real DOKU sandbox processing are the explicitly required post-merge stage. Responsive checks are Chrome emulation, not physical-device UAT.
 
 ## Ship Notes
 
 - Target staging through a feature PR only; no production promotion. Reuse the named audit fixtures and the [DOKU sandbox simulator procedure](../runbooks/payments-gateway.md).
+- Conservatively use the auth-impacting/uncertain verification route: the diff adds guardian-scoped browser persistence and extends a protected guardian endpoint, although login/session/role guards are unchanged. Apply `needs-staging-verify` before merge; remove it only after Google-authenticated admin, teacher and parent checks pass.
+- Deployed checklist: actual long report at 320/390 px and desktop, PDF/unpublished sibling/admin preview; durable unresolved invoice plus unchanged-label Unicode link retry and sandbox settlement; Gate availability/session and parent weekend readback; journal child/date/audience handoff; admin dashboard/counts/billing/search return; sampled role-denied entry and leave-feedback remeasurement. Keep automated-only gateway error/expiry/race coverage distinct from live observations.
 - Expected migrations/env vars: none. Roll back by reverting the feature PR through a new PR; keep financial/audit fixture history.

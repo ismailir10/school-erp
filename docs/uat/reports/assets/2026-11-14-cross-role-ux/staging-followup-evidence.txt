@@ -1,0 +1,279 @@
+Staging continuation evidence — 2026-11-14
+Recorded from root agent's Chrome observations; independent database readback by setup subagent.
+No screenshot export is claimed by this transcript.
+
+Target: staging alias, deployment dpl_FDT6cx5nBNGEoZXUPYWcYzRk4Ht5, git ee955459763f03e535e943eed4896d685f53a3db, READY.
+Earlier report evidence uses a0afa580e874b776441a818fd28b39446284e144; do not conflate revisions.
+Audit ran approximately 05:14–06:53 UTC / 14:14–15:53 JST; final clock check 06:53:02 UTC.
+Approximately 99 minutes elapsed minus 53m14s synchronous stalls = approximately 46 minutes productive audit work.
+Productive work includes Chrome, fixture/source checks and documentation/review; not 45 uninterrupted browser minutes.
+Earlier pending checkpoints below are historical and superseded by later entries.
+Two synchronous computer-control stalls: approximately 23m26s (viewport control) and 16m27s (native app).
+Native screenshot export was unavailable with the Mac locked; Chrome DOM control subsequently remained usable and testing resumed.
+Approximately 14 minutes productive audit work at that checkpoint; requested 45–60 active minutes not yet achieved.
+These tool waits are excluded from product latency observations.
+
+1. Additive setup, staging project udbivhchbizpxoryejgz, tenant t_annisaa:
+   Student uat20261114_student, UAT 14 Nov — Anak Audit.
+   StudentGuardian uat20261114_guardian -> existing parent cms41ayjp008si5x7le0o5qqb, ACTIVE primary WALI.
+   StudentEnrollment uat20261114_enrollment -> DCARE class cms41afor001ri5x7sbppuagi, ACTIVE.
+   ClassSession uat20261114_session, 2026-11-14 FULL_DAY, teacher/default cms41ahu9002gi5x7rf1kfhtj.
+   Semester cms8mpcr200006yx7pk4m6e4d; ReportCardEntry uat20261114_report; term cms8yxdyl00001ex7qvyxdsvg.
+   Long synthetic report: eight narrative sections, initially DRAFT.
+   Fixture exception: available semester ends 2026-09-11; term 2026-07-20 through 2026-09-11.
+   Saturday session and new pupil's earlier-term report are deliberate test setup, not proof of calendar/assessment aggregation.
+
+2. Admin browser writes:
+   Created INV-2026-0081 / cmwfyfx9q000008l2ddrq97gh for existing Bilal.
+   Lines: SPP 10000 + meal 2000 = total 12000 IDR.
+   Partial cash 3000 IDR, review displayed correct amounts, persisted.
+   Reference UAT-20261114-PARTIAL; payment cmwfygi3d000408l2xetb7m4d.
+   Report fixture published through admin UI; 1369 ms sampled to visible publish confirmation/button state.
+   This is not an isolated API duration or a full page-settled timing.
+   Unsaved report navigation guard appeared; cancelling preserved the edited fields.
+
+3. Parent finance browser journey at 390x844:
+   Correct Bilal invoice showed remaining 9000 IDR, partial payment and receipt affordance.
+   Bayar Rp9.000 -> actual DOKU sandbox checkout -> BCA Virtual Account.
+   Operator-provided DOKU sandbox simulator: Inquiry then Pay Now -> success.
+   DOKU checkout automatically showed success; Kembali ke merchant returned to Talib.
+   Correct invoice Lunas 12000 IDR, separate VA 9000 and CASH 3000 entries.
+   Receipt PDF rendered. Original parent tab independently updated to paid without manual reload.
+   No end-to-end browser settlement duration measured. No real-bank payment made.
+
+4. Independent read-only staging settlement verification:
+   Invoice cmwfyfx9q000008l2ddrq97gh: PAID, totalDue=12000.00, totalPaid=12000.00.
+   paidAt 2026-11-14 05:47:54.547 UTC / 14:47:54.547 JST.
+   Cash payment cmwfygi3d000408l2xetb7m4d: 3000.00, CASH.
+   DOKU payment cmwfzi86c000108l6ingdkfdx: 9000.00, DOKU, VIRTUAL_ACCOUNT_BCA.
+   WebhookEvent cmwfzi7z2000008l6wyk3mw3g, eventId 434f013f-7c1d-4b15-b8a9-ec88f0dab6ab.
+   provider=doku, eventType=doku.SUCCESS, status=PROCESSED, errorMessage=null.
+   createdAt 05:47:54.206 UTC; processedAt 05:47:54.572 UTC.
+   Processing timestamps support event processing only, not user-perceived latency.
+
+5. Parent long Rapor browser observation at 390x844:
+   Selected UAT 14 Nov — Anak Audit, opened Buka rapor.
+   330 ms sampled to reader shell appearing; not a data-settled/render-complete metric.
+   Dialog height 4320.96875 px, top -3476.96875 px.
+   Title y=-3451.96875 px; close control y=-3463.96875 px.
+   clientHeight=4320; scrollHeight=4320; measured dialog has no internal scroll range.
+   Screenshot shown in session visibly contained final section 8, attendance, hafalan, PDF control.
+   Title/start and close were outside viewport.
+   No current-staging scroll attempt, 320-width test, keyboard dismissal, reopen or Rapor PDF check at this checkpoint.
+
+6. Evidence boundary:
+   Current staging confirms long-reader layout defect and normal sandbox settlement success.
+   Pending-payment hard-reload bug remains earlier local reproduction + current source hypothesis, not retested here.
+   Earlier journal Saturday date, Gate/no-session, attendance handoffs and false-zero counts not retested this continuation.
+   Teacher fixture session prepared but not exercised; no staging teacher attendance writes claimed.
+   No public admissions/signature/enrollment, leave, payroll, tenant-negative, offline or full mobile sweep completed here.
+   Retain fixtures for next-session reproduction; no cleanup executed in this continuation.
+
+7. Chrome continuation after the native-app stall (supersedes specific pending checks above):
+   Chrome DOM remained operational; native export still reported locked Mac, even after operator unlocked.
+   Do not describe all browser testing as blocked by the native lock.
+   Rapor Control+Home and PageUp recovery attempts left dialog y=-3476.97, scrollTop=0, title y=-3451.97.
+   Beginning still not visible. Escape closed reader successfully. Touch-close and 320-width not checked here.
+
+8. Parent journal create/edit and home habit:
+   Hard reload refreshed newly seeded child list; setup cache transition, not classified as defect.
+   Parent selected UAT 14 Nov — Anak Audit; Saturday 2026-11-14 composer had no child name.
+   Tulis catatan defaulted to Monday 2026-11-09.
+   Saved unique UAT-20261114-PARENT note: 980 ms to dialog close only, not data-settled timing.
+   Thread showed 9 Nov and 13.10. Editing showed disabled date 9 Nov; edited body saved.
+   Di rumah activity Membantu orang tua, Friday 2026-11-13, checked and persisted after reload.
+
+9. Teacher journal readback/reply:
+   Actual Google sign-in as ismail10rabbanii@gmail.com.
+   Home Balasan wali: Anak Audit, DCARE, 1 baru.
+   Deep link opened correct child's edited parent note under Monday 9 Nov, role badge Orang Tua.
+   Teacher Di rumah week showed Friday 13 Nov Membantu orang tua filled and read-only.
+   Teacher composer title Tambah catatan untuk UAT 14 Nov — Anak Audit names child; defaults Friday 13 Nov.
+   Saved unique UAT-20261114-TEACHER reply: 875 ms to dialog close, not settled readback.
+   Parent-side reply readback pending at this checkpoint. No note delete/error/sibling isolation yet claimed.
+   Current major finding: inconsistent non-school-day default and missing child context in parent composer.
+   Successful delivery, edited-body readback, unread reply link and habit persistence are positive evidence.
+
+10. Teacher attendance trial and guard:
+    Home 0/11; fixture session displayed all 11 Hadir defaults, green.
+    Changed only Anak Audit to Sakit -> Belum disimpan · ketuk Simpan absensi; 1 perubahan.
+    Navigation guard appeared. Discarded; no save for this trial Sakit change.
+    Default green rows are not evidence all 11 attendance records exist.
+
+11. Actual no-session Gate rejection:
+    Existing Bilal / TK A 1 had enabled Masuk action on Saturday.
+    Click -> HTTP409 body Belum ada sesi kelas hari ini.
+    Network receiveHeadersEnd 782.525 ms; not complete response-body or click-to-visible timing.
+    No toast captured; do not assert absence of error feedback.
+    Major: UI offers unavailable action. Backend rejection itself is expected protection.
+
+12. Scheduled audit Gate/session handoff:
+    Anak Audit seeded Saturday session: arrival state saved/visible after 559 ms; timestamp13.14 WIB.
+    Pulang mode -> Ubah penjemput -> other name UAT Penjemput Audit -> Simpan immediately recorded departure.
+    Session showed arrival/departure13.14, relationshipOTHER, named picker.
+    Changed picker name to UAT Penjemput Audit — revisi sesi.
+    Saved1perubahan -> Semua perubahan tersimpan after533ms; reload persisted revised name.
+    Class attendance Hadir1,10belum; only Anak Audit checked.
+    Source independently confirms changed-row session saves. No claim other green defaults were persisted.
+    Candidate copy concern: Simpan in pickup picker performs departure; not separately severity-graded.
+    Parent/admin attendance readback pending at this checkpoint.
+
+13. Leave submission/admin rejection:
+    Teacher annual leave for2026-11-16,1day, UAT-20261114-LEAVE submitted.
+    Pending balance11/12,1menunggu. Sheet320x740: x0,y69,width320,height671; no overflow.
+    Date.now submit-to-composer-hidden1521ms; next snapshot showed Pengajuan cuti terkirim.
+    Provisional timing-major single feedback sample (>1500ms); not API duration or settled confirmation latency.
+    Admin Dasbor count2 -> queue -> correct Ismail request/date/reason.
+    Tolak with UAT-20261114-REJECT;1021ms to dialog hidden. Teacher outcome readback pending.
+    Global minor feedback sample; job-specific <1s reject-to-status-change metric was not timed.
+    Leave ID cmwg0k59v000008l5qn95e6y6.
+
+14. Admin attendance readback/correction/export:
+    Daily list one Anak Audit Hadir row.
+    Timpa kept Hadir and added audit note.
+    Monthly search UAT -> Hadir1,Sakit0,Izin0,Alpa0,total1.
+    Ekspor CSV clicked; download wait tool hung800.9s despite10-second timeout.
+    Export inconclusive; harness stall is not application failure or application latency.
+    Total known stalls now approximately23m26s+16m27s+13m21s=53m14s.
+    Interim checkpoint approximately80min elapsed,27min productive audit work; root continued Chrome without native/download helpers.
+
+15. Independent generated-ID ledger:
+    Parent note cmwg0bgez000107lbcw0r475h,studentuat20261114_student,date2026-11-09,GUARDIAN,edited text.
+    Teacher reply cmwg0dt6f000208lahg2f2loc,same student,date2026-11-13,TEACHER.
+    HOME entry cmwg0cd43000607lbf0hu6cs0,indicatorcms41ah8r002di5x7z5nmtkcr,date2026-11-13,checkedtrue.
+    Exactly one synthetic-session attendance cmwg0g7x6004d08la1m7lelvw,AnakAudit,PRESENT.
+    CheckIn06:14:20.439UTC;CheckOut06:14:42.206UTC;OTHER;UAT Penjemput Audit — revisi sesi.
+    No Bilal attendance on2026-11-14 after409. No other student rows under synthetic session.
+    Additional unresolved-return fixture prepared: uat20261114_pending_invoice / UAT-20261114-PENDING;
+    lineuat20261114_pending_line;AnakAudit;5000IDR;SENT,totalPaid0,gatewayURL/sessionnull initially.
+    No actual settlement implied by fixture preparation; later synthetic-return test must remain distinct from real sandbox checkout.
+
+16. Current-staging pending-state reload reproduction:
+    Invoice uat20261114_pending_invoice, UAT-20261114-PENDING, Anak Audit, unpaid5000IDR.
+    QA synthetic callback URL:
+    /parent/invoices?child=uat20261114_student&invoice=uat20261114_pending_invoice&paymentStatus=paid
+    Correct sheet auto-opened;5000Belumdibayar;noBayar.
+    Footer: Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.
+    Muat ulang status visible; callback params stripped while child parameter preserved.
+    Hard reload then reopen same invoice: unchanged5000Belumdibayar,pendingmessagegone,Bayar Rp5000returned.
+    No-link contact alert visible. Before/after screenshots displayed inline; no exportedPNG asserted.
+    No actual payment on this fixture. Not delayed real webhook, authentic paid return, or duplicate charge.
+    Promote pending-state loss to current staging major; normal INV0081 DOKU success remains positive.
+
+17. Parent teacher-reply readback:
+    Parent Home showed reply excerpt.
+    Attendance Catatan sekolah showed Friday13Nov reply.
+    Journal Catatan1baru -> Ustadzah reply13Nov13.12 plus ownedited noteMonday9Nov.
+    Both-direction journal delivery now passed for audit child.
+
+18. Saturday parent attendance boundary:
+    Parent Home Anak Audit Belumdicatat despite persistedSaturdayattendance.
+    WeeklypageMonFri9–13 empty, expected since recordSaturday14 is outside visible interval.
+    Source queriesMonFri only then looks upSaturdaytoday; explains Home omission, not failedpersistence.
+    Candidate weekend/daycare major is fixture-conditioned: syntheticSaturday outside stale semester.
+    Normal weekday handoff and real supportedweekendcalendar remain separately unverified.
+
+19. Long Rapor 320x740 recheck:
+    Dialog height5096.96875,top-4356.96875,titley-4331.96875.
+    clientHeight5096,scrollHeight5096.
+    CDP Input.synthesizeScrollGesture: x160,y300,yDistance500,gestureSourceType touch,speed800.
+    Dialog/title positions unchanged;scrollTop0. Touch recovery did not expose report beginning.
+    Blocker now confirmed at390x844 and320x740. Reopen/RaporPDF still separate follow-ups.
+
+20. Unresolved invoice preparation update:
+    Setup agent normalized uat20261114_pending_line label to SPP Bulanan after DOKU rejected em-dash fixture label.
+    Retry pending at this checkpoint. Do not classify this preparation event as a diagnosed product defect without further evidence.
+
+21. Rapor reopen/PDF:
+    Reopened reader before320width test; same bad initial position reproduced.
+    Unduh PDF opened tab rapor-uat-14-nov-anak-audit-triwulan-1.pdf.
+    Visible first page: correct synthetic child,DCARE,Triwulan1,opening narrative,NilaiAgama,JatiDiri,STEAM.
+    PDFviewer horizontaloverflow at390px. Fullpages/content not verified; not a separate graded app-layout defect.
+    Download/first-page check passed, distinct from complete mobile PDF readability.
+
+22. Unpaid checkout retry/merchant return:
+    After controlled fixture label normalization, BayarRp5000 created link and navigated SAME TAB to DOKU.
+    Checkout invoiceuat20261114_pending_invoice,IDR5000 correct.
+    No method selected, no payment made.
+    Kembali ke Merchant ultimately -> /parent/invoices?child=uat20261114_student.
+    Same invoice opened,5000unpaid,generatedlinkpresent,no pendingpaidmessage.
+    Transient defaultBilal shell settled to correctchild; not classified as defect.
+    Pass for retry after fixture adjustment and unpaid return/context, not automatic error repair or refund/cancellation transaction.
+
+23. Teacher leave decision readback completed:
+    Fresh teacher Google sign-in -> Home Cuti tahunan ditolak,Nov16,exactUAT-20261114-REJECTreason.
+    Lihat -> Cuti dan izin sheet at320px.
+    Annual12sisa dari12; sick14sisa dari14; requestDitolak,Nov16,1hari,exactreason and Catatanadmin.
+    Previously annual11with1pending; now12and no pending deduction shown.
+    Full teacher submission -> admin rejection -> teacher outcome/balance handoff passed.
+    Approval, cancellation and validation/error paths remain separate untested cases.
+
+24. Friday teacher -> parent attendance handoff:
+    Teacher 2026-11-13 classattendance initially0/11; selected ONLY AnakAudit Hadir.
+    Reload1Hadir,10belum.
+    Parent freshlogin /parent/attendance?child=uat20261114_student showed Nov9–13 FridayHadir,MonThuBelumdicatat.
+    Teacher reply still visible.320x740 pagewidth320,tablex24,width272,no page horizontaloverflow.
+    DBrowcmwg1jimx000008l86wk2v18n,PRESENT,existingFriday sessionseede2e1107_cs_2026-11-13,noarrivalpickup.
+    Synthetic backdated beforeNov14enrollment; no eligibility-validation claim.
+    Include row in cleanup; do not delete existingFriday session.
+
+25. Teacher admin-route smoke:
+    Direct /admin/invoices -> /teacher, normalteacherHome,noadmincontent.
+    Pass for this route only; not exhaustive role/tenant boundary coverage.
+
+26. Parent UI boundary checks:
+    /parent/attendance?child=cmsa763at000004jre7miwdyc (unlinkedAlia)
+    -> Anak yang dipilih tidak ditemukan di akun Anda. Menampilkan Bilal.
+    Bilal content shown; noAlia content. Safe UI fallback observed, notHTTP403/API proof.
+    Parent /admin/invoices -> /parent. Broader authorization remains outside sampled checks.
+
+27. Report sibling isolation:
+    Switch Hafizh -> correctKB1,Rapor belumterbit,noBuka action.
+    Switch back AnakAudit -> published report available.
+
+28. Report computed mobile/Desktop reopen state:
+    Mobile320: data-sidebottom,computedheight5096.97px,maxHeightnone,overflowYauto,positionfixed.
+    Winning CSS rule not captured; specificity explanation remains hypothesis.
+    Desktop1280x900 whileopen: sidepanelx608,width672,y0,height900,scrollHeight2742,titley32.
+    PDF control focused;End -> scrollTop1842.
+    Escape -> Buka rapor -> scrollTop1842,titley-1810,PDFactive; freshsnapshot retained.
+    Desktop scroll works; candidate reopen-position issue, not desktop unscrollability.
+    AutofocusPDF vs scrollrestoration cause not isolated. Mobile blocker unchanged.
+
+29. Desktop fresh-load/recovery refinement:
+    Hardreload thenBuka also scrollTop1842,titley-1810,activeTextUnduhPDF.
+    Upwardmouse scroll2200px atx1000,y450,speed1600 -> scrollTop0,titley32.
+    Confirmed minor: fresh opening starts atbottom but desktop manuallyrecoverable.
+    Focus cause remains candidate; do not claim provenCSS/focusrootcause.
+
+30. Journal sibling isolation/draft-discard checks at390px:
+    AnakAudit Catatan showed bothUATnotes.
+    SwitchHafizh -> correctKB1,Belum ada catatan,noauditnote leakage.
+    Hafizh Tulis catatan still nochildname,defaultMonday9; existingmajor reproduced.
+    Typed UAT-20261114-DRAFT-CANCEL — tidak disimpan. but did not save.
+    Batal -> Buang catatan?; Lanjut menulis and Buang choices.
+    Lanjut menulis preserveddrafttext. RepeatBatal -> Buang removeddraft.
+    Reopenblank,0/2000,Simpandisabled. No noteposted; no fixture row added by this test.
+
+31. Documentation and audit-time accounting:
+    Browser testing phase ended around 06:50 UTC / 15:50 JST; temporary viewport overrides restored.
+    Productive audit estimates include browser testing, fixture preparation, source inspection and documentation/review.
+    They are not uninterrupted hands-on browser time; known tool stalls excluded (approximately 53m14s total).
+    Final audit end time pending at this checkpoint.
+    Root ran bash scripts/audit-docs.sh: exit 0; 10 OK, one existing ADR-age warning, zero failures.
+    No application source changed for audit; build/unit tests not run for documentation-only deliverables.
+
+32. Fee-label validation candidate and final deployment readback:
+    Observed earlier DOKU400validation for synthetic em-dash line label; ASCII SPP Bulanan retry succeeded.
+    Source ee955: adminfees free Label; create/updateFeeComponentSchema trim/min1/max120 permitsUnicode.
+    Manualinvoice copies componentlabel -> labelSnapshot;sessionLineItems forwards DOKU order.line_items.name.
+    UI-created em-dash fee was NOT tested. Candidate only, not confirmedgeneralUnicode/gatewaybug.
+    Future isolatedUItest: SPP — UAT fee -> manualinvoice -> parentBayar; compareASCIIcontrol and captureexact400body.
+    Pending fixture latest state SENT,totalPaid0,paymentlinkpresent.
+    Staging alias rechecked06:51:41UTC /15:51:41JST: sameee955459,dpl_FDT6cx5nBNGEoZXUPYWcYzRk4Ht5,READY.
+
+33. Final document handoff:
+    Final clock check 2026-11-14 06:53:02 UTC / 15:53:02 JST; no more browser checks.
+    Full fixture ledger persisted as staging-fixtures.txt beside this transcript and linked in report.
+    Report retains all five original cycles; current continuation has 17 uniquely named findings/checks.
+    No application fixes committed; report and evidence remain untracked deliverables for separate implementation.
