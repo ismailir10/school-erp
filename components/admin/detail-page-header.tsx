@@ -42,7 +42,8 @@ export function DetailPageHeader({
   backHref: string;
   backLabel?: string;
   title: string;
-  description?: string;
+  /** Text, or inline content such as an `EntityLink` ("names are doors"). */
+  description?: ReactNode;
   badge?: ReactNode;
   /** Legacy escape hatch — an arbitrary ReactNode. Prefer `primaryActions` / `menuActions`. */
   actions?: ReactNode;

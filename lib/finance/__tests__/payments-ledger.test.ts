@@ -68,7 +68,7 @@ describe("getPaymentsLedger", () => {
     amount,
     method,
     reference,
-    invoice: { id: `inv-${id}`, invoiceNumber, student: { name: studentName } },
+    invoice: { id: `inv-${id}`, invoiceNumber, student: { id: `stu-${id}`, name: studentName } },
   });
 
   it("labels a gateway payment with its stored channel, and an older one with the method", async () => {
@@ -176,6 +176,7 @@ describe("buildLedgerCsv", () => {
     reference: null,
     invoiceNumber: "INV-1",
     studentName: "Aisyah",
+    studentId: "stu-1",
     ...over,
   });
 

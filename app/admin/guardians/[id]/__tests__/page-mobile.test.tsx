@@ -20,7 +20,7 @@ describe("guardian page — phone defaults", () => {
     render(<GuardianDetailPage params={fulfilledParams({ id: "p1" })} />);
     await screen.findByRole("heading", { name: "Ibu Siti Aminah" });
 
-    expect(screen.getByText("Ahmad Fajar")).toBeInTheDocument();
+    expect(screen.getAllByText("Ahmad Fajar").length).toBeGreaterThan(0);
     expect(screen.getByText("INV-2026-0001")).toBeInTheDocument();
     expect(screen.queryByText("siti@example.test")).not.toBeInTheDocument();
     expect(within(document.getElementById("profile")!).getByText("Lengkap")).toBeInTheDocument();

@@ -49,9 +49,10 @@ const baseInvoice = {
   reminderTemplate: null as string | null,
   remindCount: 0,
   student: {
+    id: "stu-1",
     name: "Ahmad",
     nickname: null,
-    guardians: [] as Array<{ parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null } }>,
+    guardians: [] as Array<{ parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null } }>,
   },
   lines: [],
   payments: [] as Array<Record<string, unknown>>,
@@ -522,10 +523,18 @@ describe("InvoiceDetailPage — WhatsApp reminder to the wali", () => {
     vi.clearAllMocks();
   });
 
-  const withGuardian = (parent: { name: string; phone: string | null; email: string | null; whatsapp: string | null }) => ({
-    student: { name: "Ahmad", nickname: null, guardians: [{ parent }] },
+  const withGuardian = (parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null }) => ({
+    student: { id: "stu-1", name: "Ahmad", nickname: null, guardians: [{ parent }] },
   });
-  const ibu = { name: "Siti", phone: null, email: null, whatsapp: "0812-3456-7890" };
+  const ibu = { id: "par-1", name: "Siti", phone: null, email: null, whatsapp: "0812-3456-7890" };
+
+  it("names are doors: the student in the header and the wali under Kontak Wali link to their own pages", async () => {
+    fixture({ invoice: { status: "OVERDUE", ...withGuardian(ibu) } });
+    render(<InvoiceDetailPage />);
+
+    expect(await screen.findByRole("link", { name: "Ahmad" })).toHaveAttribute("href", "/admin/students/stu-1");
+    expect(screen.getByRole("link", { name: "Siti" })).toHaveAttribute("href", "/admin/guardians/par-1");
+  });
 
   it("writes the reminder in the school's own template when it has one", async () => {
     fixture({ invoice: { status: "OVERDUE", reminderTemplate: "Pengingat {nomor} untuk {siswa}: {tautan}", ...withGuardian(ibu) } });

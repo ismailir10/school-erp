@@ -40,6 +40,7 @@ const invoice = {
   totalPaid: 0,
   status: "SENT",
   createdAt: "2026-09-01T00:00:00.000Z",
+  studentId: "stu1",
   student: { name: "Aisyah Putri", nickname: null },
   _count: { payments: 0 },
 };
@@ -132,7 +133,7 @@ describe("InvoicesClient — name is the link (T7)", () => {
     vi.stubGlobal("fetch", stubFetch());
   });
 
-  it("renders the student name as a link to the invoice detail page and drops the separate Lihat button", async () => {
+  it("renders the invoice number as the link to the detail page, the student name as a link to the student, and drops the separate Lihat button", async () => {
     render(
       <InvoicesClient
         gatewayId="xendit"
@@ -144,8 +145,11 @@ describe("InvoicesClient — name is the link (T7)", () => {
       expect(screen.queryByText("Belum ada tagihan")).not.toBeInTheDocument();
     });
 
-    const nameLink = await screen.findByRole("link", { name: /Aisyah Putri/ });
-    expect(nameLink).toHaveAttribute("href", "/admin/invoices/inv1");
+    const numberLink = await screen.findByRole("link", { name: "INV-0001" });
+    expect(numberLink).toHaveAttribute("href", "/admin/invoices/inv1");
+    const studentLink = screen.getByRole("link", { name: "Aisyah Putri" });
+    expect(studentLink).toHaveAttribute("href", "/admin/students/stu1");
+    expect(numberLink.contains(studentLink)).toBe(false);
     expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
   });
 });

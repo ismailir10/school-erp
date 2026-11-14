@@ -68,7 +68,7 @@ describe("guardian dossier — section anchors", () => {
     const user = await renderPage();
 
     // Content of the three open sections is visible without a click.
-    expect(screen.getByText("Ahmad Fajar")).toBeInTheDocument();
+    expect(screen.getAllByText("Ahmad Fajar").length).toBeGreaterThan(0);
     expect(screen.getByText("INV-2026-0001")).toBeInTheDocument();
     expect(screen.getByText("siti@example.test")).toBeInTheDocument();
 
