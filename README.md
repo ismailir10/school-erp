@@ -62,6 +62,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
 
 Role homes apply "Don't Make Me Think": teachers see their class (a guru sentra also sees the class visiting her sentra today, tagged with the sentra) and unfinished work (class attendance is exception-first: pick S/I/A for the few, then one tap marks the rest Hadir), guardians see family actions for clearly identified children, and admins get a Dasbor whose first screen is the work (queue counts, top urgent items, today's staff attendance) with the full queue at `/admin/work-queue`.
+Guardian list summary cards load from one aggregate endpoint, alongside the paginated list; unavailable counts stay unknown rather than showing zero.
 Below it, Analitik charts student attendance, buku penghubung, billing vs collection and piutang aging. Billing follows each class's own program, so the Billing Run wizard (picker and review rows), Ubah Kelas and Tarif per Program name the program a class bills from and flag a mislinked class; a child in school + daycare is billed one invoice, at the Harga paket from Tarif per Program when one is set. The sidebar holds daily work only; setup lives in `/admin/settings`. Shared shadcn components keep navigation and save feedback consistent; mobile portals keep five navigation slots.
 
 ---

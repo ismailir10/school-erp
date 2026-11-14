@@ -305,7 +305,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 239 |
+| `app/api/**/route.ts` | 240 |
 | `app/admin` pages | 48 |
 | `app/teacher` pages | 15 |
 | `app/parent` pages | 8 |

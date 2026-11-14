@@ -30,10 +30,10 @@ const guardian = {
 function stubFetch() {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
-    if (url.includes("/api/guardians?pageSize=1")) {
+    if (url === "/api/guardians/stats") {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ capabilities: { canCreate: true, canEdit: true }, data: [], pagination: { page: 1, pageSize: 1, total: 1, totalPages: 1 } }),
+        json: async () => ({ total: 12, active: 9, inactive: 3 }),
       } as Response);
     }
     if (url.includes("/api/guardians?")) {
@@ -85,10 +85,10 @@ describe("GuardiansPage — Edit Wali dialog (RHF)", () => {
   function stubFetchWithParent() {
     return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("/api/guardians?pageSize=1")) {
+      if (url === "/api/guardians/stats") {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ capabilities: { canCreate: true, canEdit: true }, data: [], pagination: { page: 1, pageSize: 1, total: 1, totalPages: 1 } }),
+          json: async () => ({ total: 12, active: 9, inactive: 3 }),
         } as Response);
       }
       if (url.includes("/api/guardians?")) {
@@ -222,6 +222,86 @@ describe("GuardiansPage — Edit Wali dialog (RHF)", () => {
     const body = JSON.parse(putInit.body as string);
     expect(body.phone).toBe("089999999999");
     expect(body.name).toBe("Ibu Fatimah");
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === "/api/guardians/stats")).toHaveLength(2));
+  });
+});
+
+describe("Guardian summary requests", () => {
+  const tile = (label: string) => screen.getByText(label, { selector: "p" }).closest("div.relative")!;
+
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear();
+    vi.stubGlobal("fetch", stubFetch());
+  });
+
+  it("loads one list and one aggregate request and renders all three totals", async () => {
+    render(<GuardiansPage />);
+    await screen.findByRole("link", { name: "Ibu Fatimah" });
+    await waitFor(() => expect(tile("Total Wali")).toHaveTextContent("12"));
+    expect(tile("Aktif")).toHaveTextContent("9");
+    expect(tile("Tidak Aktif")).toHaveTextContent("3");
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => url).sort()).toEqual([
+      "/api/guardians/stats",
+      "/api/guardians?page=1&pageSize=20&sortBy=name&sortOrder=asc",
+    ].sort());
+  });
+
+  it("renders zero totals for a successfully loaded empty tenant", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => Promise.resolve({
+      ok: true,
+      json: async () => String(input) === "/api/guardians/stats"
+        ? { total: 0, active: 0, inactive: 0 }
+        : { capabilities: { canEdit: true }, data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } },
+    } as Response)));
+    render(<GuardiansPage />);
+    await screen.findByText("Belum ada wali terdaftar");
+    for (const label of ["Total Wali", "Aktif", "Tidak Aktif"]) {
+      expect(tile(label)).toHaveTextContent("0");
+      expect(tile(label)).not.toHaveTextContent("—");
+    }
+  });
+
+  it.each(["http", "network"])("shows unknown totals and existing feedback on a %s failure", async (failure) => {
+    const fallback = stubFetch();
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input) === "/api/guardians/stats") {
+        return failure === "network" ? Promise.reject(new Error("offline"))
+          : Promise.resolve({ ok: false, json: async () => ({ error: "Unavailable" }) } as Response);
+      }
+      return fallback(input);
+    }));
+    render(<GuardiansPage />);
+    await screen.findByRole("link", { name: "Ibu Fatimah" });
+    expect(tile("Total Wali")).toHaveTextContent("—");
+    expect(tile("Aktif")).toHaveTextContent("—");
+    expect(tile("Tidak Aktif")).toHaveTextContent("—");
+    expect(toast.error).toHaveBeenCalledWith("Data belum bisa dimuat. Coba lagi sebentar ya.");
+  });
+
+  it("refreshes aggregate totals after changing a guardian's status", async () => {
+    const user = userEvent.setup();
+    let deactivated = false;
+    const fallback = stubFetch();
+    const fetchSpy = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/parents/g1" && init?.method === "PATCH") {
+        deactivated = true;
+        return Promise.resolve({ ok: true } as Response);
+      }
+      if (String(input) === "/api/guardians/stats") {
+        return Promise.resolve({ ok: true, json: async () => ({ total: 12, active: deactivated ? 8 : 9, inactive: deactivated ? 4 : 3 }) } as Response);
+      }
+      return fallback(input);
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    render(<GuardiansPage />);
+    await user.click(await screen.findByRole("button", { name: "Aksi untuk Ibu Fatimah" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Nonaktifkan" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(within(confirm).getByRole("button", { name: "Nonaktifkan" }));
+    await waitFor(() => expect(tile("Aktif")).toHaveTextContent("8"));
+    expect(tile("Tidak Aktif")).toHaveTextContent("4");
+    expect(fetchSpy.mock.calls.filter(([url]) => url === "/api/guardians/stats")).toHaveLength(2);
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("pageSize=1&"))).toBe(false);
   });
 });
 

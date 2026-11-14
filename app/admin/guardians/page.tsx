@@ -179,7 +179,7 @@ export default function GuardiansPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [stats, setStats] = useState<{ total: number; active: number; inactive: number } | null>(null);
 
   const editRequest = useRef(0);
   const [editLoad, setEditLoad] = useState<"loading" | "ready" | "error">("loading");
@@ -193,18 +193,15 @@ export default function GuardiansPage() {
 
   // Stats — re-fetched after any mutation (edit / status toggle) so the
   // cards don't go stale.
-  const fetchStats = useCallback(() => {
-    return Promise.all([
-      fetch("/api/guardians?pageSize=1").then(r => r.json()),
-      fetch("/api/guardians?pageSize=1&status=ACTIVE").then(r => r.json()),
-      fetch("/api/guardians?pageSize=1&status=INACTIVE").then(r => r.json()),
-    ]).then(([all, active, inactive]) => {
-      setStats({
-        total: all.pagination?.total ?? 0,
-        active: active.pagination?.total ?? 0,
-        inactive: inactive.pagination?.total ?? 0,
-      });
-    }).catch(() => toast.error(MESSAGES.loadFailed("Data")));
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/guardians/stats");
+      if (!res.ok) throw new Error("Guardian stats unavailable");
+      setStats(await res.json());
+    } catch {
+      setStats(null);
+      toast.error(MESSAGES.loadFailed("Data"));
+    }
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -397,11 +394,11 @@ export default function GuardiansPage() {
 
       <StatsCardsRow cols={3}>
         <StatTile size="lg" mono
-          label="Total Wali" value={stats.total} icon={Users} tone="default" />
+          label="Total Wali" value={stats?.total ?? "—"} icon={Users} tone="default" />
         <StatTile size="lg" mono
-          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
+          label="Aktif" value={stats?.active ?? "—"} icon={UserCheck} tone="positive" />
         <StatTile size="lg" mono
-          label="Tidak Aktif" value={stats.inactive} icon={UserX} tone="warning" />
+          label="Tidak Aktif" value={stats?.inactive ?? "—"} icon={UserX} tone="warning" />
       </StatsCardsRow>
 
       <DataTableToolbar
