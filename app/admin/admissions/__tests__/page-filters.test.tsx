@@ -1,5 +1,5 @@
 /**
- * Pendaftaran filters: Tahap select, Belum bayar toggle and search all live in the URL
+ * Pendaftaran filters: Tahap select, the Belum bayar card and search all live in the URL
  * (`?tahap=`, `?payment=unpaid`, `?search=`, `?page=`), so a dashboard link, a reload
  * and the back button land on the same view, and each change reads the list again with
  * the matching params.
@@ -21,6 +21,13 @@ beforeEach(() => {
 const lastRead = (f: ReturnType<typeof serveList>) => listReads(f).at(-1)!;
 
 describe("AdmissionsPage — filters", () => {
+  it("has no separate Belum bayar toggle in the toolbar (the card is the filter)", async () => {
+    serveList([leadRow()]);
+    render(<AdmissionsPage />);
+    await screen.findByText("Aisyah");
+    expect(screen.getAllByRole("button", { name: /^Belum bayar/ })).toHaveLength(1);
+  });
+
   it("offers Tahap with every stage and no Status filter", async () => {
     serveList([leadRow()]);
     const user = userEvent.setup();
@@ -48,21 +55,21 @@ describe("AdmissionsPage — filters", () => {
     expect(screen.getByRole("combobox", { name: "Filter Tahap" })).toHaveTextContent("Formulir masuk");
   });
 
-  it("the Belum bayar toggle writes ?payment=unpaid and reads the list with it", async () => {
+  it("the Belum bayar card writes ?payment=unpaid and reads the list with it", async () => {
     const fetchMock = serveList([leadRow()]);
     const user = userEvent.setup();
     render(<AdmissionsPage />);
     await screen.findByText("Aisyah");
 
-    const toggle = screen.getByRole("button", { name: "Belum bayar" });
+    const toggle = screen.getByRole("button", { name: /^Belum bayar: / });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
 
     await waitFor(() => expect(lastRead(fetchMock).get("payment")).toBe("unpaid"));
     expect(navStore.params().get("payment")).toBe("unpaid");
-    expect(screen.getByRole("button", { name: "Belum bayar" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Belum bayar: / })).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(screen.getByRole("button", { name: "Belum bayar" }));
+    await user.click(screen.getByRole("button", { name: /^Belum bayar: / }));
     await waitFor(() => expect(lastRead(fetchMock).has("payment")).toBe(false));
     expect(navStore.params().has("payment")).toBe(false);
   });
@@ -79,7 +86,6 @@ describe("AdmissionsPage — filters", () => {
     expect(first.get("search")).toBe("dewi");
     expect(first.get("page")).toBe("2");
     expect(screen.getByRole("combobox", { name: "Filter Tahap" })).toHaveTextContent("Formulir dikirim");
-    expect(screen.getByRole("button", { name: "Belum bayar" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("textbox", { name: /Cari nama anak/ })).toHaveValue("dewi");
   });
 
@@ -117,12 +123,12 @@ describe("AdmissionsPage — filters", () => {
     render(<AdmissionsPage />);
     await screen.findByText("Aisyah");
 
-    await user.click(screen.getByRole("button", { name: "Belum bayar" }));
+    await user.click(screen.getByRole("button", { name: /^Belum bayar: / }));
     await waitFor(() => expect(lastRead(fetchMock).get("payment")).toBe("unpaid"));
     expect(lastRead(fetchMock).get("page")).toBe("1");
   });
 
-  it("Atur Ulang clears the Tahap, the toggle and the search together", async () => {
+  it("Atur Ulang clears the Tahap, the unpaid card and the search together", async () => {
     navStore.reset("tahap=BARU&payment=unpaid&search=dewi");
     const fetchMock = serveList([leadRow()]);
     const user = userEvent.setup();
@@ -168,11 +174,11 @@ describe("AdmissionsPage — stat cards are filters", () => {
     await waitFor(() => expect(lastRead(fetchMock).get("tahap")).toBe("FORMULIR_MASUK"));
     expect(screen.getByRole("button", { name: "Baru: 5" })).toHaveAttribute("aria-pressed", "false");
 
-    // Belum bayar = the same unpaid filter as the toggle, and its count is the one that matches.
+    // Belum bayar = the unpaid filter, and its count is the one that matches.
     await user.click(screen.getByRole("button", { name: "Belum bayar: 4" }));
     await waitFor(() => expect(lastRead(fetchMock).get("payment")).toBe("unpaid"));
     expect(lastRead(fetchMock).has("tahap")).toBe(false);
-    expect(screen.getByRole("button", { name: "Belum bayar" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Belum bayar: / })).toHaveAttribute("aria-pressed", "true");
 
     // Pressing the active card, or Total, shows everything again.
     await user.click(screen.getByRole("button", { name: "Belum bayar: 4" }));

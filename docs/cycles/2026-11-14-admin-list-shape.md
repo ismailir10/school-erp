@@ -111,7 +111,7 @@ None: no schema, dependency, auth or production change.
 
 - [x] T1 Shared pieces: stat-filter component (from Admissions), page header accepts several secondaries, empty state
   uses a link-button — accept: unit tests green (deps: none)
-- [ ] T2 List pages: Students, Guardians, Admissions, Invoices stat cards filter + header slots — accept: verify flow 1
+- [x] T2 List pages: Students, Guardians, Admissions, Invoices stat cards filter + header slots — accept: verify flow 1
   (deps: T1)
 - [ ] T3 Headers and one filled button: remaining admin headers on the structured slots, Sentra, student detail,
   staff attendance, academic years — accept: verify flows 2–3 (deps: T1; parallel with T2)
@@ -127,6 +127,12 @@ None: no schema, dependency, auth or production change.
   `components/ui/empty-state.tsx`, `app/admin/admissions/page.tsx` — the Admissions stat filter is now shared; the
   page header takes several outline secondaries that fold into `⋯` on a phone; the empty-state action is a
   link-button instead of a button nested in a link.
+- T2: Students, Guardians, Admissions, Invoices pages (+ their tests, one e2e assertion in
+  `e2e/admin-students-export.spec.ts`) — count cards drive the existing status filter (Siswa: Aktif, Lulus; Wali:
+  Aktif, Tidak Aktif; Tagihan: Draf, Lunas, Lewat tempo, Link gagal), Total clears; the Admissions toolbar toggle is
+  gone. Kept display-only on Tagihan: "Dibayar sebagian" (counted by money owed with a payment, not by status — a
+  partly paid invoice past due is stored as Lewat tempo, so a status filter would show a different number), plus the
+  two money tiles. Headers moved to `primaryAction` / `secondaryAction`.
 
 ## Verification
 

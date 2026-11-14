@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
@@ -166,10 +165,6 @@ export default function AdmissionsPage() {
     updateQuery({ tahap: value === "all" ? null : value, page: null });
   }, [updateQuery]);
 
-  const handleUnpaidChange = useCallback((pressed: boolean) => {
-    updateQuery({ payment: pressed ? PAYMENT_UNPAID : null, page: null });
-  }, [updateQuery]);
-
   const handleResetFilters = useCallback(() => {
     updateQuery({ payment: null, search: null, tahap: null, page: null });
   }, [updateQuery]);
@@ -327,11 +322,12 @@ export default function AdmissionsPage() {
       <PageHeader
         title="Pendaftaran"
         description="Dari pertanyaan pertama sampai jadi siswa."
-        actions={
-          canEdit ? <Button size="sm" onClick={openDialog}>
-            <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
-          </Button> : undefined
-        }
+        primaryAction={{
+          label: "Catat Pertanyaan",
+          icon: <Plus size={14} className="mr-1.5" />,
+          onClick: openDialog,
+          hidden: !canEdit,
+        }}
       />
 
       <StatsCardsRow cols={4}>
@@ -359,17 +355,6 @@ export default function AdmissionsPage() {
             options: TAHAP_FILTER_OPTIONS,
           },
         ]}
-        actions={
-          <Toggle
-            variant="outline"
-            size="lg"
-            pressed={unpaidOnly}
-            onPressedChange={handleUnpaidChange}
-            className="w-full sm:w-auto"
-          >
-            Belum bayar
-          </Toggle>
-        }
       />
 
       {/* Progress of a one-tap send: the button keeps its label, so this is what a screen reader hears. */}

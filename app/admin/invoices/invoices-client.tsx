@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { StatFilter } from "@/components/admin/stat-filter";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
 import { SppPrepayDialog } from "@/components/admin/invoices/spp-prepay-dialog";
@@ -431,6 +432,12 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  // A count card drives the same status filter as the toolbar; pressing the active card (or Total) shows all.
+  const applyStatusCard = useCallback((value: string) => {
+    setStatusFilter((current) => (current === value ? "all" : value));
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
@@ -919,13 +926,25 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
           {statsState === "ready" && (
             <>
               <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
-                <StatTile label="Total tagihan" value={stats.total} icon={Receipt} mono />
-                <StatTile label="Draf" value={stats.draft} icon={Clock} tone="muted" mono />
-                <StatTile label="Lunas" value={stats.paid} icon={CheckCircle} tone="positive" mono />
+                {/* Each count that the status filter can reproduce is a toggle on that filter; "Dibayar sebagian"
+                    counts by money (owing with a payment), not by the PARTIALLY_PAID status, so it stays display-only. */}
+                {([
+                  { label: "Total tagihan", value: stats.total, icon: Receipt, tone: undefined, filter: "all" },
+                  { label: "Draf", value: stats.draft, icon: Clock, tone: "muted" as const, filter: "DRAFT" },
+                  { label: "Lunas", value: stats.paid, icon: CheckCircle, tone: "positive" as const, filter: "PAID" },
+                ]).map((card) => (
+                  <StatFilter key={card.label} label={card.label} value={card.value} pressed={statusFilter === card.filter} onPress={() => applyStatusCard(card.filter)}>
+                    <StatTile label={card.label} value={card.value} icon={card.icon} tone={card.tone} mono />
+                  </StatFilter>
+                ))}
                 <StatTile label="Dibayar sebagian" value={stats.partiallyPaid} icon={CircleDashed} tone="warning" mono />
-                <StatTile label="Lewat tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
+                <StatFilter label="Lewat tempo" value={stats.overdue} pressed={statusFilter === "OVERDUE"} onPress={() => applyStatusCard("OVERDUE")}>
+                  <StatTile label="Lewat tempo" value={stats.overdue} icon={AlertTriangle} tone="critical" mono />
+                </StatFilter>
                 {stats.pendingPaymentLink > 0 && (
-                  <StatTile label="Link gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
+                  <StatFilter label="Link gagal" value={stats.pendingPaymentLink} pressed={statusFilter === "PENDING_PAYMENT_LINK"} onPress={() => applyStatusCard("PENDING_PAYMENT_LINK")}>
+                    <StatTile label="Link gagal" value={stats.pendingPaymentLink} icon={LinkIcon} tone="warning" mono />
+                  </StatFilter>
                 )}
               </StatsCardsRow>
               <StatsCardsRow cols={2}>

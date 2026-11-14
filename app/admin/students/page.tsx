@@ -22,6 +22,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { StatFilter } from "@/components/admin/stat-filter";
 import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -871,27 +872,31 @@ export default function StudentsPage() {
       <PageHeader
         title="Siswa"
         description={search.trim() !== "" || status !== "all" ? `${pagination.total} siswa cocok` : `${pagination.total} siswa terdaftar`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
-              <Download size={14} className="mr-1.5" /> Unduh Data
-            </Button>
-            {capabilities.canCreate && <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus size={14} className="mr-1.5" /> Tambah Siswa
-            </Button>}
-          </div>
-        }
+        primaryAction={{
+          label: "Tambah Siswa",
+          icon: <Plus size={14} className="mr-1.5" />,
+          onClick: () => setCreateOpen(true),
+          hidden: !capabilities.canCreate,
+        }}
+        secondaryAction={{
+          label: "Unduh Data",
+          icon: <Download size={14} className="mr-1.5" />,
+          onClick: () => setExportOpen(true),
+        }}
       />
 
       <StudentExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       <StatsCardsRow cols={3}>
-        <StatTile size="lg" mono
-          label="Total Siswa" value={stats.total} icon={Users} tone="default" />
-        <StatTile size="lg" mono
-          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
-        <StatTile size="lg" mono
-          label="Lulus" value={stats.graduated} icon={GraduationCap} tone="warning" />
+        {([
+          { label: "Total Siswa", value: stats.total, icon: Users, tone: "default" as const, filter: "all" },
+          { label: "Aktif", value: stats.active, icon: UserCheck, tone: "positive" as const, filter: "ACTIVE" },
+          { label: "Lulus", value: stats.graduated, icon: GraduationCap, tone: "warning" as const, filter: "GRADUATED" },
+        ]).map((card) => (
+          <StatFilter key={card.label} label={card.label} value={card.value} pressed={status === card.filter} onPress={() => handleStatusChange(status === card.filter ? "all" : card.filter)}>
+            <StatTile size="lg" mono label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
+          </StatFilter>
+        ))}
       </StatsCardsRow>
 
       <DataTableToolbar

@@ -96,3 +96,52 @@ describe("StudentsPage — list state in the URL (ADM-4)", () => {
     expect(params.get("page")).toBe("1");
   });
 });
+
+describe("StudentsPage — stat cards drive the status filter", () => {
+  beforeEach(() => {
+    urls.length = 0;
+    replace.mockClear();
+    currentSearch = "";
+    vi.stubGlobal("fetch", stubFetch());
+  });
+
+  const lastListStatus = () =>
+    new URL(urls.filter((u) => u.includes("/api/students?")).at(-1)!, "http://x").searchParams.get("status");
+
+  it("Total starts pressed; Lulus filters to GRADUATED, shows pressed, and a second tap clears it", async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+
+    const total = await screen.findByRole("button", { name: /^Total Siswa: / });
+    const lulus = screen.getByRole("button", { name: /^Lulus: / });
+    expect(total).toHaveAttribute("aria-pressed", "true");
+    expect(lulus).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(lulus);
+    await waitFor(() => expect(lastListStatus()).toBe("GRADUATED"));
+    expect(lulus).toHaveAttribute("aria-pressed", "true");
+    expect(total).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Lulus");
+
+    await user.click(lulus);
+    await waitFor(() => expect(lastListStatus()).toBeNull());
+    expect(lulus).toHaveAttribute("aria-pressed", "false");
+    expect(total).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Total clears an applied status filter", async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+    await user.click(await screen.findByRole("button", { name: /^Aktif: / }));
+    await waitFor(() => expect(lastListStatus()).toBe("ACTIVE"));
+    await user.click(screen.getByRole("button", { name: /^Total Siswa: / }));
+    await waitFor(() => expect(lastListStatus()).toBeNull());
+  });
+
+  it("starts with the card pressed that matches ?status=", async () => {
+    currentSearch = "status=GRADUATED";
+    render(<StudentsPage />);
+    expect(await screen.findByRole("button", { name: /^Lulus: / })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^Total Siswa: / })).toHaveAttribute("aria-pressed", "false");
+  });
+});

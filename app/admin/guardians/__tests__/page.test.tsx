@@ -337,3 +337,31 @@ describe("Guardian filtered empty state", () => {
     expect(await screen.findByRole("link", { name: "Ibu Fatimah" })).toBeInTheDocument();
   });
 });
+
+describe("GuardiansPage — stat cards drive the status filter", () => {
+  it("Tidak Aktif filters to INACTIVE, shows pressed, and a second tap clears it", async () => {
+    const fetchMock = stubFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<GuardiansPage />);
+
+    const listStatus = () => {
+      const urls = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("pageSize=20"));
+      return new URL(urls.at(-1)!, "http://x").searchParams.get("status");
+    };
+    const total = await screen.findByRole("button", { name: /^Total Wali: / });
+    const inactive = screen.getByRole("button", { name: /^Tidak Aktif: / });
+    expect(total).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(inactive);
+    await waitFor(() => expect(listStatus()).toBe("INACTIVE"));
+    expect(inactive).toHaveAttribute("aria-pressed", "true");
+    expect(total).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("combobox", { name: "Filter Status" })).toHaveTextContent("Tidak Aktif");
+
+    await user.click(inactive);
+    await waitFor(() => expect(listStatus()).toBeNull());
+    expect(inactive).toHaveAttribute("aria-pressed", "false");
+    expect(total).toHaveAttribute("aria-pressed", "true");
+  });
+});

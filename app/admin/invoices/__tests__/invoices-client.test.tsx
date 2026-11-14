@@ -931,3 +931,36 @@ describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-
     );
   });
 });
+
+describe("InvoicesClient — count cards drive the status filter", () => {
+  it("Lewat tempo filters to OVERDUE, shows pressed, and a second tap clears; money and money-based tiles stay display-only", async () => {
+    const fetchMock = stubFetch({ stats: { total: 5, overdue: 2, partiallyPaid: 1, draft: 1, pendingPaymentLink: 1 } });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+
+    const listStatus = () => {
+      const urls = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith("/api/invoices?"));
+      return new URL(urls.at(-1)!, "http://x").searchParams.get("status");
+    };
+    const total = await screen.findByRole("button", { name: "Total tagihan: 5" });
+    const overdue = screen.getByRole("button", { name: "Lewat tempo: 2" });
+    expect(total).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /^Dibayar sebagian/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Piutang/ })).not.toBeInTheDocument();
+
+    await user.click(overdue);
+    await waitFor(() => expect(listStatus()).toBe("OVERDUE"));
+    expect(overdue).toHaveAttribute("aria-pressed", "true");
+    expect(total).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(overdue);
+    await waitFor(() => expect(listStatus()).toBeNull());
+    expect(total).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Link gagal: 1" }));
+    await waitFor(() => expect(listStatus()).toBe("PENDING_PAYMENT_LINK"));
+    await user.click(total);
+    await waitFor(() => expect(listStatus()).toBeNull());
+  });
+});
