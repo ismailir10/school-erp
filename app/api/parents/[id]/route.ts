@@ -5,7 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateParentSchema, toggleParentStatusSchema } from "@/lib/validations/parent";
-import { buildParentInvoiceView, primaryClassName } from "@/lib/parent/detail-invoices";
+import { buildParentInvoiceView, primaryClassName, primaryClassSection } from "@/lib/parent/detail-invoices";
 
 /**
  * Parent-level routes — operate on a Parent row by its id, the shape returned
@@ -84,6 +84,7 @@ export async function GET(
                   status: true,
                   classSection: {
                     select: {
+                      id: true,
                       name: true,
                       program: { select: { type: true } },
                       academicYear: { select: { status: true } },
@@ -125,7 +126,12 @@ export async function GET(
   const guardians = parent.guardians.map(({ student: { enrollments, ...student }, ...g }) => ({
     ...g,
     outstanding: owedByStudent[g.studentId] ?? 0,
-    student: { ...student, className: primaryClassName(enrollments) },
+    student: {
+      ...student,
+      className: primaryClassName(enrollments),
+      // Same placement className names, so the class name links to its page.
+      classSectionId: primaryClassSection(enrollments)?.id ?? null,
+    },
   }));
 
   // Document scans are auth-proxy storage tokens — the detail page only ever

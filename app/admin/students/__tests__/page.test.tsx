@@ -103,12 +103,12 @@ describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
         {
           id: "enr-daycare",
           enrollDate: "2025-06-01",
-          classSection: { name: "Daycare 1", program: { name: "Daycare", type: "YEAR_ROUND" } },
+          classSection: { id: "cs-d1", name: "Daycare 1", program: { name: "Daycare", type: "YEAR_ROUND" } },
         },
         {
           id: "enr-sekolah",
           enrollDate: "2025-07-01",
-          classSection: { name: "TKIT A", program: { name: "Taman Kanak-kanak", type: "SEMESTER" } },
+          classSection: { id: "cs-t1", name: "TKIT A", program: { name: "Taman Kanak-kanak", type: "SEMESTER" } },
         },
       ],
     };
@@ -137,6 +137,16 @@ describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
     expect(lines).toHaveLength(2);
     expect(lines?.[0]).toHaveTextContent("Taman Kanak-kanak · TKIT A");
     expect(lines?.[1]).toHaveTextContent("Daycare · Daycare 1");
+
+    // Names are doors: each class name opens its class page (Kelas column
+    // and the mobile meta under the student name both render one).
+    for (const link of screen.getAllByRole("link", { name: "TKIT A" })) {
+      expect(link).toHaveAttribute("href", "/admin/classes/cs-t1");
+    }
+    for (const link of screen.getAllByRole("link", { name: "Daycare 1" })) {
+      expect(link).toHaveAttribute("href", "/admin/classes/cs-d1");
+    }
+    expect(screen.getAllByRole("link", { name: "TKIT A" }).length).toBeGreaterThan(0);
   });
 });
 

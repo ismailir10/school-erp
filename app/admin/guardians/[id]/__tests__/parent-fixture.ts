@@ -52,7 +52,7 @@ export function makeParent(overrides: Record<string, unknown> = {}) {
         isPrimary: true,
         status: "ACTIVE",
         outstanding: 400000,
-        student: { id: "s1", name: "Ahmad Fajar", status: "ACTIVE", gender: "L", className: "KB A" },
+        student: { id: "s1", name: "Ahmad Fajar", status: "ACTIVE", gender: "L", className: "KB A", classSectionId: "cs1" },
       },
     ],
     invoices: [

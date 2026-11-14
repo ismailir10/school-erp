@@ -13,6 +13,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -385,7 +387,12 @@ export default function StudentAttendancePage() {
               <>
                 {s.nickname}
                 <DataTableMobileMeta className="mt-0.5">
-                  <span>{`${formatDate(row.original.date)} · ${row.original.classSection.name}`}</span>
+                  <span>
+                    {formatDate(row.original.date)} ·{" "}
+                    <EntityLink href={entityHref.class(row.original.classSection.id)} tone="muted">
+                      {row.original.classSection.name}
+                    </EntityLink>
+                  </span>
                 </DataTableMobileMeta>
               </>
             }
@@ -401,7 +408,9 @@ export default function StudentAttendancePage() {
       meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.classSection.name}
+          <EntityLink href={entityHref.class(row.original.classSection.id)} tone="muted">
+            {row.original.classSection.name}
+          </EntityLink>
         </span>
       ),
     },

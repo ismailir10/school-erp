@@ -65,6 +65,14 @@ describe("GuardiansPage — name is the link (T7)", () => {
     expect(nameLink).toHaveAttribute("href", "/admin/guardians/g1");
     expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
   });
+
+  it("links each named child to the student page (names are doors)", async () => {
+    render(<GuardiansPage />);
+
+    const childLinks = await screen.findAllByRole("link", { name: "Aisyah" });
+    expect(childLinks.length).toBeGreaterThan(0);
+    for (const link of childLinks) expect(link).toHaveAttribute("href", "/admin/students/s1");
+  });
 });
 
 // T4 (2026-09-27, admin-forms-rhf) — the Edit Wali dialog now runs on

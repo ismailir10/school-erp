@@ -385,7 +385,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     );
     render(<StudentDetailPage />);
 
-    const header = within(await headerSubtitle()).getByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    const header = (await headerSubtitle()).querySelector("p") as HTMLElement;
     // Both placements are shown, school first — never day care alone.
     expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B + D'Care (Day Care) · DCARE");
   });
@@ -401,7 +401,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     );
     render(<StudentDetailPage />);
 
-    const header = within(await headerSubtitle()).getByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    const header = (await headerSubtitle()).querySelector("p") as HTMLElement;
     expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B");
     expect(header).not.toHaveTextContent("TKIT-A");
   });
@@ -418,7 +418,7 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     // Substring match, like the sibling cases above: the dossier header's
     // description also carries nickname and age, so the placement is one
     // segment of a longer subtitle rather than the whole string.
-    const header = within(await headerSubtitle()).getByText(/D'Care \(Day Care\) · DCARE/);
+    const header = (await headerSubtitle()).querySelector("p") as HTMLElement;
     expect(header).toHaveTextContent("D'Care (Day Care) · DCARE");
   });
 

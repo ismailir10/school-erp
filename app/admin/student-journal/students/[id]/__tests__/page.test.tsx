@@ -146,6 +146,19 @@ describe("StudentJournalDetailPage — student identity", () => {
     expect(await screen.findByRole("heading", { name: "Aisyah Nuraini" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Detail Jurnal Siswa" })).not.toBeInTheDocument();
   });
+
+  it("offers a link from the journal to the student's own page", async () => {
+    vi.stubGlobal("fetch", buildFetchStub());
+
+    render(
+      <StudentJournalDetailPage params={fulfilledParams({ id: "student-1" })} />,
+    );
+
+    expect(await screen.findByRole("link", { name: "Lihat profil siswa" })).toHaveAttribute(
+      "href",
+      "/admin/students/student-1",
+    );
+  });
 });
 
 describe("StudentJournalDetailPage — note delete confirm copy (AC5)", () => {

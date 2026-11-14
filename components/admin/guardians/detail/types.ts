@@ -19,6 +19,8 @@ export type GuardianChild = {
     status: string;
     gender: string | null;
     className: string | null;
+    /** Class page target for `className`; null when not enrolled. */
+    classSectionId: string | null;
   };
 };
 

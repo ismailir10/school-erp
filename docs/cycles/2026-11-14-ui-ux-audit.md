@@ -149,7 +149,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
 - [x] **T2** — Remove the header campus line; Sentra segmented campus choice; staff-attendance campus carried between its pages; controls hidden with one campus. Accept: verify flow 3; `sentra.spec.ts` updated. Deps: T1 (short labels).
 - [x] **T3** — The "names are doors" rule in `ui.md`, and an entity-link helper (hrefs plus the HR rule). Accept: helper Vitest; `ui.md` section.
 - [x] **T4** — Finance links: invoice list (number = identity, student link), payments, invoice-detail student and wali, guardian-detail invoice rows. Accept: verify flow 1; list tests updated. Deps: T3.
-- [ ] **T5** — Academic links:
+- [x] **T5** — Academic links:
   - students list class;
   - student detail header, Kelas saat ini and Riwayat Kelas;
   - guardian children list (row restructured);
@@ -191,6 +191,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - JTBD-PARENT-INV-01 is updated, and `e2e/parent.spec.ts` asserts the button is in the viewport.
 - T2: The admin header drops its campus line; the year stays. Sentra uses a `ToggleGroup` with short campus labels, hidden when there is one campus, with an empty state when there are none. On the three staff-attendance pages, the campus lives in `?campusId`: links between them carry it, the options use short labels, and the control is hidden when there is one campus. `e2e/sentra.spec.ts` now uses the toggle.
 - T4: Invoice and payment lists: the invoice number is the identity link, and the student name is a muted `EntityLink` to the student (column "Tagihan"). `lib/finance/payments-ledger.ts` returns `studentId`. On the invoice detail, the header student and the Kontak Wali guardian are links; `DetailPageHeader.description` now accepts ReactNode. Guardian-detail invoice rows: the number is the stretched row link and the student is a separate link, never nested. The payment review dialog keeps the name as plain text, because a link mid-confirmation would navigate away.
+- T5: Class names link to the class: the students list (the API now selects `classSection.id`), the student detail header, Kelas saat ini, Riwayat Kelas, and the student-attendance column and meta. Guardian children list: the name and the class are separate links, with no row-wide anchor; `/api/parents/[id]` returns `classSectionId` through the new shared `primaryClassSection()`, so it is the same placement as `className`. The guardians list links each child name. The journal student header gains "Lihat profil siswa".
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
