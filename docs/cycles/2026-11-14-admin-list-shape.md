@@ -113,9 +113,9 @@ None: no schema, dependency, auth or production change.
   uses a link-button — accept: unit tests green (deps: none)
 - [x] T2 List pages: Students, Guardians, Admissions, Invoices stat cards filter + header slots — accept: verify flow 1
   (deps: T1)
-- [ ] T3 Headers and one filled button: remaining admin headers on the structured slots, Sentra, student detail,
+- [x] T3 Headers and one filled button: remaining admin headers on the structured slots, Sentra, student detail,
   staff attendance, academic years — accept: verify flows 2–3 (deps: T1; parallel with T2)
-- [ ] T4 Docs: `patterns.md` Recipe 1 rules, audit roadmap status — accept: `audit-docs.sh` green (deps: T2, T3)
+- [x] T4 Docs: `patterns.md` Recipe 1 rules, audit roadmap status — accept: `audit-docs.sh` green (deps: T2, T3)
 
 ## Implementation
 
@@ -133,6 +133,24 @@ None: no schema, dependency, auth or production change.
   gone. Kept display-only on Tagihan: "Dibayar sebagian" (counted by money owed with a payment, not by status — a
   partly paid invoice past due is stored as Lewat tempo, so a status filter would show a different number), plus the
   two money tiles. Headers moved to `primaryAction` / `secondaryAction`.
+- T3: 22 admin pages and components — every PageHeader button moved to `primaryAction` / `secondaryAction` /
+  `menuActions` (classes, semesters, staff "Tambah Karyawan", payroll, salary components, staff attendance and its
+  daily page, campuses, holidays, roles, journal categories, Sentra rotation detail, assessments, report-card
+  templates, PROMES import, design system); Sentra's two section buttons are outline; an unplaced student's attention
+  row keeps its message and drops the duplicate "Daftarkan ke Kelas"; academic years: one filled "Tambah Tahun
+  Ajaran" in the header, "Tambah Program" outline in its own table, year names open that year's classes (the
+  duplicate "Kelola kelas" link is gone). Header links now go through `GuardedLink` (keeps the unsaved-changes guard
+  on report-card templates), and an `external` header link opens in a new tab as a real `<a>`.
+  Left on purpose (detail headers whose buttons need a ref or a hint span the slots cannot carry, each still one
+  filled button): wali detail "Ubah" (focus return), journal student page (period stepper + Selesai/Ubah), payroll
+  detail (Setujui + an `aria-describedby` hint).
+- T4: `patterns.md` Recipe 1 (stat cards, header slots, back link, settings shapes), `ui.md` Primary-Action
+  Placement (one filled button per screen; section actions outline; no repeated action), audit roadmap ticked.
+- Review (standards + spec, two workers): fixed double icon spacing on three header icons, staff-attendance links
+  named "Absensi harian" / "Absensi bulanan", a stale comment, and the design-system links kept as real external
+  links instead of `window.open` buttons. Checked and kept: Tagihan "Draf" / "Link gagal" cards — the select adds
+  the raw status as an option and the list API filters by it, so card and select agree; the Total card reads
+  pressed while nothing is filtered (same as Admissions already did).
 
 ## Verification
 

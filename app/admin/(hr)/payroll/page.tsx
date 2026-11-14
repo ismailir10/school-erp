@@ -254,11 +254,7 @@ export default function PayrollListPage() {
       <PageHeader
         title="Penggajian"
         description="Kelola periode penggajian dan slip gaji karyawan"
-        actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus size={14} className="mr-1.5" /> Buat Penggajian
-          </Button>
-        }
+        primaryAction={{ label: "Buat Penggajian", onClick: openCreate, icon: <Plus className="size-4" /> }}
       />
 
       {statsStatus === "error" && (

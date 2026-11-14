@@ -324,7 +324,7 @@ export default function AdmissionsPage() {
         description="Dari pertanyaan pertama sampai jadi siswa."
         primaryAction={{
           label: "Catat Pertanyaan",
-          icon: <Plus size={14} className="mr-1.5" />,
+          icon: <Plus size={14} />,
           onClick: openDialog,
           hidden: !canEdit,
         }}

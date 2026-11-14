@@ -14,7 +14,6 @@ import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select,
@@ -289,13 +288,12 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
       <PageHeader
         title="Kurikulum — Semester"
         description="Tahap awal pengaturan kurikulum: petakan semester ke tahun ajaran sebelum menambah tema, subtema, dan pekan."
-        actions={
-          canWrite ? (
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="size-4" /> Tambah Semester
-            </Button>
-          ) : undefined
-        }
+        primaryAction={{
+          label: "Tambah Semester",
+          onClick: openCreate,
+          icon: <Plus className="size-4" />,
+          hidden: !canWrite,
+        }}
       />
 
       <div className="space-y-section">

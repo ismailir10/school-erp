@@ -7,11 +7,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock("@/components/admin/page-header", () => ({
-  PageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
-    <><h1>{title}</h1>{actions}</>
-  ),
-}));
 vi.mock("@/components/ui/data-table", async () => {
   const actual = await vi.importActual<typeof import("@/components/ui/data-table")>(
     "@/components/ui/data-table",

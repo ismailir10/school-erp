@@ -3,7 +3,6 @@
 import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   AdminTabs,
@@ -175,11 +174,7 @@ export default function StudentJournalAdminPage() {
       <PageHeader
         title="Buku Penghubung — Templat"
         description="Atur kategori dan indikator untuk sekolah dan rumah."
-        actions={
-          <Button onClick={openCreateCategory}>
-            <Plus className="size-4 mr-2" /> Tambah Kategori
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Kategori", onClick: openCreateCategory, icon: <Plus className="size-4" /> }}
       />
 
       <AdminTabs value={scope} onValueChange={(v) => setScope(v as Scope)}>

@@ -255,7 +255,7 @@ describe("EmployeesPage — Tambah Karyawan dialog", () => {
     const user = userEvent.setup();
     render(<EmployeesPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Tambah" }));
+    await user.click(await screen.findByRole("button", { name: "Tambah Karyawan" }));
     const dialog = await screen.findByRole("dialog", { name: "Tambah Karyawan" });
 
     await user.click(within(dialog).getByRole("button", { name: "Tambah Karyawan" }));
@@ -277,7 +277,7 @@ describe("EmployeesPage — Tambah Karyawan dialog", () => {
     const user = userEvent.setup();
     render(<EmployeesPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Tambah" }));
+    await user.click(await screen.findByRole("button", { name: "Tambah Karyawan" }));
     const dialog = await screen.findByRole("dialog", { name: "Tambah Karyawan" });
 
     await user.type(within(dialog).getByRole("textbox", { name: "Nama" }), "Budi Karyawan");
@@ -330,7 +330,7 @@ describe("EmployeesPage — Tambah Karyawan dialog", () => {
       const user = userEvent.setup();
       render(<EmployeesPage />);
 
-      await user.click(await screen.findByRole("button", { name: "Tambah" }));
+      await user.click(await screen.findByRole("button", { name: "Tambah Karyawan" }));
       const dialog = await screen.findByRole("dialog", { name: "Tambah Karyawan" });
 
       expect(within(dialog).getByLabelText("Tanggal Masuk", { exact: false })).toHaveAttribute("max", "2026-10-05");

@@ -874,13 +874,13 @@ export default function StudentsPage() {
         description={search.trim() !== "" || status !== "all" ? `${pagination.total} siswa cocok` : `${pagination.total} siswa terdaftar`}
         primaryAction={{
           label: "Tambah Siswa",
-          icon: <Plus size={14} className="mr-1.5" />,
+          icon: <Plus size={14} />,
           onClick: () => setCreateOpen(true),
           hidden: !capabilities.canCreate,
         }}
         secondaryAction={{
           label: "Unduh Data",
-          icon: <Download size={14} className="mr-1.5" />,
+          icon: <Download size={14} />,
           onClick: () => setExportOpen(true),
         }}
       />

@@ -1,7 +1,6 @@
 "use client";
 
 import { PageHeader } from "@/components/admin/page-header";
-import { Button } from "@/components/ui/button";
 import { ExternalLink, FileCode2 } from "lucide-react";
 
 /**
@@ -23,38 +22,20 @@ export default function DesignSystemPage() {
       <PageHeader
         title="Design System"
         description="Canonical visual reference — tokens, recipes, overlays, portal shells, voice & tone. Read this before touching frontend code."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              render={
-                <a
-                  href={referenceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                />
-              }
-            >
-              <ExternalLink className="mr-2 size-4" />
-              Buka di tab baru
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              render={
-                <a
-                  href="https://github.com/ismailir10/school-erp/blob/staging/.claude/standards/design-system.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                />
-              }
-            >
-              <FileCode2 className="mr-2 size-4" />
-              Sumber di GitHub
-            </Button>
-          </div>
-        }
+        secondaryAction={[
+          {
+            label: "Buka di tab baru",
+            href: referenceUrl,
+            external: true,
+            icon: <ExternalLink className="size-4" />,
+          },
+          {
+            label: "Sumber di GitHub",
+            href: "https://github.com/ismailir10/school-erp/blob/staging/.claude/standards/design-system.html",
+            external: true,
+            icon: <FileCode2 className="size-4" />,
+          },
+        ]}
       />
       <div className="flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
         <iframe

@@ -250,7 +250,7 @@ export function SentraClient({
                 <span id="sentra-list-title">Daftar sentra</span>
               </SectionTitle>
               {canWrite && campusId && (
-                <Button onClick={() => setSentraDialog({ open: true, row: null })}>
+                <Button variant="outline" onClick={() => setSentraDialog({ open: true, row: null })}>
                   <Plus aria-hidden="true" /> Tambah sentra
                 </Button>
               )}
@@ -275,7 +275,7 @@ export function SentraClient({
                 <span id="rotation-list-title">Putaran</span>
               </SectionTitle>
               {canWrite && campusId && (
-                <Button onClick={() => setRotationOpen(true)}>
+                <Button variant="outline" onClick={() => setRotationOpen(true)}>
                   <Plus aria-hidden="true" /> Buat putaran
                 </Button>
               )}

@@ -87,14 +87,16 @@ describe("student page — Perlu perhatian", () => {
     expect(expanded("group-keuangan")).toBe("true");
   });
 
-  it("names the child with no class and opens the enrol dialog from its own button", async () => {
+  it("names the child with no class; Daftarkan ke Kelas appears once, in the header", async () => {
     const user = userEvent.setup();
     await renderLoaded({ student: makeStudent({ enrollments: [] }) });
     const region = await screen.findByRole("region", { name: "Perlu perhatian" });
     expect(within(region).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
-    // The header carries the same words; the strip's button has a longer name, so they are told apart.
-    expect(screen.getAllByRole("button", { name: /Daftarkan ke Kelas/ })).toHaveLength(2);
-    await user.click(within(region).getByRole("button", { name: "Daftarkan ke Kelas untuk Aisyah Putri" }));
+    // The strip keeps the warning only; the header owns the one button.
+    expect(within(region).queryByRole("button", { name: /Daftarkan ke Kelas/ })).not.toBeInTheDocument();
+    const enrol = screen.getAllByRole("button", { name: /Daftarkan ke Kelas/ });
+    expect(enrol).toHaveLength(1);
+    await user.click(enrol[0]);
     expect(await screen.findByRole("dialog", { name: "Daftarkan ke Kelas" })).toBeInTheDocument();
   });
 

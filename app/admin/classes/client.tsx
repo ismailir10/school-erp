@@ -472,18 +472,18 @@ export function ClassesClient({
       <PageHeader
         title="Kelas"
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
-        actions={
-          canWrite && !archivedMode ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setPromoteOpen(true)} className="gap-2">
-                <ArrowUpRight className="size-4" /> Naik Kelas Massal
-              </Button>
-              <Button onClick={openCreate} className="gap-2">
-                <Plus className="size-4" /> Tambah Kelas
-              </Button>
-            </div>
-          ) : undefined
-        }
+        primaryAction={{
+          label: "Tambah Kelas",
+          onClick: openCreate,
+          icon: <Plus className="size-4" />,
+          hidden: !(canWrite && !archivedMode),
+        }}
+        secondaryAction={{
+          label: "Naik Kelas Massal",
+          onClick: () => setPromoteOpen(true),
+          icon: <ArrowUpRight className="size-4" />,
+          hidden: !(canWrite && !archivedMode),
+        }}
       />
 
       {/* min-w-0 preserved on both wrappers — the class table's columns
