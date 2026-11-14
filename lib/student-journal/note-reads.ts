@@ -1,3 +1,4 @@
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 
@@ -76,25 +77,20 @@ export async function countUnreadNotesByStudent({
   const readAtByStudent = new Map(watermarks.map((w) => [w.studentId, w.lastReadAt]));
   const neverOpened = studentIds.filter((id) => !readAtByStudent.has(id));
 
-  // One query for the candidate notes, grouped in memory: the watermark differs
-  // per student, which SQL cannot express in a single `count(*) group by`
-  // without a join Prisma's groupBy does not offer here. The candidate set is
-  // bounded: every note on a never-opened thread, plus notes newer than the
-  // oldest watermark on the rest of the roster.
-  const scopes: Array<Record<string, unknown>> = [];
+  // Apply each student's exact watermark in SQL, then return one count row
+  // per student. A never-opened thread has no timestamp restriction; an old
+  // watermark must not pull other students' already-read histories into memory.
+  const scopes: Prisma.StudentJournalNoteWhereInput[] = [];
   if (neverOpened.length > 0) scopes.push({ studentId: { in: neverOpened } });
-  if (watermarks.length > 0) {
-    const oldest = watermarks.reduce(
-      (min, w) => (w.lastReadAt < min ? w.lastReadAt : min),
-      watermarks[0]!.lastReadAt,
-    );
+  for (const watermark of watermarks) {
     scopes.push({
-      studentId: { in: watermarks.map((w) => w.studentId) },
-      createdAt: { gt: oldest },
+      studentId: watermark.studentId,
+      createdAt: { gt: watermark.lastReadAt },
     });
   }
 
-  const candidates = await prisma.studentJournalNote.findMany({
+  const groups = await prisma.studentJournalNote.groupBy({
+    by: ["studentId"],
     where: {
       tenantId,
       status: JournalStatus.ACTIVE,
@@ -102,15 +98,12 @@ export async function countUnreadNotesByStudent({
       ...(authorRole ? { authorRole } : {}),
       OR: scopes,
     },
-    select: { studentId: true, createdAt: true },
+    _count: { _all: true },
   });
 
   const counts: Record<string, number> = {};
-  for (const note of candidates) {
-    const readAt = readAtByStudent.get(note.studentId);
-    if (!readAt || note.createdAt > readAt) {
-      counts[note.studentId] = (counts[note.studentId] ?? 0) + 1;
-    }
+  for (const group of groups) {
+    counts[group.studentId] = group._count._all;
   }
   return counts;
 }

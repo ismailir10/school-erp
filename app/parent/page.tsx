@@ -34,7 +34,7 @@ import {
 import { formatHijri } from "@/lib/hijri";
 import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
-import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
+import { loadStudentPerkembanganPreview } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_LONG } from "@/lib/curriculum/level-presentation";
 import { parentHref } from "@/lib/parent/navigation";
 
@@ -115,6 +115,7 @@ function buildKidFoot(
 export default async function ParentDashboard() {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
+  const tenantId = session.tenantId;
 
   const { parent, children } = await getParentWithChildren(session);
 
@@ -143,25 +144,23 @@ export default async function ParentDashboard() {
     scheduledClasses,
   ] = await Promise.all([
     loadParentAttendanceSummary(session.tenantId, kidIds, [...new Set([...week, today])]),
-    prisma.studentJournalNote.findMany({
+    // Only the newest teacher note is displayed. Bound each child's read so
+    // opening Home never transfers the household's full note history.
+    Promise.all(kidIds.map((studentId) => prisma.studentJournalNote.findFirst({
       where: {
-        tenantId: session.tenantId,
-        studentId: { in: kidIds },
+        tenantId,
+        studentId,
         status: "ACTIVE",
         authorRole: "TEACHER",
       },
       orderBy: { createdAt: "desc" },
-      select: { studentId: true, body: true, createdAt: true, date: true },
-    }),
+      select: { studentId: true, body: true, createdAt: true },
+    }))),
     getParentOutstandingForStudents(kidIds, session.tenantId),
-    // Per-kid perkembangan rollup — drives the "Perkembangan pekan ini"
-    // card section below. Fan out across children in parallel; the
-    // loader itself is two cheap queries per kid (semester + entries
-    // joined on indicator.objective.semesterId), so the round-trip
-    // count stays bounded by the active-children count.
+    // Home needs only the latest three entries, not the full semester rollup.
     Promise.all(
       kidIds.map((id) =>
-        loadStudentPerkembangan(session.tenantId as string, id).then(
+        loadStudentPerkembanganPreview(session.tenantId as string, id).then(
           (data) => [id, data] as const,
         ),
       ),
@@ -169,20 +168,9 @@ export default async function ParentDashboard() {
     scheduledClassIds(session.tenantId, children.flatMap(child => child.student.enrollments.filter(e => e.status === "ACTIVE").map(e => e.classSection.id)), today),
   ]);
 
-  // Latest note per kid (notes already ordered desc by createdAt)
-  const latestNoteByKid = new Map<
-    string,
-    { body: string; createdAt: Date; date: string }
-  >();
-  for (const n of latestNotes) {
-    if (!latestNoteByKid.has(n.studentId)) {
-      latestNoteByKid.set(n.studentId, {
-        body: n.body,
-        createdAt: n.createdAt,
-        date: n.date,
-      });
-    }
-  }
+  const latestNoteByKid = new Map(
+    latestNotes.flatMap((note) => note ? [[note.studentId, note] as const] : []),
+  );
 
   const { count: unpaidCount, total: unpaidTotal } = outstanding;
   const billsByChild = children.map((child) => {

@@ -72,8 +72,25 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     const parentName = guardian.parent.name;
 
     // ---------- Land on /admin/guardians ----------
+    const initialGuardianRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/guardians" || url.pathname === "/api/guardians/stats") {
+        initialGuardianRequests.push(url.pathname + url.search);
+      }
+    });
+    const statsResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/guardians/stats");
     await page.goto("/admin/guardians");
     await page.waitForLoadState("networkidle");
+    const statsRes = await statsResponse;
+    expect(statsRes.ok()).toBe(true);
+    const stats = await statsRes.json() as { total: number; active: number; inactive: number };
+    expect(initialGuardianRequests).toHaveLength(2);
+    expect(initialGuardianRequests.filter((url) => url === "/api/guardians/stats")).toHaveLength(1);
+    for (const [label, value] of [["Total Wali", stats.total], ["Aktif", stats.active], ["Tidak Aktif", stats.inactive]] as const) {
+      const tile = page.locator("p").filter({ hasText: new RegExp(`^${label}$`) }).locator("xpath=../..");
+      await expect(tile.locator(":scope > p")).toHaveText(String(value));
+    }
 
     // The list paginates 20-at-a-time; search by name to surface the row.
     await page

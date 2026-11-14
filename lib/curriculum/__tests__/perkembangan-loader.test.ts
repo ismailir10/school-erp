@@ -23,6 +23,7 @@ vi.mock("@/lib/db", () => ({
 
 import {
   loadStudentPerkembangan,
+  loadStudentPerkembanganPreview,
   aggregateByElement,
 } from "@/lib/curriculum/perkembangan-loader";
 
@@ -217,5 +218,64 @@ describe("loadStudentPerkembangan", () => {
     const r = await loadStudentPerkembangan("t1", "stu1");
     expect(r.hasActiveWeek).toBe(false);
     expect(r.latestThisWeek).toEqual([]);
+  });
+});
+
+
+describe("loadStudentPerkembanganPreview", () => {
+  beforeEach(() => {
+    semesterFindFirst.mockResolvedValue({ id: "sem1", number: 1, academicYear: { id: "ay1", name: "2025/2026" } });
+    assessmentEntryFindMany.mockResolvedValue([]);
+    weekFindFirst.mockResolvedValue(null);
+  });
+
+  it("short-circuits without an active semester, including no enrollment lookup", async () => {
+    semesterFindFirst.mockResolvedValue(null);
+    expect(await loadStudentPerkembanganPreview("t1", "stu1")).toEqual({ hasActiveWeek: false, latestThisWeek: [] });
+    expect(studentEnrollmentFindMany).not.toHaveBeenCalled();
+    expect(weekFindFirst).not.toHaveBeenCalled();
+    expect(assessmentEntryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("does not read assessment history when the child has no active class", async () => {
+    studentEnrollmentFindMany.mockResolvedValue([]);
+    expect(await loadStudentPerkembanganPreview("t1", "stu1")).toEqual({ hasActiveWeek: false, latestThisWeek: [] });
+    expect(weekFindFirst).not.toHaveBeenCalled();
+    expect(assessmentEntryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("does not read assessment history when the child has no active week", async () => {
+    expect(await loadStudentPerkembanganPreview("t1", "stu1")).toEqual({ hasActiveWeek: false, latestThisWeek: [] });
+    expect(assessmentEntryFindMany).not.toHaveBeenCalled();
+  });
+
+  it("loads only three recent week entries, retaining kelompok scope and presentation fields", async () => {
+    studentEnrollmentFindMany.mockResolvedValue([{ studentId: "stu1", classSection: { ageGroup: "B" } }]);
+    weekFindFirst.mockResolvedValue({ id: "wk-b" });
+    assessmentEntryFindMany.mockResolvedValue([
+      { level: "CONSISTENT", date: new Date("2026-05-13T18:00:00Z"), source: "CENTER", center: "ART", sentra: { name: "Seni" }, activity: "  Melukis bunga  ", indicator: { content: "Berkreasi", objective: { element: "ART" } } },
+      { level: "EMERGING", date: new Date("2026-05-12T00:00:00Z"), source: "HOMEROOM", center: null, sentra: null, activity: "  ", indicator: { content: "Berbagi", objective: { element: "IDENTITY" } } },
+      { level: "NEEDS_REINFORCEMENT", date: new Date("2026-05-11T00:00:00Z"), source: "HOMEROOM", center: null, sentra: null, activity: null, indicator: { content: "Melompat", objective: { element: "MOTOR_SKILLS" } } },
+    ]);
+    const result = await loadStudentPerkembanganPreview("t1", "stu1");
+    expect(result.hasActiveWeek).toBe(true);
+    expect(result.latestThisWeek).toHaveLength(3);
+    expect(result.latestThisWeek[0]).toEqual({
+      indicatorContent: "Berkreasi", element: "ART", level: "CONSISTENT", date: "2026-05-14", source: "CENTER", center: "ART", sentraName: "Seni", activity: "Melukis bunga",
+    });
+    expect(result.latestThisWeek[1].activity).toBeNull();
+    expect(result.latestThisWeek[2].activity).toBeNull();
+    expect(assessmentEntryFindMany).toHaveBeenCalledTimes(1);
+    expect(assessmentEntryFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tenantId: "t1", studentId: "stu1", weekId: "wk-b" },
+      orderBy: { recordedAt: "desc" }, take: 3,
+      select: expect.objectContaining({ activity: true, sentra: { select: { name: true } } }),
+    }));
+    expect(weekFindFirst.mock.calls[0][0].where.subTheme.theme).toEqual({ OR: [{ ageGroup: "B" }, { ageGroup: null }] });
+  });
+
+  it("propagates unavailable preview data rather than claiming an empty week", async () => {
+    weekFindFirst.mockRejectedValueOnce(new Error("week read unavailable"));
+    await expect(loadStudentPerkembanganPreview("t1", "stu1")).rejects.toThrow("week read unavailable");
   });
 });
