@@ -175,6 +175,101 @@ None planned. New dependency, migration, auth/PII change, paid API or production
   API auth 239/239, hooks 32/32, workflow sync and documentation audit (13 ok, 1 existing warning, 0 fail) passed.
   The 320 px clipping regression and actual disabled-action contrast both passed the unchanged full browser gate.
 
+### Verified locally — a515c96ba86485ad40c0967580f5d00feed082c0, 2026-11-15 Asia/Tokyo
+
+- App: production build, demo auth + disposable local Postgres. Three roles at 320/390/1440 px; no shared data used.
+- Actual diff versus staging `e97b44372d593cb8a798cd737f8bb593540698a5`: **other code** — styling, focused tests, guide specimens and documentation.
+  No auth/session/cookie/permission, persistence, payment-processing, schema, dependency or environment change.
+- Gates: lint; production build; 775 passing unit files / 9,572 tests (2 existing skipped files, 42 todo); RLS 51/51;
+  API auth 239/239; full Chromium 303/303 with retries disabled; hooks 32/32; workflow checksum; docs audit
+  13 ok / 1 existing ADR-age warning / 0 fail. Soft-skip baseline=24, head=24, delta=0.
+- Browser: admin create-choice and no-results states; teacher H/S/I/A, correction, loading, injected save failure,
+  real retry, bulk marking and reload persistence; parent multi-child home, attendance, invoices and journal.
+  Keyboard focus/selection, forced colors, reduced motion and 44 px attendance targets passed the browser suite.
+- Contrast from rendered controls: action 5.23:1, hover 6.81:1, soft selection 5.43:1, disabled neutral 6.89:1.
+  The disabled bulk action has opacity 1 and dark ink. Nested text/icon scans found no white-on-soft-teal pairing.
+- Visual critique: 31 responsive captures plus the focused disabled-action shot; no overflow, page errors,
+  unexpected app HTTP errors or unexplained console/network events. Expected local-only noise: optional Vercel
+  analytics 404/MIME messages, canceled RSC prefetches, measurement-canvas warnings and the deliberate failed save.
+- Highlight shots: `admin-invoices-1440-viewport.png` (quiet ordinary balances, overdue emphasis),
+  `teacher-attendance-selected-390-viewport.png` (neutral rows, labeled exception controls, one leading action).
+  Both captured on clean dummy data, inspected by the driver, and ready for the pinned-assets upload to the PR.
+- Independent standards and spec reviews cleared all findings; the narrow TaskRow wrapping fix was re-reviewed.
+- Staging advanced only with documentation/report assets in #744. Rebase is clean; SHA-256 comparison of all
+  1,929 tracked runtime/test/public files is identical to the fully tested snapshot. Post-rebase build passed;
+  required post-rebase full unit gate passed again: 775 files / 9,572 tests, 320.29 seconds.
+
+<details>
+<summary>Compared changed paths</summary>
+
+```text
+.claude/standards/colors.md
+.claude/standards/design-system.html
+.claude/standards/patterns.md
+.claude/standards/portal.md
+.claude/standards/ui.md
+CLAUDE.md
+app/admin/(hr)/employee-attendance/daily/page.tsx
+app/admin/invoices/[id]/__tests__/page.test.tsx
+app/admin/invoices/[id]/page.tsx
+app/admin/invoices/__tests__/invoices-client.test.tsx
+app/admin/invoices/invoices-client.tsx
+app/admin/semesters/[id]/__tests__/accessibility.test.tsx
+app/admin/semesters/[id]/objectives/client.tsx
+app/admin/semesters/[id]/themes/client.tsx
+app/admin/students/[id]/__tests__/header-by-state.test.tsx
+app/daftar/client.tsx
+app/globals.css
+app/parent/__tests__/home-summary.test.ts
+app/parent/attendance/__tests__/summary.test.ts
+app/parent/attendance/page.tsx
+app/parent/page.tsx
+app/pendaftaran/[token]/__tests__/client-validation.test.tsx
+app/pendaftaran/[token]/client.tsx
+app/pendaftaran/[token]/message-card.tsx
+app/teacher/assessments/center/[center]/client.tsx
+app/teacher/class-attendance/__tests__/page.test.tsx
+app/teacher/class-attendance/page.tsx
+app/teacher/home-client.tsx
+app/teacher/sessions/[id]/client.tsx
+components/admin/invoices/batch-progress-card.tsx
+components/changelog/changelog-view.tsx
+components/deck/mock/admissions-mock.tsx
+components/deck/mock/billing-run-mock.tsx
+components/deck/mock/class-attendance-mock.tsx
+components/deck/mock/classes-mock.tsx
+components/deck/mock/curriculum-mock.tsx
+components/deck/mock/enroll-form-mock.tsx
+components/deck/mock/fees-mock.tsx
+components/deck/mock/invoices-mock.tsx
+components/deck/mock/journal-mock.tsx
+components/deck/mock/parent-home-mock.tsx
+components/deck/mock/parent-invoice-mock.tsx
+components/deck/mock/pay-result-mock.tsx
+components/deck/mock/report-card-mock.tsx
+components/deck/mock/student-detail-mock.tsx
+components/deck/mock/teacher-home-mock.tsx
+components/enrollment/documents-step.tsx
+components/enrollment/signature-pad.tsx
+components/parent/__tests__/kid-card.test.tsx
+components/parent/kid-card.tsx
+components/portal/__tests__/task-list.test.tsx
+components/portal/task-list.tsx
+components/portal/week-grid.tsx
+components/student-journal/class-day-grid.tsx
+components/ui/__tests__/stat-tile.test.tsx
+components/ui/button.tsx
+components/ui/stat-tile.tsx
+docs/cycles/2026-11-14-calm-color-system.md
+e2e/design-system.spec.ts
+lib/__tests__/design-reference-parity.test.ts
+lib/__tests__/primary-text-contrast.test.ts
+lib/parent-attendance-banner.ts
+public/admin/design-system-reference.html
+```
+
+</details>
+
 ## Ship Notes
 
 Staging only. No migrations, new dependencies, environment/secret changes or manual data steps. The shared Button
