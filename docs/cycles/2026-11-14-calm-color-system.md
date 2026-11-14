@@ -37,19 +37,19 @@ discussion decisions. No additional spec approval is pending. Production promoti
 
 ## Acceptance criteria
 
-- [ ] Primary actions have deep teal fills and white text with at least 4.5:1 contrast; soft brand selections remain
+- [x] Primary actions have deep teal fills and white text with at least 4.5:1 contrast; soft brand selections remain
       distinct. No white label or check appears on a light teal control; hover, focus, disabled and touch states remain usable.
-- [ ] Teacher attendance selected H/S/I/A labels meet 4.5:1 contrast, have a non-color selection cue, present and
+- [x] Teacher attendance selected H/S/I/A labels meet 4.5:1 contrast, have a non-color selection cue, present and
       unrecorded rows are neutral, and exceptions retain labeled subtle emphasis.
-- [ ] Attendance save, correction, bulk mark and retry still work without extra taps or data changes.
-- [ ] Ordinary unpaid balances are neutral; genuinely overdue balances are red; small paid/warning text is readable.
+- [x] Attendance save, correction, bulk mark and retry still work without extra taps or data changes.
+- [x] Ordinary unpaid balances are neutral; genuinely overdue balances are red; small paid/warning text is readable.
       Zero and routine finance summaries do not imply an active warning.
-- [ ] Teacher routine tasks no longer use warning/holiday colors as decorative categories; parent child-card
+- [x] Teacher routine tasks no longer use warning/holiday colors as decorative categories; parent child-card
       navigation no longer repeats filled primary buttons, while payment actions remain prominent.
-- [ ] Unknown attendance is neutral; equivalent parent attendance states use consistent tones; today and completed
+- [x] Unknown attendance is neutral; equivalent parent attendance states use consistent tones; today and completed
       attendance are distinguishable; small calendar dates have readable ink.
-- [ ] Shared neutral surfaces, button specimens, documentation and both design-system reference copies agree.
-- [ ] Representative admin, teacher and parent screens remain usable at 320/390 px and 1440 px, including keyboard
+- [x] Shared neutral surfaces, button specimens, documentation and both design-system reference copies agree.
+- [x] Representative admin, teacher and parent screens remain usable at 320/390 px and 1440 px, including keyboard
       focus, touch hit targets, loading/empty/error states and reduced motion.
 
 ## Verify flows
@@ -100,7 +100,7 @@ None planned. New dependency, migration, auth/PII change, paid API or production
       date legibility and secondary child actions pass focused tests (parallel; owns portal pages/components).
 - [x] T3 Admin finance emphasis and readable amounts — accept: normal/overdue distinction and quiet summaries pass
       focused tests (parallel; owns admin invoice screens/components).
-- [ ] T4 Integrated review, local verification and visual refinement — accept: two-axis review clear, full local
+- [x] T4 Integrated review, local verification and visual refinement — accept: two-axis review clear, full local
       gate and role walks complete, evidence ready for the staging ship gate below.
 
 ## Implementation
@@ -120,6 +120,8 @@ None planned. New dependency, migration, auth/PII change, paid API or production
 - T3: invoice balances use the authoritative persisted OVERDUE status for red emphasis, matching existing badges
   and counts. Routine and zero summaries are neutral; active overdue/link failures remain critical. Small paid and
   warning text uses readable ink. No money calculation, status transition or payment processing changes.
+- T4: actual rendered contrast, selected-state/disabled behavior, keyboard child selection, touch targets and
+  date legibility regressions; full gates and three-role visual walkthrough completed with clean sample data.
 - Two independent review axes found and resolved two acceptance gaps: legacy selected-state Buttons inherited
   action fill, and child-card absence foot text remained amber. Both reviewers subsequently cleared the source diff.
   React checklist: no new effects, subscriptions, requests, dependencies or mutable shared state; existing semantics
@@ -127,6 +129,14 @@ None planned. New dependency, migration, auth/PII change, paid API or production
   disabled action treatment, journal checks and public enrollment CTA color pairs; their behavior remains unchanged.
 
 ## Verification
+
+- Final browser walkthrough: 31 captures across 320, 390 and 1440 px for admin home/invoices, teacher
+  home/attendance and parent home/attendance/invoices/journal. No horizontal overflow or page errors; app HTTP
+  requests passed. Admin create-choice and no-results states worked; teacher loading, H/S/I/A save/correction,
+  injected failure, real retry, bulk mark and reload persistence worked. Rendered scans found no white text or
+  glyph on soft teal controls. Driver inspected admin, teacher, parent and failure-state captures.
+- Console/network classification: optional local Vercel analytics 404/MIME messages, canceled navigation prefetches,
+  and the deliberately injected attendance save failure are expected verification noise, not app regressions.
 
 - T3: integrated task gate passed on the frozen runtime: production build and 775 unit files / 9,572 tests;
   focused acceptance checks and independent reviews are clear.
@@ -160,6 +170,10 @@ None planned. New dependency, migration, auth/PII change, paid API or production
   A new empty disposable local database preserves earlier data and gives the corrected full runner a clean seed.
 - Final production build passed after these refinements. Final lint, complete unit/browser gates and visual walk
   on the frozen runtime follow below; earlier partial rounds are not release evidence.
+- Final frozen full gate: lint passed, production build passed, 775 unit files / 9,572 tests passed (2 existing
+  skipped files and 42 todo), and all 303 Chromium tests passed with retries disabled in 10.5 minutes. RLS 51/51,
+  API auth 239/239, hooks 32/32, workflow sync and documentation audit (13 ok, 1 existing warning, 0 fail) passed.
+  The 320 px clipping regression and actual disabled-action contrast both passed the unchanged full browser gate.
 
 ## Ship Notes
 
