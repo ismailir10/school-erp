@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
+import { usePermissions } from "@/hooks/use-permission";
 
 import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -176,6 +179,7 @@ const EMPTY_CREATE_FORM = {
 };
 
 export default function EmployeesPage() {
+  const can = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<Employee[]>([]);
@@ -188,9 +192,10 @@ export default function EmployeesPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [campusFilter, setCampusFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
@@ -277,6 +282,7 @@ export default function EmployeesPage() {
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -289,10 +295,12 @@ export default function EmployeesPage() {
       if (statusFilter !== "all") params.set("status", statusFilter);
 
       const res = await fetch(`/api/employees?${params}`);
+      if (!res.ok) throw new Error();
       const json = await res.json();
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
+      setLoadError(true);
       toast.error(MESSAGES.loadFailed("Data karyawan"));
     } finally {
       setLoading(false);
@@ -364,7 +372,7 @@ export default function EmployeesPage() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
+        cell: ({ row }) => can("employees.edit") ? (
           <DataTableRowActions
             onEdit={() => router.push(`/admin/employees/${row.original.id}`)}
             onDeactivate={
@@ -381,10 +389,10 @@ export default function EmployeesPage() {
             }
             isActive={row.original.status === "ACTIVE"}
           />
-        ),
+        ) : null,
       },
     ],
-    [router],
+    [router, can],
   );
 
   // Build campus filter options dynamically
@@ -399,7 +407,7 @@ export default function EmployeesPage() {
       <PageHeader
         title="Karyawan"
         description="Data karyawan dan akun staf sekolah"
-        actions={
+        actions={can("employees.create") &&
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Tambah
           </Button>
@@ -443,7 +451,7 @@ export default function EmployeesPage() {
         ]}
       />
 
-      <DataTable
+      {loadError ? <ErrorState title="Data belum bisa dimuat." onRetry={fetchEmployees} /> : (      <DataTable
         columns={columnsWithActions}
         data={data}
         pagination={pagination}
@@ -454,7 +462,7 @@ export default function EmployeesPage() {
         loading={loading}
         emptyTitle="Belum ada karyawan"
         emptyDescription="Tambahkan karyawan baru untuk memulai."
-      />
+      />)}
 
       <DeactivateConfirmDialog
         open={!!deactivateTarget}

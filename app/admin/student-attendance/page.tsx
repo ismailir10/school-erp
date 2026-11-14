@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -245,7 +246,7 @@ export default function StudentAttendancePage() {
   }, []);
 
   // ── Fetch stats (today's date range for context) ────────────────
-  useEffect(() => {
+  const fetchStats = useCallback(() => {
     const today = getTodayInTimezone("Asia/Jakarta");
     fetch(`/api/student-attendance/stats?dateFrom=${today}&dateTo=${today}`)
       .then((r) => r.json())
@@ -254,6 +255,8 @@ export default function StudentAttendancePage() {
       })
       .catch(() => toast.error(MESSAGES.loadFailed("Data")));
   }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   // ── Fetch list ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -326,6 +329,7 @@ export default function StudentAttendancePage() {
       toast.success("Kehadiran ditimpa");
       setOverrideTarget(null);
       fetchData();
+      fetchStats();
     } catch (err) {
       applyServerErrors(overrideForm, err, "Gagal menimpa kehadiran");
     }
@@ -347,6 +351,7 @@ export default function StudentAttendancePage() {
       toast.success("Catatan kehadiran dibatalkan");
       setVoidTarget(null);
       void fetchData();
+      fetchStats();
     } catch (error) {
       if (!errorToasted) {
         toast.error("Gagal membatalkan catatan kehadiran. Coba lagi.");
@@ -724,6 +729,7 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize] = useState(10);
   const [rows, setRows] = useState<RecapRow[]>([]);
+  const [recapError, setRecapError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const buildParams = useCallback(() => {
@@ -737,6 +743,8 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
   // rule rejects setState directly in an effect body.
   const fetchRecap = useCallback(async (signal: { cancelled: boolean }) => {
     setLoading(true);
+    setRecapError(false);
+    setRows([]);
     try {
       const res = await fetch(`/api/student-attendance/recap?${buildParams()}`);
       if (!res.ok) {
@@ -747,6 +755,7 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
       if (!signal.cancelled) setRows(json.data ?? []);
     } catch (e) {
       if (!signal.cancelled) {
+        setRecapError(true);
         toast.error(userMessage(e, MESSAGES.loadFailed("Rekap")));
       }
     } finally {
@@ -828,14 +837,14 @@ function RecapView({ classSections }: { classSections: ClassSection[] }) {
         onReset={() => setClassFilter("all")}
       />
 
-      <DataTable
+      {recapError ? <ErrorState title="Rekap belum bisa dimuat." onRetry={() => fetchRecap({ cancelled: false })} /> : <DataTable
         columns={recapColumns}
         data={filteredRows}
         loading={loading}
         pagination={tablePagination}
         emptyTitle="Belum ada data rekap"
         emptyDescription="Rekap bulanan tampil setelah ada siswa terdaftar aktif. Pilih bulan lain atau periksa filter kelas."
-      />
+      />}
     </>
   );
 }

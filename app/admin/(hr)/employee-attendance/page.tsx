@@ -1,4 +1,5 @@
 "use client";
+import { usePermission } from "@/hooks/use-permission";
 
 import { Badge } from "@/components/ui/badge";
 import { MESSAGES } from "@/lib/feedback";
@@ -58,6 +59,7 @@ export default function AttendancePage() {
 }
 
 function AttendancePageInner() {
+  const canOverride = usePermission("attendance.override");
   // Per-render, not module-level: a module-level `TODAY_ISO` froze at build/
   // deploy time, so a non-working *today* kept computing as if it were the
   // day of the last deploy (the "Alpa" bug — F-20/Cycle-3-T8). Computed fresh
@@ -286,7 +288,7 @@ function AttendancePageInner() {
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => (
+      cell: ({ row }) => canOverride ? (
         // AttendanceRecord is an event-log (Category C): no row Edit action.
         // Correction is an override (new canonical event), not an edit.
         <DataTableRowActions
@@ -298,10 +300,10 @@ function AttendancePageInner() {
             },
           ]}
         />
-      ),
+      ) : null,
     },
   ];
-  }, [openOverride, nonWorkingDay]);
+  }, [openOverride, nonWorkingDay, canOverride]);
 
   return (
     <>
@@ -313,9 +315,9 @@ function AttendancePageInner() {
             <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
               <Download size={14} className="mr-1.5" /> Ekspor CSV
             </Button>
-            <Link href={`/admin/employee-attendance/daily${campusQs}`}>
+            {canOverride && <Link href={`/admin/employee-attendance/daily${campusQs}`}>
               <Button size="sm"><ListChecks size={14} className="mr-1.5" /> Absensi Staf Harian</Button>
-            </Link>
+            </Link>}
             <Link href={`/admin/employee-attendance/monthly${campusQs}`}>
               <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
             </Link>
@@ -335,7 +337,7 @@ function AttendancePageInner() {
       </AdminTabsList>
 
       <AdminTabsContent value="pending">
-        <PendingApprovals rows={pending} loading={pendingLoading} onChanged={reloadAfterDecision} />
+        {canOverride && <PendingApprovals rows={pending} loading={pendingLoading} onChanged={reloadAfterDecision} />}
       </AdminTabsContent>
 
       <AdminTabsContent value="hari-ini">

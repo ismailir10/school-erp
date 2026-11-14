@@ -56,6 +56,20 @@ describe("OverrideModal request body", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
+  it("recovers from a dropped connection and preserves the correction for retry", async () => {
+    const user = userEvent.setup();
+    const props = renderModal({ recordId: "rec1" });
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await user.type(screen.getByPlaceholderText(/Sakit, konfirmasi/), "Koreksi hadir");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled();
+    expect(screen.getByPlaceholderText(/Sakit, konfirmasi/)).toHaveValue("Koreksi hadir");
+    expect(props.onOpenChange).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(props.onSuccess).toHaveBeenCalledOnce());
+  });
+
   it("create: POSTs the typed check-in time to the employee override endpoint", async () => {
     const user = userEvent.setup();
     const props = renderModal();

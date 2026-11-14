@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       if (r.status === "PRESENT" || r.status === "PRESENT_NO_CHECKOUT") present++;
       else if (r.status === "LATE") late++;
       else if (r.status === "ABSENT") absent++;
-      else if (r.status === "LEAVE") leave++;
+      else if (["LEAVE", "SICK", "PERMISSION"].includes(r.status)) leave++;
     }
     return [emp.kode, emp.nama, emp.campus.name, emp.jabatan, present, late, absent, leave, pending, present + late + leave]
       .map((v) => escapeCsvCell(String(v ?? "")))

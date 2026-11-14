@@ -1,4 +1,5 @@
 "use client";
+import { usePermissions } from "@/hooks/use-permission";
 
 import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -74,6 +75,7 @@ const SECTION_SALARY = "salary";
 const SECTION_ATTENDANCE = "attendance";
 
 export default function EmployeeDetailPage() {
+  const can = usePermissions();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
@@ -276,7 +278,7 @@ export default function EmployeeDetailPage() {
         title={e.nama}
         description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
         badge={e.status !== "ACTIVE" ? <StatusBadge status="INACTIVE" /> : undefined}
-        primaryActions={
+        primaryActions={!can("employees.edit") ? [] :
           e.status === "ACTIVE"
             ? (!isEditing
                 ? [{ label: "Ubah", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditing }]
@@ -286,7 +288,7 @@ export default function EmployeeDetailPage() {
               // dedicated POST /restore endpoint (idempotent + audited).
               [{ label: "Aktifkan", onClick: () => setRestoreOpen(true) }]
         }
-        menuActions={
+        menuActions={!can("employees.edit") ? [] :
           e.status === "ACTIVE"
             ? [{ label: "Nonaktifkan", onClick: () => setDeactivateOpen(true), destructive: true }]
             : []
@@ -595,6 +597,7 @@ export default function EmployeeDetailPage() {
               <SalaryEditor
                 components={salaryComponents}
                 values={salaryValues}
+                canEdit={can("payroll.edit")}
                 saving={savingSalary}
                 onSave={handleSaveSalary}
               />

@@ -48,6 +48,17 @@ beforeEach(() => {
 });
 
 describe("GET /api/attendance/export — F-11 validation", () => {
+  it("includes daily SICK and PERMISSION marks in excused and total days", async () => {
+    await mockSession(adminSession());
+    employeeFindMany.mockResolvedValue([{ kode: "E1", nama: "Guru", jabatan: "Guru", campus: { name: "Kampus" }, attendanceRecords: [
+      { status: "SICK", approvalStatus: "APPROVED" }, { status: "PERMISSION", approvalStatus: "APPROVED" },
+    ] }]);
+    const { GET } = await import("../attendance/export/route");
+    const response = await GET(new Request("http://localhost/api/attendance/export?month=11&year=2026") as never);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"E1","Guru","Kampus","Guru","0","0","0","2","0","2"');
+  });
+
   it("rejects non-numeric month with 400 and does not query employees", async () => {
     await mockSession(adminSession());
     const { GET } = await import("../attendance/export/route");

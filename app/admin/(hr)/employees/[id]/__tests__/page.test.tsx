@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => () => true, usePermission: () => true }));
 /**
  * T6c — employee detail migrated from AdminTabs to the Recipe 2b Dossier
  * layout (patterns.md). The contracts worth pinning here are the ones the

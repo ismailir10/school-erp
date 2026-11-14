@@ -1,4 +1,5 @@
 "use client";
+import { usePermissions } from "@/hooks/use-permission";
 
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
@@ -55,6 +56,7 @@ type PayrollData = {
 };
 
 export default function PayrollDetailPage() {
+  const can = usePermissions();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [data, setData] = useState<PayrollData | null>(null);
@@ -381,12 +383,12 @@ export default function PayrollDetailPage() {
         }
         actions={
           <>
-            {isDraft && !isEditing && (
+            {isDraft && can("payroll.create") && !isEditing && (
               <Button size="sm" variant="outline" onClick={openEdit} data-testid="payroll-edit-btn">
                 <Pencil size={14} className="mr-1.5" /> Ubah
               </Button>
             )}
-            {isDraft && (
+            {isDraft && can("payroll.create") && (
               <Button size="sm" variant="outline" onClick={() => setCancelModal(true)} data-testid="payroll-cancel-draft-btn" className="text-destructive hover:text-destructive">
                 <Trash2 size={14} className="mr-1.5" /> Batalkan draf
               </Button>
@@ -396,7 +398,7 @@ export default function PayrollDetailPage() {
                 Bisa disetujui mulai {formatDate(approveFrom)}
               </span>
             )}
-            {isDraft && (
+            {isDraft && can("payroll.approve") && (
               <Button
                 size="sm"
                 onClick={() => setApproveModal(true)}
@@ -550,7 +552,7 @@ export default function PayrollDetailPage() {
               {/* Sheet body padding — SheetContent has none, SheetHeader brings its own px */}
               <div className="mt-6 space-y-4 px-4 pb-4" data-testid="payroll-item-sheet-body">
                 {/* Variables button */}
-                {isDraft && (
+                {isDraft && can("payroll.create") && (
                   <Button variant="link" size="sm" onClick={() => openVars(detailItem)} className="gap-1.5">
                     <Settings2 size={12} /> Ubah variabel kehadiran
                   </Button>
@@ -570,7 +572,7 @@ export default function PayrollDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-currency">{formatRupiah(line.finalAmount)}</span>
-                        {isDraft && (
+                        {isDraft && can("payroll.create") && (
                           <Button type="button" size="icon-sm" variant="ghost" onClick={() => openLineAdj(detailItem, line)} aria-label={`Ubah penyesuaian ${line.labelSnapshot}`} className="text-muted-foreground">
                             <Pencil size={12} />
                           </Button>

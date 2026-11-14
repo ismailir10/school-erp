@@ -118,6 +118,7 @@ describe("StudentAttendancePage — Timpa Kehadiran dialog (RHF)", () => {
     const body = JSON.parse(putInit.body as string);
     expect(body.status).toBe("SICK");
     expect(body.notes).toBe("Demam ringan");
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes("/api/student-attendance/stats"))).toHaveLength(2));
   });
 
   it("clearing Catatan sends notes: null (the pre-migration `notes || null` contract)", async () => {

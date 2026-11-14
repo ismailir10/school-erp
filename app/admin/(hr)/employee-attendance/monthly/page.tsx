@@ -1,5 +1,7 @@
 "use client";
 
+import { usePermission } from "@/hooks/use-permission";
+
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
@@ -28,6 +30,8 @@ const STATUS_COLORS: Record<string, string> = {
   LATE: "bg-status-late",
   ABSENT: "bg-status-absent",
   LEAVE: "bg-status-leave",
+  SICK: "bg-status-leave",
+  PERMISSION: "bg-status-leave",
   HOLIDAY: "bg-status-holiday",
   HALF_DAY: "bg-status-late",
   PRESENT_NO_CHECKOUT: "bg-status-late",
@@ -38,6 +42,8 @@ const STATUS_LABELS: Record<string, string> = {
   LATE: "Terlambat",
   ABSENT: "Alpa",
   LEAVE: "Izin",
+  SICK: "Sakit",
+  PERMISSION: "Izin",
   HOLIDAY: "Libur",
   HALF_DAY: "Setengah hari",
   PRESENT_NO_CHECKOUT: "Hadir tanpa check-out",
@@ -59,6 +65,7 @@ export default function MonthlyAttendancePage() {
 }
 
 function MonthlyAttendancePageInner() {
+  const canOverride = usePermission("attendance.override");
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -116,7 +123,7 @@ function MonthlyAttendancePageInner() {
   function handleCellClick(emp: MonthlyData, day: number) {
     const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const record = emp.records.find((r) => r.date === dateStr);
-    if (record?.isLocked) return;
+    if (!canOverride || record?.isLocked) return;
     setOverrideTarget({
       recordId: record?.id ?? null,
       employeeId: emp.employee.id,
@@ -218,7 +225,7 @@ function MonthlyAttendancePageInner() {
                           <button
                             onClick={() => handleCellClick(emp, d)}
                             aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}
-                            disabled={record?.isLocked}
+                            disabled={!canOverride || record?.isLocked}
                             className={`size-5 rounded-sm inline-block [@media(pointer:coarse)]:size-11 ${
                               isPending
                                 ? "border border-dashed border-status-late bg-status-late-subtle"

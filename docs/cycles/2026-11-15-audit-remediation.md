@@ -61,6 +61,8 @@ Destructive migration, new dependency requiring a product tradeoff, live service
 
 - T4 delivered: Ordered assessment writes, context resets, atomic homeroom replacement, program/class fields and valid curriculum dates are verified.
 
+- T5 delivered: Payroll retries and export replay, read-only controls, attendance date totals and accessible keyboard details are verified.
+
 ## Finding closure ledger
 
 All rows below describe implemented behavior; final local verification is recorded separately. Original audit IDs remain stable.

@@ -11,7 +11,7 @@ const { enrollmentFindMany, attendanceGroupBy, sectionFindFirst } = vi.hoisted(
 vi.mock("@/lib/db", () => ({
   prisma: {
     studentEnrollment: { findMany: enrollmentFindMany },
-    studentAttendance: { groupBy: attendanceGroupBy },
+    studentAttendance: { findMany: attendanceGroupBy },
     classSection: { findFirst: sectionFindFirst },
   },
 }));
@@ -89,9 +89,9 @@ describe("getStudentRecap", () => {
       enrollment("s2", "Budi", "cs1", "TK A"),
     ]);
     attendanceGroupBy.mockResolvedValue([
-      { studentId: "s1", classSectionId: "cs1", status: "PRESENT", _count: { status: 18 } },
-      { studentId: "s1", classSectionId: "cs1", status: "SICK", _count: { status: 2 } },
-      { studentId: "s2", classSectionId: "cs1", status: "PERMISSION", _count: { status: 1 } },
+      ...Array.from({ length: 18 }, (_, index) => ({ studentId: "s1", classSectionId: "cs1", status: "PRESENT", date: `2026-06-PRESENT-${index}`, sessionId: null })),
+      ...Array.from({ length: 2 }, (_, index) => ({ studentId: "s1", classSectionId: "cs1", status: "SICK", date: `2026-06-SICK-${index}`, sessionId: null })),
+      ...Array.from({ length: 1 }, (_, index) => ({ studentId: "s2", classSectionId: "cs1", status: "PERMISSION", date: `2026-06-PERMISSION-${index}`, sessionId: null })),
     ]);
 
     const rows = await getStudentRecap("t1", 6, 2026);
@@ -168,8 +168,8 @@ describe("getStudentRecap", () => {
       enrollment("s1", "Aisyah", "cs2", "TK B"),
     ]);
     attendanceGroupBy.mockResolvedValue([
-      { studentId: "s1", classSectionId: "cs1", status: "PRESENT", _count: { status: 5 } },
-      { studentId: "s1", classSectionId: "cs2", status: "PRESENT", _count: { status: 3 } },
+      ...Array.from({ length: 5 }, (_, index) => ({ studentId: "s1", classSectionId: "cs1", status: "PRESENT", date: `2026-06-PRESENT-${index}`, sessionId: null })),
+      ...Array.from({ length: 3 }, (_, index) => ({ studentId: "s1", classSectionId: "cs2", status: "PRESENT", date: `2026-06-PRESENT-${index}`, sessionId: null })),
     ]);
 
     const rows = await getStudentRecap("t1", 6, 2026);
