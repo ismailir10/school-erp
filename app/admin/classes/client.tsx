@@ -1,5 +1,6 @@
 "use client";
 
+import { campusShortLabels } from "@/lib/format";
 import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { pickDefaultYear } from "./pick-default-year";
@@ -107,6 +108,7 @@ export function ClassesClient({
 }) {
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const campusShort = campusShortLabels(campuses.map((c) => c.name));
   const [programs, setPrograms] = useState<Program[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [yearId, setYearId] = useState<string>("");
@@ -513,7 +515,7 @@ export function ClassesClient({
             onChange: setCampusFilter,
             options: [
               { value: "all", label: "Semua Kampus" },
-              ...campuses.map((c) => ({ value: c.id, label: c.name })),
+              ...campuses.map((c) => ({ value: c.id, label: campusShort.get(c.name) ?? c.name })),
             ],
           },
           {
@@ -617,7 +619,7 @@ export function ClassesClient({
                     .filter((c) => c.status === "ACTIVE" || c.id === field.value)
                     .map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.name}
+                        {campusShort.get(c.name) ?? c.name}
                         {c.status !== "ACTIVE" ? " (nonaktif)" : ""}
                       </SelectItem>
                     ))}

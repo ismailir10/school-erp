@@ -145,7 +145,7 @@ None: no schema migration, no new dependency, no new permission or PII exposure.
 T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T5 and T6 depend on T3 and can run in parallel with each other.
 
 - [x] **T0** — Audit and roadmap report. Accept: report and screenshots committed (e0a788d9).
-- [ ] **T1** — Dropdown opens below its field, plus the campus short-label helper, applied to campus options. Accept: helper Vitest; dropdowns open below at 1440 and 390. Reuse: `components/ui/select.tsx`, `lib/format.ts`.
+- [x] **T1** — Dropdown opens below its field, plus the campus short-label helper, applied to campus options. Accept: helper Vitest; dropdowns open below at 1440 and 390. Reuse: `components/ui/select.tsx`, `lib/format.ts`.
 - [ ] **T2** — Remove the header campus line; Sentra segmented campus choice; staff-attendance campus carried between its pages; controls hidden with one campus. Accept: verify flow 3; `sentra.spec.ts` updated. Deps: T1 (short labels).
 - [x] **T3** — The "names are doors" rule in `ui.md`, and an entity-link helper (hrefs plus the HR rule). Accept: helper Vitest; `ui.md` section.
 - [ ] **T4** — Finance links: invoice list (number = identity, student link), payments, invoice-detail student and wali, guardian-detail invoice rows. Accept: verify flow 1; list tests updated. Deps: T3.
@@ -177,6 +177,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - **Shared tree:** workers edit disjoint files and never commit. They run only targeted Vitest and ESLint. The driver runs tsc, the build and the full Vitest suite, reviews each diff, and commits one task at a time.
   - **Reviews:** a Sonnet reviewer covers standards, spec and security on the `app/api` diffs (T4, T5, T8).
 - T3: `.claude/standards/ui.md` gains a "Names are doors" section. New `lib/entity-links.ts` (`entityHref`) and `components/entity-link.tsx` (`EntityLink`): a null href renders plain text, and the 44 px touch target is opt-in. `data-table-link-cell.tsx` exports its underline and touch classes so both link components look the same.
+- T1: `components/ui/select.tsx` now defaults `alignItemWithTrigger` to false, so dropdowns open below their field. New `campusShortLabels()` in `lib/format.ts` strips the leading whole words that every campus name shares. Applied to the campus options in employees (filter, create and edit), the classes filter and create dialog, and the teacher Gerbang page.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification

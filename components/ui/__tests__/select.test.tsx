@@ -115,3 +115,22 @@ describe("<Select> auto-derived items", () => {
     expect(trigger.textContent).toContain("unknown_id")
   })
 })
+
+describe("<SelectContent> placement", () => {
+  it("does not align the popup over the trigger by default (opens below)", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event")
+    render(
+      <Select value="A">
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="A">Alpha</SelectItem>
+        </SelectContent>
+      </Select>
+    )
+    await userEvent.click(screen.getByRole("combobox"))
+    const popup = document.querySelector('[data-slot="select-content"]')
+    expect(popup?.getAttribute("data-align-trigger")).toBe("false")
+  })
+})
