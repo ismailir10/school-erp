@@ -22,15 +22,14 @@ export const guardianDocumentsHref = (parentId: string) => `/admin/guardians/${p
 
 /**
  * "Perlu perhatian" for a student: only what applies, in the order an admin
- * acts on it — money owed, no class, no wali (utama), missing berkas, raport
- * still draft. Every row has one button that does the thing: open a dialog or
+ * acts on it — money owed, no class (message only; the header owns the enroll button), no wali (utama), missing berkas, raport
+ * still draft. Every other row has one button that does the thing: open a dialog or
  * jump to (and open) the section that fixes it.
  *
- * Pure: the page passes what it already has plus two callbacks, so each
+ * Pure: the page passes what it already has plus a jump callback, so each
  * condition is testable without rendering the page.
  */
 export function buildStudentAttentionItems({
-  studentName,
   canEdit,
   isActive,
   isPlaced,
@@ -40,9 +39,7 @@ export function buildStudentAttentionItems({
   missingDocs,
   raportDraft,
   onJump,
-  onEnroll,
 }: {
-  studentName: string;
   canEdit: boolean;
   isActive: boolean;
   /** Has a current (non-archived) class, school or day care. */
@@ -56,7 +53,6 @@ export function buildStudentAttentionItems({
   /** Null until the overview has loaded (or when it failed). */
   raportDraft: number | null;
   onJump: (sectionId: string) => void;
-  onEnroll: () => void;
 }): AttentionItem[] {
   const items: AttentionItem[] = [];
   const { loading, error, summary } = invoices;
@@ -73,15 +69,7 @@ export function buildStudentAttentionItems({
     items.push({
       id: "no-class",
       message: "Belum terdaftar di kelas",
-      // The header carries the same words; a longer name tells them apart.
-      action: canEdit
-        ? {
-            label: "Daftarkan ke Kelas",
-            ariaLabel: `Daftarkan ke Kelas untuk ${studentName}`,
-            onClick: onEnroll,
-            testId: "attention-enroll",
-          }
-        : undefined,
+      // No action: the page header carries "Daftarkan ke Kelas", so the label appears once.
     });
   }
 

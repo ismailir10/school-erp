@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { StatFilter } from "@/components/admin/stat-filter";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
@@ -396,12 +397,15 @@ export default function GuardiansPage() {
       <PageHeader title="Wali Murid" description="Kelola data wali murid dan hubungannya dengan siswa." />
 
       <StatsCardsRow cols={3}>
-        <StatTile size="lg" mono
-          label="Total Wali" value={stats.total} icon={Users} tone="default" />
-        <StatTile size="lg" mono
-          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
-        <StatTile size="lg" mono
-          label="Tidak Aktif" value={stats.inactive} icon={UserX} tone="warning" />
+        {([
+          { label: "Total Wali", value: stats.total, icon: Users, tone: "default" as const, filter: "all" },
+          { label: "Aktif", value: stats.active, icon: UserCheck, tone: "positive" as const, filter: "ACTIVE" },
+          { label: "Tidak Aktif", value: stats.inactive, icon: UserX, tone: "warning" as const, filter: "INACTIVE" },
+        ]).map((card) => (
+          <StatFilter key={card.label} label={card.label} value={card.value} pressed={status === card.filter} onPress={() => handleStatusChange(status === card.filter ? "all" : card.filter)}>
+            <StatTile size="lg" mono label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
+          </StatFilter>
+        ))}
       </StatsCardsRow>
 
       <DataTableToolbar

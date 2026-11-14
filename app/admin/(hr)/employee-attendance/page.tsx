@@ -5,7 +5,6 @@ import { MESSAGES } from "@/lib/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -18,7 +17,6 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { AdminTabs, AdminTabsContent, AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs";
@@ -308,19 +306,15 @@ function AttendancePageInner() {
       <PageHeader
         title="Kehadiran Hari Ini"
         description={formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank")}>
-              <Download size={14} className="mr-1.5" /> Ekspor CSV
-            </Button>
-            <Link href={`/admin/employee-attendance/daily${campusQs}`}>
-              <Button size="sm"><ListChecks size={14} className="mr-1.5" /> Absensi Staf Harian</Button>
-            </Link>
-            <Link href={`/admin/employee-attendance/monthly${campusQs}`}>
-              <Button variant="outline" size="sm"><CalendarDays size={14} className="mr-1.5" /> Bulanan</Button>
-            </Link>
-          </div>
-        }
+        secondaryAction={[
+          { label: "Absensi harian", href: `/admin/employee-attendance/daily${campusQs}`, icon: <ListChecks size={14} /> },
+          { label: "Absensi bulanan", href: `/admin/employee-attendance/monthly${campusQs}`, icon: <CalendarDays size={14} /> },
+          {
+            label: "Ekspor CSV",
+            onClick: () => window.open(`/api/attendance/export?month=${new Date(date).getMonth() + 1}&year=${new Date(date).getFullYear()}`, "_blank"),
+            icon: <Download size={14} />,
+          },
+        ]}
       />
 
       <AdminTabs value={tab} onValueChange={(v) => setTab(String(v))}>

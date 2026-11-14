@@ -9,7 +9,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -402,11 +401,7 @@ export default function RolesPage() {
       <PageHeader
         title="Peran & Izin"
         description="Kelola peran dan izin akses pengguna"
-        actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus size={14} data-icon="inline-start" /> Tambah Peran
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Peran", onClick: openCreate, icon: <Plus size={14} /> }}
       />
 
       {/* System Roles */}

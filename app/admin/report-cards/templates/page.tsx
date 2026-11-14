@@ -2,10 +2,9 @@
 
 import { MESSAGES } from "@/lib/feedback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GuardedLink } from "@/components/admin/guarded-link";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { PageHeader } from "@/components/admin/page-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -14,7 +13,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { toast } from "sonner";
 import { AlertCircle, FileText, Copy } from "lucide-react";
@@ -233,16 +231,14 @@ export default function RaportTemplatesPage() {
       <PageHeader
         title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
-        actions={
-          // Only shown once terms exist — when the list is empty, the
-          // EmptyState below already offers the same "Susun Rapor" CTA, and
-          // showing both reads as a duplicate action.
-          terms === null || terms.length > 0 ? (
-            <GuardedLink href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
-              Susun Rapor
-            </GuardedLink>
-          ) : undefined
-        }
+        // Only shown once terms exist — when the list is empty, the
+        // EmptyState below already offers the same "Susun Rapor" CTA, and
+        // showing both reads as a duplicate action.
+        secondaryAction={{
+          label: "Susun Rapor",
+          href: "/admin/report-cards",
+          hidden: !(terms === null || terms.length > 0),
+        }}
       />
 
       <div className="space-y-section">

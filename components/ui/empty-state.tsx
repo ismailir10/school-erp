@@ -6,7 +6,7 @@
  *   title         Primary label.
  *   description?  Secondary supporting copy.
  *   actionLabel?  Optional CTA label (renders <Button>).
- *   actionHref?   If provided with actionLabel, renders <Link><Button/></Link>.
+ *   actionHref?   If provided with actionLabel, renders a <Button> rendered as a <Link> (no nested button).
  *   onAction?     If provided with actionLabel (and no href), renders a click handler <Button/>.
  *   accent?       Visual tone for the icon circle.
  *                   - 'neutral' (default): muted circle + muted icon (byte-equivalent to pre-S2 behavior).
@@ -82,9 +82,13 @@ export function EmptyState({
         raises it to the 44px minimum without changing the visual size class.
       */}
       {actionLabel && actionHref && (
-        <Link href={actionHref} className="mt-4 max-w-full">
-          <Button size="sm" className="tap-target max-w-full whitespace-normal text-wrap">{actionLabel}</Button>
-        </Link>
+        <Button
+          size="sm"
+          render={<Link href={actionHref} />}
+          className="tap-target mt-4 max-w-full whitespace-normal text-wrap"
+        >
+          {actionLabel}
+        </Button>
       )}
       {actionLabel && onAction && !actionHref && (
         <Button size="sm" onClick={onAction} className="tap-target mt-4 max-w-full whitespace-normal text-wrap">

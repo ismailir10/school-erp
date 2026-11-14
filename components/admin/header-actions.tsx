@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import Link from "next/link";
+import { GuardedLink } from "@/components/admin/guarded-link";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,8 @@ export type HeaderAction = {
   label: string;
   onClick?: () => void;
   href?: string;
+  /** With `href`: an off-site link, opened in a new tab (`target="_blank"`, `rel="noopener noreferrer"`). */
+  external?: boolean;
   icon?: ReactNode;
   destructive?: boolean;
   disabled?: boolean;
@@ -29,6 +31,18 @@ export type HeaderAction = {
   /** Forwarded as `data-testid` on the rendered Button / DropdownMenuItem. */
   testId?: string;
 };
+
+/** An `href` action renders as a link: in-app through `GuardedLink` (unsaved-changes guard), off-site in a new tab. */
+function linkRender(action: HeaderAction) {
+  if (!action.href) return {};
+  return {
+    render: action.external ? (
+      <a href={action.href} target="_blank" rel="noopener noreferrer" />
+    ) : (
+      <GuardedLink href={action.href} />
+    ),
+  };
+}
 
 export function visibleActions(actions?: HeaderAction[]) {
   return (actions ?? []).filter((a) => !a.hidden);
@@ -43,7 +57,7 @@ export function ActionButton({ action, className }: { action: HeaderAction; clas
       onClick={action.onClick}
       data-testid={action.testId}
       className={cn(action.destructive && "text-destructive hover:text-destructive", className)}
-      {...(action.href ? { render: <Link href={action.href} /> } : {})}
+      {...linkRender(action)}
     >
       {action.icon}
       {action.label}
@@ -59,7 +73,7 @@ export function MenuActionItem({ action, className }: { action: HeaderAction; cl
       data-testid={action.testId}
       variant={action.destructive ? "destructive" : "default"}
       className={className}
-      {...(action.href ? { render: <Link href={action.href} /> } : {})}
+      {...linkRender(action)}
     >
       {action.icon}
       {action.label}

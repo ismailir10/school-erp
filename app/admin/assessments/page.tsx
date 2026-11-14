@@ -8,13 +8,11 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { DISPLAY_TIME_ZONE, formatDate } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { ClipboardList, CalendarDays, Building2, AlertCircle, FileText } from "lucide-react";
-import Link from "next/link";
 
 type WalasRow = {
   classSectionId: string;
@@ -97,11 +95,7 @@ export default function AdminPenilaianPage() {
             ? `Pantau kelengkapan penilaian — Tahun Ajaran ${data.academicYear}`
             : "Pantau kelengkapan penilaian walas pekanan & sentra harian"
         }
-        actions={
-          <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            <FileText className="size-4" /> Susun Rapor
-          </Link>
-        }
+        secondaryAction={{ label: "Susun Rapor", href: "/admin/report-cards", icon: <FileText className="size-4" /> }}
       />
 
       <div className="space-y-section">

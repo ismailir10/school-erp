@@ -192,12 +192,12 @@ function DailyStaffAttendancePageInner() {
       <PageHeader
         title="Absensi Staf Harian"
         description={date ? formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : undefined}
-        actions={
-          <Button onClick={markAll} disabled={busy || loading || unmarked === 0 || isFuture}>
-            <CheckCheck size={14} className="mr-1.5" />
-            Tandai semua hadir{unmarked > 0 ? ` (${unmarked})` : ""}
-          </Button>
-        }
+        primaryAction={{
+          label: `Tandai semua hadir${unmarked > 0 ? ` (${unmarked})` : ""}`,
+          onClick: markAll,
+          disabled: busy || loading || unmarked === 0 || isFuture,
+          icon: <CheckCheck size={14} />,
+        }}
       />
 
       <div className="mb-4 flex flex-wrap gap-3">

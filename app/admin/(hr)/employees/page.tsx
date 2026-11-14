@@ -399,11 +399,7 @@ export default function EmployeesPage() {
       <PageHeader
         title="Karyawan"
         description="Data karyawan dan akun staf sekolah"
-        actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus size={14} className="mr-1.5" /> Tambah
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Karyawan", onClick: openCreate, icon: <Plus className="size-4" /> }}
       />
 
       {/* Stats */}

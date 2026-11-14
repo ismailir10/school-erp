@@ -26,16 +26,21 @@ export function PageHeader({
   actions?: ReactNode;
   /** The one filled button (size sm). A page has one. */
   primaryAction?: PageHeaderAction;
-  /** An outline button (size sm) beside the primary; below `sm` it folds into the `⋯` menu. */
-  secondaryAction?: PageHeaderAction;
+  /**
+   * Outline button(s) (size sm) beside the primary; one or several. Below `sm` they all fold into the
+   * `⋯` menu, in order.
+   */
+  secondaryAction?: PageHeaderAction | PageHeaderAction[];
   /** Everything else, in the `⋯` menu; destructive entries last, after a separator. */
   menuActions?: PageHeaderAction[];
   className?: string;
 }) {
   const primary = primaryAction && !primaryAction.hidden ? primaryAction : undefined;
-  const secondary = secondaryAction && !secondaryAction.hidden ? secondaryAction : undefined;
-  const hasMenu = visibleActions(menuActions).length > 0 || !!secondary;
-  const hasStructured = !!primary || !!secondary || hasMenu;
+  const secondaries = visibleActions(
+    secondaryAction === undefined ? undefined : Array.isArray(secondaryAction) ? secondaryAction : [secondaryAction],
+  );
+  const hasMenu = visibleActions(menuActions).length > 0 || secondaries.length > 0;
+  const hasStructured = !!primary || hasMenu;
 
   return (
     <header className={cn("mb-section flex min-w-0 flex-col gap-field sm:flex-row sm:items-start sm:justify-between", className)}>
@@ -53,8 +58,10 @@ export function PageHeader({
       {(actions || hasStructured) && (
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {actions}
-          {secondary && <ActionButton action={secondary} className="hidden sm:inline-flex" />}
-          {hasMenu && <OverflowMenu actions={menuActions} mobileOnly={secondary ? [secondary] : undefined} />}
+          {secondaries.map((action, i) => (
+            <ActionButton key={action.label + i} action={action} className="hidden sm:inline-flex" />
+          ))}
+          {hasMenu && <OverflowMenu actions={menuActions} mobileOnly={secondaries.length > 0 ? secondaries : undefined} />}
           {primary && <ActionButton action={{ ...primary, variant: primary.variant ?? "default" }} />}
         </div>
       )}

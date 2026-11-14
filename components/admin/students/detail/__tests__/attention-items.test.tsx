@@ -18,9 +18,7 @@ type Input = Parameters<typeof buildStudentAttentionItems>[0];
 
 function build(over: Partial<Input> = {}) {
   const onJump = vi.fn();
-  const onEnroll = vi.fn();
   const items = buildStudentAttentionItems({
-    studentName: "Aisyah Putri",
     canEdit: true,
     isActive: true,
     isPlaced: true,
@@ -30,10 +28,9 @@ function build(over: Partial<Input> = {}) {
     missingDocs: [],
     raportDraft: 0,
     onJump,
-    onEnroll,
     ...over,
   });
-  return { items, onJump, onEnroll };
+  return { items, onJump };
 }
 
 const KK = { label: "KK keluarga", section: "dokumen" };
@@ -111,7 +108,7 @@ describe("buildStudentAttentionItems", () => {
 
   it("gives each row one distinct, descriptive button that does the thing", async () => {
     const user = userEvent.setup();
-    const { items, onJump, onEnroll } = build({
+    const { items, onJump } = build({
       invoices: { loading: false, error: false, summary: OWED },
       isPlaced: false,
       hasPrimaryGuardian: false,
@@ -123,7 +120,6 @@ describe("buildStudentAttentionItems", () => {
     const names = within(region).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent);
     expect(names).toEqual([
       "Lihat tagihan",
-      "Daftarkan ke Kelas untuk Aisyah Putri",
       "Atur wali",
       "Lengkapi berkas",
       "Buka rapor",
@@ -132,7 +128,6 @@ describe("buildStudentAttentionItems", () => {
 
     for (const name of names) await user.click(within(region).getByRole("button", { name }));
     expect(onJump.mock.calls.map((c) => c[0])).toEqual(["keuangan", "keluarga", "dokumen", "akademik"]);
-    expect(onEnroll).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the message but drops the fix-it button for staff who cannot edit", () => {
@@ -193,17 +188,11 @@ describe("buildStudentAttentionItems", () => {
   });
 
   describe("no class", () => {
-    it("shows the row with its button for staff who can edit", () => {
+    it("shows the message with no button (the page header owns Daftarkan ke Kelas)", () => {
       const { items } = build({ isPlaced: false });
       render(<AttentionStrip items={items} />);
       expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
-      expect(screen.getByTestId("attention-enroll")).toBeInTheDocument();
-    });
-
-    it("shows the fact without a button to a read-only viewer", () => {
-      const { items } = build({ isPlaced: false, canEdit: false });
-      render(<AttentionStrip items={items} />);
-      expect(screen.getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Daftarkan ke Kelas/ })).not.toBeInTheDocument();
       expect(screen.queryByTestId("attention-enroll")).not.toBeInTheDocument();
     });
 

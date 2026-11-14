@@ -6,7 +6,7 @@
 
 import { MESSAGES } from "@/lib/feedback";
 import { useEffect, useId, useMemo, useState } from "react";
-import Link from "next/link";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -351,18 +351,12 @@ export default function AcademicPage() {
         return (
           // whitespace-normal: table cells are nowrap, which would push the table wider than a phone.
           <div className="whitespace-normal">
-            <span className="text-sm font-medium">{y.name}</span>
-            {/* Periode, Status and the class link are hidden below `md`: repeat them under the name for a phone. */}
+            {/* The name opens this year's classes (names are doors). */}
+            <DataTableLinkCell href={`/admin/classes?yearId=${y.id}`}>{y.name}</DataTableLinkCell>
+            {/* Periode and Status are hidden below `md`: repeat them under the name for a phone. */}
             <DataTableMobileMeta className="mt-1">
               <StatusBadge status={y.status} />
               <span>{formatDateShort(y.startDate)} — {formatDateShort(y.endDate)}</span>
-              <Link
-                href={`/admin/classes?yearId=${y.id}`}
-                className="inline-flex min-h-8 items-center gap-1 text-primary-text hover:underline [@media(pointer:coarse)]:min-h-11"
-              >
-                Kelola kelas
-                <ArrowRightCircle size={12} aria-hidden="true" />
-              </Link>
             </DataTableMobileMeta>
           </div>
         );
@@ -389,21 +383,6 @@ export default function AcademicPage() {
       // Status sits under the name below `md` (DataTableMobileMeta in the name cell).
       meta: { priority: "low" },
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-    {
-      id: "manageClasses",
-      header: "",
-      // Below `md` this link lives in the name cell's meta line ("Kelola kelas").
-      meta: { priority: "low" },
-      cell: ({ row }) => (
-        <Link
-          href={`/admin/classes?yearId=${row.original.id}`}
-          className="text-xs text-primary-text hover:underline inline-flex items-center gap-1"
-        >
-          Kelola kelas tahun ini
-          <ArrowRightCircle size={12} />
-        </Link>
-      ),
     },
     {
       id: "actions",
@@ -460,7 +439,19 @@ export default function AcademicPage() {
 
   return (
     <>
-      <PageHeader title="Tahun Ajaran" description="Program dan tahun ajaran" />
+      <PageHeader
+        title="Tahun Ajaran"
+        description="Program dan tahun ajaran"
+        primaryAction={{
+          label: "Tambah Tahun Ajaran",
+          icon: <Plus size={14} />,
+          onClick: () => {
+            setEditingYear(null);
+            yearForm.reset(nextYear ? { name: "", startDate: nextYear.startDate, endDate: nextYear.endDate } : EMPTY_YEAR_FORM);
+            setYearDialog(true);
+          },
+        }}
+      />
 
       {/* Programs Section */}
       <div className="mb-8">
@@ -484,7 +475,7 @@ export default function AcademicPage() {
             },
           ]}
           actions={
-            <Button size="sm" onClick={() => { setEditingProgram(null); programForm.reset(EMPTY_PROGRAM_FORM); setProgramDialog(true); }}>
+            <Button size="sm" variant="outline" onClick={() => { setEditingProgram(null); programForm.reset(EMPTY_PROGRAM_FORM); setProgramDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Program
             </Button>
           }
@@ -522,15 +513,6 @@ export default function AcademicPage() {
               ],
             },
           ]}
-          actions={
-            <Button size="sm" onClick={() => {
-              setEditingYear(null);
-              yearForm.reset(nextYear ? { name: "", startDate: nextYear.startDate, endDate: nextYear.endDate } : EMPTY_YEAR_FORM);
-              setYearDialog(true);
-            }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
-            </Button>
-          }
         />
         <DataTable
           columns={yearColumns}

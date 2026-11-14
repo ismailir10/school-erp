@@ -641,7 +641,6 @@ export default function StudentDetailPage() {
   ];
 
   const attentionItems = buildStudentAttentionItems({
-    studentName: student.name,
     canEdit: canManage,
     isActive: isActiveStudent,
     isPlaced,
@@ -651,7 +650,6 @@ export default function StudentDetailPage() {
     missingDocs: docItems.filter((d) => !d.present).map(({ label, section, href }) => ({ label, section, href })),
     raportDraft: raportTally?.draft ?? null,
     onJump: jumpToSection,
-    onEnroll: () => setEnrollDialog(true),
   });
   const railTiles = buildRailTiles({
     overviewError,

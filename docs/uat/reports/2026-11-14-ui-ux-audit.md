@@ -60,8 +60,8 @@ Priority: **P1** = user-visible every day, or the user named it; **P2** = clear 
 | UX-R1 | Real campus scope in the admin header; pages stop asking | P1 | L | admin | yes | done (#739) |
 | UX-R2 | Every named entity is a link ("names are doors") | P1 | L (split) | all | yes (rule) | done (#739) |
 | UX-R3 | Select popup below its trigger; short campus labels; one picker per kind of choice | P1 | S + M | all | no | R3a+R3b done (#739); R3c open |
-| UX-R4 | Admin list pages share one shape | P2 | M | admin | yes | open |
-| UX-R5 | One primary action per screen | P3 | S | admin | no | open |
+| UX-R4 | Admin list pages share one shape | P2 | M | admin | yes | done (#740) |
+| UX-R5 | One primary action per screen | P3 | S | admin | no | done (#740) |
 | UX-R6 | Undo over confirm; canonical confirm labels | P3 | M | admin, teacher | no | open |
 | UX-R7 | Smart defaults and non-school-day awareness | P2 | M | all | no | open |
 | UX-R8 | Status colours and vocabulary mean one thing | P3 | M | all | yes (glossary) | open |

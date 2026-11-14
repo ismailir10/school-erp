@@ -125,7 +125,7 @@ for (const m of modules) {
     it("dirty edit dismissal preserves the row values until explicit discard", async () => {
       serve(() => response(payload([m.row])));
       const user = userEvent.setup(); m.render(); await screen.findByText(m.rowName);
-      await user.click(screen.getByRole("button", { name: /aksi|menu|lainnya/i }));
+      await user.click(screen.getByRole("button", { name: /^(aksi untuk|buka menu aksi)/i }));
       await user.click(await screen.findByRole("menuitem", { name: m.edit }));
       const dialog = await screen.findByRole("dialog", { name: m.editDialog });
       const field = within(dialog).getByLabelText(m.field);

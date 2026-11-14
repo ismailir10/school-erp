@@ -183,10 +183,12 @@ describe("Belum terdaftar di kelas row for read-only viewers", () => {
     expect(within(region).queryByRole("button", { name: /Daftarkan ke Kelas/ })).not.toBeInTheDocument();
   });
 
-  it("keeps the button for an editor", async () => {
+  it("keeps the message but leaves the button to the header for an editor", async () => {
     await renderLoaded({ student: makeStudent({ enrollments: [] }) });
     const region = await strip();
-    expect(within(region).getByRole("button", { name: /Daftarkan ke Kelas/ })).toBeInTheDocument();
+    expect(within(region).getByText("Belum terdaftar di kelas")).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /Daftarkan ke Kelas/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Daftarkan ke Kelas/ })).toHaveLength(1);
   });
 });
 

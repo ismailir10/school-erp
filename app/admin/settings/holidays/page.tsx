@@ -8,7 +8,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
@@ -197,11 +196,7 @@ export default function HolidaysPage() {
       <PageHeader
         title="Hari Libur"
         description="Kelola tanggal libur untuk perhitungan hari kerja"
-        actions={
-          <Button onClick={openNew} size="sm">
-            <Plus size={14} data-icon="inline-start" /> Tambah Hari Libur
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Hari Libur", onClick: openNew, icon: <Plus size={14} /> }}
       />
 
       <DataTableToolbar

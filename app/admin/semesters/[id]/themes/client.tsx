@@ -2,7 +2,6 @@
 
 import { MESSAGES } from "@/lib/feedback";
 import { BackLink } from "@/components/portal/back-link";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -138,19 +137,13 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
       <PageHeader
         title={`${semester.academicYearName} · Semester ${semester.number}`}
         description={`Periode ${formatDateShort(toYmd(semester.startDate))} – ${formatDateShort(toYmd(semester.endDate))}. Atur tema, subtema, dan pekan.`}
-        actions={
-          <div className="flex items-center gap-2">
-            {canWrite && (
-              <Link
-                href={`/admin/semesters/${semester.id}/import`}
-                className="inline-flex items-center gap-2 h-9 rounded-md border border-input bg-background px-3 text-small font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <FileUp className="size-4" /> Impor PROMES (Program Semester)
-              </Link>
-            )}
-            <StatusBadge status={semester.status} />
-          </div>
-        }
+        badge={<StatusBadge status={semester.status} />}
+        secondaryAction={{
+          label: "Impor PROMES (Program Semester)",
+          href: `/admin/semesters/${semester.id}/import`,
+          icon: <FileUp className="size-4" />,
+          hidden: !canWrite,
+        }}
       />
 
       <div className="grid gap-card lg:grid-cols-3">

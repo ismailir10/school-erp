@@ -228,11 +228,7 @@ export default function CampusesPage() {
       <PageHeader
         title="Kampus"
         description="Kelola lokasi kampus/cabang sekolah"
-        actions={
-          <Button onClick={openNew} size="sm">
-            <Plus size={14} data-icon="inline-start" /> Tambah Kampus
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Kampus", onClick: openNew, icon: <Plus size={14} /> }}
       />
 
       {noCampusPinned ? (

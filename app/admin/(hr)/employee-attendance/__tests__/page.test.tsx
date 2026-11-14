@@ -191,11 +191,11 @@ describe("AttendancePage — campus in the URL", () => {
     render(<AttendancePage />);
     await screen.findByText("Budi Santoso");
     await vi.waitFor(() =>
-      expect(screen.getByRole("link", { name: /Absensi Staf Harian/ }).getAttribute("href")).toBe(
+      expect(screen.getByRole("link", { name: /harian/i }).getAttribute("href")).toBe(
         "/admin/employee-attendance/daily?campusId=cp2",
       ),
     );
-    expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /bulanan/i }).getAttribute("href")).toBe(
       "/admin/employee-attendance/monthly?campusId=cp2",
     );
     expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes("campusId=cp2"))).toBe(true);
@@ -206,7 +206,7 @@ describe("AttendancePage — campus in the URL", () => {
     render(<AttendancePage />);
     await screen.findByText("Budi Santoso");
     await vi.waitFor(() =>
-      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe(
+      expect(screen.getByRole("link", { name: /bulanan/i }).getAttribute("href")).toBe(
         "/admin/employee-attendance/monthly",
       ),
     );
@@ -217,12 +217,12 @@ describe("AttendancePage — campus in the URL", () => {
     const { rerender } = render(<AttendancePage />);
     await screen.findByText("Budi Santoso");
     await vi.waitFor(() =>
-      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe("/admin/employee-attendance/monthly?campusId=cp2"),
+      expect(screen.getByRole("link", { name: /bulanan/i }).getAttribute("href")).toBe("/admin/employee-attendance/monthly?campusId=cp2"),
     );
     search = "";
     rerender(<AttendancePage />);
     await vi.waitFor(() =>
-      expect(screen.getByRole("link", { name: /Bulanan/ }).getAttribute("href")).toBe("/admin/employee-attendance/monthly"),
+      expect(screen.getByRole("link", { name: /bulanan/i }).getAttribute("href")).toBe("/admin/employee-attendance/monthly"),
     );
   });
 

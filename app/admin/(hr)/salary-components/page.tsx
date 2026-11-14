@@ -9,7 +9,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -219,11 +218,7 @@ export default function SalaryComponentsPage() {
       <PageHeader
         title="Komponen Gaji"
         description="Konfigurasi komponen pendapatan dan potongan"
-        actions={
-          <Button onClick={openNew} size="sm">
-            <Plus size={16} className="mr-1.5" /> Tambah Komponen
-          </Button>
-        }
+        primaryAction={{ label: "Tambah Komponen", onClick: openNew, icon: <Plus className="size-4" /> }}
       />
 
       <DataTableToolbar

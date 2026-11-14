@@ -33,8 +33,15 @@ Six numbered recipes (Recipe 1 to 6; Recipe 2 has two variants, 2a and 2b) cover
   <PageHeader
     title="Siswa"
     subtitle="Kelola data siswa aktif dan riwayat"
-    actions={<Button>Tambah Siswa</Button>}
+    primaryAction={{ label: "Tambah Siswa", icon: <Plus />, onClick: openCreate }}
+    secondaryAction={{ label: "Unduh Data", onClick: openExport }}
   />
+  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+    {/* A count of a slice the list can filter by is a filter (see "Stat cards" below). */}
+    <StatFilter label="Lulus" value={stats.graduated} pressed={status === "GRADUATED"} onPress={() => toggleStatus("GRADUATED")}>
+      <StatTile label="Lulus" value={stats.graduated} icon={GraduationCap} />
+    </StatFilter>
+  </div>
   <section className="mt-section">
     <DataTableToolbar
       searchPlaceholder="Cari nama / NIS..."
@@ -59,7 +66,28 @@ Six numbered recipes (Recipe 1 to 6; Recipe 2 has two variants, 2a and 2b) cover
 </>
 ```
 
-**Required pieces:** breadcrumb comes free from `app/admin/layout.tsx`'s `AdminBreadcrumb` — a list page's own root starts at `PageHeader` · `PageHeader` with title + static subtitle + primary CTA in `actions` (unless the CTA is tab-scoped — then it goes in the toolbar's `actions`, see `ui.md` Primary-Action Placement) · `DataTableToolbar` with search + status `filters` entry (Aktif/Tidak Aktif at minimum) · `DataTable` with sort + pagination + a `DataTableLinkCell` identity column ("name is the link", see `ui.md`) + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns `meta: { priority: "low" }` (hidden below `md`, see `ui.md` DataTable mobile contract) · EmptyState via `DataTable`'s empty slot.
+**Required pieces:** breadcrumb comes free from `app/admin/layout.tsx`'s `AdminBreadcrumb` — a list page's own root starts at `PageHeader` · `PageHeader` with title + static subtitle + the primary CTA in `primaryAction` (unless the CTA is tab-scoped — then it goes in the toolbar's `actions`, see `ui.md` Primary-Action Placement) · `DataTableToolbar` with search + status `filters` entry (Aktif/Tidak Aktif at minimum) · `DataTable` with sort + pagination + a `DataTableLinkCell` identity column ("name is the link", see `ui.md`) + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns `meta: { priority: "low" }` (hidden below `md`, see `ui.md` DataTable mobile contract) · EmptyState via `DataTable`'s empty slot.
+
+**Stat cards: a count of a slice is a filter.** A card that counts a status the list can already filter by
+(Aktif, Lulus, Belum bayar, Lewat tempo) is a `StatFilter` (`components/admin/stat-filter.tsx`) around the
+`StatTile`: one tap filters, the card shows `aria-pressed` with the primary ring, a second tap or the Total card
+clears it, and it always agrees with the toolbar filter (one piece of state, never two). Money and other KPI tiles
+(Piutang, Diterima bulan ini) stay display-only `StatTile`s. Never add a second toolbar control that duplicates a
+card's filter. Shipped on Siswa, Wali, Pendaftaran, Tagihan (UX-R4).
+
+**Header buttons use the structured slots.** `primaryAction` (the one filled button), `secondaryAction` (one or more
+outline buttons; they fold into `⋯` below `sm`) and `menuActions`. `actions` is for non-button content only (a badge,
+a toggle group). A navigation link is an outline action with `href`, rendered `render={<Link/>}` — never a
+`<Button>` nested in a `<Link>`. Labels name the thing: "Tambah Karyawan", not "Tambah".
+
+**Detail pages go back by one link.** A detail page reached from a list uses `DetailPageHeader`'s
+`backLabel` ("Kembali ke Daftar Siswa"), which replaces the breadcrumb; a sub-page reached from another page uses
+`BackLink` to that page. Never both a back link and a breadcrumb.
+
+**Settings pages: collection or single setting.** A settings page that holds many records (kampus, hari libur,
+peran, pengguna) is this recipe: list + `ResponsiveFormDialog`, add button in `primaryAction`. A page that holds
+one record (jam kerja, pendaftaran, pengingat WhatsApp) is one card, `max-w-2xl`, fields then one "Simpan" at the
+bottom. Two jobs, two shapes, never mixed on one page.
 
 **Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `px-page-x` / `py-page-y`; see `ui.md` § Design tokens).
 

@@ -62,4 +62,13 @@ test.describe("Admin students — data export", () => {
     expect(header).toContain("Nama Lengkap");
     expect(header).not.toContain("Nama Wali");
   });
+
+  test("tapping the Lulus stat card filters the list and shows it pressed", async ({ page }) => {
+    await page.goto("/admin/students");
+    const lulus = page.getByRole("button", { name: /^Lulus: / });
+    await expect(lulus).toHaveAttribute("aria-pressed", "false");
+    await lulus.click();
+    await expect(lulus).toHaveAttribute("aria-pressed", "true");
+    await expect(page).toHaveURL(/status=GRADUATED/);
+  });
 });

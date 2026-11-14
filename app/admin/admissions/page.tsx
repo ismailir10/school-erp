@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter, FormRootError } from "@/components/ui/form";
@@ -35,6 +34,7 @@ import { useSendFormulir } from "@/components/admin/admissions/use-send-formulir
 import { resolveFollowUpPhone } from "@/lib/enrollment/follow-up";
 import { admissionChildLabel } from "@/lib/admission/child-label";
 import type { Admission, Program } from "@/components/admin/admissions/types";
+import { StatFilter } from "@/components/admin/stat-filter";
 
 const LIST_PATH = "/admin/admissions";
 const CANCEL_FALLBACK = "Gagal membatalkan pendaftaran. Coba lagi.";
@@ -44,23 +44,6 @@ type StatCardSpec = {
   label: string; value: string | number; icon: typeof Users; tone: "default" | "warning" | "positive";
   filter: StatFilterKey; active: boolean;
 };
-
-/** A stat card that is also the filter for the rows it counts. */
-function StatFilter({
-  label, value, pressed, onPress, children,
-}: { label: string; value: string | number; pressed: boolean; onPress: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      aria-label={`${label}: ${value}`}
-      onClick={onPress}
-      className="block w-full rounded-lg text-left outline-none focus-visible:focus-outline aria-pressed:ring-2 aria-pressed:ring-primary/40"
-    >
-      {children}
-    </button>
-  );
-}
 
 function DiscardAdmissionFooter({ onKeep, onDiscard }: { onKeep: () => void; onDiscard: () => void }) {
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -180,10 +163,6 @@ export default function AdmissionsPage() {
 
   const handleTahapChange = useCallback((value: string) => {
     updateQuery({ tahap: value === "all" ? null : value, page: null });
-  }, [updateQuery]);
-
-  const handleUnpaidChange = useCallback((pressed: boolean) => {
-    updateQuery({ payment: pressed ? PAYMENT_UNPAID : null, page: null });
   }, [updateQuery]);
 
   const handleResetFilters = useCallback(() => {
@@ -343,11 +322,12 @@ export default function AdmissionsPage() {
       <PageHeader
         title="Pendaftaran"
         description="Dari pertanyaan pertama sampai jadi siswa."
-        actions={
-          canEdit ? <Button size="sm" onClick={openDialog}>
-            <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
-          </Button> : undefined
-        }
+        primaryAction={{
+          label: "Catat Pertanyaan",
+          icon: <Plus size={14} />,
+          onClick: openDialog,
+          hidden: !canEdit,
+        }}
       />
 
       <StatsCardsRow cols={4}>
@@ -375,17 +355,6 @@ export default function AdmissionsPage() {
             options: TAHAP_FILTER_OPTIONS,
           },
         ]}
-        actions={
-          <Toggle
-            variant="outline"
-            size="lg"
-            pressed={unpaidOnly}
-            onPressedChange={handleUnpaidChange}
-            className="w-full sm:w-auto"
-          >
-            Belum bayar
-          </Toggle>
-        }
       />
 
       {/* Progress of a one-tap send: the button keeps its label, so this is what a screen reader hears. */}

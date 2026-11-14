@@ -49,6 +49,21 @@ describe("PageHeader", () => {
     expect(await screen.findByRole("menuitem", { name: "Catat di muka" })).toBeInTheDocument();
   });
 
+  it("renders several secondaries as buttons and folds all of them into the menu in order", async () => {
+    render(
+      <PageHeader
+        title="Absensi Staf"
+        secondaryAction={[{ label: "Harian", href: "/a" }, { label: "Bulanan", href: "/b" }, { label: "Disembunyikan", hidden: true }]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Harian" })).toHaveAttribute("href", "/a");
+    expect(screen.getByRole("link", { name: "Bulanan" })).toHaveAttribute("href", "/b");
+    expect(screen.queryByText("Disembunyikan")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Aksi lainnya" }));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual(["Harian", "Bulanan"]);
+  });
+
   it("skips hidden actions and shows no menu trigger when there is nothing in it", () => {
     render(<PageHeader title="Tagihan" primaryAction={{ label: "Baru", hidden: true }} menuActions={[{ label: "X", hidden: true }]} />);
     expect(screen.queryByRole("button")).toBeNull();

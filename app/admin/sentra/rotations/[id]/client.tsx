@@ -162,16 +162,8 @@ export function RotationDetailClient({
         badge={
           <StatusBadge status={data.status} label={data.status === "ACTIVE" ? "Aktif" : "Nonaktif"} />
         }
-        actions={
-          canWrite ? (
-            <>
-              <Button variant="outline" onClick={() => setEditOpen(true)}>Ubah</Button>
-              <Button variant="outline" className="text-destructive" onClick={() => setDeleteOpen(true)}>
-                Hapus
-              </Button>
-            </>
-          ) : undefined
-        }
+        secondaryAction={{ label: "Ubah", onClick: () => setEditOpen(true), hidden: !canWrite }}
+        menuActions={[{ label: "Hapus", onClick: () => setDeleteOpen(true), destructive: true, hidden: !canWrite }]}
       />
 
       <section aria-labelledby="grid-title" className="space-y-field">
