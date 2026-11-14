@@ -391,7 +391,7 @@ describe("getBreadcrumbs", () => {
     expect(getBreadcrumbs("/admin/student-journal/classes/cls-1")).toEqual([
       { label: "Harian" },
       { label: "Buku Penghubung", href: "/admin/student-journal/monitoring" },
-      { label: "Kelas", href: "/admin/student-journal/classes" },
+      { label: "Kelas" }, // no index page at /admin/student-journal/classes → not a link
       { label: "Detail" },
     ]);
   });
@@ -400,7 +400,7 @@ describe("getBreadcrumbs", () => {
     expect(getBreadcrumbs("/admin/student-journal/students/s-1")).toEqual([
       { label: "Harian" },
       { label: "Buku Penghubung", href: "/admin/student-journal/monitoring" },
-      { label: "Siswa", href: "/admin/student-journal/students" },
+      { label: "Siswa" }, // no index page at /admin/student-journal/students → not a link
       { label: "Detail" },
     ]);
   });

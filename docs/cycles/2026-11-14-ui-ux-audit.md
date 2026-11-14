@@ -199,6 +199,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   3. **44 px rule.** Inline name links inside a text or meta line take no extra height (`ui.md` "Names are doors"). Links that stand alone carry `touch`.
 - Review fixes (R1): no-link "pending" invoices get the same create-and-go button; the button stays busy after navigating; the pay URL must be `https`; staff-attendance campus is read from the URL on every render, so back and forward stay in sync; two small cleanups. Vitest on the touched dirs: 205 passed; tsc clean.
 - Verify round 1: `e2e/mobile-layout.spec.ts` flagged the parent profile child-name links at 20 px on a phone emulated without touch. The coarse-pointer-only target missed it. The link is now always `min-h-11`, like the Kehadiran link beside it.
+- Verify round 1, browser walk: the T8 breadcrumb alias linked "Kelas" and "Siswa" crumbs to `/admin/student-journal/{classes,students}`, which have no index page; the RSC prefetch returned 404. Known alias crumbs are now plain labels, and only the enrollment-form alias, a real page, stays a link.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
