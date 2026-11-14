@@ -144,6 +144,7 @@ describe("geofence note sheet", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
     expect(await screen.findByText("Anda ± 312 m dari Taman Aster. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Anda di luar area kampus" })).toBeInTheDocument();
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ lat: -6.2, lng: 106.8, accuracy: 15 });
     const submit = screen.getByRole("button", { name: "Kirim untuk disetujui" });
     expect(submit).toBeDisabled();
@@ -157,6 +158,8 @@ describe("geofence note sheet", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => ({ code: "OUTSIDE_GEOFENCE", distanceMeters: null, campusName: "Taman Aster" }) }));
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Catat masuk" }));
-    expect(await screen.findByText("Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+    expect(await screen.findByText("Tambahkan catatan agar admin dapat menyetujui.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Lokasi tidak terbaca" })).toBeInTheDocument();
+    expect(screen.queryByText("Anda di luar area kampus")).toBeNull();
   });
 });

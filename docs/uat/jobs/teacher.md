@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
+> Last audited: 2026-11-14 in cycle `ui-ux-audit` (JTBD-TEACHER-HOME-03 unreadable-location sheet is titled "Lokasi tidak terbaca"). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-TEACHER-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-11-07 in cycle `attendance-geofence-gate` (check-in is geofenced to 50 m of a campus pin with a note and admin approval outside it, new JTBD-TEACHER-HOME-03; session roster gains Semua hadir / Semua pulang, new JTBD-TEACHER-SESSION-03; Gerbang mode at `/teacher/gate`, new JTBD-TEACHER-GATE-01). Prior: 2026-11-06 in cycle `sentra-rotation` (a guru sentra fills Buku Penghubung for the class in her sentra today, new JTBD-TEACHER-JOURNAL-05; Sentra Harian tiles come from the campus sentra list with her own sentra first and default to today's class, new JTBD-TEACHER-ASSESS-03). Prior: 2026-10-27 in cycle `journal-no-entry-day` (a pupil counts as lengkap with one ticked indicator; a class-day can be marked Hari tanpa buku penghubung with a keterangan, new JTBD-TEACHER-JOURNAL-04, JTBD-TEACHER-JOURNAL-01 Done when). Prior: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
@@ -390,7 +390,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   2. B. Outside the radius: tap "Catat masuk". A sheet "Anda di luar area kampus" reads "Anda ± {n} m dari {campus}. Tambahkan catatan agar admin dapat menyetujui." with a "Catatan untuk admin" field.
   3. "Kirim untuk disetujui" stays disabled until the note has at least 3 characters; submit it.
   4. The home shows the chip "Menunggu persetujuan" next to the recorded "Masuk" time.
-  5. C. Location denied or unreadable: the same sheet opens with "Lokasi tidak terbaca. Tambahkan catatan agar admin dapat menyetujui." and the same note path.
+  5. C. Location denied or unreadable: the same sheet opens titled "Lokasi tidak terbaca" with "Tambahkan catatan agar admin dapat menyetujui." and the same note path.
 - **Done when:** Inside the radius the check-in is approved at once (one tap). Outside, or with no location, the record is `PENDING` with the note, distance and nearest campus, and payroll does not count it until an admin approves (JTBD-ADMIN-ATT-01). A rejected day reads Alpa. A tenant with no campus pins checks in with one plain tap.
 - **Why this job matters:** The radius stops check-ins from home, but a teacher who is genuinely off-site (an errand for the school, a bad GPS fix) must never be blocked from recording the day.
 - **Expected perf:** tap to sheet or confirmation <2s on 4G (a location fix may add up to 10s).

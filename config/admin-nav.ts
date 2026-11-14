@@ -116,7 +116,7 @@ export const adminNav: NavConfig = {
       icon: NotebookPen,
       items: [
         { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck, permission: "students.view" },
-        { label: "Buku Penghubung", href: "/admin/student-journal/monitoring", icon: BookOpen, permission: "students.view" },
+        { label: "Buku Penghubung", href: "/admin/student-journal/monitoring", icon: BookOpen, permission: "students.view", alsoMatch: ["/admin/student-journal/students", "/admin/student-journal/classes"] },
       ],
     },
     {
@@ -549,10 +549,13 @@ export function getBreadcrumbs(
       .split("/")
       .filter(Boolean)
       .map((segment) => ({ label: segmentLabel(segment) }));
+    // Known alias segments (e.g. /classes, /students) name themselves;
+    // anything else is the public enrollment form.
+    const aliasLabel = SEGMENT_LABELS[matchedHref.split("/").pop() ?? ""] ?? "Formulir";
     return [
       { label: group.label },
       { label: item.label, href: item.href },
-      { label: "Formulir", href: suffix.length ? matchedHref : undefined },
+      { label: aliasLabel, href: suffix.length ? matchedHref : undefined },
       ...suffix,
     ];
   }

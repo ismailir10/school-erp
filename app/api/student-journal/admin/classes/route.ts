@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
     },
     include: {
       program: { select: { name: true } },
+      campus: { select: { name: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -180,6 +181,7 @@ export async function GET(req: NextRequest) {
       classSectionId: cs.id,
       className: cs.name,
       programName: cs.program.name,
+      campusName: cs.campus?.name ?? null,
       studentCount,
       checkedCount,
       completionPct,

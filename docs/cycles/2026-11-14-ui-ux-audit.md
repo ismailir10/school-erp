@@ -160,7 +160,7 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   Accept: verify flow 2 (academic part). Deps: T3.
 - [ ] **T6** — HR and portal links: staff daily, monthly and approvals; payroll detail; class teachers and wali kelas (HR-gated); teacher rosters (class attendance, weekly, center); parent profile cards. Accept: verify flows 2 and 5. Deps: T3.
 - [ ] **T7** — Parent pinned "Bayar Rp …" footer, one-tap create-and-go, failure recovery; update `docs/uat/jobs/parent.md`. Accept: verify flow 4; sheet tests.
-- [ ] **T8** — Small bugs:
+- [x] **T8** — Small bugs:
   - check-in title by state (update `docs/uat/jobs/teacher.md`);
   - journal sidebar active item;
   - monitoring campus sub-line;
@@ -178,6 +178,12 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
   - **Reviews:** a Sonnet reviewer covers standards, spec and security on the `app/api` diffs (T4, T5, T8).
 - T3: `.claude/standards/ui.md` gains a "Names are doors" section. New `lib/entity-links.ts` (`entityHref`) and `components/entity-link.tsx` (`EntityLink`): a null href renders plain text, and the 44 px touch target is opt-in. `data-table-link-cell.tsx` exports its underline and touch classes so both link components look the same.
 - T1: `components/ui/select.tsx` now defaults `alignItemWithTrigger` to false, so dropdowns open below their field. New `campusShortLabels()` in `lib/format.ts` strips the leading whole words that every campus name shares. Applied to the campus options in employees (filter, create and edit), the classes filter and create dialog, and the teacher Gerbang page.
+- T8: Five fixes:
+  - **Check-in sheet:** the title reads "Lokasi tidak terbaca" when there is no location (`app/teacher/home-client.tsx`), and JTBD-TEACHER-HOME-03 is updated.
+  - **Sidebar:** `config/admin-nav.ts` gives Buku Penghubung an `alsoMatch` for the journal students and classes routes. The alias breadcrumb now takes its label from `SEGMENT_LABELS`.
+  - **Monitoring:** the journal monitoring API returns `campusName`, and the page shows "program · short campus".
+  - **Skeletons:** route `loading.tsx` added for staff daily and for the Sentra rotation, which is a grid page, so it uses the root shape.
+  - **Payroll spacing:** moved to T6.
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification

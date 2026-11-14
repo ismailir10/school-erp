@@ -13,7 +13,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { toast } from "sonner";
-import { formatDate, formatDateShort } from "@/lib/format";
+import { campusShortLabels, formatDate, formatDateShort } from "@/lib/format";
 import { weekStart } from "@/lib/student-journal/week";
 import {
   BookOpen,
@@ -32,6 +32,7 @@ type ClassRow = {
   classSectionId: string;
   className: string;
   programName: string;
+  campusName: string | null;
   studentCount: number;
   checkedCount: number;
   completionPct: number;
@@ -117,6 +118,12 @@ export default function MonitoringPage() {
     setTablePage(1);
   }, [query, ws]);
 
+  // Short campus labels ("Taman Aster") so the sub-line stays scannable.
+  const campusLabels = useMemo(
+    () => campusShortLabels([...new Set(data.map((c) => c.campusName).filter((n): n is string => !!n))]),
+    [data],
+  );
+
   // Derived stats from the class list response.
   //
   // `totalEntries` reads the raw per-class `checkedCount`. It used to be
@@ -147,7 +154,7 @@ export default function MonitoringPage() {
             className="whitespace-normal"
             description={
               <>
-                <span className="block">{row.original.programName}</span>
+                <span className="block">{[row.original.programName, row.original.campusName ? campusLabels.get(row.original.campusName) ?? row.original.campusName : null].filter(Boolean).join(" · ")}</span>
                 <DataTableMobileMeta>
                   <span>{row.original.studentCount} siswa</span>
                 </DataTableMobileMeta>
@@ -195,14 +202,14 @@ export default function MonitoringPage() {
           ),
       },
     ],
-    [ws],
+    [ws, campusLabels],
   );
 
   const filteredRows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return data;
     return data.filter((row) =>
-      [row.className, row.programName].some((value) =>
+      [row.className, row.programName, row.campusName ?? ""].some((value) =>
         value.toLowerCase().includes(needle),
       ),
     );
