@@ -252,8 +252,8 @@ Every admin create/edit form is built the same way (cycle `2026-09-27-admin-form
 
 One rule, no detached button rows:
 
-- **Page-level primary action** (e.g. "Tambah Siswa" on a list) → `PageHeader`'s `primaryAction` (at most one filled), plus `secondaryAction` (at most one outline) and `menuActions` (⋯) for the rest.
-- **One filled button per screen and per card or action group.**
+- **Page-level primary action** (e.g. "Tambah Siswa" on a list) → `PageHeader`'s `primaryAction` (at most one filled), plus `secondaryAction` (one or more outline; they fold into `⋯` below `sm`) and `menuActions` (⋯) for the rest.
+- **One filled button per screen.** A section's or card's own action is outline ("Tambah sentra", "Buat putaran" on Sentra); a screen whose sections are equal peers has no filled button at all. The same action never appears twice on one screen (an attention strip that explains a missing step does not repeat the header's button).
 - **Tab- or section-scoped primary action** (e.g. "Tambah Komponen" on one tab of a tabbed page) → that section's `DataTableToolbar` `actions` slot, same row as search/filters.
 - Never a bare `<Button>` row floating above or beside the toolbar.
 
