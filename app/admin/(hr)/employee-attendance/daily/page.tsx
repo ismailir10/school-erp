@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCheck, Lock } from "lucide-react";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { MESSAGES } from "@/lib/feedback";
 import { campusShortLabels, formatDate, formatTime } from "@/lib/format";
 import { PageHeader } from "@/components/admin/page-header";
@@ -232,7 +234,9 @@ function DailyStaffAttendancePageInner() {
                       data-testid="daily-row"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{r.employee.nama}</p>
+                        <p className="truncate font-medium">
+                          <EntityLink href={entityHref.employee(r.employee.id)}>{r.employee.nama}</EntityLink>
+                        </p>
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>{r.employee.jabatan}</span>
                           {att ? (

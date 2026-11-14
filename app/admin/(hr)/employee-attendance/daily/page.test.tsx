@@ -48,6 +48,7 @@ describe("DailyStaffAttendancePage", () => {
     render(<DailyStaffAttendancePage />);
     expect(await screen.findByText("Budi Santoso")).toBeTruthy();
     expect(screen.getByText("Kampus A")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Budi Santoso" })).toHaveAttribute("href", "/admin/employees/e1");
     expect(screen.getByRole("button", { name: /Tandai semua hadir \(1\)/ })).toBeTruthy();
     const lockedGroup = screen.getByRole("group", { name: "Status Sari" });
     for (const b of lockedGroup.querySelectorAll("button")) expect((b as HTMLButtonElement).disabled).toBe(true);

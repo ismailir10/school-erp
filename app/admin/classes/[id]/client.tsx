@@ -9,6 +9,8 @@ import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/
 import type { SessionRow } from "@/components/admin/class-sessions-calendar";
 import { EditClassDialog } from "@/components/admin/classes/detail/edit-class-dialog";
 import { RosterSection } from "@/components/admin/classes/detail/roster-section";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { TeachersSection } from "@/components/admin/classes/detail/teachers-section";
 import { SessionsSection } from "@/components/admin/classes/detail/sessions-section";
 import type { TeacherOptionsStatus } from "@/components/admin/classes/detail/teacher-option-items";
@@ -32,9 +34,12 @@ import { toast } from "sonner";
 export function ClassDetailClient({
   classId,
   canWrite,
+  canViewEmployees = false,
 }: {
   classId: string;
   canWrite: boolean;
+  /** Viewer has `hr.view`: employee names link to their page. */
+  canViewEmployees?: boolean;
 }) {
   const isMobile = useIsMobile();
 
@@ -289,7 +294,18 @@ export function ClassDetailClient({
 
   const summaryItems = [
     { label: "Kondisi", value: <StatusBadge status={data.status} /> },
-    { label: "Wali Kelas", value: homeroomAssignment?.employee.nama ?? "—" },
+    {
+      label: "Wali Kelas",
+      value: homeroomAssignment ? (
+        <EntityLink
+          href={canViewEmployees ? entityHref.employee(homeroomAssignment.employee.id) : null}
+        >
+          {homeroomAssignment.employee.nama}
+        </EntityLink>
+      ) : (
+        "—"
+      ),
+    },
     { label: "Program", value: data.program.name },
     { label: "Tahun Ajaran", value: data.academicYear.name },
     { label: "Kampus", value: data.campus.name },
@@ -368,6 +384,7 @@ export function ClassDetailClient({
             employeesStatus={employeesStatus}
             onRetryEmployees={loadTeacherOptions}
             writeAllowed={writeAllowed}
+            canViewEmployees={canViewEmployees}
             open={openSections[SECTION_TEACHERS] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_TEACHERS, o)}
             onChanged={fetchDetail}

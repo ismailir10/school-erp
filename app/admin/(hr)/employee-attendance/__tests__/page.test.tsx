@@ -138,6 +138,9 @@ describe("AttendancePage — Perlu persetujuan tab", () => {
     expect(await screen.findByTestId("pending-count")).toHaveTextContent("1");
     await user.click(screen.getByRole("tab", { name: /Perlu persetujuan/ }));
     expect(await screen.findByText("± 312 m dari Taman Aster")).toBeInTheDocument();
+    // The "Hari ini" panel may also list Budi (already a link there), so check every match.
+    const budiLinks = screen.getAllByRole("link", { name: "Budi Santoso" });
+    for (const link of budiLinks) expect(link).toHaveAttribute("href", "/admin/employees/e1");
     expect(screen.getByText(/Antar murid ke dokter/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Setujui$/ }));

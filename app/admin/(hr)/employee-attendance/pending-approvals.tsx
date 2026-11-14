@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { FormDialogFooter } from "@/components/ui/form";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { formatDateShort, formatTime } from "@/lib/format";
 
 export type PendingCheckIn = {
@@ -105,7 +107,9 @@ export function PendingApprovals({
         {rows.map((r) => (
           <li key={r.id} className="flex flex-col gap-3 rounded-lg border p-card sm:flex-row sm:items-center sm:justify-between" data-testid="pending-row">
             <div className="min-w-0 space-y-1">
-              <p className="text-body font-semibold">{r.employee.nama}</p>
+              <p className="text-body font-semibold">
+                <EntityLink href={entityHref.employee(r.employee.id)}>{r.employee.nama}</EntityLink>
+              </p>
               <p className="text-small text-muted-foreground">
                 {r.employee.kode} · {formatDateShort(r.date)}, {formatTime(r.checkInTime)}
               </p>

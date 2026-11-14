@@ -162,6 +162,15 @@ describe("PayrollDetailPage — Penyesuaian dialog", () => {
     ).toBe(false);
   });
 
+  it("links the employee page from the payslip sheet", async () => {
+    fixture();
+    render(<PayrollDetailPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Budi Santoso/ }));
+    const link = await screen.findByRole("link", { name: "Lihat karyawan" });
+    expect(link).toHaveAttribute("href", "/admin/employees/e-1");
+  });
+
   it("live-recomputes the final amount as the adjustment is typed, then submits amount + note", async () => {
     const fetchMock = fixture();
     const user = userEvent.setup();
@@ -467,5 +476,7 @@ describe("PayrollDetailPage — draft before period end (R2-ADMIN-10/11)", () =>
     expect(screen.queryByText(/2026-09-20/)).not.toBeInTheDocument();
     expect(await screen.findByText(/21 Jul 2026 — 20 Agu 2026/)).toBeInTheDocument();
     expect(screen.getByText("vs periode lalu")).toBeInTheDocument();
+    // A real space separates the amount from the label (no "-118.182vs").
+    expect(screen.getByText("vs periode lalu").parentElement?.textContent).toMatch(/\d vs periode lalu$/);
   });
 });

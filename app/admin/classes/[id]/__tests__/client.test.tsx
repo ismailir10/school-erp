@@ -715,3 +715,52 @@ describe("ClassDetailClient — Tambah Siswa picker (CORE-3)", () => {
     });
   });
 });
+
+describe("ClassDetailClient — employee names are doors only with hr.view", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const withHomeroom = {
+    ...classDetail,
+    teachingAssignments: [
+      {
+        id: "ta-1",
+        role: "HOMEROOM",
+        createdAt: "2026-01-05T00:00:00.000Z",
+        employee: { id: "emp-9", nama: "Ustadzah Aisyah" },
+      },
+    ],
+  };
+
+  function stubDetail() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        const body = url === "/api/admin/classes/class-1" ? withHomeroom : {};
+        return Promise.resolve({ ok: true, json: async () => body } as Response);
+      }),
+    );
+  }
+
+  it("links the Wali Kelas fact and the teacher row to the employee page when the viewer has hr.view", async () => {
+    stubDetail();
+    render(<ClassDetailClient classId="class-1" canWrite={false} canViewEmployees />);
+
+    // Rail fact + teacher table row (the table panel may sit outside the
+    // accessibility tree in jsdom, so match by text and check the anchors).
+    await waitFor(() => expect(screen.getAllByText("Ustadzah Aisyah")).toHaveLength(2));
+    for (const el of screen.getAllByText("Ustadzah Aisyah")) {
+      expect(el.closest("a")).toHaveAttribute("href", "/admin/employees/emp-9");
+    }
+  });
+
+  it("renders plain text without hr.view", async () => {
+    stubDetail();
+    render(<ClassDetailClient classId="class-1" canWrite={false} />);
+
+    await waitFor(() => expect(screen.getAllByText("Ustadzah Aisyah").length).toBeGreaterThanOrEqual(2));
+    expect(screen.queryByRole("link", { name: "Ustadzah Aisyah" })).not.toBeInTheDocument();
+  });
+});

@@ -9,6 +9,8 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarX } from "lucide-react";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { campusShortLabels, formatMonthLabel } from "@/lib/format";
 import { BackLink } from "@/components/portal/back-link";
 import { PeriodStepper } from "@/components/ui/period-stepper";
@@ -189,7 +191,7 @@ function MonthlyAttendancePageInner() {
                 return (
                   <TableRow key={emp.employee.id}>
                     <TableCell className="sticky left-0 z-sticky bg-card px-3 py-1.5 font-medium truncate max-w-[160px]">
-                      {emp.employee.nama}
+                      <EntityLink href={entityHref.employee(emp.employee.id)}>{emp.employee.nama}</EntityLink>
                     </TableCell>
                     {days.map((d) => {
                       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;

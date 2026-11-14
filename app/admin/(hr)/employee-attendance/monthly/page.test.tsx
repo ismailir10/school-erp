@@ -39,4 +39,26 @@ describe("MonthlyAttendancePage campus", () => {
       "/admin/employee-attendance?campusId=cp2",
     );
   });
+
+  it("links the employee name to the employee page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        const body = url.includes("/api/config/campuses")
+          ? CAMPUSES
+          : [
+              {
+                employee: { id: "e1", kode: "EMP-1", nama: "Budi Santoso", campusName: "Kampus A" },
+                records: [],
+                summary: { present: 0, late: 0, absent: 0, leave: 0 },
+              },
+            ];
+        return Promise.resolve({ ok: true, json: async () => body } as Response);
+      }),
+    );
+    render(<MonthlyAttendancePage />);
+    const link = await screen.findByRole("link", { name: "Budi Santoso" });
+    expect(link.getAttribute("href")).toBe("/admin/employees/e1");
+  });
 });

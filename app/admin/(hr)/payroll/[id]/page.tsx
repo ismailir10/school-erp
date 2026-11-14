@@ -10,6 +10,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -208,7 +210,7 @@ export default function PayrollDetailPage() {
             <span className="font-currency text-sm font-bold">{formatRupiah(item.netAmount)}</span>
             {delta !== undefined && (
               <p className={`font-currency text-xs ${delta >= 0 ? "text-success" : "text-destructive"}`}>
-                {delta >= 0 ? "+" : ""}{formatRupiah(delta)}
+                {delta >= 0 ? "+" : ""}{formatRupiah(delta)}{" "}
                 <span className="ml-1 font-sans text-muted-foreground">vs periode lalu</span>
               </p>
             )}
@@ -540,6 +542,9 @@ export default function PayrollDetailPage() {
                 <SheetDescription>
                   {detailItem.employee.kode} · {detailItem.employee.jabatan}
                 </SheetDescription>
+                <EntityLink href={entityHref.employee(detailItem.employee.id)} touch className="text-xs">
+                  Lihat karyawan
+                </EntityLink>
               </SheetHeader>
 
               {/* Sheet body padding — SheetContent has none, SheetHeader brings its own px */}

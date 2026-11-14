@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Mail, MessageCircle, Phone, Presentation, School, Sparkles } from "lucide-react";
 import { getParentWithChildren } from "@/lib/parent-helpers";
+import { EntityLink } from "@/components/entity-link";
+import { entityHref } from "@/lib/entity-links";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
 import { UserAvatar, getInitials } from "@/components/ui/user-avatar";
@@ -109,24 +111,32 @@ export default async function ParentProfilePage({ searchParams }: {
               const initials = getInitials(c.studentName);
               return (
                 <li key={c.studentId}>
-                  <Link
-                    href={parentHref("/parent/attendance", c.studentId)}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
-                  >
-                    <div className="grid size-10 place-items-center rounded-lg bg-secondary text-primary-text text-xs font-bold">
+                  {/* Two sibling targets, never nested: the name opens the child's
+                      Perkembangan; the trailing link opens Kehadiran. */}
+                  <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+                    <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-primary-text text-xs font-bold">
                       {initials}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-foreground">
-                        {c.studentName}
+                        <EntityLink href={entityHref.parentChildProgress(c.studentId)} touch>
+                          {c.studentName}
+                        </EntityLink>
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {c.className ?? "—"}
                         {c.programName ? ` · ${c.programName}` : ""}
                       </p>
                     </div>
-                    <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
-                  </Link>
+                    <Link
+                      href={parentHref("/parent/attendance", c.studentId)}
+                      aria-label={`Kehadiran ${c.studentName}`}
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md pl-2 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:focus-outline"
+                    >
+                      Kehadiran
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </Link>
+                  </div>
                 </li>
               );
             })}
