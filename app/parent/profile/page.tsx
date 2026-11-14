@@ -119,7 +119,7 @@ export default async function ParentProfilePage({ searchParams }: {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-foreground">
-                        <EntityLink href={entityHref.parentChildProgress(c.studentId)} touch>
+                        <EntityLink href={entityHref.parentChildProgress(c.studentId)} touch className="min-h-11">
                           {c.studentName}
                         </EntityLink>
                       </p>
