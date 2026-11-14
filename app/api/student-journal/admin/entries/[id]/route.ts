@@ -16,7 +16,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireAdmin();
+  const guard = await requireAdmin("students.edit");
   if (guard.error) return guard.error;
   const { session } = guard;
 

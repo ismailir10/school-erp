@@ -82,3 +82,17 @@ describe("CategoryAccordion deactivation confirmation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+it("keeps the working category expanded across a save refresh", async () => {
+  const props = {
+    categories: [{ id: "cat-a", name: "Ibadah", scope: "SCHOOL" as const, order: 0, status: "ACTIVE", indicators: [] }],
+    onRefresh: vi.fn(), onEditCategory: vi.fn(), onAddIndicator: vi.fn(), onEditIndicator: vi.fn(),
+  };
+  const view = render(<CategoryAccordion {...props} loading={false} />);
+  const trigger = screen.getByRole("button", { name: /Ibadah.*0 indikator/ });
+  fireEvent.click(trigger);
+  await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  view.rerender(<CategoryAccordion {...props} loading={true} />);
+  view.rerender(<CategoryAccordion {...props} loading={false} />);
+  expect(screen.getByRole("button", { name: /Ibadah.*0 indikator/ })).toHaveAttribute("aria-expanded", "true");
+});

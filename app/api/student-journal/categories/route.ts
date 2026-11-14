@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import {
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   const tmpl = await prisma.studentJournalTemplate.findUnique({
     where: { tenantId: session.tenantId },
   });
-  if (!tmpl) return NextResponse.json({ data: [] });
+  if (!tmpl) return NextResponse.json({ data: [], canWrite: hasPermission(session, "students.edit") });
 
   const categories = await prisma.studentJournalCategory.findMany({
     where: {
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
   });
-  return NextResponse.json({ data: categories });
+  return NextResponse.json({ data: categories, canWrite: hasPermission(session, "students.edit") });
 }
 
 export async function POST(req: NextRequest) {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   }
 
-  const guard = await requireAdmin();
+  const guard = await requireAdmin("students.edit");
   if (guard.error) return guard.error;
   const { session } = guard;
 

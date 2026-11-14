@@ -63,6 +63,8 @@ Destructive migration, new dependency requiring a product tradeoff, live service
 
 - T5 delivered: Payroll retries and export replay, read-only controls, attendance date totals and accessible keyboard details are verified.
 
+- T6 delivered: Versioned reports, fresh parent reads, complete Arabic PDF output and recoverable journal state are verified.
+
 ## Finding closure ledger
 
 All rows below describe implemented behavior; final local verification is recorded separately. Original audit IDs remain stable.

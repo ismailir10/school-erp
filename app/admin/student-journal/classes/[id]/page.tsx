@@ -33,6 +33,7 @@ type StudentRow = {
 };
 
 type RollUpData = {
+  canWrite?: boolean;
   weekStart: string;
   dates: string[];
   /** `YYYY-MM-DD → keterangan` for days marked "hari tanpa buku penghubung". */
@@ -114,6 +115,7 @@ export default function ClassWeekPage({
   const [query, setQuery] = useState("");
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize] = useState(10);
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   /** The date whose "tanpa buku penghubung" dialog is open, if any. */
   const [markDate, setMarkDate] = useState<string | null>(null);
@@ -122,11 +124,13 @@ export default function ClassWeekPage({
   const fetchRollUp = useCallback(
     async (weekStartYmd: string) => {
       setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch(
           `/api/student-journal/admin/class-roll-up?classSectionId=${classSectionId}&weekStart=${weekStartYmd}`,
         );
         if (!res.ok) {
+          setLoadError(true);
           const err = await res.json().catch(() => ({}));
           toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
           return;
@@ -134,6 +138,7 @@ export default function ClassWeekPage({
         const json = await res.json();
         setRollUp(json.data ?? null);
       } catch {
+        setLoadError(true);
         toast.error(MESSAGES.loadFailed("Data kelas"));
       } finally {
         setLoading(false);
@@ -228,6 +233,8 @@ export default function ClassWeekPage({
     totalPages: tableTotalPages,
   };
 
+  if (loadError) return <div role="alert" className="p-4 border rounded-md">Data kelas belum bisa dimuat. <Button variant="outline" onClick={() => fetchRollUp(ws)}>Coba lagi</Button></div>;
+
   return (
     <>
       <DetailPageHeader
@@ -273,7 +280,7 @@ export default function ClassWeekPage({
                       </p>
                     ) : null}
                   </div>
-                  {isMarkableDate(d, today) ? (
+                  {rollUp?.canWrite !== false && isMarkableDate(d, today) ? (
                     <Button
                       type="button"
                       size="sm"

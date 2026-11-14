@@ -1,8 +1,20 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import path from "node:path";
+import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 
 import { TEAL, DARK, MUTED_FOREGROUND as GRAY, LIGHT_BG as LIGHT, BORDER } from "./brand-tokens";
 import { LEVEL_HEX, type Level } from "@/lib/curriculum/level-presentation";
+
+// Bundled OFL font: fontkit shapes Arabic glyph runs and embeds their Unicode mapping.
+Font.register({ family: "NotoSansArabic", src: path.join(process.cwd(), "public/fonts/NotoSansArabic-Regular.ttf") });
+
+function multilingual(text: string) {
+  return text.split(/([\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]+(?:[ \u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]*[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff])?)/u).map((part, i) =>
+    /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(part)
+      ? <Text key={i} style={{ fontFamily: "NotoSansArabic" }}>{part}</Text>
+      : part,
+  );
+}
 
 export type ReportCardSection = {
   label: string;
@@ -25,9 +37,9 @@ export type ReportCardData = {
 };
 
 const s = StyleSheet.create({
-  page: { padding: 0, fontSize: 10, fontFamily: "Helvetica", color: "#1F2937" },
-  accentBar: { height: 6, backgroundColor: TEAL },
-  content: { padding: 40, paddingTop: 26 },
+  page: { padding: 40, paddingTop: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1F2937" },
+  accentBar: { position: "absolute", top: 0, left: 0, right: 0, height: 6, backgroundColor: TEAL },
+  content: { padding: 0 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 },
   schoolName: { fontSize: 15, fontFamily: "Helvetica-Bold", color: DARK, letterSpacing: 0.3 },
   docTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", color: TEAL, textTransform: "uppercase", letterSpacing: 2, textAlign: "right" },
@@ -89,7 +101,7 @@ export function ReportCardPdf({ data }: { data: ReportCardData }) {
           </View>
 
           {data.sections.map((sec, i) => (
-            <View key={i} style={s.section} wrap={false}>
+            <View key={i} style={s.section}>
               <View style={s.sectionHead}>
                 <Text style={s.sectionTitle}>{sec.label}</Text>
                 {sec.level ? (
@@ -99,7 +111,7 @@ export function ReportCardPdf({ data }: { data: ReportCardData }) {
                 ) : null}
               </View>
               {sec.narrative ? (
-                <Text style={s.narrative}>{sec.narrative}</Text>
+                <>{sec.narrative.split("\n").map((line, index) => <Text key={index} style={s.narrative}>{multilingual(line || " ")}</Text>)}</>
               ) : (
                 <Text style={s.empty}>—</Text>
               )}
@@ -140,7 +152,7 @@ export function ReportCardPdf({ data }: { data: ReportCardData }) {
           {data.hafalan ? (
             <View style={{ marginTop: 12 }}>
               <Text style={s.smallHead}>Hafalan</Text>
-              <Text style={s.narrative}>{data.hafalan}</Text>
+              {data.hafalan.split("\n").map((line, i) => <Text key={i} style={s.narrative}>{multilingual(line || " ")}</Text>)}
             </View>
           ) : null}
 

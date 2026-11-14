@@ -66,7 +66,7 @@ export const JOURNAL_BATCH_MAX_ENTRIES = 500;
 
 export const entryBatchSchema = z.object({
   classSectionId: z.string().min(1),
-  date: ymd,
+  date: ymd.refine((date) => date <= getYmdInTimezone(new Date(), "Asia/Jakarta"), "Tanggal tidak boleh di masa depan"),
   entries: z
     .array(z.object({
       studentId: z.string().min(1),

@@ -49,6 +49,7 @@ export type CategoryDTO = {
 };
 
 type Props = {
+  canWrite?: boolean;
   categories: CategoryDTO[];
   loading: boolean;
   onRefresh: () => Promise<void> | void;
@@ -58,6 +59,7 @@ type Props = {
 };
 
 export function CategoryAccordion({
+  canWrite = true,
   categories,
   loading,
   onRefresh,
@@ -65,6 +67,7 @@ export function CategoryAccordion({
   onAddIndicator,
   onEditIndicator,
 }: Props) {
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [pending, setPending] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<
     | { kind: "category"; id: string; name: string; activate: boolean }
@@ -188,7 +191,7 @@ export function CategoryAccordion({
 
   return (
     <>
-      <Accordion multiple className="space-y-2">
+      <Accordion multiple value={expanded} onValueChange={setExpanded} className="space-y-2">
         {categories.map((cat, idx) => {
           const activeIndicators = cat.indicators.filter((i) => i.status === "ACTIVE").length;
           return (
@@ -213,7 +216,7 @@ export function CategoryAccordion({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    disabled={idx === 0 || pending !== null}
+                    disabled={!canWrite || idx === 0 || pending !== null}
                     onClick={(e) => {
                       e.stopPropagation();
                       reorderCategory(idx, -1);
@@ -226,7 +229,7 @@ export function CategoryAccordion({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    disabled={idx === categories.length - 1 || pending !== null}
+                    disabled={!canWrite || idx === categories.length - 1 || pending !== null}
                     onClick={(e) => {
                       e.stopPropagation();
                       reorderCategory(idx, 1);
@@ -238,7 +241,7 @@ export function CategoryAccordion({
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
-                      render={<Button variant="ghost" size="icon-sm" />}
+                      render={<Button variant="ghost" size="icon-sm" disabled={!canWrite} />}
                     >
                       <MoreVertical className="size-3.5" />
                       <span className="sr-only">Buka menu kategori</span>
@@ -301,7 +304,7 @@ export function CategoryAccordion({
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        disabled={iIdx === 0 || pending !== null}
+                        disabled={!canWrite || iIdx === 0 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, -1)}
                         title="Naik"
                         aria-label={`Naikkan indikator ${ind.label}`}
@@ -311,7 +314,7 @@ export function CategoryAccordion({
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        disabled={iIdx === cat.indicators.length - 1 || pending !== null}
+                        disabled={!canWrite || iIdx === cat.indicators.length - 1 || pending !== null}
                         onClick={() => reorderIndicator(cat, iIdx, 1)}
                         title="Turun"
                         aria-label={`Turunkan indikator ${ind.label}`}
@@ -320,7 +323,7 @@ export function CategoryAccordion({
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
-                          render={<Button variant="ghost" size="icon-sm" />}
+                          render={<Button variant="ghost" size="icon-sm" disabled={!canWrite} />}
                         >
                           <MoreVertical className="size-3.5" />
                           <span className="sr-only">Buka menu indikator</span>
@@ -365,6 +368,7 @@ export function CategoryAccordion({
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={!canWrite}
                   onClick={() => onAddIndicator(cat)}
                 >
                   <Plus className="size-3.5 mr-1" /> Tambah Indikator

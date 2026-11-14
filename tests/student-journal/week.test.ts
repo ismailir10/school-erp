@@ -14,6 +14,11 @@ describe("weekStart", () => {
 });
 
 describe("weekDates", () => {
+  it("includes observed Saturday without imposing an empty Sunday", () => {
+    expect(weekDates("2026-04-20", ["2026-04-25"])).toEqual([
+      "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25",
+    ]);
+  });
   it("returns 5 dates Mon-Fri for a given weekStart", () => {
     expect(weekDates("2026-04-20")).toEqual([
       "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24",

@@ -54,6 +54,8 @@ export default function StudentJournalAdminPage() {
   const [scope, setScope] = useState<Scope>("SCHOOL");
   const [status, setStatus] = useState<StatusFilter>("ACTIVE");
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [canWrite, setCanWrite] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -68,6 +70,7 @@ export default function StudentJournalAdminPage() {
 
   const load = useCallback(async (s: Scope, st: StatusFilter) => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch(
         `/api/student-journal/categories?scope=${s}&status=${st}`,
@@ -75,11 +78,14 @@ export default function StudentJournalAdminPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error ?? MESSAGES.loadFailed("Kategori"));
-        setCategories([]);
+        setLoadError(true);
         return;
       }
       const json = await res.json();
       setCategories(json.data as CategoryDTO[]);
+      setCanWrite(json.canWrite !== false);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -176,7 +182,7 @@ export default function StudentJournalAdminPage() {
         title="Buku Penghubung — Templat"
         description="Atur kategori dan indikator untuk sekolah dan rumah."
         actions={
-          <Button onClick={openCreateCategory}>
+          <Button onClick={openCreateCategory} disabled={!canWrite}>
             <Plus className="size-4 mr-2" /> Tambah Kategori
           </Button>
         }
@@ -202,10 +208,12 @@ export default function StudentJournalAdminPage() {
           </div>
         </div>
 
+        {loadError && <div role="alert" className="p-4 border rounded-md">Kategori belum bisa dimuat. <Button variant="outline" onClick={() => load(scope, status)}>Coba lagi</Button></div>}
         <AdminTabsContent value="SCHOOL" className="mt-4">
           <CategoryAccordion
+            canWrite={canWrite}
             categories={categories}
-            loading={loading}
+            loading={loading || loadError}
             onRefresh={() => load(scope, status)}
             onEditCategory={openEditCategory}
             onAddIndicator={openCreateIndicator}
@@ -214,8 +222,9 @@ export default function StudentJournalAdminPage() {
         </AdminTabsContent>
         <AdminTabsContent value="HOME" className="mt-4">
           <CategoryAccordion
+            canWrite={canWrite}
             categories={categories}
-            loading={loading}
+            loading={loading || loadError}
             onRefresh={() => load(scope, status)}
             onEditCategory={openEditCategory}
             onAddIndicator={openCreateIndicator}

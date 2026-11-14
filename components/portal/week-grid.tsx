@@ -101,7 +101,7 @@ function formatColDate(ymd: string): string {
   return `${parts[2]}/${parts[1]}`;
 }
 
-const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"];
+const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 export function isWeekGridDateEditable(
   date: string,
@@ -191,7 +191,7 @@ export function WeekGrid({
               <CalendarOff size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
               <span>
                 <span className="font-medium text-foreground">
-                  {DAY_LABELS[dates.indexOf(d)] ?? ""} {formatColDate(d)}
+                  {DAY_LABELS[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7] ?? ""} {formatColDate(d)}
                 </span>{" "}
                 · Tanpa buku penghubung: {dayMarks?.[d]}
               </span>
@@ -212,7 +212,7 @@ export function WeekGrid({
             <th className="sticky left-0 bg-card z-sticky text-left py-2 pr-2 text-xs font-medium text-muted-foreground w-[104px] min-w-[104px]">
               Indikator
             </th>
-            {dates.map((d, i) => {
+            {dates.map((d) => {
               const isToday = d === todayYmd;
               return (
                 <th
@@ -227,7 +227,7 @@ export function WeekGrid({
                       : "font-medium text-muted-foreground"
                   }`}
                 >
-                  <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
+                  <div>{DAY_LABELS[(new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7] ?? formatColDate(d)}</div>
                   <div className={`text-xs ${isToday ? "text-primary-text" : "text-muted-foreground font-normal"}`}>
                     {formatColDate(d)}
                   </div>

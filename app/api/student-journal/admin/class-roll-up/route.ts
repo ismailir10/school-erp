@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/student-journal/guards";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
 
   if (enrollments.length === 0) {
     return NextResponse.json({
-      data: { weekStart: ws, dates, dayMarks, students: [] },
+      data: { canWrite: hasPermission(session, "students.edit"), weekStart: ws, dates, dayMarks, students: [] },
     });
   }
 
@@ -128,5 +129,5 @@ export async function GET(req: NextRequest) {
     totalCells,
   }));
 
-  return NextResponse.json({ data: { weekStart: ws, dates, dayMarks, students } });
+  return NextResponse.json({ data: { canWrite: hasPermission(session, "students.edit"), weekStart: ws, dates, dayMarks, students } });
 }

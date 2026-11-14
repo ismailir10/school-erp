@@ -56,7 +56,7 @@ const TUESDAY = "2026-10-27";
 const valid = { classSectionId: "c1", date: TUESDAY, reason: "Renang" };
 
 const teacher = { id: "u-t", role: "TEACHER", tenantId: "t1", employeeId: "e1" };
-const admin = { id: "u-a", role: "SCHOOL_ADMIN", tenantId: "t1" };
+const admin = { id: "u-a", role: "SCHOOL_ADMIN", tenantId: "t1", permissions: ["students.view", "students.edit"] };
 const parent = { id: "u-p", role: "PARENT", tenantId: "t1" };
 
 beforeEach(() => {

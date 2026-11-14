@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
   // A writing on a student in tenant B (a guru pengganti) saves the note tagged
   // to A, and the guardian in B never sees it — the bug that surfaced as
   // "catatan visible on /parent/attendance but missing on /parent/student-journal".
-  const access = await requireNoteAccessForStudent(studentId);
+  const access = await requireNoteAccessForStudent(studentId, true);
   if (access.error) return access.error;
   const noteTenantId = access.studentTenantId;
 

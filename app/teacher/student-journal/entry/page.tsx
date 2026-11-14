@@ -131,6 +131,7 @@ export default function StudentJournalEntryPage() {
   const coalescerRef = useRef<JournalWriteCoalescer | null>(null);
   const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const loadRequestId = useRef(0);
 
@@ -147,15 +148,16 @@ export default function StudentJournalEntryPage() {
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
   const noteDialogOpen = noteStudent !== null;
   const noteWeekDates = useMemo(
-    () => (date ? weekDates(weekStart(date)) : []),
+    () => (date ? weekDates(weekStart(date), [date]) : []),
     [date],
   );
 
   const loadGrid = useCallback(async () => {
     const requestId = ++loadRequestId.current;
-    if (!classId || !date) { setLoading(false); return; }
+    if (!classId || !date || date > getTodayInTimezone("Asia/Jakarta")) { setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
+    setAccessDenied(false);
     setFailedCells({}); setHasSaved(false); setBulkUndo(null);
     try {
     const gridFetch = fetch(
@@ -168,7 +170,8 @@ export default function StudentJournalEntryPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (requestId !== loadRequestId.current) return;
-      toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
+      setAccessDenied(res.status === 403);
+      if (res.status !== 403) toast.error(err.error || MESSAGES.loadFailed("Data kelas"));
       setLoadError(true); setLoading(false);
       return;
     }
@@ -494,6 +497,8 @@ export default function StudentJournalEntryPage() {
     );
   }
 
+  if (date > getTodayInTimezone("Asia/Jakarta")) return <div><PageHeader title="Isi Buku Penghubung" /><EmptyState icon={Users} title="Tanggal belum dapat diisi" description="Pilih hari ini atau tanggal sebelumnya untuk mengisi Buku Penghubung." actionLabel="Pilih tanggal" actionHref="/teacher/student-journal?pick=1" /></div>;
+
   if (!classId || !date) {
     return (
       <div>
@@ -513,10 +518,11 @@ export default function StudentJournalEntryPage() {
     return (
       <div><PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} /><EmptyState
         icon={Users}
-        title="Data kelas tidak bisa dimuat"
-        description="Periksa koneksi, lalu coba lagi."
-        actionLabel="Coba lagi"
-        onAction={loadGrid}
+        title={accessDenied ? "Akses kelas telah berubah" : "Data kelas tidak bisa dimuat"}
+        description={accessDenied ? "Pilih kelas yang masih ditugaskan kepada Anda, atau hubungi admin sekolah." : "Periksa koneksi, lalu coba lagi."}
+        actionLabel={accessDenied ? "Pilih kelas lain" : "Coba lagi"}
+        actionHref={accessDenied ? "/teacher/student-journal?pick=1" : undefined}
+        onAction={accessDenied ? undefined : loadGrid}
       /></div>
     );
   }

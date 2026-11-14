@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireGuardianForStudent } from "@/lib/student-journal/guards";
-import { weekStart, weekDates } from "@/lib/student-journal/week";
+import { weekStart, weekDates, weekReadDates } from "@/lib/student-journal/week";
 import { resolveLastAdminEditByEntryId } from "@/lib/student-journal/audit";
 import { enrichNotesWithAuthorMetadata } from "@/lib/student-journal/note-metadata";
 import { getDayMarksForStudentWeek } from "@/lib/student-journal/day-marks";
@@ -33,7 +33,7 @@ export async function GET(
     ws = weekStart(today);
   }
 
-  const dates = weekDates(ws);
+  const dates = weekReadDates(ws);
   const dateEnd = dates[dates.length - 1];
 
   // Fetch tenant template
@@ -46,7 +46,7 @@ export async function GET(
     return NextResponse.json({
       data: {
         weekStart: ws,
-        dates,
+        dates: weekDates(ws),
         schoolCategories: [],
         homeCategories: [],
         schoolEntries: [],
@@ -148,7 +148,7 @@ export async function GET(
   return NextResponse.json({
     data: {
       weekStart: ws,
-      dates,
+      dates: weekDates(ws, [...schoolEntries, ...homeEntries, ...notes].map((row) => row.date).concat(Object.keys(dayMarks))),
       schoolCategories,
       homeCategories,
       schoolEntries: schoolEntries.map(decorate),

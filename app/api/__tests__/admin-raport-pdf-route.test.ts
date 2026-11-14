@@ -14,6 +14,7 @@ const { requirePermission, renderToBuffer, db } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-guards", () => ({ requirePermission }));
 vi.mock("@react-pdf/renderer", () => ({
+  Font: { register: vi.fn() },
   renderToBuffer,
   StyleSheet: { create: (x: unknown) => x },
   Document: "Document",

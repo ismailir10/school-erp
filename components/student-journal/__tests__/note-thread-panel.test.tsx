@@ -103,6 +103,7 @@ describe("NoteThreadPanel", () => {
     render(<NoteThreadPanel studentId="stu-1" audience="teacher" />);
 
     expect(await screen.findByText("Catatan belum bisa dimuat.")).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/notes/read"))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
     expect(await screen.findByText("pulih")).toBeInTheDocument();
   });

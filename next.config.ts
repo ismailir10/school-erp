@@ -6,6 +6,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  // Report PDF rendering reads the bundled Arabic font from disk in serverless deployments.
+  outputFileTracingIncludes: {
+    "/api/admin/report-cards/**/pdf": ["./public/fonts/NotoSansArabic-Regular.ttf"],
+    "/api/guardian/report-cards/**/pdf": ["./public/fonts/NotoSansArabic-Regular.ttf"],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
   },

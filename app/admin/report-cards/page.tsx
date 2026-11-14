@@ -141,28 +141,34 @@ export default function AdminRaportPage() {
     if (wantClass && classes.some((c) => c.id === wantClass)) setClassId(wantClass);
   }, [terms, classes]);
 
+  const rosterRequest = useRef(0);
   const loadRoster = useCallback(async () => {
+    const request = ++rosterRequest.current;
     if (!termId || !classId) {
       setRoster(null);
+      setLoadingRoster(false);
       return;
     }
     setLoadingRoster(true);
     setRosterError(null);
     try {
       const res = await fetch(`/api/admin/report-cards?termId=${termId}&classSectionId=${classId}`);
+      if (request !== rosterRequest.current) return;
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
+        if (request !== rosterRequest.current) return;
         setRosterError(body.error ?? "Gagal memuat daftar siswa.");
         setRoster(null);
         return;
       }
       const json = (await res.json()) as { data: { roster: RosterRow[] } };
-      setRoster(json.data.roster);
+      if (request === rosterRequest.current) setRoster(json.data.roster);
     } catch {
+      if (request !== rosterRequest.current) return;
       setRosterError("Gagal memuat daftar siswa.");
       setRoster(null);
     } finally {
-      setLoadingRoster(false);
+      if (request === rosterRequest.current) setLoadingRoster(false);
     }
   }, [termId, classId]);
 
