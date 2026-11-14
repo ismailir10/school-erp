@@ -171,6 +171,11 @@ T0 is done. T1, T2, T3, T7 and T8 are independent and can run in parallel. T4, T
 
 ## Implementation
 
+- Plan: driver=claude-opus-5-5, workers=claude-sonnet-5.
+  - **Wave A (parallel):** W1 = T1 then T2, sequential because they share the campus files. W2 = T3. W3 = T7. W4 = T8, except the payroll space, which moves to T6 because T6 already edits that file.
+  - **Wave B (parallel, after T2 and T3):** W5 = T4, W6 = T5, W7 = T6.
+  - **Shared tree:** workers edit disjoint files and never commit. They run only targeted Vitest and ESLint. The driver runs tsc, the build and the full Vitest suite, reviews each diff, and commits one task at a time.
+  - **Reviews:** a Sonnet reviewer covers standards, spec and security on the `app/api` diffs (T4, T5, T8).
 - T0 plan: the driver (Opus) wrote the rubric and the agent brief, and did synthesis, screenshot review and ranking. The dirty-work tier did the sweeps: five Haiku browser agents (by user request) and one Sonnet code sweep. Three Sonnet fact-finders fed the spec for T1–T8.
 
 ## Verification
