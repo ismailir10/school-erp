@@ -23,7 +23,7 @@ import { LEAVE_TYPE_LABEL, type LeaveDecision } from "@/lib/teacher/leave-decisi
 import type { TeacherClassSummary, TeacherSessionSummary } from "@/lib/teacher/home-progress";
 
 /** `minutesLate`: minutes past work start for a LATE check-in; null when it cannot be derived. */
-type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null; minutesLate?: number | null; approvalStatus?: string };
+type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null; minutesLate?: number | null; approvalStatus?: string; reviewNote?: string | null; reviewedAt?: string | null };
 type Gps = { lat: number; lng: number; accuracy: number };
 /** 422 OUTSIDE_GEOFENCE payload: distance is null when the phone gave no location. */
 type OutsideInfo = { distanceMeters: number | null; campusName: string | null };
@@ -56,15 +56,16 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const gpsRef=useRef<Gps|null>(null);
   const noteFormId=useId();
   // Attendance is assignment-only: a sentra-only card never asks for it.
-  const attendanceOpen=(c:TeacherClassSummary)=>!c.sentraOnly && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount);
-  const primary=classes.find(c => c.rosterCount > 0 && (attendanceOpen(c) || !c.journal?.completed)) ?? classes[0];
+  const hasSchedule=(c:TeacherClassSummary)=>c.scheduledToday !== false && c.scheduledToday !== null;
+  const attendanceOpen=(c:TeacherClassSummary)=>hasSchedule(c) && !c.sentraOnly && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount);
+  const primary=classes.find(c => hasSchedule(c) && c.rosterCount > 0 && (attendanceOpen(c) || !c.journal?.completed)) ?? classes[0];
   const dateLabel=formatDate(today,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   const classHref=(id:string,journey:"attendance"|"journal")=>`/teacher/${journey==="attendance"?"class-attendance":"student-journal/entry"}?classId=${encodeURIComponent(id)}&date=${today}`;
   const needsAttendance=primary && attendanceOpen(primary);
   const needsJournal=primary && (!primary.journal || !primary.journal.completed);
-  const primaryHref=primary ? classHref(primary.id,needsAttendance?"attendance":"journal") : "";
+  const primaryHref=primary ? classHref(primary.id,(needsAttendance || (!hasSchedule(primary) && !primary.sentraOnly))?"attendance":"journal") : "";
   const sentraBadge=(c:TeacherClassSummary)=>c.sentraTag?<Badge variant="info" data-testid="sentra-tag">{c.sentraTag} · hari ini</Badge>:null;
-  const primaryLabel=primary ? needsAttendance ? primary.attendanceRecorded===null ? "Buka absensi kelas" : `Lanjutkan absensi · ${primary.attendanceRecorded}/${primary.rosterCount}`
+  const primaryLabel=primary ? !hasSchedule(primary) ? primary.sentraOnly ? "Lihat jurnal harian" : "Lihat absensi kelas" : needsAttendance ? primary.attendanceRecorded===null ? "Buka absensi kelas" : `Lanjutkan absensi · ${primary.attendanceRecorded}/${primary.rosterCount}`
     : needsJournal ? "Lanjutkan jurnal harian" : "Periksa jurnal harian" : "";
   const replyRows=[...new Map(classes.flatMap(c=>(c.replies??[]).map(reply=>[reply.studentId,{...reply,className:c.name}] as const))).values()];
 
@@ -91,12 +92,14 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
       const data=response.ok?body:body?.record;
       if(!data)throw new FetchFailureError(describeFetchFailure({status:response.status,action:"disimpan",serverMessage:typeof body?.error==="string"?body.error:undefined}));
       if(!data.checkInTime || (action==="check-out"&&!data.checkOutTime))throw new FetchFailureError({kind:"server",canRetry:true,message:"Konfirmasi kehadiran belum tersedia. Coba lagi ya."});
-      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null,approvalStatus:typeof data.approvalStatus==="string"?data.approvalStatus:record?.approvalStatus});setOutside(null);setNote("");setSaved(true);router.refresh();
+      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null,approvalStatus:typeof data.approvalStatus==="string"?data.approvalStatus:record?.approvalStatus,reviewNote:data.reviewNote??record?.reviewNote,reviewedAt:data.reviewedAt??record?.reviewedAt});setOutside(null);setNote("");setSaved(true);router.refresh();
     }catch(error){const failure=failureFromError(error,"disimpan");setSaveError(failure.kind==="forbidden"?"Akun Anda belum bisa mencatat kehadiran. Hubungi admin sekolah.":failure.message);setCanRetry(failure.canRetry);}
     finally{inFlight.current=false;setSaving(false);}
   }
   // LATE is stored by the server (work start + grace); the minutes are shown when the page could derive them.
   const pending=record?.approvalStatus==="PENDING";
+  const rejected=record?.approvalStatus==="REJECTED";
+  const reviewed=Boolean(record?.reviewedAt) && (record?.approvalStatus==="APPROVED" || rejected);
   const trimmedNote=note.trim();
   const outsideCopy=outside?(outside.distanceMeters===null?"Tambahkan catatan agar admin dapat menyetujui.":`Anda ± ${outside.distanceMeters} m dari ${outside.campusName??"kampus"}. Tambahkan catatan agar admin dapat menyetujui.`):"";
   const lateLabel=record?.status==="LATE" ? record.minutesLate ? ` · Terlambat ${record.minutesLate} menit` : " · Terlambat" : "";
@@ -113,13 +116,17 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 text-small">
           <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
-            {record?.checkInTime ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
-            {record?.checkOutTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · pulang ${formatTime(record.checkOutTime)}` : record?.checkInTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · sudah tercatat` : "Kehadiran pribadi belum dicatat"}
+            {record?.checkInTime && !rejected ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
+            {rejected ? "Kehadiran ditolak · tercatat Alpa" : record?.checkOutTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · pulang ${formatTime(record.checkOutTime)}` : record?.checkInTime ? `Masuk ${formatTime(record.checkInTime)}${lateLabel} · sudah tercatat` : "Kehadiran pribadi belum dicatat"}
           </p>
           {pending ? <Badge variant="warning" data-testid="pending-approval-chip">Menunggu persetujuan</Badge> : null}
-          {!record?.checkOutTime && <Button variant="outline" disabled={saving} onClick={()=>handleAction()} className="min-h-11">{saving?"Menyimpan…":saveError&&canRetry?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
+          {!record?.checkOutTime && !rejected && <Button variant="outline" disabled={saving} onClick={()=>handleAction()} className="min-h-11">{saving?"Menyimpan…":saveError&&canRetry?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
         </div>
       )}
+      {reviewed ? <Alert variant={rejected ? "warning" : "success"} announcement="off" data-testid="attendance-decision">
+        <AlertTitle>Kehadiran {rejected ? "ditolak" : "disetujui"} admin</AlertTitle>
+        <AlertDescription>{record?.reviewNote || (rejected ? "Hubungi admin sekolah bila perlu koreksi." : "Catatan kehadiran Anda sudah disetujui.")}</AlertDescription>
+      </Alert> : null}
       {saving||saveError||saved ? <SaveStatus state={saving?"saving":saveError?"error":"saved"} message={saveError??(saving?"Menyimpan kehadiran…":"Kehadiran tersimpan")} />:null}
       {locationMessage?<p className="text-small text-muted-foreground">{locationMessage}</p>:null}
     </div>
@@ -136,10 +143,6 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
     {/* First in both states so the control the teacher needs on arrival never moves after the tap (R2-T-1). */}
     {personalAttendance}
-    {/* Next step after check-in, at both ends of the day; fixed place so it never moves. */}
-    <TaskList>
-      <TaskRow title="Gerbang" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} sudah masuk · ${gateSummary.pickedUp} pulang`:"Catat anak masuk dan pulang di gerbang"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
-    </TaskList>
     {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><SectionHeading as="h2" id="leave-decisions">Keputusan cuti</SectionHeading><TaskList>
       {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
         return <TaskRow key={d.id} title={`${LEAVE_TYPE_LABEL[d.leaveType]??d.leaveType} ${approved?"disetujui":"ditolak"}`} description={`${range}${!approved&&d.reviewNote?` · Alasan: ${d.reviewNote}`:""}`} meta="Lihat" href="/teacher/attendance?cuti=1" icon={approved?<CheckCircle2 className="size-5"/>:<CalendarX className="size-5"/>} tone={approved?"teal":"warm"}/>;})}
@@ -155,7 +158,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     ) : primary ? (
       <SectionCard
         title={primary.name}
-        description={`Kelas hari ini · ${primary.rosterCount} siswa`}
+        description={`${primary.scheduledToday === null ? "Jadwal kelas belum bisa dimuat" : primary.scheduledToday === false ? "Tidak ada sesi terjadwal hari ini" : "Kelas hari ini"} · ${primary.rosterCount} siswa`}
         action={primary.slot ? <Badge variant="secondary">{SLOT_LABEL[primary.slot] ?? primary.slot}</Badge> : undefined}
         className="border-primary/20 bg-secondary"
         contentClassName="space-y-field"
@@ -173,13 +176,16 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
     ) : (
       <EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas." />
     )}
+    <TaskList>
+      <TaskRow title="Gerbang kampus" description={gateSummary&&gateSummary.total>0?`${gateSummary.arrived} dari ${gateSummary.total} sudah masuk · ${gateSummary.pickedUp} pulang`:"Kedatangan dan penjemputan seluruh kelas di kampus"} meta="Buka" href="/teacher/gate" icon={<DoorOpen className="size-5"/>}/>
+    </TaskList>
     {classes.length > 0 ? <section aria-labelledby="class-tasks">
       <SectionHeading as="h2" id="class-tasks">Yang perlu diselesaikan</SectionHeading>
       <TaskList>
-        {classes.filter(attendanceOpen).map(c =>
+        {classes.filter(c => attendanceOpen(c) && !(c.id === primary?.id && needsAttendance)).map(c =>
           <TaskRow key={`attendance-${c.id}`} title={`Absensi ${c.name}`} description={c.attendanceRecorded === null ? "Data belum tersedia · buka untuk mencoba lagi" : `${c.attendanceRecorded} dari ${c.rosterCount} siswa tercatat`} meta="Buka" href={classHref(c.id,"attendance")} icon={<CalendarDays className="size-5"/>}/>
         )}
-        {classes.filter(c => !c.journal?.completed).map(c =>
+        {classes.filter(c => hasSchedule(c) && !c.journal?.completed).map(c =>
           <TaskRow key={`journal-${c.id}`} title={`Jurnal harian ${c.name}${c.sentraTag?` · ${c.sentraTag}`:""}`} description={!c.journal ? "Data belum tersedia · buka untuk mencoba lagi" : !c.journal.configured ? "Indikator sekolah belum disiapkan. Hubungi admin." : `${c.journal.completeStudents} dari ${c.journal.totalStudents} siswa lengkap${c.journal.absentCount?` · ${c.journal.absentCount} tidak hadir`:""}`} meta="Buka" href={classHref(c.id,"journal")} icon={<BookHeart className="size-5"/>} tone="warm"/>
         )}
         <TaskRow title="Buka penilaian" description={homeroomClassSectionName ? `Penilaian pekanan · ${homeroomClassSectionName}` : "Pilih penilaian kelas atau sentra"} href={homeroomClassSectionName ? "/teacher/assessments/weekly" : "/teacher/assessments"} icon={<ClipboardList className="size-5"/>} tone="purple"/>
@@ -203,7 +209,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
         as="h2"
         id="pickup-sessions"
         label="Sesi & penjemputan"
-        description="Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas."
+        description="Periksa kedatangan dan penjemputan per sesi. Perubahan di halaman sesi perlu disimpan; Gerbang menyimpan tiap ketukan."
       />
       {sessionsUnavailable ? (
         <Alert variant="destructive" announcement="off">

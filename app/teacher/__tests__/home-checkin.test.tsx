@@ -26,12 +26,12 @@ describe("check-in row placement (R2-T-1)", () => {
 
 describe("Gerbang row on Beranda", () => {
   const gateRow = () => screen.getByRole("link", { name: /Gerbang/ });
-  it("sits directly below Kehadiran pribadi and opens the Gerbang page", () => {
+  it("follows the primary class task and opens the campus Gerbang page", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[cls]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
     expect(gateRow()).toHaveAttribute("href", "/teacher/gate");
     expect(gateRow()).toHaveTextContent("Buka");
     expect(position(screen.getByLabelText("Kehadiran pribadi"))).toBeLessThan(position(gateRow()));
-    expect(position(gateRow())).toBeLessThan(position(screen.getByTestId("current-class")));
+    expect(position(screen.getByTestId("current-class"))).toBeLessThan(position(gateRow()));
   });
   it("shows today's arrived and picked-up counts", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={{ total: 40, arrived: 18, pickedUp: 3 }} />);
@@ -39,12 +39,12 @@ describe("Gerbang row on Beranda", () => {
   });
   it.each([["no children on the campus", { total: 0, arrived: 0, pickedUp: 0 }], ["a failed lookup", null]])("falls back to the plain description for %s", (_label, gateSummary) => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} gateSummary={gateSummary} />);
-    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
+    expect(gateRow()).toHaveTextContent("Kedatangan dan penjemputan seluruh kelas di kampus");
     expect(gateRow()).not.toHaveTextContent("0 dari 0");
   });
   it("still renders when the prop is omitted", () => {
     render(<TeacherHomeClient {...base} todayRecord={null} classes={[]} />);
-    expect(gateRow()).toHaveTextContent("Catat anak masuk dan pulang di gerbang");
+    expect(gateRow()).toHaveTextContent("Kedatangan dan penjemputan seluruh kelas di kampus");
   });
 });
 
@@ -162,4 +162,38 @@ describe("geofence note sheet", () => {
     expect(screen.getByRole("dialog", { name: "Lokasi tidak terbaca" })).toBeInTheDocument();
     expect(screen.queryByText("Anda di luar area kampus")).toBeNull();
   });
+});
+
+
+describe("explicit admin attendance decisions", () => {
+  it.each(["APPROVED", "REJECTED"])("shows %s and review reason after refresh", approvalStatus => {
+    const { rerender } = render(<TeacherHomeClient {...base} todayRecord={{ ...checkedIn, approvalStatus: "PENDING" }} />);
+    expect(screen.getByTestId("pending-approval-chip")).toBeInTheDocument();
+    rerender(<TeacherHomeClient {...base} todayRecord={{ ...checkedIn, approvalStatus, reviewedAt: "2026-09-25T01:00:00Z", reviewNote: "UAT keputusan admin" }} />);
+    expect(screen.getByTestId("attendance-decision")).toHaveTextContent(approvalStatus === "APPROVED" ? "disetujui admin" : "ditolak admin");
+    expect(screen.getByTestId("attendance-decision")).toHaveTextContent("UAT keputusan admin");
+    expect(screen.queryByTestId("pending-approval-chip")).toBeNull();
+    if (approvalStatus === "REJECTED") {
+      expect(screen.queryByRole("button", { name: "Catat pulang" })).toBeNull();
+      expect(screen.queryByText(/sudah tercatat/)).toBeNull();
+    }
+  });
+});
+
+
+it("keeps manual attendance available without a missing-work prompt on a non-school day", () => {
+  render(<TeacherHomeClient {...base} todayRecord={null} classes={[{ ...cls, scheduledToday: false, attendanceRecorded: 0, journal: { ...cls.journal, completed: false, completeStudents: 0 } }]} />);
+  expect(screen.getByText("Tidak ada sesi terjadwal hari ini · 3 siswa")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Lihat absensi kelas" })).toHaveAttribute("href", "/teacher/class-attendance?classId=class-1&date=2026-09-25");
+  expect(screen.queryByRole("link", { name: /Lanjutkan absensi/ })).toBeNull();
+  expect(screen.queryByText("Absensi TK A")).toBeNull();
+  expect(screen.queryByText("Jurnal harian TK A")).toBeNull();
+});
+
+
+it("does not claim school is closed when its schedule lookup failed", () => {
+  render(<TeacherHomeClient {...base} todayRecord={null} classes={[{ ...cls, scheduledToday: null }]} />);
+  expect(screen.getByText("Jadwal kelas belum bisa dimuat · 3 siswa")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Lihat absensi kelas" })).toBeInTheDocument();
+  expect(screen.queryByText("Tidak ada sesi terjadwal hari ini · 3 siswa")).toBeNull();
 });

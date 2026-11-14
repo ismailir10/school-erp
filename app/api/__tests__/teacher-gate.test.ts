@@ -1,3 +1,4 @@
+import { scheduledClassIds } from "@/lib/sessions/scheduled-day";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GET, POST } from "../teacher/gate/route";
@@ -6,6 +7,8 @@ import { getSession } from "@/lib/auth";
 import { reconcileSessions } from "@/lib/sessions/reconcile";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
+
+vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: vi.fn(async () => new Set(["cs1"])) }));
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -73,6 +76,7 @@ function getReq(qs = "") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(scheduledClassIds).mockResolvedValue(new Set(["cs1"]));
   vi.mocked(getSession).mockResolvedValue(makeSession());
   db.studentEnrollment.findMany.mockResolvedValue([{ classSectionId: "cs1" }] as never);
   db.studentAttendance.findFirst.mockResolvedValue(null);
@@ -133,6 +137,19 @@ describe("GET", () => {
       status: "ACTIVE",
       classSection: { tenantId: "t1", campusId: "c2" },
     });
+  });
+
+  it("marks children without a usable session unavailable before a tap", async () => {
+    db.campus.findMany.mockResolvedValue([{ id: "c1", name: "A" }] as never);
+    db.employee.findFirst.mockResolvedValue({ campusId: "c1" } as never);
+    db.studentEnrollment.findMany.mockResolvedValue([
+      { student: { id: "s1", name: "Aisyah", nickname: null }, classSection: { id: "cs1", name: "TK A" } },
+    ] as never);
+    db.studentAttendance.findMany.mockResolvedValue([]);
+    vi.mocked(scheduledClassIds).mockResolvedValue(new Set());
+    const body = await (await GET(getReq())).json();
+    expect(body.students[0]).toMatchObject({ studentId: "s1", available: false });
+    expect(reconcileSessions).not.toHaveBeenCalled();
   });
 
   it("404s a campus outside the tenant", async () => {
@@ -253,7 +270,7 @@ describe("placement choice", () => {
     expect(reconcileSessions).not.toHaveBeenCalled();
   });
 
-  it("reconciles the first placement when none has a session today", async () => {
+  it("reconciles each placement when none has a session today", async () => {
     db.studentEnrollment.findMany.mockResolvedValue([
       { classSectionId: "csA" },
       { classSectionId: "csB" },
@@ -262,6 +279,15 @@ describe("placement choice", () => {
     const res = await POST(postReq({ studentId: "s1", action: "arrive" }));
     expect(res.status).toBe(409);
     expect(reconcileSessions).toHaveBeenCalledWith("csA");
+    expect(reconcileSessions).toHaveBeenCalledWith("csB");
+  });
+
+  it("lazily creates a session in a second eligible placement", async () => {
+    db.studentEnrollment.findMany.mockResolvedValue([{ classSectionId: "csA" }, { classSectionId: "csB" }] as never);
+    db.classSession.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "sesB", slot: "FULL_DAY", date: "2026-11-07" }] as never);
+    expect((await POST(postReq({ studentId: "s1", action: "arrive" }))).status).toBe(200);
+    expect(db.studentAttendance.upsert.mock.calls[0][0].create).toMatchObject({ classSectionId: "csB", sessionId: "sesB" });
   });
 
   it("keeps the placement of an existing attendance row", async () => {

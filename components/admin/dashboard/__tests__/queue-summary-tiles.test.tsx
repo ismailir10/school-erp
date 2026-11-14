@@ -41,3 +41,16 @@ describe("QueueSummaryTiles", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+
+it("keeps empty categories out of the way when other work is pending, but preserves failures", () => {
+  render(<QueueSummaryTiles items={[
+    { kind: "enrollment", status: "ready", count: 0 },
+    { kind: "leave", status: "ready", count: 2 },
+    { kind: "invoice", status: "unavailable", count: 0 },
+  ]} />);
+  expect(screen.queryByRole("link", { name: /0 Formulir/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "2 Pengajuan cuti menunggu" })).toBeInTheDocument();
+  expect(screen.getByText("Link pembayaran belum tersedia")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+});

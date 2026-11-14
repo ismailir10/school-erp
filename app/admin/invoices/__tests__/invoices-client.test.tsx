@@ -5,7 +5,7 @@
  * "Coba Lagi Link" / "Batalkan" menu is unaffected).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { InvoicesClient } from "@/app/admin/invoices/invoices-client";
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("sonner", () => ({
@@ -929,5 +930,43 @@ describe("InvoicesClient — Lainnya menu (phone header, cycle 2026-10-29-admin-
     await waitFor(() =>
       expect(f.mock.calls.some((c) => String(c[0]) === "/api/invoices/create-missing-links")).toBe(true),
     );
+  });
+});
+
+
+describe("InvoicesClient clear loading and billing entry", () => {
+  const capabilities = { create: true, recordPayment: true, void: true, view: true };
+
+  it("shows pending count then a genuine count, retaining it during a failed refresh", async () => {
+    let resolveList!: (value: unknown) => void;
+    const fallback = stubFetch();
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/invoices?")) return new Promise((resolve) => { resolveList = resolve; });
+      return fallback(input);
+    }));
+    render(<InvoicesClient gatewayId="doku" capabilities={capabilities} />);
+    expect(screen.getByText("Memuat jumlah tagihan…")).toBeInTheDocument();
+    expect(screen.queryByText("0 tagihan")).not.toBeInTheDocument();
+    await act(async () => { resolveList({ ok: true, json: async () => ({ data: [invoice], pagination: { page: 1, pageSize: 20, total: 42, totalPages: 3 } }) }); });
+    expect(await screen.findByText("42 tagihan")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/Cari/), { target: { value: "Aisyah" } });
+    await screen.findByText("42 tagihan · Memperbarui…");
+    await act(async () => { resolveList({ ok: false, status: 503 }); });
+    expect(await screen.findByText("42 tagihan · Data terakhir; gagal memperbarui")).toBeInTheDocument();
+    expect(screen.queryByText("0 tagihan")).not.toBeInTheDocument();
+  });
+
+  it("offers single-student billing before entering the group wizard", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    render(<InvoicesClient gatewayId="doku" capabilities={capabilities} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Buat Tagihan/ }));
+    expect(await screen.findByRole("dialog", { name: "Buat tagihan untuk siapa?" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Per kelas / beberapa siswa" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    expect(screen.queryByRole("dialog", { name: "Buat tagihan untuk siapa?" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Buat Tagihan/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Satu siswa" }));
+    expect(await screen.findByRole("dialog", { name: "Tagihan Manual" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Buat tagihan untuk siapa?" })).not.toBeInTheDocument();
   });
 });

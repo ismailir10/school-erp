@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -29,7 +30,8 @@ import { ReminderQueueDialog } from "@/components/admin/invoices/reminder-queue-
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, ChevronDown, RefreshCw, FilePlus2, MessageCircle, Wallet, Banknote, CreditCard, CalendarCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { INVOICE_LIST_QUERY_KEY, parseInvoiceListQuery } from "@/components/admin/invoices/list-query";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
@@ -189,6 +191,13 @@ const columns: ColumnDef<Invoice>[] = [
 
 export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" }: { gatewayId: "xendit" | "doku"; capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities; /** `?status=` from the URL (dashboard "Lewat tempo" card links here). */ initialStatus?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
+  const initialQuery = useRef(parseInvoiceListQuery(currentQuery, initialStatus));
+  const queryRef = useRef(currentQuery);
+  const ownQueriesRef = useRef(new Set<string>());
+  const [tableRevision, setTableRevision] = useState(0);
+  const [querySnapshot, setQuerySnapshot] = useState(currentQuery);
   // Columns must keep a stable identity (ui.md); read the router through a ref
   // so a new router object never rebuilds them and closes an open row menu.
   const routerRef = useRef(router);
@@ -198,17 +207,63 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    pageSize: 20,
+    page: initialQuery.current.page,
+    pageSize: initialQuery.current.pageSize,
     total: 0,
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const listRequestId = useRef(0);
+  const [createChoiceOpen, setCreateChoiceOpen] = useState(false);
   const [fetchError, setFetchError] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(initialStatus);
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [search, setSearch] = useState(initialQuery.current.search);
+  const [searchInput, setSearchInput] = useState(initialQuery.current.search);
+  const searchRef = useRef(initialQuery.current.search);
+  const [statusFilter, setStatusFilter] = useState(initialQuery.current.status);
+  const [sortBy, setSortBy] = useState(initialQuery.current.sortBy);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.current.sortOrder);
+  const sortRef = useRef({ field: initialQuery.current.sortBy, order: initialQuery.current.sortOrder });
+
+  // Restore a browser Back/Forward URL before rendering/fetching its list.
+  // Our own debounced replacements must not overwrite text typed since then.
+  if (querySnapshot !== currentQuery) {
+    setQuerySnapshot(currentQuery);
+    if (!ownQueriesRef.current.has(currentQuery)) {
+      const restored = parseInvoiceListQuery(currentQuery);
+      if (restored.sortBy !== sortBy || restored.sortOrder !== sortOrder) setTableRevision(revision => revision + 1);
+      ownQueriesRef.current.clear();
+      queryRef.current = currentQuery;
+      searchRef.current = restored.search;
+      sortRef.current = { field: restored.sortBy, order: restored.sortOrder };
+      setSearch(restored.search);
+      setSearchInput(restored.search);
+      setStatusFilter(restored.status);
+      setSortBy(restored.sortBy);
+      setSortOrder(restored.sortOrder);
+      setPagination(p => ({ ...p, page: restored.page, pageSize: restored.pageSize }));
+    }
+    if (currentQuery === queryRef.current) ownQueriesRef.current.clear();
+    else ownQueriesRef.current.delete(currentQuery);
+  }
+
+  const replaceQuery = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(queryRef.current);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    const query = next.toString();
+    try { sessionStorage.setItem(INVOICE_LIST_QUERY_KEY, query); } catch { /* URL still restores browser Back. */ }
+    if (query === queryRef.current) return;
+    queryRef.current = query;
+    ownQueriesRef.current.add(query);
+    routerRef.current.replace(query ? `/admin/invoices?${query}` : "/admin/invoices", { scroll: false });
+  }, []);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(INVOICE_LIST_QUERY_KEY, queryRef.current); } catch { /* Plain-list fallback on the detail. */ }
+  }, [currentQuery]);
 
   const [voidTarget, setVoidTarget] = useState<Invoice | null>(null);
 
@@ -377,6 +432,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   }, []);
 
   const fetchInvoices = useCallback(async () => {
+    const requestId = ++listRequestId.current;
     setLoading(true);
     setFetchError(false);
     try {
@@ -392,12 +448,14 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
       const res = await fetch(`/api/invoices?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      if (requestId !== listRequestId.current) return;
+      setHasLoaded(true);
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      setFetchError(true);
+      if (requestId === listRequestId.current) setFetchError(true);
     } finally {
-      setLoading(false);
+      if (requestId === listRequestId.current) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, search, statusFilter, sortBy, sortOrder]);
 
@@ -430,23 +488,37 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
   // ------------------------------------------------------------------
 
   const handleSearchChange = useCallback((value: string) => {
+    if (value === searchRef.current) return;
+    searchRef.current = value;
     setSearch(value);
     setPagination((p) => ({ ...p, page: 1 }));
-  }, []);
+    replaceQuery({ q: value || null, page: null });
+  }, [replaceQuery]);
+
+  const handleStatusChange = useCallback((value: string) => {
+    setStatusFilter(value);
+    setPagination((p) => ({ ...p, page: 1 }));
+    replaceQuery({ status: value === "all" ? null : value, page: null });
+  }, [replaceQuery]);
 
   const handlePageChange = useCallback((page: number) => {
     setPagination((p) => ({ ...p, page }));
-  }, []);
+    replaceQuery({ page: page > 1 ? String(page) : null });
+  }, [replaceQuery]);
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setPagination((p) => ({ ...p, page: 1, pageSize }));
-  }, []);
+    replaceQuery({ page: null, pageSize: pageSize === 20 ? null : String(pageSize) });
+  }, [replaceQuery]);
 
   const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
+    if (sortRef.current.field === field && sortRef.current.order === order) return;
+    sortRef.current = { field, order };
     setSortBy(field);
     setSortOrder(order);
     setPagination((p) => ({ ...p, page: 1 }));
-  }, []);
+    replaceQuery({ page: null, sortBy: field === "createdAt" ? null : field, sortOrder: order === "desc" ? null : order });
+  }, [replaceQuery]);
 
   // Bulk retry — drives the runBulkRetry orchestrator end-to-end. The
   // orchestrator pre-fetches all PENDING_PAYMENT_LINK invoices, chunks them
@@ -812,7 +884,9 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
     <>
       <PageHeader
         title="Tagihan"
-        description={`${pagination.total} tagihan`}
+        description={hasLoaded
+          ? `${pagination.total} tagihan${loading ? " · Memperbarui…" : fetchError ? " · Data terakhir; gagal memperbarui" : ""}`
+          : loading ? "Memuat jumlah tagihan…" : "Jumlah tagihan belum dapat dimuat"}
         actions={capabilities.create && stats.pendingPaymentLink > 0 ? (
           <PendingLinkBreakdownPopover
             count={stats.pendingPaymentLink}
@@ -824,7 +898,7 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         primaryAction={{
           label: "Buat Tagihan",
           icon: <FilePlus2 aria-hidden="true" />,
-          onClick: openWizard,
+          onClick: () => setCreateChoiceOpen(true),
           hidden: !capabilities.create,
         }}
         secondaryAction={{
@@ -835,6 +909,22 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         }}
         menuActions={menuActions}
       />
+
+      {createChoiceOpen ? <ResponsiveFormDialog
+        open
+        onOpenChange={setCreateChoiceOpen}
+        title="Buat tagihan untuk siapa?"
+        footer={<Button variant="ghost" onClick={() => setCreateChoiceOpen(false)}>Batal</Button>}
+        description="Pilih satu siswa atau buat tagihan bersama untuk kelas dan kelompok siswa."
+        size="sm"
+      >
+        <div className="space-y-field">
+          <Button variant="outline" className="w-full" onClick={() => { setCreateChoiceOpen(false); setManualDialog(true); }}>Satu siswa</Button>
+          <p className="text-small text-muted-foreground">Pilih siswa dan rincian biaya secara langsung.</p>
+          <Button variant="outline" className="w-full" onClick={() => { setCreateChoiceOpen(false); openWizard(); }}>Per kelas / beberapa siswa</Button>
+          <p className="text-small text-muted-foreground">Susun draf bersama, periksa penerima, lalu terbitkan.</p>
+        </div>
+      </ResponsiveFormDialog> : null}
 
       {/* Discard-draft confirm (Cycle B2, Task T6) — names the period and
           the consequence per .claude/standards/voice.md's destructive-
@@ -952,16 +1042,15 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."
+        value={searchInput}
+        onValueChange={setSearchInput}
         onSearchChange={handleSearchChange}
         filters={[
           {
             key: "status",
             label: "Status",
             value: statusFilter,
-            onChange: (v) => {
-              setStatusFilter(v);
-              setPagination((p) => ({ ...p, page: 1 }));
-            },
+            onChange: handleStatusChange,
             options: statusOptions,
           },
         ]}
@@ -1002,13 +1091,14 @@ export function InvoicesClient({ gatewayId, capabilities, initialStatus = "all" 
         </Alert>
       ) : (
         <DataTable
+          key={tableRevision}
           columns={columnsWithActions}
           data={data}
           pagination={pagination}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           onSortChange={handleSortChange}
-          defaultSort={{ field: "createdAt", order: "desc" }}
+          defaultSort={{ field: sortBy, order: sortOrder }}
           loading={loading}
           emptyTitle="Belum ada tagihan"
           emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"

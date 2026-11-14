@@ -376,3 +376,26 @@ describe("bulk taps", () => {
     expect(screen.getByRole("button", { name: /Simpan absensi · 2 perubahan/ })).toBeInTheDocument();
   });
 });
+
+
+describe("unrecorded session rows", () => {
+  it("stays neutral until explicitly selected and saves only that child", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ saved: 1, total: 1 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoster(roster.map(row => ({ ...row, status: "UNKNOWN" })));
+    expect(screen.getAllByText("Belum dicatat")).toHaveLength(2);
+    expect(screen.queryByText("Hadir", { exact: true })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Status Aisyah: Belum dicatat. Ketuk untuk ganti." }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).rows).toEqual([expect.objectContaining({ studentId: "s1", status: "PRESENT" })]);
+    expect(screen.getByText("Belum dicatat")).toBeInTheDocument();
+  });
+  it("explicit bulk arrival selects unknown children but preserves Sakit", () => {
+    renderRoster([{ ...roster[0], status: "UNKNOWN" }, { ...roster[1], status: "SICK" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Semua hadir" }));
+    expect(screen.getByRole("button", { name: "Status Aisyah: Hadir. Ketuk untuk ganti." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Status Bilal: Sakit. Ketuk untuk ganti." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Simpan absensi · 1 perubahan" })).toBeInTheDocument();
+  });
+});

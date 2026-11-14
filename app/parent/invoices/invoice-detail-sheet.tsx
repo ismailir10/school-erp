@@ -97,6 +97,7 @@ export function InvoiceDetailSheet({
   paymentPending = false,
   listStateKey,
   onRefreshStatus,
+  onBeforeCheckout,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -115,6 +116,7 @@ export function InvoiceDetailSheet({
   listStateKey?: string;
   /** Re-reads the invoice list from the server (the pending note's "Muat ulang status"). */
   onRefreshStatus?: () => void;
+  onBeforeCheckout?: (invoice: Pick<InvoiceDetail, "id" | "status" | "totalDue" | "totalPaid">) => boolean | void;
 }) {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -247,6 +249,7 @@ export function InvoiceDetailSheet({
         if (stillShown()) fail("Link belum bisa dibuat. Coba lagi sebentar lagi, atau hubungi tata usaha.");
       } else if (res.ok && url) {
         if (stillShown() && goToCheckout) {
+          if (onBeforeCheckout?.(invoice) === false) return;
           navigating = true;
           window.location.assign(url);
         } else {
@@ -299,8 +302,10 @@ export function InvoiceDetailSheet({
       <div className="flex items-start gap-2">
         <Info size={14} className="mt-0.5 shrink-0" />
         <span>
-          Bila pembayaran belum bisa dibuka, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
-          pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
+          {paymentPending ? <>Bila status belum berubah, <strong>hubungi bagian tata usaha sekolah</strong> untuk memeriksa pembayaran.
+            Sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>. Jangan bayar lagi sebelum dikonfirmasi.</>
+            : <>Bila pembayaran belum bisa dibuka, silakan <strong>hubungi bagian tata usaha sekolah</strong> untuk info
+              pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.</>}
         </span>
       </div>
       {(() => {
@@ -552,6 +557,7 @@ export function InvoiceDetailSheet({
                     Pembayaran sedang diperiksa. Status akan diperbarui otomatis — tidak perlu bayar lagi.
                   </span>
                 </div>
+                {contactBox}
                 {onRefreshStatus ? (
                   <Button type="button" variant="outline" className="w-full" onClick={onRefreshStatus}>
                     <RefreshCw size={16} className="mr-2" />
@@ -564,6 +570,7 @@ export function InvoiceDetailSheet({
                 {/* A real link, tapped by the parent: target=_blank is not popup-blocked. */}
                 <a
                   href={safePaymentUrl!}
+                  onClick={(event) => { if (onBeforeCheckout?.(invoice) === false) event.preventDefault(); }}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(buttonVariants({ size: "lg" }), "w-full")}

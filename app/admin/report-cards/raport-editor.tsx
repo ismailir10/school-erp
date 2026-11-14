@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
+import { ReportCardReader } from "@/components/report-cards/report-card-reader";
+import { buildReportSections, formatTermLabel } from "@/lib/raport/build";
 import { templateFor } from "@/lib/raport/templates";
 import { raportAttendanceSchema, raportMeasurementSchema } from "@/lib/validations/raport";
 import { toast } from "sonner";
@@ -124,6 +126,7 @@ export function RaportEditor({
   const [weight, setWeight] = useState("");
   const [measurementErrors, setMeasurementErrors] = useState<MeasurementErrors>({});
   const [status, setStatus] = useState("NONE");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
@@ -527,6 +530,7 @@ export function RaportEditor({
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" onClick={() => setPreviewOpen(true)}>Pratinjau rapor</Button>
         <Button onClick={save} disabled={saving || publishing}>
           {saving ? "Menyimpan…" : "Simpan"}
         </Button>
@@ -547,6 +551,22 @@ export function RaportEditor({
           <Download className="size-4" /> Unduh PDF
         </Button>
       </div>
+
+      {previewOpen ? <ReportCardReader
+        preview
+        childName={data.student.name}
+        onClose={() => setPreviewOpen(false)}
+        card={{
+          termId,
+          period: formatTermLabel(data.term.number, data.term.semesterNumber, data.term.academicYear),
+          publishedAt: null,
+          sections: buildReportSections(levels, narratives),
+          attendance: { sick: Number(att.sick) || 0, permitted: Number(att.permitted) || 0, unexcused: Number(att.unexcused) || 0, total: Number(att.total) || 0 },
+          hafalan,
+          height: height || null,
+          weight: weight || null,
+        }}
+      /> : null}
 
       <ConfirmDialog
         open={confirmLeave}

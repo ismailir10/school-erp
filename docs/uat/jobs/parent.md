@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-11-14 in cycle `ui-ux-audit` (JTBD-PARENT-INV-01: one pinned "Bayar Rp …" button in the invoice sheet; with no link it makes one and goes to checkout in one tap, with Coba lagi on failure). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
+> Last audited: 2026-11-14 in cycle `audit-remediation` (Home separates scheduled-but-unrecorded attendance from no session and includes actual weekend attendance). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-PARENT-INV-01: one pinned "Bayar Rp …" button in the invoice sheet; with no link it makes one and goes to checkout in one tap, with Coba lagi on failure). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-10-27 in cycle `journal-no-entry-day` (JTBD-PARENT-JOURNAL-01 step 5: a day the guru marked Hari tanpa buku penghubung shows its keterangan, e.g. Renang, in that day's column). Prior: 2026-10-17 in cycle `payment-link-on-demand` (JTBD-PARENT-INV-01 step 5: an unpaid tagihan whose payment link expired shows Buat link pembayaran, or a small Minta link baru under Bayar sekarang, and gives a working link on the same tagihan without calling the school). Prior: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
@@ -21,8 +21,10 @@ This file is the living catalog of what a parent user can and should be able to 
   1. Choose the second child in Jurnal, then move through Tagihan, Kehadiran, Rapor, Profil, and back using tabs and links; reload and use browser back.
   2. Return from a payment provider with `paymentStatus=paid` while the invoice is still `SENT`, then after the server records a partial payment, then after it records `PAID`.
   3. Repeat with an invoice ID outside this guardian's linked children and with a conflicting `child` query.
-  4. Check the attendance week at 00:30 WIB on Monday, while the server clock is still Sunday UTC.
-- **Done when:** Every child-specific page stays on the linked selected child; the callback invoice selects its linked child; an unlinked ID never opens another family's invoice. The portal says payment is being checked for an unpaid invoice, acknowledges a partial payment and remaining balance, and says paid only after the server reports `PAID`. A paid return asks the gateway about that invoice straight away (and once more shortly after), so a payment the gateway has already settled shows as paid without staff action or waiting for the next morning. The displayed attendance day and week follow WIB.
+  4. Reload the pending invoice after callback parameters have been removed, navigate away and back, and open it in another tab on the same browser/origin. Repeat for a partially paid invoice whose remaining balance is being paid. Keep the warning until the server records more money or verifies a failed/expired attempt; an arbitrary wait or another tab clearing its local hint must not restore Bayar against stale data.
+  5. Deny browser storage and repeat the paid return: the warning remains in the current tab and callback parameters remain available to restore it on reload. Change guardian/tenant/child and confirm that another account's hint never appears.
+  6. Check the attendance week at 00:30 WIB on Monday, while the server clock is still Sunday UTC.
+- **Done when:** Every child-specific page stays on the linked selected child; the callback invoice selects its linked child; an unlinked ID never opens another family's invoice. The portal says payment is being checked for an unpaid invoice, acknowledges a partial payment and remaining balance, and says paid only after the server reports `PAID`. A paid return asks the gateway about that invoice straight away (and once more shortly after), so a payment the gateway has already settled shows as paid without staff action or waiting for the next morning. The warning survives reload and same-browser tabs; it never marks an invoice paid or replaces the server balance. A previously recorded partial payment is not mistaken for confirmation of a new payment of the remainder. If the webhook arrives before the return page, the pre-checkout balance identifies the newly received amount. A DOKU expiry already processed by cron can still be verified by invoice ID after the old link is cleared. Missing/unknown provider identity (including an old Xendit session whose ID is gone) remains pending and needs staff verification; missing URL alone never means expired. The displayed attendance day and week follow WIB.
 - **Why this job matters:** A wrong child or premature paid message makes the portal's most sensitive information hard to trust.
 - **Verification status:** Code review, automated regressions, and local production-browser verification against disposable data on 2026-09-25 passed for child context and authoritative payment states. Representative-user mobile UAT remains to be performed.
 
@@ -40,6 +42,7 @@ This file is the living catalog of what a parent user can and should be able to 
   4. Reach a confirmation state they can trust — amount, reference number, visible success
   5. Tap the one pinned button, Bayar Rp <sisa>, in the tagihan sheet (always on screen, no scrolling). With a live link it opens the checkout; with no link (expired and cleared) the same tap makes the link and goes to checkout in the same tab, button reads Menyiapkan pembayaran… meanwhile
   6. If it fails, an inline message appears in the footer with Coba lagi and the school contact (WhatsApp / telepon); a link that will not open can be replaced with the small Minta link baru under Bayar
+  7. On staging only, use a manual invoice with a fee label such as `SPP — UAT November`. Checkout must accept the provider-safe label while Talib keeps the original Unicode label and the amount/quantity remain unchanged. Use the sandbox procedure in `docs/runbooks/payments-gateway.md`; never use production for this test.
 - **Done when:** User sees a clear success state with amount + reference. If Xendit redirect is involved, the redirect back to the portal shows the invoice as `PAID` or `PENDING_CONFIRMATION`.
 - **Why this job matters:** Pak Budi's #1 priority. If this is slow or confusing, he stops trusting the whole ERP.
 - **Expected perf:** invoices list load <1.5s; tap "Bayar" click-to-Xendit-redirect <2s; return-to-portal reconciliation visible <3s.
@@ -87,44 +90,41 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Role:** GUARDIAN
 - **Preconditions:** Logged in as a parent whose child has attendance records in the current week
 - **Steps:**
-  1. Open the parent portal
-  2. Navigate to the attendance view
-  3. See at a glance: how many days present, any absences, any late arrivals for this week
+  1. Open Home on a scheduled weekday and on a weekend with a daycare session; compare each child’s saved status with school records.
+  2. A scheduled child without a record shows **Belum dicatat**. A child with no session shows **Tidak ada sesi**, without a misleading missing-attendance task. Actual saved statuses take precedence.
+  3. Navigate to attendance. Confirm the weekly summary, then return to Home; the Mon–Sun Home summary includes saved weekend attendance.
 - **Done when:** User can count today's status and this week's status without scrolling. Status is shown as a badge or icon, not just a word in a table.
 - **Why this job matters:** Second most common reason Pak Budi opens the app. If it takes more than 2 navigations to find this, he assumes Aisha was absent and panics.
 - **Expected perf:** home card shows today's status <1.5s after page load; weekly view load <1.5s.
-- **Known friction:** MAJOR addressed 2026-04-17 (cycle `parent-uat-fixes`): home Kehadiran card now shows today's `StatusBadge` or "Belum dicatat", eliminating the extra navigation to determine today's attendance.
+- **Known friction:** MAJOR addressed 2026-04-17 (cycle `parent-uat-fixes`): home Kehadiran card shows today's `StatusBadge`; `audit-remediation` distinguishes **Belum dicatat** from **Tidak ada sesi** using the school calendar and actual sessions.
 
 ---
 
 ## Area: reports
 
-### JTBD-PARENT-REP-01 — View latest report card
+### JTBD-PARENT-REP-01 — View the latest authored report card
 - **Persona:** Pak Budi
 - **Role:** GUARDIAN
-- **Preconditions:** Logged in as a parent whose child has ≥1 published report card in seed
-- **Steps:**
-  1. Open the parent portal
-  2. Navigate to the reports area
-  3. Open the most recent report card and see scores/assessments
-- **Done when:** User reaches the published report card. If there is no report yet, the empty state explains when it will be available (not a blank page).
-- **Why this job matters:** Low frequency (once per quarter) but high emotional weight. Pak Budi wants to read it without being a power user.
-- **Expected perf:** report list load <2s; opening a single report (sheet/detail) click-to-visible <2s on 4G.
-- **Known friction:** MAJOR resolved 2026-04-17 (cycle `parent-uat-fixes`): replaced 5-col DataTable with mobile card stack; "Lihat" button now fully visible at 375px. BLOCKER (timing) resolved 2026-04-18 (cycle `fix-parent-payment-backfill`): list query now uses `select` with only list-level fields; categories/indicators/scores lazy-loaded via `/api/guardian/assessments/[id]` on sheet open. Page load reduced from 5.3s to expected sub-2s.
+- **Preconditions:** A linked child with a published report; another child whose report is unpublished.
+- **Steps:** Open Rapor, verify the selected child and triwulan, choose Buka rapor. Close, switch to the sibling, and verify the unpublished state; switch back.
+- **Done when:** The published child shows the authored report and PDF action. The unpublished child shows Rapor belum terbit with its explanation and no report opener. No content crosses child boundaries.
+- **Why this job matters:** Quarterly reports carry high emotional weight; child and period must be clear before reading.
+- **Expected perf:** report list load <2s; opening a single report click-to-visible <2s on 4G. Record shell-open timing separately from content-ready timing.
 
 ---
 
-### JTBD-PARENT-REP-02 — Read the report card indicator by indicator
+### JTBD-PARENT-REP-02 — Read a long report from first section to last
 - **Persona:** Pak Budi
 - **Role:** GUARDIAN
-- **Preconditions:** Logged in as a parent whose child has ≥1 published report with multiple categories and indicators (e.g. "Akhlak", "Kognitif", "Bahasa")
+- **Preconditions:** Published report with realistic long narratives across the authored sections, attendance, measurements and hafalan; test 320×740, 390×844 and desktop.
 - **Steps:**
-  1. Open the parent portal → Rapor
-  2. Open the latest report
-  3. Read each category → each indicator → the score/descriptor
-- **Done when:** Pak Budi can point at any single indicator (e.g. "Mampu menyebut huruf hijaiyah 1-10") and see its specific score or narrative, not just a category-level roll-up.
-- **Why this job matters:** This is where the report card earns its keep. PAUD/TKIT parents want narrative formative feedback, not letter grades. If the UI flattens everything to a single score per category, the report loses its whole reason to exist.
-- **Expected perf:** opening a report with 3+ categories and 10+ indicators renders fully <2s; no lazy-loaded blocks should still be spinning after 3s.
+  1. Open Buka rapor. Child and triwulan stay visible; focus starts at the heading and the first narrative is visible without scrolling upward.
+  2. Scroll by touch/pointer and keyboard through Pembukaan, development sections, closing sections, Kehadiran, Pertumbuhan and Hafalan. Read each level chip and narrative; empty authored sections may be omitted.
+  3. Reach Unduh PDF at the end. Compare the PDF with the saved narrative, attendance and child/term; inspect all pages rather than only the cover.
+  4. Tutup remains reachable while scrolling. Close by touch and Escape, then reopen: start at the beginning each time and restore focus to the opener on close.
+- **Done when:** The sheet stays within the viewport, its body has a real scroll range and no horizontal overflow, and every section can be read without losing the child/period/close controls. The same presentation is used by admin Pratinjau rapor.
+- **Why this job matters:** Parents need the teacher's formative narrative and level descriptors, including the final follow-up guidance.
+- **Expected perf:** opening a long report click-to-visible <2s; report content-ready <3s. Capture both measurements.
 
 ---
 
@@ -177,18 +177,20 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Preconditions:** Logged in as a parent whose child has an active journal for this week
 - **Steps:**
   1. Open the parent portal → Jurnal → "Catatan" tab
-  2. Pick today's date and write a note ("Aisha batuk semalam, mungkin kurang fit hari ini")
-  3. Save. See the note appear in the thread with a `WALI` badge and today's date.
-  4. Edit the note (correct a typo) and save again. See the updated text.
-  5. Delete the note. Confirm via AlertDialog. See the note gone from the thread.
+  2. Open Tulis catatan and read the child, intended date and audience (Ustadzah). On a weekday the default is today when in the displayed week; on a weekend or a past week it is the latest available school day, with an explicit not-today notice. Choose the intended date before writing.
+  3. Save a uniquely marked note. The success message names child/date; verify the same date, text and parent role in both the parent thread and teacher view.
+  4. Edit the note and save again; the original school date remains fixed and the composer explains that. Verify teacher readback after reload.
+  5. Type an unsaved draft. Batal → Lanjut menulis preserves it; Batal → Buang removes it. Refreshing the same week's data must not silently erase a draft. Switch sibling and verify no note leaks across children.
+  6. Delete the owned note through the shared confirmation; verify it disappears after reload.
 - **Done when:** Full CRUD round-trip persists across reloads. Delete requires an AlertDialog confirmation (per `.claude/standards/portal.md` destructive-action contract). The note never silently attaches to the wrong child in multi-child households.
 - **Why this job matters:** Parent-written notes are how sakit, izin, and family context reach the teacher before morning circle. A stuck save or wrong-child attachment creates real miscommunication.
 - **Expected perf:** note create click-to-visible <1s; edit-save <1s; delete confirm-to-removed <1s.
 - **Error scenarios to verify:**
   - Empty note body → client-side validation blocks submit with inline message
-  - Note body >2000 chars → server rejects with 400 + toast "Catatan terlalu panjang"
+  - Pasting beyond 2000 characters is capped without splitting an emoji and explains truncation; direct oversized API input is rejected.
+  - Failed save preserves the body, announces an inline error and leaves a clear retry path.
   - Delete cancelled in AlertDialog → note stays, no API call fired
-  - Attempt to edit/delete a teacher-authored note → edit/delete CTAs absent (client-side `canEdit` guard checks `authorRole === "GUARDIAN"` and `authorUserId === currentUserId`; API does not independently 403 at the route level — UI is the sole enforcement boundary today)
+  - Attempt to edit/delete another author's note → edit/delete controls absent; direct PUT/DELETE is rejected by the server author check, with cross-tenant IDs returning 404.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

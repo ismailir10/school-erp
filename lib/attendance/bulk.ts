@@ -14,16 +14,16 @@ export type BulkRow = {
   pickedUpByName: string | null;
 };
 
-/** Arrival for everyone present who has no arrival time yet. */
+/** Explicit bulk arrival records unmarked children as present and fills gaps. */
 export function applyAllArrived<T extends BulkRow>(
   rows: T[],
   nowIso: string,
 ): { rows: T[]; changed: number } {
   let changed = 0;
   const next = rows.map((r) => {
-    if (r.status !== "PRESENT" || r.checkInTime) return r;
+    if ((r.status !== "PRESENT" && r.status !== "UNKNOWN") || r.checkInTime) return r;
     changed += 1;
-    return { ...r, checkInTime: nowIso };
+    return { ...r, status: "PRESENT", checkInTime: nowIso };
   });
   return { rows: next, changed };
 }

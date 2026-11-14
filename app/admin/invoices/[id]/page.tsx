@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { INVOICE_LIST_QUERY_KEY } from "@/components/admin/invoices/list-query";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
@@ -236,6 +237,13 @@ function PaymentLinkExpiryLine({ invoice }: { invoice: Pick<InvoiceDetail, "stat
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [listHref, setListHref] = useState("/admin/invoices");
+  useEffect(() => {
+    try {
+      const query = sessionStorage.getItem(INVOICE_LIST_QUERY_KEY);
+      if (query) setListHref(`/admin/invoices?${query}`);
+    } catch { /* Storage blocked: retain the ordinary list link. */ }
+  }, []);
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -554,7 +562,7 @@ export default function InvoiceDetailPage() {
 
   if (loading) return <DetailPageSkeleton />;
   if (loadError) return <EmptyState title="Tagihan belum dapat dimuat" description="Periksa koneksi dan coba lagi. Pembayaran tidak diubah." actionLabel="Coba lagi" onAction={fetchInvoice} />;
-  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia dengan akses Anda." actionLabel="Kembali ke daftar tagihan" actionHref="/admin/invoices" />;
+  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia dengan akses Anda." actionLabel="Kembali ke daftar tagihan" actionHref={listHref} />;
 
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
@@ -613,7 +621,7 @@ export default function InvoiceDetailPage() {
   return (
     <>
       <DetailPageHeader
-        backHref="/admin/invoices"
+        backHref={listHref}
         backLabel="Kembali ke Daftar Tagihan"
         title={`${invoice.invoiceNumber}`}
         description={

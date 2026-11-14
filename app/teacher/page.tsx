@@ -10,6 +10,7 @@ import { getDayMark } from "@/lib/student-journal/day-marks";
 import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { minutesLate } from "@/lib/attendance/status";
 import { getTeacherSentraToday } from "@/lib/sentra/access";
+import { scheduledClassIds } from "@/lib/sessions/scheduled-day";
 import { getGateSummary } from "@/lib/attendance/gate-summary";
 import { sentraLabel } from "@/lib/sentra/rotation";
 import { getJournalProgress, isJournalAbsentStatus, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
@@ -74,6 +75,11 @@ export default async function TeacherHome() {
     ...assignments.map(a=>({section:a.classSection,isHomeroom:a.role==="HOMEROOM",sentraOnly:false})),
     ...sentraSections.map(section=>({section,isHomeroom:false,sentraOnly:true})),
   ];
+  const [scheduleResult] = await Promise.allSettled([
+    session.tenantId ? scheduledClassIds(session.tenantId, entries.map(({section}) => section.id), today) : Promise.resolve(new Set<string>()),
+  ]);
+  // A calendar lookup failure is unknown, never proof that school is closed.
+  const scheduled = scheduleResult.status === "fulfilled" ? scheduleResult.value : null;
   const classes: TeacherClassSummary[] = await Promise.all(entries.map(async ({section,isHomeroom,sentraOnly})=>{
     const studentIds = section.enrollments.map(e=>e.studentId);
     const [attendance, journal, replies, dayMark] = await Promise.allSettled([
@@ -88,7 +94,7 @@ export default async function TeacherHome() {
     const absentIds = attendance.status==="fulfilled"
       ? [...classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).values()].filter(r=>isJournalAbsentStatus(r.status)).map(r=>r.studentId) : [];
     const slots = sessions.filter(s=>s.classSectionId===section.id).sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
-    return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom,sentraTag:sentraTagByClass.get(section.id),sentraOnly,slot:slots[0]?.slot ?? null,
+    return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom,sentraTag:sentraTagByClass.get(section.id),sentraOnly,scheduledToday:scheduled?.has(section.id) ?? null,slot:slots[0]?.slot ?? null,
       attendanceRecorded:attendance.status==="fulfilled" ? classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).size : null,
       journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value,excludedStudentIds:absentIds,dayMarkReason}) : null,
       replies:replies.status==="fulfilled" ? section.enrollments.filter(e=>(replies.value[e.studentId]??0)>0).map(e=>({studentId:e.studentId,studentName:e.student.nickname || e.student.name,count:replies.value[e.studentId]})) : null,
@@ -100,7 +106,7 @@ export default async function TeacherHome() {
   const org = orgResult.status === "fulfilled" ? orgResult.value : null;
   const lateBy = record?.status === "LATE" && record.checkInTime && org ? minutesLate(record.checkInTime, org.workStartTime, org.timezone ?? "Asia/Jakarta") : null;
   return <TeacherHomeClient userName={session.name ?? "Guru"} today={today} greeting={greeting}
-    todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null,minutesLate:lateBy,approvalStatus:record.approvalStatus}:null}
+    todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null,minutesLate:lateBy,approvalStatus:record.approvalStatus,reviewNote:record.reviewNote,reviewedAt:record.reviewedAt?.toISOString()??null}:null}
     attendanceUnavailable={attendanceResult.status==="rejected"} classesUnavailable={assignmentsResult.status==="rejected"}
     sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes} gateSummary={gateSummary}
     leaveDecisions={leaveDecisions} homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}

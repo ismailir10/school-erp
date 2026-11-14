@@ -141,7 +141,8 @@ test.describe("Teacher flows", () => {
     const sessions = await response.json() as Array<{id:string;classSection:{name:string}}>;
     const pickup = page.getByRole("region", {name:"Sesi & penjemputan"});
     await expect(pickup).toBeVisible();
-    await expect(pickup).toContainText("disimpan terpisah dari absensi kelas");
+    await expect(pickup).toContainText("Perubahan di halaman sesi perlu disimpan");
+    await expect(pickup).toContainText("Gerbang menyimpan tiap ketukan");
     const links = pickup.locator('a[href^="/teacher/sessions/"]');
     await expect(links).toHaveCount(sessions.length);
     for (const session of sessions) {

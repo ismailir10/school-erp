@@ -78,6 +78,8 @@ export type ReconcileResult = {
   provider: string;
   /** Gateway's own status string, for triage. Null when never reached. */
   gatewayStatus: string | null;
+  /** Normalized, server-verified state; absent when no gateway read occurred. */
+  gatewayState?: GatewayPaymentStatus["state"];
   statusBefore: string | null;
   statusAfter: string | null;
   /** Outcome string from the shared processor, when it ran. */
@@ -353,6 +355,7 @@ export async function reconcileInvoicePayment(
           : "Belum ada pembayaran masuk.",
       provider,
       gatewayStatus: status.rawStatus,
+      gatewayState: status.state,
       statusBefore: before.status,
       statusAfter: before.status,
     };
@@ -418,6 +421,7 @@ export async function reconcileInvoicePayment(
   const base = {
     provider,
     gatewayStatus: status.rawStatus,
+    gatewayState: status.state,
     statusBefore: before.status,
     statusAfter,
     processorStatus: outcome.status,

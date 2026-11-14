@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type Props = { classes: Array<{ id: string; sentraTag?: string; sentraOnly?: boolean; journal: unknown }>; classesUnavailable: boolean };
+type Props = { classes: Array<{ id: string; sentraTag?: string; sentraOnly?: boolean; scheduledToday?: boolean | null; journal: unknown }>; classesUnavailable: boolean };
 const m = vi.hoisted(() => ({
   clientProps: null as unknown as Props,
   sentra: vi.fn(),
   classSectionFindMany: vi.fn(),
   assignments: vi.fn(),
+  scheduled: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getSession: async () => ({ id: "u1", role: "TEACHER", name: "Sari", employeeId: "e1", tenantId: "t1" }) }));
 vi.mock("@/lib/attendance/timezone", () => ({ getTodayInTimezone: () => "2026-11-06" }));
+vi.mock("@/lib/sessions/scheduled-day", () => ({ scheduledClassIds: m.scheduled }));
 vi.mock("@/lib/sentra/access", () => ({ getTeacherSentraToday: m.sentra }));
 vi.mock("@/lib/student-journal/note-reads", () => ({ countUnreadNotesByStudent: async () => ({}) }));
 vi.mock("@/lib/student-journal/day-marks", () => ({ getDayMark: async () => null }));
@@ -33,6 +35,7 @@ import TeacherHome from "../page";
 const section = (id: string, name: string) => ({ id, name, sessions: [], enrollments: [{ studentId: `${id}-s1`, student: { name: "Ani", nickname: null } }] });
 
 beforeEach(() => {
+  m.scheduled.mockReset().mockResolvedValue(new Set(["own", "visit"]));
   m.assignments.mockReset().mockResolvedValue([{ classSectionId: "own", role: "HOMEROOM", classSection: section("own", "TK A") }]);
   m.classSectionFindMany.mockReset().mockResolvedValue([section("visit", "TK B")]);
   m.sentra.mockReset();
@@ -63,4 +66,21 @@ describe("TeacherHome sentra classes", () => {
     expect(m.clientProps.classes.map((c) => c.id)).toEqual(["own"]);
     expect(m.clientProps.classesUnavailable).toBe(false);
   });
+});
+
+
+it("marks a class with no calendar session as unscheduled without hiding its roster", async () => {
+  m.sentra.mockResolvedValue([]);
+  m.scheduled.mockResolvedValue(new Set());
+  const props = (await TeacherHome() as unknown as { props: Props }).props;
+  expect(props.classes[0]).toMatchObject({ id: "own", scheduledToday: false });
+  expect(m.scheduled).toHaveBeenCalledWith("t1", ["own"], "2026-11-06");
+});
+
+
+it("preserves unknown schedule state when the calendar read fails", async () => {
+  m.sentra.mockResolvedValue([]);
+  m.scheduled.mockRejectedValue(new Error("calendar unavailable"));
+  const props = (await TeacherHome() as unknown as { props: Props }).props;
+  expect(props.classes[0]).toMatchObject({ id: "own", scheduledToday: null });
 });

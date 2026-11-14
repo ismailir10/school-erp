@@ -148,11 +148,12 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
             className="rounded-xl border border-border bg-card overflow-hidden"
           >
             {/* Student header — tap area expands; sibling icon button adds a note */}
-            <div className="flex items-stretch">
+            <div className="flex flex-wrap items-stretch">
               <button
                 onClick={() => toggleExpand(student.id)}
-                className="min-w-0 flex-1 flex items-center justify-between gap-2 p-3.5 text-left outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
+                className="min-w-0 basis-full sm:basis-0 flex-1 flex items-center justify-between gap-2 p-3.5 text-left outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                 aria-expanded={isExpanded}
+                aria-label={`${isExpanded ? "Tutup" : "Isi"} checklist ${student.name}`}
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div
@@ -212,10 +213,11 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                 <button
                   type="button"
                   onClick={() => onAddNote(student)}
-                  className="min-w-11 px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
+                  className="min-h-11 min-w-11 px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                   aria-label={`Tambah catatan untuk ${student.name}`}
                 >
                   <MessageSquarePlus size={18} aria-hidden="true" />
+                  <span className="text-small">Catatan</span>
                   {(noteCounts?.[student.id] ?? 0) > 0 ? (
                     <span className="text-xs font-medium text-primary-text tabular-nums">
                       {noteCounts?.[student.id]}
@@ -232,9 +234,10 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                       `/teacher/student-journal/students/${student.id}?week=${visibleDate}`,
                     )
                   }
-                  className="min-w-11 px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
+                  className="min-h-11 min-w-11 px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:focus-outline focus-visible:[--focus-outline-offset:-2px]"
                   aria-label={`Lihat pekan ${student.name}`}
                 >
+                  <span className="text-small">Lihat pekan</span>
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               ) : null}

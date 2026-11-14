@@ -1,0 +1,15 @@
+Local synthetic test data only.
+
+Admin approval:
+{"key":"approval-result","v":{"url":"http://localhost:3000/api/attendance/cmwfqrbxe000076x7jyp2s60q/approve","status":200,"page":"http://localhost:3000/admin/employee-attendance?tab=pending"}}
+
+Teacher sees the parent note:
+15:    - text: SN Siti Nurhaliza Hidayat Orang Tua 9 Nov 2026 · 08.45
+16:    - paragraph: "UAT 14 Nov: Anak batuk semalam; sudah sarapan. Uji simpan."
+
+Admin cash payment and parent receipt:
+{"key":"payment-review","v":755}
+{"key":"record-payment","v":111}
+  - text: Rp 850.000 Total Tagihan Rp 850.000 Dibayar Rp 10.000 Sisa Rp 840.000
+  - text: Tunai Rp 10.000
+{"key":"family-cash","v":["Tagihan Oktober 2026· Fatimah","INV-2026-2002","Sisa tagihan","Rp840.000","Dibayar sebagian","Jatuh tempo 24 November 2026","RINCIAN","SPP Bulanan","Rp850.000","Total tagihan","Rp850.000","Sudah dibayar","Rp10.000","Sisa tagihan","Rp840.000","CARA BAYAR","Transfer bank (Virtual Account)","BCA · Mandiri · BRI · BNI · Permata · CIMB","BUKTI PEMBAYARAN","Kuitansi.pdf","Bukti pembayaran sebagian","RIWAYAT PEMBAYARAN","Tunai","14 November 2026","Rp10.000","Bayar sekarang","Link tidak bisa dibuka? Minta link baru","Tutup"]}

@@ -21,7 +21,7 @@ const MIN_CHECK_INTERVAL_MS = 10_000;
  * only, and only for an invoice of one of the parent's own children. Every
  * miss is a flat 404 so a probing client learns nothing about other families.
  *
- * The response carries only `{ code, status }` — the reconciler's `message` is
+ * The response carries `{ code, status }` and an optional verified attempt outcome — the reconciler's `message` is
  * admin-voice text and never reaches a parent. The nightly sweep is the
  * backstop for anything that fails here, so a gateway failure is a 200
  * `GATEWAY_ERROR`, not a 5xx.
@@ -81,14 +81,26 @@ export async function POST(
     );
   }
 
-  // Nothing to poll: already settled / not payable, or no gateway session.
-  if (!UNPAID.has(invoice.status) || !invoice.xenditPaymentUrl) {
+  // DOKU can query by Invoice.id even after cron/admin cleared an expired URL.
+  // A missing link alone is never terminal evidence: providers unable to look
+  // up an old session return UNAVAILABLE and the confirmation hint stays put.
+  if (!UNPAID.has(invoice.status)) {
     return NextResponse.json({ code: "SKIPPED", status: invoice.status });
   }
 
   try {
     const r = await reconcileInvoicePayment(id, { minIntervalMs: MIN_CHECK_INTERVAL_MS });
+    let attemptOutcome: "failed" | "expired" | undefined;
+    if (r.gatewayState === "FAILED" || r.gatewayState === "EXPIRED") {
+      // A slow check must not release the warning for a newly issued checkout.
+      const current = await prisma.invoice.findUnique({ where: { id }, select: { xenditPaymentUrl: true } });
+      if (current && (current.xenditPaymentUrl === invoice.xenditPaymentUrl ||
+        (r.gatewayState === "EXPIRED" && current.xenditPaymentUrl === null))) {
+        attemptOutcome = r.gatewayState === "FAILED" ? "failed" : "expired";
+      }
+    }
     return NextResponse.json({
+      ...(attemptOutcome && { attemptOutcome }),
       code: r.code,
       status: r.statusAfter ?? r.statusBefore ?? invoice.status,
     });

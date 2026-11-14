@@ -1,0 +1,1037 @@
+Synthetic local audit only.
+
+--- flows.log ---
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":337,"ttfb":102.69999998807907,"dcl":194.4000000357628,"load":254.19999998807907},"t":2908}
+{"name":"api","value":{"path":"/api/teacher/gate","status":200,"method":"GET","ms":21},"t":3497}
+{"name":"action","value":{"label":"Home to scheduled Gate roster","ms":1085,"path":"/teacher/gate"},"t":3994}
+{"name":"snapshot","value":{"name":"gate-dual-placements-before","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",81,94,44],["Gerbang",125,98,30],["Masuk",241,130,48],["Pulang",241,130,48],["Taman Aster",305,272,44],["Masuk: Abdul Zahra Mahendra, POPUP Weekend",450,270,56],["Masuk: Abdul Zahra Mahendra, TKIT A",516,270,56],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":4038}
+{"name":"api","value":{"path":"/api/teacher/gate","status":409,"method":"POST","ms":98},"t":4164}
+{"name":"job-error","value":{"label":"Gate dual placements, pickup, and roster handoff","error":"TimeoutError: locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('Abdul Zahra Mahendra masuk', { exact: true }) to be visible\u001b[22m\n"},"t":9072}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":270,"ttfb":70.10000002384186,"dcl":175.19999998807907,"load":189},"t":9343}
+{"name":"home-primary-after-gate","value":{"text":"Lanjutkan absensi · 0/19","href":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":9556}
+{"name":"api","value":{"path":"/api/teaching-assignments/my","status":200,"method":"GET","ms":23},"t":9935}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","status":200,"method":"GET","ms":17},"t":9965}
+{"name":"action","value":{"label":"Home main attendance link after Gate","ms":899,"path":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":10456}
+{"name":"attendance-exception-student","value":"Status Aisyah Putri Ramadhani","t":10463}
+{"name":"action","value":{"label":"Exception failed request shows inline retry","ms":61,"path":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":10530}
+{"name":"attendance-sick-after-fail","value":"false","t":10532}
+{"name":"api","value":{"path":"/api/student-attendance/mark","status":200,"method":"POST","ms":38},"t":10598}
+{"name":"action","value":{"label":"Retry exception to saved status","ms":110,"path":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":10642}
+{"name":"exception-student","value":"Aisyah Putri Ramadhani","t":10644}
+{"name":"api","value":{"path":"/api/student-attendance/mark","status":200,"method":"POST","ms":29},"t":11339}
+{"name":"action","value":{"label":"Bulk remaining to all recorded","ms":745,"path":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":11389}
+{"name":"api","value":{"path":"/api/teaching-assignments/my","status":200,"method":"GET","ms":34},"t":11518}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","status":200,"method":"GET","ms":11},"t":11530}
+{"name":"snapshot","value":{"name":"attendance-persisted","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Absensi kelas",81,148,30],["Hadir",274,44,44],["Sakit",274,44,44],["Izin",274,44,44],["Alpa",274,44,44],["Hadir",347,44,44],["Sakit",347,44,44],["Izin",347,44,44],["Alpa",347,44,44],["Hadir",420,44,44],["Sakit",420,44,44],["Izin",420,44,44],["Alpa",420,44,44],["Hadir",487,44,44],["Sakit",487,44,44],["Izin",487,44,44],["Alpa",487,44,44],["Hadir",554,44,44],["Sakit",554,44,44],["Izin",554,44,44],["Alpa",554,44,44],["Hadir",627,44,44],["Sakit",627,44,44],["Izin",627,44,44],["Alpa",627,44,44],["Hadir",700,44,44],["Sakit",700,44,44],["Izin",700,44,44],["Alpa",700,44,44],["Hadir",773,44,44],["Sakit",773,44,44],["Izin",773,44,44],["Alpa",773,44,44],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64]]},"t":11589}
+{"name":"attendance-class-persisted","value":{"roster":19,"present":18,"sick":1},"t":11593}
+{"name":"job-end","value":"Class attendance exception plus mark remaining, real save and refresh","t":11593}
+{"name":"nav","value":{"path":"/teacher/sessions/ux_audit_tkit_a_sat","actual":"/teacher/sessions/ux_audit_tkit_a_sat","ms":151,"ttfb":22.700000047683716,"dcl":105.30000001192093,"load":113.10000002384186},"t":11744}
+{"name":"snapshot","value":{"name":"session-320-before","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",81,94,44],["TKIT A",125,65,30],["Semua hadir",214,132,44],["Semua pulang",214,132,44],["Status Abdul Zahra Mahendra: Hadir. Ketuk untuk ganti.",283,83,44],["Ketuk masuk",335,118,44],["Ketuk pulang",387,120,44],["Status Ahmad Hafsah Hidayat: Hadir. Ketuk untuk ganti.",465,83,44],["Ketuk masuk",517,118,44],["Ketuk pulang",569,120,44],["Status Ahmad Zafran Hidayat: Hadir. Ketuk untuk ganti.",647,83,44],["Ketuk masuk",699,118,44],["Simpan absensi",620,272,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":11760}
+{"name":"action","value":{"label":"Session bulk arrive to draft status","ms":50,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":11841}
+{"name":"session-draft","value":{"status":"Belum disimpan · ketuk Simpan absensi","save":"Simpan absensi · 18 perubahan"},"t":11849}
+{"name":"job-error","value":{"label":"Session bulk arrive/pickup, draft navigation guard, and persistence","error":"TimeoutError: locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Keluar tanpa menyimpan?' }) to be visible\u001b[22m\n"},"t":16903}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":1524,"ttfb":414.60000002384186,"dcl":909.1000000238419,"load":909.4000000357628},"t":18431}
+{"name":"journal-link","value":{"href":"/teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","text":"Jurnal harian TKIT A\n\n0 dari 18 siswa lengkap · 1 tidak hadir\n\nBuka"},"t":18515}
+{"name":"api","value":{"path":"/api/csp-report","status":204,"method":"POST","ms":13},"t":18686}
+{"name":"api","value":{"path":"/api/student-journal/class-grid?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","status":200,"method":"GET","ms":45},"t":18986}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","status":200,"method":"GET","ms":46},"t":18988}
+{"name":"action","value":{"label":"Home Jurnal harian to class journal","ms":898,"path":"/teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":19414}
+{"name":"api","value":{"path":"/api/student-journal/classes?date=2026-11-14","status":200,"method":"GET","ms":102},"t":19851}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13","status":200,"method":"GET","ms":15},"t":20297}
+{"name":"api","value":{"path":"/api/student-journal/class-grid?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13","status":200,"method":"GET","ms":17},"t":20299}
+{"name":"action","value":{"label":"Journal Friday picker to roster","ms":106,"path":"/teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13"},"t":20342}
+{"name":"snapshot","value":{"name":"journal-320-roster","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Isi Buku Penghubung",125,228,30],["Ganti kelas atau tanggal",198,161,44],["Isi cepat satu kelas",290,272,44],["Hari tanpa buku penghubung",350,272,44],["Abdul Zahra Mahendra |  | 4/16",451,182,88],["Tambah catatan untuk Abdul Zahra Mahendra",451,44,88],["Lihat pekan Abdul Zahra Mahendra",451,44,88],["Ahmad Hafsah Hidayat |  | 3/16",549,182,88],["Tambah catatan untuk Ahmad Hafsah Hidayat",549,44,88],["Lihat pekan Ahmad Hafsah Hidayat",549,44,88],["Ahmad Zafran Hidayat |  | Zafran |  | 2 baru | 2/16",647,182,104],["Tambah catatan untuk Ahmad Zafran Hidayat",647,44,104],["Lihat pekan Ahmad Zafran Hidayat",647,44,104],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":20369}
+{"name":"journal-target-label","value":"Ahmad Hafsah Hidayat\n\n3/16","t":20372}
+{"name":"snapshot","value":{"name":"journal-320-indicators","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Isi Buku Penghubung",125,228,30],["Ganti kelas atau tanggal",198,161,44],["Isi cepat satu kelas",290,272,44],["Hari tanpa buku penghubung",350,272,44],["Abdul Zahra Mahendra |  | 4/16",451,182,88],["Tambah catatan untuk Abdul Zahra Mahendra",451,44,88],["Lihat pekan Abdul Zahra Mahendra",451,44,88],["Ahmad Hafsah Hidayat |  | 3/16",549,182,88],["Tambah catatan untuk Ahmad Hafsah Hidayat",549,44,88],["Lihat pekan Ahmad Hafsah Hidayat",549,44,88],["Tandai semua",646,122,44],["Hapus semua",646,103,44],["IBADAH",702,49,16],["Ahmad Zafran Hidayat |  | Zafran |  | 2 baru | 2/16",651,182,104],["Tambah catatan untuk Ahmad Zafran Hidayat",651,44,104],["Lihat pekan Ahmad Zafran Hidayat",651,44,104],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":20407}
+{"name":"action","value":{"label":"Journal indicator request loss to visible retry","ms":946,"path":"/teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13"},"t":21392}
+{"name":"journal-after-network-failure","value":{"toggle":"Tahfizul Qur'an","initial":"w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:focus-outline bg-primary/10 border-primary text-primary-text ","failed":"w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:focus-outline bg-primary/10 border-primary text-primary-text ","ariaPressed":null},"t":21418}
+{"name":"api","value":{"path":"/api/student-journal/entries/batch","status":200,"method":"POST","ms":71},"t":22110}
+{"name":"action","value":{"label":"Journal retry to saved","ms":912,"path":"/teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13"},"t":22331}
+{"name":"journal-saved-toggle","value":{"name":"Tahfizul Qur'an","toggled":"w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:focus-outline bg-transparent border-border text-foreground hover:border-primary/30 "},"t":22335}
+{"name":"api","value":{"path":"/api/csp-report","status":204,"method":"POST","ms":2},"t":22527}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13","status":200,"method":"GET","ms":89},"t":22620}
+{"name":"api","value":{"path":"/api/student-journal/class-grid?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13","status":200,"method":"GET","ms":90},"t":22621}
+{"name":"journal-reload-persisted","value":{"targetTitle":"Ahmad Hafsah Hidayat","exact":true},"t":22766}
+{"name":"job-end","value":"Journal day entry with scoped indicator, network loss, retry, reload","t":22767}
+
+--- followup.log ---
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":383,"ttfb":74.40000003576279,"dcl":222.5,"load":241.60000002384186},"t":4407}
+{"name":"fresh-after-approval","value":{"chip":0,"card":"Masuk 08.43 · Terlambat 103 menit · sudah tercatat\n\nCatat pulang"},"t":4550}
+{"name":"snapshot","value":{"name":"home-approved-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Selamat pagi, Guru Tiga",81,258,30],["Catat pulang",211,108,44],["Gerbang |  | 0 dari 85 sudah masuk · 0 pulang |  | Buka",288,270,79],["TKIT A",417,120,24],["Lanjutkan jurnal harian",474,238,46],["YANG PERLU DISELESAIKAN",569,175,16],["Jurnal harian TKIT A |  | 0 dari 18 siswa lengkap · 1 tidak hadir |  | Buka",598,270,116],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":4586}
+{"name":"job-end","value":"Fresh teacher status after admin approval","t":4587}
+{"name":"api","value":{"path":"/api/teacher/gate","status":200,"method":"GET","ms":29},"t":5019}
+{"name":"action","value":{"label":"Home to Gate roster 320","ms":516,"path":"/teacher/gate"},"t":5103}
+{"name":"gate-same-name-placements","value":[{"studentId":"cmwfqmmw400wu0nx781j3iswc","name":"Abdul Zahra Mahendra","nickname":"Abdul","classSectionId":"cmwfqmlqz00j50nx7x1amyzxo","className":"POPUP Weekend","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmm6c00oi0nx7o7y61u13","name":"Abdul Zahra Mahendra","nickname":"Abdul","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":"PRESENT","checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null}],"t":5269}
+{"name":"api","value":{"path":"/api/teacher/gate","status":200,"method":"POST","ms":65},"t":5470}
+{"name":"action","value":{"label":"Gate scheduled TKIT arrival","ms":164,"path":"/teacher/gate"},"t":5496}
+{"name":"gate-arrival-after-tap","value":[{"studentId":"cmwfqmmw400wu0nx781j3iswc","name":"Abdul Zahra Mahendra","nickname":"Abdul","classSectionId":"cmwfqmlqz00j50nx7x1amyzxo","className":"POPUP Weekend","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmm6c00oi0nx7o7y61u13","name":"Abdul Zahra Mahendra","nickname":"Abdul","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":"PRESENT","checkInTime":"2026-11-14T01:46:25.566Z","checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null}],"t":5572}
+{"name":"api","value":{"path":"/api/teacher/gate","status":200,"method":"POST","ms":23},"t":5685}
+{"name":"action","value":{"label":"Gate default Orang tua pickup","ms":89,"path":"/teacher/gate"},"t":5699}
+{"name":"snapshot","value":{"name":"gate-pickup-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",81,94,44],["Gerbang",125,98,30],["Masuk",241,130,48],["Pulang",241,130,48],["Taman Aster",305,272,44],["Pulang: Abdul Zahra Mahendra, POPUP Weekend",450,222,56],["Ubah penjemput Abdul Zahra Mahendra",450,48,56],["Pulang: Abdul Zahra Mahendra, TKIT A, tercatat 08.46",516,270,56],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64],["Urungkan",37,72,24],["Urungkan",51,68,23]]},"t":5711}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":142,"ttfb":19.400000035762787,"dcl":105.90000003576279,"load":106.19999998807907},"t":5853}
+{"name":"session-link","value":{"href":"/teacher/sessions/ux_audit_tkit_a_sat","box":{"x":25,"y":1159.765625,"width":270,"height":78.84375}},"t":6160}
+{"name":"action","value":{"label":"Home session to roster","ms":822,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":6983}
+{"name":"gate-in-session-row","value":"Abdul Zahra Mahendra\n\nAbdul\n\nHadir\nMasuk 08.46\nPulang 08.46\n\nDijemput oleh\n\nHubungan penjemput Abdul Zahra Mahendra\nOrang tua\nNama penjemput Abdul Zahra Mahendra","t":6991}
+{"name":"job-end","value":"Gate matching row and scheduled roster handoff","t":6991}
+{"name":"action","value":{"label":"Session bulk arrive draft","ms":48,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":7039}
+{"name":"action","value":{"label":"Draft navigation guard alert","ms":61,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":7100}
+{"name":"api","value":{"path":"/api/teacher/sessions/ux_audit_tkit_a_sat/attendance","status":200,"method":"POST","ms":27},"t":7196}
+{"name":"action","value":{"label":"Session save arrivals","ms":75,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":7216}
+{"name":"action","value":{"label":"Session bulk pickup draft","ms":57,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":7273}
+{"name":"api","value":{"path":"/api/teacher/sessions/ux_audit_tkit_a_sat/attendance","status":200,"method":"POST","ms":20},"t":7319}
+{"name":"action","value":{"label":"Session save pickups","ms":65,"path":"/teacher/sessions/ux_audit_tkit_a_sat"},"t":7338}
+{"name":"session-persisted","value":{"roster":19,"arrived":18,"picked":18,"sick":1},"t":7480}
+{"name":"job-end","value":"Session bulk draft, guard, save, pickup, save","t":7480}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":223,"ttfb":20.900000035762787,"dcl":166.19999998807907,"load":169},"t":7896}
+{"name":"snapshot","value":{"name":"home-settled-1440","width":1440,"height":900,"scrollWidth":1440,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Selamat pagi, Guru Tiga",81,258,30],["Catat pulang",195,108,44],["Gerbang |  | 18 dari 85 sudah masuk · 18 pulang |  | Buka",272,398,68],["TKIT A",398,120,24],["Lanjutkan jurnal harian",455,350,46],["YANG PERLU DISELESAIKAN",558,175,16],["Jurnal harian TKIT A |  | 0 dari 18 siswa lengkap · 1 tidak hadir |  | Buka",587,398,68],["Buka penilaian |  | Penilaian pekanan · TKIT A",655,398,68],["Pekerjaan yang sudah tersimpan",736,236,44],["BALASAN DARI WALI",812,128,16],["Balasan wali Zafran |  | TKIT A |  | 3 baru",841,398,68],["Beranda",836,89,64],["Absensi",836,89,64],["Jurnal",836,89,64],["Penilaian",836,89,64],["Lainnya",836,89,64]]},"t":8111}
+{"name":"job-end","value":"Desktop settled home","t":8111}
+
+--- gate-dual-placements-before.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - link "Beranda":
+    - /url: /teacher
+  - heading "Gerbang" [level=1]
+  - paragraph: Catat anak masuk dan pulang, cukup satu ketukan.
+  - group "Mode gerbang":
+    - button "Masuk" [pressed]
+    - button "Pulang"
+  - text: Kampus
+  - combobox "Kampus": Taman Aster
+  - text: Cari nama anak
+  - searchbox "Cari nama anak": Abdul Zahra Mahendra
+  - status: Sudah masuk 0 dari 85
+  - list:
+    - listitem:
+      - 'button "Masuk: Abdul Zahra Mahendra, POPUP Weekend"': Abdul Zahra Mahendra POPUP Weekend
+    - listitem:
+      - 'button "Masuk: Abdul Zahra Mahendra, TKIT A"': Abdul Zahra Mahendra TKIT A
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert: Gerbang · Talib
+--- gate-pickup-320.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - link "Beranda":
+    - /url: /teacher
+  - heading "Gerbang" [level=1]
+  - paragraph: Catat anak masuk dan pulang, cukup satu ketukan.
+  - group "Mode gerbang":
+    - button "Masuk"
+    - button "Pulang" [pressed]
+  - text: Kampus
+  - combobox "Kampus": Taman Aster
+  - text: Cari nama anak
+  - searchbox "Cari nama anak": Abdul Zahra Mahendra
+  - status: Sudah pulang 1 dari 85
+  - list:
+    - listitem:
+      - 'button "Pulang: Abdul Zahra Mahendra, POPUP Weekend"': Abdul Zahra Mahendra POPUP Weekend
+      - button "Ubah penjemput Abdul Zahra Mahendra"
+    - listitem:
+      - 'button "Pulang: Abdul Zahra Mahendra, TKIT A, tercatat 08.46"': Abdul Zahra Mahendra TKIT A 08.46
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T":
+  - list:
+    - listitem:
+      - text: Abdul Zahra Mahendra pulang
+      - button "Urungkan"
+    - listitem:
+      - text: Abdul Zahra Mahendra masuk
+      - button "Urungkan"
+- alert: Gerbang · Talib
+--- gps-outside.txt ---
+- region "Notifications alt+T"
+- dialog "Anda di luar area kampus":
+  - heading "Anda di luar area kampus" [level=2]
+  - paragraph: Anda ± 300 m dari Taman Aster. Tambahkan catatan agar admin dapat menyetujui.
+  - text: Catatan untuk admin
+  - textbox "Catatan untuk admin":
+    - /placeholder: "Contoh: mengantar siswa ke dokter"
+  - button "Batal"
+  - button "Kirim untuk disetujui" [disabled]
+  - button "Tutup"
+--- gps-pending.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - heading "Selamat pagi, Guru Tiga" [level=1]
+  - paragraph: Sabtu, 14 November 2026
+  - paragraph: Masuk 08.43 · Terlambat 103 menit · sudah tercatat
+  - text: Menunggu persetujuan
+  - button "Catat pulang"
+  - status: Kehadiran tersimpan
+  - paragraph: Lokasi tercatat.
+  - link "Gerbang 0 dari 85 sudah masuk · 0 pulang Buka":
+    - /url: /teacher/gate
+    - text: Gerbang
+    - paragraph: 0 dari 85 sudah masuk · 0 pulang
+    - text: Buka
+  - region "TKIT A":
+    - heading "TKIT A" [level=2]
+    - paragraph: Kelas hari ini · 19 siswa
+    - link "Lanjutkan absensi · 0/19":
+      - /url: /teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+  - region "Yang perlu diselesaikan":
+    - heading "Yang perlu diselesaikan" [level=2]
+    - link "Absensi TKIT A 0 dari 19 siswa tercatat Buka":
+      - /url: /teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Absensi TKIT A
+      - paragraph: 0 dari 19 siswa tercatat
+      - text: Buka
+    - link "Jurnal harian TKIT A 0 dari 19 siswa lengkap Buka":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Jurnal harian TKIT A
+      - paragraph: 0 dari 19 siswa lengkap
+      - text: Buka
+    - link "Buka penilaian Penilaian pekanan · TKIT A":
+      - /url: /teacher/assessments/weekly
+      - text: Buka penilaian
+      - paragraph: Penilaian pekanan · TKIT A
+  - region "Balasan dari wali":
+    - heading "Balasan dari wali" [level=2]
+    - link "Balasan wali Zafran TKIT A 2 baru":
+      - /url: /teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan
+      - text: Balasan wali Zafran
+      - paragraph: TKIT A
+      - text: 2 baru
+    - link "Balasan wali Aisyah TKIT A 1 baru":
+      - /url: /teacher/student-journal/students/cmwfqmls100jc0nx76m35q8il?view=notes#catatan
+      - text: Balasan wali Aisyah
+      - paragraph: TKIT A
+      - text: 1 baru
+  - region "Sesi & penjemputan":
+    - heading "Sesi & penjemputan" [level=2]
+    - paragraph: Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.
+    - paragraph: Belum ada sesi terjadwal hari ini
+    - paragraph: Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas.
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert: Beranda · Talib
+- dialog "Anda di luar area kampus":
+  - heading "Anda di luar area kampus" [level=2]
+  - text: Catatan untuk admin
+  - textbox "Catatan untuk admin":
+    - /placeholder: "Contoh: mengantar siswa ke dokter"
+  - button "Batal"
+  - button "Kirim untuk disetujui" [disabled]
+  - button "Tutup"
+--- guardian-reply-320.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - link "Kembali":
+    - /url: /teacher/student-journal
+  - heading "Ahmad Zafran Hidayat" [level=1]
+  - paragraph: Zafran · TKIT A
+  - region "Catatan siswa":
+    - heading "Catatan" [level=2]
+    - button "Tambah catatan"
+    - text: SN Siti Nurhaliza Hidayat Orang Tua 9 Nov 2026 · 08.45
+    - paragraph: "UAT 14 Nov: Anak batuk semalam; sudah sarapan. Uji simpan."
+    - text: SN Siti Nurhaliza Hidayat Orang Tua 13 Nov 2026 · 08.40
+    - paragraph: Terima kasih Ustadzah, di rumah sudah sholat subuh berjama'ah.
+    - text: GT Guru Tiga Guru 12 Nov 2026 · 08.40
+    - button "Edit catatan"
+    - button "Hapus catatan"
+    - paragraph: Hari ini sangat aktif di kelas, menyelesaikan tugas dengan baik.
+    - text: SN Siti Nurhaliza Hidayat Orang Tua 13 Okt 2026 · 10.00
+    - paragraph: Alhamdulillah di rumah sudah mau merapikan mainan sendiri, terima kasih Ustadzah.
+  - button "Pekan sebelumnya"
+  - text: 9 Nov – 13 Nov 2026 · pekan ini
+  - button "Pekan berikutnya — pekan berikutnya belum tersedia" [disabled]
+  - paragraph: Riwayat penghubung — hanya bisa dilihat di sini
+  - link "Isi hari ini":
+    - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+  - table:
+    - rowgroup:
+      - row "Indikator Sen 09/11 Sel 10/11 Rab 11/11 Kam 12/11 Jum 13/11":
+        - columnheader "Indikator"
+        - columnheader "Sen 09/11"
+        - columnheader "Sel 10/11"
+        - columnheader "Rab 11/11"
+        - columnheader "Kam 12/11"
+        - columnheader "Jum 13/11"
+    - rowgroup:
+      - row "Ibadah":
+        - cell "Ibadah"
+      - row "Tahfizul Qur'an Tahfizul Qur'an 2026-11-09 — diisi (hanya bisa dilihat) Tahfizul Qur'an 2026-11-10 — diisi (hanya bisa dilihat) Tahfizul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat) Tahfizul Qur'an 2026-11-12 — diisi (hanya bisa dilihat) Tahfizul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)":
+        - cell "Tahfizul Qur'an"
+        - cell "Tahfizul Qur'an 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Tahfizul Qur'an 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Tahfizul Qur'an 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Tahfizul Qur'an 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Tahfizul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Tahfizul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Tahfizul Qur'an 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Tahfizul Qur'an 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Tahfizul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)":
+          - img "Tahfizul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)"
+      - row "Qiro'atul Qur'an Qiro'atul Qur'an 2026-11-09 — diisi (hanya bisa dilihat) Qiro'atul Qur'an 2026-11-10 — diisi (hanya bisa dilihat) Qiro'atul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat) Qiro'atul Qur'an 2026-11-12 — diisi (hanya bisa dilihat) Qiro'atul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)":
+        - cell "Qiro'atul Qur'an"
+        - cell "Qiro'atul Qur'an 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Qiro'atul Qur'an 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Qiro'atul Qur'an 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Qiro'atul Qur'an 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Qiro'atul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Qiro'atul Qur'an 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Qiro'atul Qur'an 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Qiro'atul Qur'an 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Qiro'atul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)":
+          - img "Qiro'atul Qur'an 2026-11-13 — diisi (hanya bisa dilihat)"
+      - row "Membawa Infaq Membawa Infaq 2026-11-09 — diisi (hanya bisa dilihat) Membawa Infaq 2026-11-10 — diisi (hanya bisa dilihat) Membawa Infaq 2026-11-11 — belum diisi (hanya bisa dilihat) Membawa Infaq 2026-11-12 — diisi (hanya bisa dilihat) Membawa Infaq 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Membawa Infaq"
+        - cell "Membawa Infaq 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Membawa Infaq 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Infaq 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Membawa Infaq 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Infaq 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Membawa Infaq 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Membawa Infaq 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Membawa Infaq 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Infaq 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Membawa Infaq 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Praktek Sholat Subuh Berjama'ah Praktek Sholat Subuh Berjama'ah 2026-11-09 — diisi (hanya bisa dilihat) Praktek Sholat Subuh Berjama'ah 2026-11-10 — diisi (hanya bisa dilihat) Praktek Sholat Subuh Berjama'ah 2026-11-11 — belum diisi (hanya bisa dilihat) Praktek Sholat Subuh Berjama'ah 2026-11-12 — diisi (hanya bisa dilihat) Praktek Sholat Subuh Berjama'ah 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Praktek Sholat Subuh Berjama'ah"
+        - cell "Praktek Sholat Subuh Berjama'ah 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Praktek Sholat Subuh Berjama'ah 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Praktek Sholat Subuh Berjama'ah 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Praktek Sholat Subuh Berjama'ah 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Praktek Sholat Subuh Berjama'ah 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Praktek Sholat Subuh Berjama'ah 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Praktek Sholat Subuh Berjama'ah 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Praktek Sholat Subuh Berjama'ah 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Praktek Sholat Subuh Berjama'ah 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Praktek Sholat Subuh Berjama'ah 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Perilaku":
+        - cell "Perilaku"
+      - row "Datang di Sekolah tepat waktu Datang di Sekolah tepat waktu 2026-11-09 — diisi (hanya bisa dilihat) Datang di Sekolah tepat waktu 2026-11-10 — diisi (hanya bisa dilihat) Datang di Sekolah tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat) Datang di Sekolah tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat) Datang di Sekolah tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Datang di Sekolah tepat waktu"
+        - cell "Datang di Sekolah tepat waktu 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Datang di Sekolah tepat waktu 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Datang di Sekolah tepat waktu 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Datang di Sekolah tepat waktu 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Datang di Sekolah tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Datang di Sekolah tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Datang di Sekolah tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat)":
+          - img "Datang di Sekolah tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat)"
+        - cell "Datang di Sekolah tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Datang di Sekolah tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Berpakaian lengkap dan rapih Berpakaian lengkap dan rapih 2026-11-09 — diisi (hanya bisa dilihat) Berpakaian lengkap dan rapih 2026-11-10 — diisi (hanya bisa dilihat) Berpakaian lengkap dan rapih 2026-11-11 — belum diisi (hanya bisa dilihat) Berpakaian lengkap dan rapih 2026-11-12 — diisi (hanya bisa dilihat) Berpakaian lengkap dan rapih 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Berpakaian lengkap dan rapih"
+        - cell "Berpakaian lengkap dan rapih 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Berpakaian lengkap dan rapih 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Berpakaian lengkap dan rapih 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Berpakaian lengkap dan rapih 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Berpakaian lengkap dan rapih 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Berpakaian lengkap dan rapih 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Berpakaian lengkap dan rapih 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Berpakaian lengkap dan rapih 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Berpakaian lengkap dan rapih 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Berpakaian lengkap dan rapih 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Patuh dan santun pada guru Patuh dan santun pada guru 2026-11-09 — diisi (hanya bisa dilihat) Patuh dan santun pada guru 2026-11-10 — belum diisi (hanya bisa dilihat) Patuh dan santun pada guru 2026-11-11 — belum diisi (hanya bisa dilihat) Patuh dan santun pada guru 2026-11-12 — diisi (hanya bisa dilihat) Patuh dan santun pada guru 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Patuh dan santun pada guru"
+        - cell "Patuh dan santun pada guru 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Patuh dan santun pada guru 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Patuh dan santun pada guru 2026-11-10 — belum diisi (hanya bisa dilihat)":
+          - img "Patuh dan santun pada guru 2026-11-10 — belum diisi (hanya bisa dilihat)"
+        - cell "Patuh dan santun pada guru 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Patuh dan santun pada guru 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Patuh dan santun pada guru 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Patuh dan santun pada guru 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Patuh dan santun pada guru 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Patuh dan santun pada guru 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Salam dan jabat tangan dengan guru Salam dan jabat tangan dengan guru 2026-11-09 — diisi (hanya bisa dilihat) Salam dan jabat tangan dengan guru 2026-11-10 — diisi (hanya bisa dilihat) Salam dan jabat tangan dengan guru 2026-11-11 — belum diisi (hanya bisa dilihat) Salam dan jabat tangan dengan guru 2026-11-12 — diisi (hanya bisa dilihat) Salam dan jabat tangan dengan guru 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Salam dan jabat tangan dengan guru"
+        - cell "Salam dan jabat tangan dengan guru 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Salam dan jabat tangan dengan guru 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Salam dan jabat tangan dengan guru 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Salam dan jabat tangan dengan guru 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Salam dan jabat tangan dengan guru 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Salam dan jabat tangan dengan guru 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Salam dan jabat tangan dengan guru 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Salam dan jabat tangan dengan guru 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Salam dan jabat tangan dengan guru 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Salam dan jabat tangan dengan guru 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Membuang sampah pada tempatnya Membuang sampah pada tempatnya 2026-11-09 — diisi (hanya bisa dilihat) Membuang sampah pada tempatnya 2026-11-10 — diisi (hanya bisa dilihat) Membuang sampah pada tempatnya 2026-11-11 — belum diisi (hanya bisa dilihat) Membuang sampah pada tempatnya 2026-11-12 — diisi (hanya bisa dilihat) Membuang sampah pada tempatnya 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Membuang sampah pada tempatnya"
+        - cell "Membuang sampah pada tempatnya 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Membuang sampah pada tempatnya 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Membuang sampah pada tempatnya 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Membuang sampah pada tempatnya 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Membuang sampah pada tempatnya 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Membuang sampah pada tempatnya 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Membuang sampah pada tempatnya 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Membuang sampah pada tempatnya 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Membuang sampah pada tempatnya 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Membuang sampah pada tempatnya 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Bersikap baik kepada teman Bersikap baik kepada teman 2026-11-09 — diisi (hanya bisa dilihat) Bersikap baik kepada teman 2026-11-10 — diisi (hanya bisa dilihat) Bersikap baik kepada teman 2026-11-11 — belum diisi (hanya bisa dilihat) Bersikap baik kepada teman 2026-11-12 — diisi (hanya bisa dilihat) Bersikap baik kepada teman 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Bersikap baik kepada teman"
+        - cell "Bersikap baik kepada teman 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Bersikap baik kepada teman 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Bersikap baik kepada teman 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Bersikap baik kepada teman 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Bersikap baik kepada teman 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Bersikap baik kepada teman 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Bersikap baik kepada teman 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Bersikap baik kepada teman 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Bersikap baik kepada teman 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Bersikap baik kepada teman 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Berkata baik dan jujur Berkata baik dan jujur 2026-11-09 — diisi (hanya bisa dilihat) Berkata baik dan jujur 2026-11-10 — diisi (hanya bisa dilihat) Berkata baik dan jujur 2026-11-11 — belum diisi (hanya bisa dilihat) Berkata baik dan jujur 2026-11-12 — diisi (hanya bisa dilihat) Berkata baik dan jujur 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Berkata baik dan jujur"
+        - cell "Berkata baik dan jujur 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Berkata baik dan jujur 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Berkata baik dan jujur 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Berkata baik dan jujur 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Berkata baik dan jujur 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Berkata baik dan jujur 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Berkata baik dan jujur 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Berkata baik dan jujur 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Berkata baik dan jujur 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Berkata baik dan jujur 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Tertib pada saat belajar Tertib pada saat belajar 2026-11-09 — diisi (hanya bisa dilihat) Tertib pada saat belajar 2026-11-10 — diisi (hanya bisa dilihat) Tertib pada saat belajar 2026-11-11 — belum diisi (hanya bisa dilihat) Tertib pada saat belajar 2026-11-12 — diisi (hanya bisa dilihat) Tertib pada saat belajar 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Tertib pada saat belajar"
+        - cell "Tertib pada saat belajar 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Tertib pada saat belajar 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Tertib pada saat belajar 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Tertib pada saat belajar 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Tertib pada saat belajar 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Tertib pada saat belajar 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Tertib pada saat belajar 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Tertib pada saat belajar 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Tertib pada saat belajar 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Tertib pada saat belajar 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Membawa Buku Penghubung Membawa Buku Penghubung 2026-11-09 — diisi (hanya bisa dilihat) Membawa Buku Penghubung 2026-11-10 — diisi (hanya bisa dilihat) Membawa Buku Penghubung 2026-11-11 — belum diisi (hanya bisa dilihat) Membawa Buku Penghubung 2026-11-12 — diisi (hanya bisa dilihat) Membawa Buku Penghubung 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Membawa Buku Penghubung"
+        - cell "Membawa Buku Penghubung 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Membawa Buku Penghubung 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Buku Penghubung 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Membawa Buku Penghubung 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Buku Penghubung 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Membawa Buku Penghubung 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Membawa Buku Penghubung 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Membawa Buku Penghubung 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Membawa Buku Penghubung 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Membawa Buku Penghubung 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Akademis":
+        - cell "Akademis"
+      - row "Semangat mengikuti pelajaran Semangat mengikuti pelajaran 2026-11-09 — diisi (hanya bisa dilihat) Semangat mengikuti pelajaran 2026-11-10 — belum diisi (hanya bisa dilihat) Semangat mengikuti pelajaran 2026-11-11 — belum diisi (hanya bisa dilihat) Semangat mengikuti pelajaran 2026-11-12 — diisi (hanya bisa dilihat) Semangat mengikuti pelajaran 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Semangat mengikuti pelajaran"
+        - cell "Semangat mengikuti pelajaran 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Semangat mengikuti pelajaran 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Semangat mengikuti pelajaran 2026-11-10 — belum diisi (hanya bisa dilihat)":
+          - img "Semangat mengikuti pelajaran 2026-11-10 — belum diisi (hanya bisa dilihat)"
+        - cell "Semangat mengikuti pelajaran 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Semangat mengikuti pelajaran 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Semangat mengikuti pelajaran 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Semangat mengikuti pelajaran 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Semangat mengikuti pelajaran 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Semangat mengikuti pelajaran 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Menyelesaikan tugas Menyelesaikan tugas 2026-11-09 — diisi (hanya bisa dilihat) Menyelesaikan tugas 2026-11-10 — diisi (hanya bisa dilihat) Menyelesaikan tugas 2026-11-11 — belum diisi (hanya bisa dilihat) Menyelesaikan tugas 2026-11-12 — diisi (hanya bisa dilihat) Menyelesaikan tugas 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Menyelesaikan tugas"
+        - cell "Menyelesaikan tugas 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Menyelesaikan tugas 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Menyelesaikan tugas 2026-11-10 — diisi (hanya bisa dilihat)":
+          - img "Menyelesaikan tugas 2026-11-10 — diisi (hanya bisa dilihat)"
+        - cell "Menyelesaikan tugas 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Menyelesaikan tugas 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Menyelesaikan tugas 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Menyelesaikan tugas 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Menyelesaikan tugas 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Menyelesaikan tugas 2026-11-13 — belum diisi (hanya bisa dilihat)"
+      - row "Merapihkan alat tulis Merapihkan alat tulis 2026-11-09 — diisi (hanya bisa dilihat) Merapihkan alat tulis 2026-11-10 — belum diisi (hanya bisa dilihat) Merapihkan alat tulis 2026-11-11 — belum diisi (hanya bisa dilihat) Merapihkan alat tulis 2026-11-12 — diisi (hanya bisa dilihat) Merapihkan alat tulis 2026-11-13 — belum diisi (hanya bisa dilihat)":
+        - cell "Merapihkan alat tulis"
+        - cell "Merapihkan alat tulis 2026-11-09 — diisi (hanya bisa dilihat)":
+          - img "Merapihkan alat tulis 2026-11-09 — diisi (hanya bisa dilihat)"
+        - cell "Merapihkan alat tulis 2026-11-10 — belum diisi (hanya bisa dilihat)":
+          - img "Merapihkan alat tulis 2026-11-10 — belum diisi (hanya bisa dilihat)"
+        - cell "Merapihkan alat tulis 2026-11-11 — belum diisi (hanya bisa dilihat)":
+          - img "Merapihkan alat tulis 2026-11-11 — belum diisi (hanya bisa dilihat)"
+        - cell "Merapihkan alat tulis 2026-11-12 — diisi (hanya bisa dilihat)":
+          - img "Merapihkan alat tulis 2026-11-12 — diisi (hanya bisa dilihat)"
+        - cell "Merapihkan alat tulis 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - img "Merapihkan alat tulis 2026-11-13 — belum diisi (hanya bisa dilihat)"
+  - region "Di rumah":
+    - heading "Di rumah" [level=2]
+    - paragraph: Diisi wali murid di rumah — hanya bisa dilihat di sini.
+    - table:
+      - rowgroup:
+        - row "Indikator Sen 09/11 Sel 10/11 Rab 11/11 Kam 12/11 Jum 13/11":
+          - columnheader "Indikator"
+          - columnheader "Sen 09/11"
+          - columnheader "Sel 10/11"
+          - columnheader "Rab 11/11"
+          - columnheader "Kam 12/11"
+          - columnheader "Jum 13/11"
+      - rowgroup:
+        - row "Ibadah Rumah":
+          - cell "Ibadah Rumah"
+        - row "Sholat 5 waktu Sholat 5 waktu 2026-11-09 — diisi (hanya bisa dilihat) Sholat 5 waktu 2026-11-10 — diisi (hanya bisa dilihat) Sholat 5 waktu 2026-11-11 — diisi (hanya bisa dilihat) Sholat 5 waktu 2026-11-12 — diisi (hanya bisa dilihat) Sholat 5 waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Sholat 5 waktu"
+          - cell "Sholat 5 waktu 2026-11-09 — diisi (hanya bisa dilihat)":
+            - img "Sholat 5 waktu 2026-11-09 — diisi (hanya bisa dilihat)"
+          - cell "Sholat 5 waktu 2026-11-10 — diisi (hanya bisa dilihat)":
+            - img "Sholat 5 waktu 2026-11-10 — diisi (hanya bisa dilihat)"
+          - cell "Sholat 5 waktu 2026-11-11 — diisi (hanya bisa dilihat)":
+            - img "Sholat 5 waktu 2026-11-11 — diisi (hanya bisa dilihat)"
+          - cell "Sholat 5 waktu 2026-11-12 — diisi (hanya bisa dilihat)":
+            - img "Sholat 5 waktu 2026-11-12 — diisi (hanya bisa dilihat)"
+          - cell "Sholat 5 waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Sholat 5 waktu 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Mengaji / tilawah Mengaji / tilawah 2026-11-09 — diisi (hanya bisa dilihat) Mengaji / tilawah 2026-11-10 — belum diisi (hanya bisa dilihat) Mengaji / tilawah 2026-11-11 — belum diisi (hanya bisa dilihat) Mengaji / tilawah 2026-11-12 — belum diisi (hanya bisa dilihat) Mengaji / tilawah 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Mengaji / tilawah"
+          - cell "Mengaji / tilawah 2026-11-09 — diisi (hanya bisa dilihat)":
+            - img "Mengaji / tilawah 2026-11-09 — diisi (hanya bisa dilihat)"
+          - cell "Mengaji / tilawah 2026-11-10 — belum diisi (hanya bisa dilihat)":
+            - img "Mengaji / tilawah 2026-11-10 — belum diisi (hanya bisa dilihat)"
+          - cell "Mengaji / tilawah 2026-11-11 — belum diisi (hanya bisa dilihat)":
+            - img "Mengaji / tilawah 2026-11-11 — belum diisi (hanya bisa dilihat)"
+          - cell "Mengaji / tilawah 2026-11-12 — belum diisi (hanya bisa dilihat)":
+            - img "Mengaji / tilawah 2026-11-12 — belum diisi (hanya bisa dilihat)"
+          - cell "Mengaji / tilawah 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Mengaji / tilawah 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Doa harian Doa harian 2026-11-09 — belum diisi (hanya bisa dilihat) Doa harian 2026-11-10 — diisi (hanya bisa dilihat) Doa harian 2026-11-11 — diisi (hanya bisa dilihat) Doa harian 2026-11-12 — diisi (hanya bisa dilihat) Doa harian 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Doa harian"
+          - cell "Doa harian 2026-11-09 — belum diisi (hanya bisa dilihat)":
+            - img "Doa harian 2026-11-09 — belum diisi (hanya bisa dilihat)"
+          - cell "Doa harian 2026-11-10 — diisi (hanya bisa dilihat)":
+            - img "Doa harian 2026-11-10 — diisi (hanya bisa dilihat)"
+          - cell "Doa harian 2026-11-11 — diisi (hanya bisa dilihat)":
+            - img "Doa harian 2026-11-11 — diisi (hanya bisa dilihat)"
+          - cell "Doa harian 2026-11-12 — diisi (hanya bisa dilihat)":
+            - img "Doa harian 2026-11-12 — diisi (hanya bisa dilihat)"
+          - cell "Doa harian 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Doa harian 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Akhlak Rumah":
+          - cell "Akhlak Rumah"
+        - row "Membantu orang tua Membantu orang tua 2026-11-09 — belum diisi (hanya bisa dilihat) Membantu orang tua 2026-11-10 — belum diisi (hanya bisa dilihat) Membantu orang tua 2026-11-11 — belum diisi (hanya bisa dilihat) Membantu orang tua 2026-11-12 — belum diisi (hanya bisa dilihat) Membantu orang tua 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Membantu orang tua"
+          - cell "Membantu orang tua 2026-11-09 — belum diisi (hanya bisa dilihat)":
+            - img "Membantu orang tua 2026-11-09 — belum diisi (hanya bisa dilihat)"
+          - cell "Membantu orang tua 2026-11-10 — belum diisi (hanya bisa dilihat)":
+            - img "Membantu orang tua 2026-11-10 — belum diisi (hanya bisa dilihat)"
+          - cell "Membantu orang tua 2026-11-11 — belum diisi (hanya bisa dilihat)":
+            - img "Membantu orang tua 2026-11-11 — belum diisi (hanya bisa dilihat)"
+          - cell "Membantu orang tua 2026-11-12 — belum diisi (hanya bisa dilihat)":
+            - img "Membantu orang tua 2026-11-12 — belum diisi (hanya bisa dilihat)"
+          - cell "Membantu orang tua 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Membantu orang tua 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Berkata baik Berkata baik 2026-11-09 — belum diisi (hanya bisa dilihat) Berkata baik 2026-11-10 — belum diisi (hanya bisa dilihat) Berkata baik 2026-11-11 — belum diisi (hanya bisa dilihat) Berkata baik 2026-11-12 — belum diisi (hanya bisa dilihat) Berkata baik 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Berkata baik"
+          - cell "Berkata baik 2026-11-09 — belum diisi (hanya bisa dilihat)":
+            - img "Berkata baik 2026-11-09 — belum diisi (hanya bisa dilihat)"
+          - cell "Berkata baik 2026-11-10 — belum diisi (hanya bisa dilihat)":
+            - img "Berkata baik 2026-11-10 — belum diisi (hanya bisa dilihat)"
+          - cell "Berkata baik 2026-11-11 — belum diisi (hanya bisa dilihat)":
+            - img "Berkata baik 2026-11-11 — belum diisi (hanya bisa dilihat)"
+          - cell "Berkata baik 2026-11-12 — belum diisi (hanya bisa dilihat)":
+            - img "Berkata baik 2026-11-12 — belum diisi (hanya bisa dilihat)"
+          - cell "Berkata baik 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Berkata baik 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Merapihkan kamar Merapihkan kamar 2026-11-09 — belum diisi (hanya bisa dilihat) Merapihkan kamar 2026-11-10 — belum diisi (hanya bisa dilihat) Merapihkan kamar 2026-11-11 — belum diisi (hanya bisa dilihat) Merapihkan kamar 2026-11-12 — belum diisi (hanya bisa dilihat) Merapihkan kamar 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Merapihkan kamar"
+          - cell "Merapihkan kamar 2026-11-09 — belum diisi (hanya bisa dilihat)":
+            - img "Merapihkan kamar 2026-11-09 — belum diisi (hanya bisa dilihat)"
+          - cell "Merapihkan kamar 2026-11-10 — belum diisi (hanya bisa dilihat)":
+            - img "Merapihkan kamar 2026-11-10 — belum diisi (hanya bisa dilihat)"
+          - cell "Merapihkan kamar 2026-11-11 — belum diisi (hanya bisa dilihat)":
+            - img "Merapihkan kamar 2026-11-11 — belum diisi (hanya bisa dilihat)"
+          - cell "Merapihkan kamar 2026-11-12 — belum diisi (hanya bisa dilihat)":
+            - img "Merapihkan kamar 2026-11-12 — belum diisi (hanya bisa dilihat)"
+          - cell "Merapihkan kamar 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Merapihkan kamar 2026-11-13 — belum diisi (hanya bisa dilihat)"
+        - row "Tidur tepat waktu Tidur tepat waktu 2026-11-09 — belum diisi (hanya bisa dilihat) Tidur tepat waktu 2026-11-10 — belum diisi (hanya bisa dilihat) Tidur tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat) Tidur tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat) Tidur tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+          - cell "Tidur tepat waktu"
+          - cell "Tidur tepat waktu 2026-11-09 — belum diisi (hanya bisa dilihat)":
+            - img "Tidur tepat waktu 2026-11-09 — belum diisi (hanya bisa dilihat)"
+          - cell "Tidur tepat waktu 2026-11-10 — belum diisi (hanya bisa dilihat)":
+            - img "Tidur tepat waktu 2026-11-10 — belum diisi (hanya bisa dilihat)"
+          - cell "Tidur tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat)":
+            - img "Tidur tepat waktu 2026-11-11 — belum diisi (hanya bisa dilihat)"
+          - cell "Tidur tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat)":
+            - img "Tidur tepat waktu 2026-11-12 — belum diisi (hanya bisa dilihat)"
+          - cell "Tidur tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)":
+            - img "Tidur tepat waktu 2026-11-13 — belum diisi (hanya bisa dilihat)"
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert: Buku Penghubung Siswa · Talib
+--- home-390.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - heading "Selamat pagi, Guru Tiga" [level=1]
+  - paragraph: Sabtu, 14 November 2026
+  - paragraph: Kehadiran pribadi belum dicatat
+  - button "Catat masuk"
+  - link "Gerbang 0 dari 85 sudah masuk · 0 pulang Buka":
+    - /url: /teacher/gate
+    - text: Gerbang
+    - paragraph: 0 dari 85 sudah masuk · 0 pulang
+    - text: Buka
+  - region "TKIT A":
+    - heading "TKIT A" [level=2]
+    - paragraph: Kelas hari ini · 19 siswa
+    - link "Lanjutkan absensi · 0/19":
+      - /url: /teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+  - region "Yang perlu diselesaikan":
+    - heading "Yang perlu diselesaikan" [level=2]
+    - link "Absensi TKIT A 0 dari 19 siswa tercatat Buka":
+      - /url: /teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Absensi TKIT A
+      - paragraph: 0 dari 19 siswa tercatat
+      - text: Buka
+    - link "Jurnal harian TKIT A 0 dari 19 siswa lengkap Buka":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Jurnal harian TKIT A
+      - paragraph: 0 dari 19 siswa lengkap
+      - text: Buka
+    - link "Buka penilaian Penilaian pekanan · TKIT A":
+      - /url: /teacher/assessments/weekly
+      - text: Buka penilaian
+      - paragraph: Penilaian pekanan · TKIT A
+  - region "Balasan dari wali":
+    - heading "Balasan dari wali" [level=2]
+    - link "Balasan wali Zafran TKIT A 2 baru":
+      - /url: /teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan
+      - text: Balasan wali Zafran
+      - paragraph: TKIT A
+      - text: 2 baru
+    - link "Balasan wali Aisyah TKIT A 1 baru":
+      - /url: /teacher/student-journal/students/cmwfqmls100jc0nx76m35q8il?view=notes#catatan
+      - text: Balasan wali Aisyah
+      - paragraph: TKIT A
+      - text: 1 baru
+  - region "Sesi & penjemputan":
+    - heading "Sesi & penjemputan" [level=2]
+    - paragraph: Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.
+    - paragraph: Belum ada sesi terjadwal hari ini
+    - paragraph: Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas.
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert
+--- home-approved-320.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - heading "Selamat pagi, Guru Tiga" [level=1]
+  - paragraph: Sabtu, 14 November 2026
+  - paragraph: Masuk 08.43 · Terlambat 103 menit · sudah tercatat
+  - button "Catat pulang"
+  - link "Gerbang 0 dari 85 sudah masuk · 0 pulang Buka":
+    - /url: /teacher/gate
+    - text: Gerbang
+    - paragraph: 0 dari 85 sudah masuk · 0 pulang
+    - text: Buka
+  - region "TKIT A":
+    - heading "TKIT A" [level=2]
+    - paragraph: Kelas hari ini · 19 siswa
+    - text: Sehari penuh
+    - link "Lanjutkan jurnal harian":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+  - region "Yang perlu diselesaikan":
+    - heading "Yang perlu diselesaikan" [level=2]
+    - link "Jurnal harian TKIT A 0 dari 18 siswa lengkap · 1 tidak hadir Buka":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Jurnal harian TKIT A
+      - paragraph: 0 dari 18 siswa lengkap · 1 tidak hadir
+      - text: Buka
+    - link "Buka penilaian Penilaian pekanan · TKIT A":
+      - /url: /teacher/assessments/weekly
+      - text: Buka penilaian
+      - paragraph: Penilaian pekanan · TKIT A
+    - button "Pekerjaan yang sudah tersimpan"
+  - region "Balasan dari wali":
+    - heading "Balasan dari wali" [level=2]
+    - link "Balasan wali Zafran TKIT A 3 baru":
+      - /url: /teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan
+      - text: Balasan wali Zafran
+      - paragraph: TKIT A
+      - text: 3 baru
+    - link "Balasan wali Aisyah TKIT A 1 baru":
+      - /url: /teacher/student-journal/students/cmwfqmls100jc0nx76m35q8il?view=notes#catatan
+      - text: Balasan wali Aisyah
+      - paragraph: TKIT A
+      - text: 1 baru
+  - region "Sesi & penjemputan":
+    - heading "Sesi & penjemputan" [level=2]
+    - paragraph: Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.
+    - link "TKIT A Sehari penuh · 19 siswa Buka sesi":
+      - /url: /teacher/sessions/ux_audit_tkit_a_sat
+      - text: TKIT A
+      - paragraph: Sehari penuh · 19 siswa
+      - text: Buka sesi
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert
+--- home-settled-1440.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - heading "Selamat pagi, Guru Tiga" [level=1]
+  - paragraph: Sabtu, 14 November 2026
+  - paragraph: Masuk 08.43 · Terlambat 103 menit · sudah tercatat
+  - button "Catat pulang"
+  - link "Gerbang 18 dari 85 sudah masuk · 18 pulang Buka":
+    - /url: /teacher/gate
+    - text: Gerbang
+    - paragraph: 18 dari 85 sudah masuk · 18 pulang
+    - text: Buka
+  - region "TKIT A":
+    - heading "TKIT A" [level=2]
+    - paragraph: Kelas hari ini · 19 siswa
+    - text: Sehari penuh
+    - link "Lanjutkan jurnal harian":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+  - region "Yang perlu diselesaikan":
+    - heading "Yang perlu diselesaikan" [level=2]
+    - link "Jurnal harian TKIT A 0 dari 18 siswa lengkap · 1 tidak hadir Buka":
+      - /url: /teacher/student-journal/entry?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14
+      - text: Jurnal harian TKIT A
+      - paragraph: 0 dari 18 siswa lengkap · 1 tidak hadir
+      - text: Buka
+    - link "Buka penilaian Penilaian pekanan · TKIT A":
+      - /url: /teacher/assessments/weekly
+      - text: Buka penilaian
+      - paragraph: Penilaian pekanan · TKIT A
+    - button "Pekerjaan yang sudah tersimpan"
+  - region "Balasan dari wali":
+    - heading "Balasan dari wali" [level=2]
+    - link "Balasan wali Zafran TKIT A 3 baru":
+      - /url: /teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan
+      - text: Balasan wali Zafran
+      - paragraph: TKIT A
+      - text: 3 baru
+    - link "Balasan wali Aisyah TKIT A 1 baru":
+      - /url: /teacher/student-journal/students/cmwfqmls100jc0nx76m35q8il?view=notes#catatan
+      - text: Balasan wali Aisyah
+      - paragraph: TKIT A
+      - text: 1 baru
+  - region "Sesi & penjemputan":
+    - heading "Sesi & penjemputan" [level=2]
+    - paragraph: Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.
+    - link "TKIT A Sehari penuh · 19 siswa Buka sesi":
+      - /url: /teacher/sessions/ux_audit_tkit_a_sat
+      - text: TKIT A
+      - paragraph: Sehari penuh · 19 siswa
+      - text: Buka sesi
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert
+--- journal-320-indicators.txt ---
+- banner:
+  - img "An Nisaa'"
+  - text: Talib
+  - link "G Guru":
+    - /url: /teacher/profile
+  - button "Keluar"
+- main:
+  - link "Kembali":
+    - /url: /teacher/student-journal?pick=1&classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13
+  - heading "Isi Buku Penghubung" [level=1]
+  - paragraph: TKIT A · Jumat, 13 November 2026
+  - link "Ganti kelas atau tanggal":
+    - /url: /teacher/student-journal?pick=1&classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-13
+  - paragraph: 12/19 siswa lengkap
+  - button "Isi cepat satu kelas"
+  - button "Hari tanpa buku penghubung"
+  - button "Abdul Zahra Mahendra 4/16":
+    - paragraph: Abdul Zahra Mahendra
+    - text: 4/16
+  - button "Tambah catatan untuk Abdul Zahra Mahendra"
+  - button "Lihat pekan Abdul Zahra Mahendra"
+  - button "Ahmad Hafsah Hidayat 3/16" [expanded]:
+    - paragraph: Ahmad Hafsah Hidayat
+    - text: 3/16
+  - button "Tambah catatan untuk Ahmad Hafsah Hidayat"
+  - button "Lihat pekan Ahmad Hafsah Hidayat"
+  - button "Tandai semua"
+  - button "Hapus semua"
+  - heading "Ibadah" [level=3]
+  - button "Tahfizul Qur'an"
+  - button "Qiro'atul Qur'an"
+  - button "Membawa Infaq"
+  - button "Praktek Sholat Subuh Berjama'ah"
+  - heading "Perilaku" [level=3]
+  - button "Datang di Sekolah tepat waktu"
+  - button "Berpakaian lengkap dan rapih"
+  - button "Patuh dan santun pada guru"
+  - button "Salam dan jabat tangan dengan guru"
+  - button "Membuang sampah pada tempatnya"
+  - button "Bersikap baik kepada teman"
+  - button "Berkata baik dan jujur"
+  - button "Tertib pada saat belajar"
+  - button "Membawa Buku Penghubung"
+  - heading "Akademis" [level=3]
+  - button "Semangat mengikuti pelajaran"
+  - button "Menyelesaikan tugas"
+  - button "Merapihkan alat tulis"
+  - button "Ahmad Zafran Hidayat Zafran 2 catatan baru untuk Ahmad Zafran Hidayat 2/16":
+    - paragraph: Ahmad Zafran Hidayat
+    - paragraph: Zafran
+    - text: 2 baru 2/16
+  - button "Tambah catatan untuk Ahmad Zafran Hidayat"
+  - button "Lihat pekan Ahmad Zafran Hidayat"
+  - button "Aira Hafiz Siregar 4/16":
+    - paragraph: Aira Hafiz Siregar
+    - text: 4/16
+  - button "Tambah catatan untuk Aira Hafiz Siregar"
+  - button "Lihat pekan Aira Hafiz Siregar"
+  - button "Aisyah Putri Ramadhani 1 catatan baru untuk Aisyah Putri Ramadhani 3/16":
+    - paragraph: Aisyah Putri Ramadhani
+    - text: 1 baru 3/16
+  - button "Tambah catatan untuk Aisyah Putri Ramadhani"
+  - button "Lihat pekan Aisyah Putri Ramadhani"
+  - button "Fatimah Fikri Rahman 3/16":
+    - paragraph: Fatimah Fikri Rahman
+    - text: 3/16
+  - button "Tambah catatan untuk Fatimah Fikri Rahman"
+  - button "Lihat pekan Fatimah Fikri Rahman"
+  - button "Fatimah Nazwa Aulia Nazwa 2/16":
+    - paragraph: Fatimah Nazwa Aulia
+    - paragraph: Nazwa
+    - text: 2/16
+  - button "Tambah catatan untuk Fatimah Nazwa Aulia"
+  - button "Lihat pekan Fatimah Nazwa Aulia"
+  - button "Fikri Nadia Pratama 3/16":
+    - paragraph: Fikri Nadia Pratama
+    - text: 3/16
+  - button "Tambah catatan untuk Fikri Nadia Pratama"
+  - button "Lihat pekan Fikri Nadia Pratama"
+  - button "Gibran Alfarizi Hakim 4/16":
+    - paragraph: Gibran Alfarizi Hakim
+    - text: 4/16
+  - button "Tambah catatan untuk Gibran Alfarizi Hakim"
+  - button "Lihat pekan Gibran Alfarizi Hakim"
+  - button "Hafsah Razan Prasetyo 4/16":
+    - paragraph: Hafsah Razan Prasetyo
+    - text: 4/16
+  - button "Tambah catatan untuk Hafsah Razan Prasetyo"
+  - button "Lihat pekan Hafsah Razan Prasetyo"
+  - button "Irsyad Keisha Hasibuan 3/16":
+    - paragraph: Irsyad Keisha Hasibuan
+    - text: 3/16
+  - button "Tambah catatan untuk Irsyad Keisha Hasibuan"
+  - button "Lihat pekan Irsyad Keisha Hasibuan"
+  - button "Keisha Akmal Tambunan 2/16":
+    - paragraph: Keisha Akmal Tambunan
+    - text: 2/16
+  - button "Tambah catatan untuk Keisha Akmal Tambunan"
+  - button "Lihat pekan Keisha Akmal Tambunan"
+  - button "KF Khalid Fakhri Nugroho 0/16":
+    - text: KF
+    - paragraph: Khalid Fakhri Nugroho
+    - text: 0/16
+  - button "Tambah catatan untuk Khalid Fakhri Nugroho"
+  - button "Lihat pekan Khalid Fakhri Nugroho"
+  - button "NZ Nadia Zidan Iskandar 0/16":
+    - text: NZ
+    - paragraph: Nadia Zidan Iskandar
+    - text: 0/16
+  - button "Tambah catatan untuk Nadia Zidan Iskandar"
+  - button "Lihat pekan Nadia Zidan Iskandar"
+  - button "NA Nayla Azzahra Kusuma 0/16":
+    - text: NA
+    - paragraph: Nayla Azzahra Kusuma
+    - text: 0/16
+  - button "Tambah catatan untuk Nayla Azzahra Kusuma"
+  - button "Lihat pekan Nayla Azzahra Kusuma"
+  - button "RA Razan Aira Wahyudi 0/16":
+    - text: RA
+    - paragraph: Razan Aira Wahyudi
+    - text: 0/16
+  - button "Tambah catatan untuk Razan Aira Wahyudi"
+  - button "Lihat pekan Razan Aira Wahyudi"
+  - button "ZI Zahra Irsyad Nugroho 0/16":
+    - text: ZI
+    - paragraph: Zahra Irsyad Nugroho
+    - text: 0/16
+  - button "Tambah catatan untuk Zahra Irsyad Nugroho"
+  - button "Lihat pekan Zahra Irsyad Nugroho"
+  - button "ZK Zahra Khaira Azzam 0/16":
+    - text: ZK
+    - paragraph: Zahra Khaira Azzam
+    - text: 0/16
+  - button "Tambah catatan untuk Zahra Khaira Azzam"
+  - button "Lihat pekan Zahra Khaira Azzam"
+  - button "ZS Zidan Salma Harahap 0/16":
+    - text: ZS
+    - paragraph: Zidan Salma Harahap
+    - text: 0/16
+  - button "Tambah catatan untuk Zidan Salma Harahap"
+  - button "Lihat pekan Zidan Salma Harahap"
+- navigation "Navigasi utama guru":
+  - link "Beranda":
+    - /url: /teacher
+  - link "Absensi":
+    - /url: /teacher/class-attendance
+  - link "Jurnal":
+    - /url: /teacher/student-journal
+  - link "Penilaian":
+    - /url: /teacher/assessments
+  - button "Lainnya"
+- region "Notifications alt+T"
+- alert: Isi Buku Penghubung
+--- preflight.log ---
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":321,"ttfb":119,"dcl":199.9000000357628,"load":251.80000001192093},"t":1723}
+{"name":"snapshot","value":{"name":"home-390","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Selamat pagi, Guru Tiga",81,258,30],["Catat masuk",170,106,44],["Gerbang |  | 0 dari 85 sudah masuk · 0 pulang |  | Buka",247,340,68],["TKIT A",365,120,24],["Lanjutkan absensi · 0/19",422,308,46],["YANG PERLU DISELESAIKAN",517,175,16],["Absensi TKIT A |  | 0 dari 19 siswa tercatat |  | Buka",546,340,68],["Jurnal harian TKIT A |  | 0 dari 19 siswa lengkap |  | Buka",614,340,68],["Buka penilaian |  | Penilaian pekanan · TKIT A",682,340,68],["BALASAN DARI WALI",783,128,16],["Balasan wali Zafran |  | TKIT A |  | 2 baru",812,340,68],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64]]},"t":1970}
+{"name":"home-primary","value":{"label":"Lanjutkan absensi · 0/19","href":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":1974}
+{"name":"api","value":{"path":"/api/teaching-assignments/my","status":200,"method":"GET","ms":21},"t":2361}
+{"name":"api","value":{"path":"/api/student-attendance?classSectionId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14","status":200,"method":"GET","ms":14},"t":2388}
+{"name":"action","value":{"label":"Home primary to attendance roster","ms":1213,"path":"/teacher/class-attendance?classId=cmwfqmlqe00iv0nx7itzzpxaz&date=2026-11-14"},"t":3187}
+{"name":"snapshot","value":{"name":"home-primary-attendance","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Absensi kelas",81,148,30],["Hadir",274,44,44],["Sakit",274,44,44],["Izin",274,44,44],["Alpa",274,44,44],["Hadir",347,44,44],["Sakit",347,44,44],["Izin",347,44,44],["Alpa",347,44,44],["Hadir",420,44,44],["Sakit",420,44,44],["Izin",420,44,44],["Alpa",420,44,44],["Hadir",487,44,44],["Sakit",487,44,44],["Izin",487,44,44],["Alpa",487,44,44],["Hadir",554,44,44],["Sakit",554,44,44],["Izin",554,44,44],["Alpa",554,44,44],["Hadir",627,44,44],["Sakit",627,44,44],["Izin",627,44,44],["Alpa",627,44,44],["Hadir",700,44,44],["Sakit",700,44,44],["Izin",700,44,44],["Alpa",700,44,44],["Hadir",773,44,44],["Sakit",773,44,44],["Izin",773,44,44],["Alpa",773,44,44],["Tandai semua 19 siswa Hadir",724,342,44],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64]]},"t":3211}
+{"name":"job-end","value":"Home next task and Saturday baseline","t":4034}
+{"name":"api","value":{"path":"/api/attendance/check-in","status":422,"method":"POST","ms":20},"t":4081}
+{"name":"action","value":{"label":"GPS tap to sheet","ms":95,"path":"/teacher"},"t":4129}
+{"name":"snapshot","value":{"name":"gps-outside","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Selamat pagi, Guru Tiga",81,258,30],["Catat masuk",170,106,44],["Gerbang |  | 0 dari 85 sudah masuk · 0 pulang |  | Buka",272,340,68],["TKIT A",390,120,24],["Lanjutkan absensi · 0/19",447,308,46],["YANG PERLU DISELESAIKAN",542,175,16],["Absensi TKIT A |  | 0 dari 19 siswa tercatat |  | Buka",571,340,68],["Jurnal harian TKIT A |  | 0 dari 19 siswa lengkap |  | Buka",639,340,68],["Buka penilaian |  | Penilaian pekanan · TKIT A",707,340,68],["BALASAN DARI WALI",808,128,16],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64],["Anda di luar area kampus",501,334,24],["Batal",732,358,44],["Kirim untuk disetujui",784,358,44],["Tutup",497,44,44]]},"t":4138}
+{"name":"gps-empty-disabled","value":true,"t":4140}
+{"name":"gps-two-character-disabled","value":true,"t":4156}
+{"name":"api","value":{"path":"/api/attendance/check-in","status":200,"method":"POST","ms":21},"t":4571}
+{"name":"action","value":{"label":"GPS submit to pending","ms":416,"path":"/teacher"},"t":4586}
+{"name":"snapshot","value":{"name":"gps-pending","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Selamat pagi, Guru Tiga",81,258,30],["Catat pulang",195,108,44],["Gerbang |  | 0 dari 85 sudah masuk · 0 pulang |  | Buka",328,340,68],["TKIT A",446,120,24],["Lanjutkan absensi · 0/19",503,308,46],["YANG PERLU DISELESAIKAN",598,175,16],["Absensi TKIT A |  | 0 dari 19 siswa tercatat |  | Buka",627,340,68],["Jurnal harian TKIT A |  | 0 dari 19 siswa lengkap |  | Buka",695,340,68],["Buka penilaian |  | Penilaian pekanan · TKIT A",763,340,68],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64],["Anda di luar area kampus",543,334,24],["Batal",732,358,44],["Kirim untuk disetujui",784,358,44],["Tutup",539,44,44]]},"t":4602}
+{"name":"gps-pending-copy","value":"Masuk 08.43 · Terlambat 103 menit · sudah tercatat\n\nMenunggu persetujuan\nCatat pulang\n\nKehadiran tersimpan\n\nLokasi tercatat.","t":4604}
+{"name":"job-end","value":"GPS outside submit for approval","t":4668}
+{"name":"api","value":{"path":"/api/teacher/gate","status":200,"method":"GET","ms":33},"t":5137}
+{"name":"action","value":{"label":"Gate opening","ms":912,"path":"/teacher/gate"},"t":5580}
+{"name":"gate-before-fixture","value":{"classNames":["POPUP Weekend","TKIT A","D'Care","KB","TKIT B"],"tkitA":[{"studentId":"cmwfqmm6c00oi0nx7o7y61u13","name":"Abdul Zahra Mahendra","nickname":"Abdul","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmm6100o60nx7cbxnuk60","name":"Ahmad Hafsah Hidayat","nickname":"Ahmad","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmlrh00j60nx7ks64q54h","name":"Ahmad Zafran Hidayat","nickname":"Zafran","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmm7y00po0nx722kz07lb","name":"Aira Hafiz Siregar","nickname":"Aira","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmls100jc0nx76m35q8il","name":"Aisyah Putri Ramadhani","nickname":"Aisyah","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null},{"studentId":"cmwfqmm6700oc0nx71j45wtgc","name":"Fatimah Fikri Rahman","nickname":"Fatimah","classSectionId":"cmwfqmlqe00iv0nx7itzzpxaz","className":"TKIT A","status":null,"checkInTime":null,"checkOutTime":null,"pickedUpByRelation":null,"pickedUpByName":null}]},"t":5619}
+{"name":"api","value":{"path":"/api/teacher/gate","status":409,"method":"POST","ms":84},"t":5749}
+{"name":"gate-unavailable-save","value":{"status":409,"body":{"error":"Belum ada sesi kelas hari ini"},"ms":134},"t":5762}
+{"name":"snapshot","value":{"name":"gate-no-session","width":390,"height":844,"scrollWidth":390,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",81,94,44],["Gerbang",125,98,30],["Masuk",218,165,48],["Pulang",218,165,48],["Taman Aster",282,342,44],["Masuk: Abdul Zahra Mahendra, POPUP Weekend",427,340,56],["Masuk: Abdul Zahra Mahendra, TKIT A",493,340,56],["Beranda",780,78,64],["Absensi",780,78,64],["Jurnal",780,78,64],["Penilaian",780,78,64],["Lainnya",780,78,64]]},"t":5778}
+{"name":"job-end","value":"Gate Saturday no scheduled session","t":5967}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":179,"ttfb":24.100000023841858,"dcl":118.60000002384186,"load":124.90000003576279},"t":6335}
+{"name":"snapshot","value":{"name":"home-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":6347}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":166,"ttfb":15,"dcl":102.30000001192093,"load":108.19999998807907},"t":6672}
+{"name":"snapshot","value":{"name":"home-1440","width":1440,"height":900,"scrollWidth":1440,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Beranda",836,89,64],["Absensi",836,89,64],["Jurnal",836,89,64],["Penilaian",836,89,64],["Lainnya",836,89,64]]},"t":6681}
+{"name":"job-end","value":"Responsive teacher home","t":6688}
+
+--- survey.log ---
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":499,"ttfb":225.30000001192093,"dcl":334.80000001192093,"load":389.60000002384186},"t":3348}
+{"name":"action","value":{"label":"Penilaian bottom-nav to hub","ms":607,"path":"/teacher/assessments"},"t":4152}
+{"name":"snapshot","value":{"name":"assessment-hub","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Penilaian",81,98,30],["Penilaian pekanan |  | Walas TKIT A · catat IKTP per pekan",170,272,102],["SENTRA HARIAN",296,102,16],["Balok | Sentra saya",324,132,66],["Ibadah",324,132,66],["Bahan Alam",398,132,58],["Seni",398,132,58],["Memasak",464,132,58],["Main Peran",464,132,58],["Persiapan",530,132,58],["Area",530,132,58],["Makro",596,132,58],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":4169}
+{"name":"action","value":{"label":"Weekly assessment to destination","ms":52,"path":"/teacher/assessments"},"t":4225}
+{"name":"snapshot","value":{"name":"assessment-weekly","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Penilaian pekanan",141,197,30],["Lihat penilaian",617,272,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":4362}
+{"name":"nav","value":{"path":"/teacher/assessments/center/cmwfqmneo010y0nx7lmbbh1eg","actual":"/teacher/assessments/center/cmwfqmneo010y0nx7lmbbh1eg","ms":177,"ttfb":36.60000002384186,"dcl":91.40000003576279,"load":120.30000001192093},"t":4540}
+{"name":"snapshot","value":{"name":"assessment-center","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Sentra Balok",145,139,30],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":4567}
+{"name":"api","value":{"path":"/api/teacher/assessment-entries/center/cmwfqmneo010y0nx7lmbbh1eg?date=2026-11-14&ageGroup=A&defaultToVisitingClass=true","status":422,"method":"GET","ms":78},"t":4592}
+{"name":"snapshot","value":{"name":"more-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Sentra Balok",145,139,30],["Kelas",430,272,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64],["Lainnya",247,288,24],["Kehadiran saya | Riwayat kehadiran, cuti, dan izin",297,288,91],["Slip gaji | Lihat slip gaji bulanan",396,288,74],["Profil saya | Data akun dan kontak",478,288,74],["Apa yang Baru | Pembaruan terbaru di Talib",560,288,74],["Panduan Talib | Tur singkat semua modul Talib",642,288,74]]},"t":4680}
+{"name":"action","value":{"label":"More to Kehadiran saya","ms":1595,"path":"/teacher/attendance"},"t":6276}
+{"name":"api","value":{"path":"/api/attendance/my?month=10&year=2026","status":200,"method":"GET","ms":31},"t":6302}
+{"name":"api","value":{"path":"/api/attendance/my?month=12&year=2026","status":200,"method":"GET","ms":34},"t":6305}
+{"name":"api","value":{"path":"/api/attendance/my?month=11&year=2026","status":200,"method":"GET","ms":36},"t":6306}
+{"name":"api","value":{"path":"/api/leave/balance","status":200,"method":"GET","ms":36},"t":6309}
+{"name":"api","value":{"path":"/api/leave/my","status":200,"method":"GET","ms":35},"t":6309}
+{"name":"action","value":{"label":"Open Cuti dan izin","ms":267,"path":"/teacher/attendance"},"t":6544}
+{"name":"snapshot","value":{"name":"leave-sheet-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kehadiran saya",57,166,30],["Cuti dan izin |  | Lihat saldo dan ajukan cuti",119,272,74],["Bulan sebelumnya",209,44,44],["November 2026",221,109,20],["Bulan berikutnya",209,44,44],["1",297,35,35],["2",297,35,35],["3",297,35,35],["4",297,35,35],["5",297,35,35],["6",297,35,35],["7",297,35,35],["8",336,35,35],["9",336,35,35],["10",336,35,35],["11",336,35,35],["12",336,35,35],["13",336,35,35],["14",336,35,35],["15",376,35,35],["16",376,35,35],["17",376,35,35],["18",376,35,35],["19",376,35,35],["20",376,35,35],["21",376,35,35],["22",415,35,35],["23",415,35,35],["24",415,35,35],["25",415,35,35],["26",415,35,35],["27",415,35,35],["28",415,35,35],["29",455,35,35],["30",455,35,35],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64],["Cuti dan izin",260,272,24],["CUTI TAHUNAN",351,94,16],["CUTI SAKIT",351,69,16],["Ajukan cuti",534,272,44],["Tutup",256,44,44]]},"t":6552}
+{"name":"api","value":{"path":"/api/slips/my","status":200,"method":"GET","ms":16},"t":6975}
+{"name":"action","value":{"label":"More to Slip gaji","ms":849,"path":"/teacher/slips"},"t":7459}
+{"name":"snapshot","value":{"name":"slip-list-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Slip gaji",81,83,30],["Lihat slip Oktober 2026 (21 September – 20 Oktober 2026)",160,141,82],["Unduh PDF slip Oktober 2026 (21 September – 20 Oktober 2026) (buka di tab baru)",179,69,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":7480}
+{"name":"action","value":{"label":"Open slip detail","ms":44,"path":"/teacher/slips"},"t":7526}
+{"name":"snapshot","value":{"name":"slip-detail-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Slip gaji",81,83,30],["Lihat slip Oktober 2026 (21 September – 20 Oktober 2026)",160,141,82],["Unduh PDF slip Oktober 2026 (21 September – 20 Oktober 2026) (buka di tab baru)",179,69,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":7536}
+{"name":"action","value":{"label":"More to Profil saya","ms":834,"path":"/teacher/profile"},"t":8400}
+{"name":"snapshot","value":{"name":"profile-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Profil saya",81,111,30],["Guru Tiga",151,99,24],["Slip gaji |  | Lihat slip gaji bulanan",232,270,66],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":8407}
+{"name":"action","value":{"label":"More to Apa yang Baru","ms":61,"path":"/changelog"},"t":8490}
+{"name":"snapshot","value":{"name":"changelog-320","width":320,"height":740,"scrollWidth":320,"visible":[["Kembali ke Beranda guru",16,202,44],["Apa yang Baru",68,288,30],["Untuk guru",138,88,44],["Semua",138,65,44],["Pembaruan Talib lebih mudah ditemukan",388,288,49],["Gerbang, absensi staf, dan putaran sentra",627,288,49]]},"t":8500}
+{"name":"nav","value":{"path":"/guide","actual":"/guide","ms":216,"ttfb":36.59999996423721,"dcl":59.39999997615814,"load":185.30000001192093},"t":8717}
+{"name":"snapshot","value":{"name":"guide-320","width":320,"height":740,"scrollWidth":320,"visible":[["Kembali ke Beranda guru",11,73,34],["Kembali",6,72,44],["Cara Talib bekerja, dari pendaftaran sampai rapor | Cara Talib bekerja, dari pendaftaran sampai rapor",124,280,158],["Slide sebelumnya",687,44,44],["Slide berikutnya",687,44,44]]},"t":8735}
+{"name":"job-end","value":"Teacher route survey","t":8736}
+{"name":"nav","value":{"path":"/teacher","actual":"/teacher","ms":172,"ttfb":28.900000035762787,"dcl":127.19999998807907,"load":127.5},"t":8908}
+{"name":"reply-link","value":"/teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan","t":9197}
+{"name":"api","value":{"path":"/api/auth/me","status":200,"method":"GET","ms":75},"t":9646}
+{"name":"api","value":{"path":"/api/student-journal/students/cmwfqmlrh00j60nx7ks64q54h/week?weekStart=2026-11-09","status":200,"method":"GET","ms":93},"t":9664}
+{"name":"api","value":{"path":"/api/student-journal/notes?studentId=cmwfqmlrh00j60nx7ks64q54h","status":200,"method":"GET","ms":19},"t":9699}
+{"name":"api","value":{"path":"/api/student-journal/notes/read","status":200,"method":"POST","ms":16},"t":9746}
+{"name":"action","value":{"label":"Home to guardian reply thread","ms":915,"path":"/teacher/student-journal/students/cmwfqmlrh00j60nx7ks64q54h?view=notes#catatan"},"t":10113}
+{"name":"snapshot","value":{"name":"guardian-reply-320","width":320,"height":740,"scrollWidth":320,"visible":[["G | Guru",6,80,44],["Keluar",6,44,44],["Kembali",81,92,44],["Ahmad Zafran Hidayat",141,243,30],["Catatan",240,70,24],["Tambah catatan",230,141,44],["Edit catatan",606,44,44],["Hapus catatan",606,44,44],["Beranda",676,64,64],["Absensi",676,64,64],["Jurnal",676,64,64],["Penilaian",676,64,64],["Lainnya",676,64,64]]},"t":10172}
+{"name":"job-end","value":"Teacher home guardian reply","t":10172}

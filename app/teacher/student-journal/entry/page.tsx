@@ -653,6 +653,7 @@ export default function StudentJournalEntryPage() {
           }}
           mode="create"
           studentId={noteStudent.id}
+          childName={noteStudent.name}
           weekDates={noteWeekDates}
           initialDate={date}
           title={`Tulis catatan untuk ${noteStudent.name}`}

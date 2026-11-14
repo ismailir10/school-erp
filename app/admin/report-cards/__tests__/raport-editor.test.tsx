@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -512,5 +512,25 @@ describe("RaportEditor attendance drift (ACAD-2)", () => {
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
     await screen.findByText("Rapor — Aisyah Nuraini");
     expect(screen.queryByTestId("attendance-drift")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("RaportEditor parent preview", () => {
+  it("previews unsaved narrative and child/period without saving or publishing", async () => {
+    const fetchMock = stubFetchOnce();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    fireEvent.change(screen.getByLabelText("Hafalan (surah / hadis / doa)"), { target: { value: "Hafalan belum disimpan" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pratinjau rapor" }));
+    const title = await screen.findByRole("heading", { name: "Pratinjau rapor — Aisyah Nuraini" });
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(within(screen.getByRole("dialog")).getByText("Hafalan belum disimpan")).toBeInTheDocument();
+    expect(screen.getByText("Menampilkan isian saat ini. Pratinjau ini belum menyimpan atau menerbitkan perubahan.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Tutup" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Hafalan (surah / hadis / doa)")).toHaveValue("Hafalan belum disimpan");
+    vi.unstubAllGlobals();
   });
 });

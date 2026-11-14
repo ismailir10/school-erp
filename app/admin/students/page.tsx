@@ -551,6 +551,9 @@ export default function StudentsPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const listRequestId = useRef(0);
   const [search, setSearch] = useState(initialSearch);
   const searchRef = useRef(initialSearch);
   const [status, setStatus] = useState(
@@ -558,7 +561,7 @@ export default function StudentsPage() {
   );
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, active: 0, graduated: 0 });
+  const [stats, setStats] = useState<{ total: number; active: number; graduated: number } | null>(null);
 
   // Create dialog state
   const [exportOpen, setExportOpen] = useState(false);
@@ -639,7 +642,9 @@ export default function StudentsPage() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const fetchStudents = useCallback(async () => {
+    const requestId = ++listRequestId.current;
     setLoading(true);
+    setFetchError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -651,14 +656,19 @@ export default function StudentsPage() {
       if (status !== "all") params.set("status", status);
 
       const res = await fetch(`/api/students?${params}`);
+      if (!res.ok) throw new Error("Student list unavailable");
       const json = await res.json();
+      if (requestId !== listRequestId.current) return;
+      setHasLoaded(true);
       setData(json.data ?? []);
       setCapabilities({ canCreate: json.capabilities?.canCreate === true, canEdit: json.capabilities?.canEdit === true });
       if (json.pagination) setPagination(json.pagination);
     } catch {
+      if (requestId !== listRequestId.current) return;
+      setFetchError(true);
       toast.error(MESSAGES.loadFailed("Data siswa"));
     } finally {
-      setLoading(false);
+      if (requestId === listRequestId.current) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, search, status, sortBy, sortOrder]);
 
@@ -870,7 +880,9 @@ export default function StudentsPage() {
     <>
       <PageHeader
         title="Siswa"
-        description={search.trim() !== "" || status !== "all" ? `${pagination.total} siswa cocok` : `${pagination.total} siswa terdaftar`}
+        description={hasLoaded
+          ? `${pagination.total} siswa${search.trim() !== "" || status !== "all" ? " cocok" : " terdaftar"}${loading ? " · Memperbarui…" : fetchError ? " · Data terakhir; gagal memperbarui" : ""}`
+          : loading ? "Memuat jumlah siswa…" : "Jumlah siswa belum dapat dimuat"}
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
@@ -887,11 +899,11 @@ export default function StudentsPage() {
 
       <StatsCardsRow cols={3}>
         <StatTile size="lg" mono
-          label="Total Siswa" value={stats.total} icon={Users} tone="default" />
+          label="Total Siswa" value={stats?.total ?? "—"} icon={Users} tone="default" />
         <StatTile size="lg" mono
-          label="Aktif" value={stats.active} icon={UserCheck} tone="positive" />
+          label="Aktif" value={stats?.active ?? "—"} icon={UserCheck} tone="positive" />
         <StatTile size="lg" mono
-          label="Lulus" value={stats.graduated} icon={GraduationCap} tone="warning" />
+          label="Lulus" value={stats?.graduated ?? "—"} icon={GraduationCap} tone="warning" />
       </StatsCardsRow>
 
       <DataTableToolbar
@@ -909,7 +921,13 @@ export default function StudentsPage() {
         ]}
       />
 
-      <DataTable
+      {fetchError ? <Alert variant="destructive" className="mb-section">
+        <AlertDescription>
+          Data siswa belum dapat dimuat. Coba lagi untuk memperbarui daftar.
+          <Button variant="outline" className="ml-2" onClick={fetchStudents}>Coba lagi</Button>
+        </AlertDescription>
+      </Alert> : null}
+      {!(fetchError && !hasLoaded) ? <DataTable
         columns={columnsWithActions}
         data={data}
         pagination={pagination}
@@ -921,7 +939,7 @@ export default function StudentsPage() {
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan menambahkan siswa baru."
         isFiltered={search.trim() !== "" || status !== "all"}
-      />
+      /> : null}
 
       {/* Deactivate / Activate ConfirmDialog */}
       <ConfirmDialog

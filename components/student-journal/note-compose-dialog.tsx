@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { formatDateShort } from "@/lib/format";
+import { describeFetchFailure } from "@/lib/teacher/fetch-error-copy";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Mode = "create" | "edit";
@@ -23,6 +24,7 @@ export type NoteComposeDialogProps = {
   onOpenChange: (open: boolean) => void;
   mode: Mode;
   studentId: string;
+  childName?: string;
   weekDates: string[];
   initialDate?: string;
   initialBody?: string;
@@ -64,7 +66,7 @@ function pickDefaultDate(
 ): string {
   if (initialDate && dateOptions.includes(initialDate)) return initialDate;
   if (dateOptions.includes(today)) return today;
-  return dateOptions[0] ?? "";
+  return dateOptions.toSorted().at(-1) ?? "";
 }
 
 export function NoteComposeDialog({
@@ -72,6 +74,7 @@ export function NoteComposeDialog({
   onOpenChange,
   mode,
   studentId,
+  childName,
   weekDates,
   initialDate,
   initialBody,
@@ -85,16 +88,18 @@ export function NoteComposeDialog({
   // midnight, and keying it to `open` was a lint-flagged dependency that did
   // not describe what it recomputed for.
   const today = getTodayInTimezone(PORTAL_TIMEZONE);
+  const weekDatesKey = weekDates.join(",");
   const dateOptions = useMemo(() => {
+    const dates = weekDatesKey.split(",").filter(Boolean);
     // An edited note may predate the week on screen (the thread is not
     // week-scoped), so its own date must stay selectable/displayed.
     if (mode === "edit") {
-      return initialDate && !weekDates.includes(initialDate)
-        ? [initialDate, ...weekDates]
-        : weekDates;
+      return initialDate && !dates.includes(initialDate)
+        ? [initialDate, ...dates]
+        : dates;
     }
-    return weekDates.filter((d) => d <= today);
-  }, [mode, weekDates, today, initialDate]);
+    return dates.filter((d) => d <= today);
+  }, [mode, weekDatesKey, today, initialDate]);
 
   const [date, setDate] = useState<string>(() =>
     pickDefaultDate(dateOptions, today, initialDate),
@@ -104,6 +109,7 @@ export function NoteComposeDialog({
   const [truncated, setTruncated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(true);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const keepWritingRef = useRef<HTMLButtonElement>(null);
 
@@ -114,6 +120,7 @@ export function NoteComposeDialog({
       setBody(initialBody ?? "");
       setTruncated(false);
       setError(null);
+      setCanRetry(true);
       setSubmitting(false);
       setConfirmDiscard(false);
     }
@@ -124,6 +131,7 @@ export function NoteComposeDialog({
     trimmedLen > 0 &&
     trimmedLen <= MAX_LEN &&
     !submitting &&
+    canRetry &&
     (mode === "edit" || dateOptions.includes(date));
 
   // A half-written catatan is the one thing in this dialog that cannot be
@@ -182,24 +190,24 @@ export function NoteComposeDialog({
       }
 
       if (!res.ok) {
-        let message: string;
-        if (res.status === 429) {
-          message = "Terlalu banyak permintaan. Coba lagi sebentar.";
-        } else {
-          const json = (await res.json().catch(() => ({}))) as { error?: string };
-          message = json.error ?? "Gagal menyimpan catatan";
-        }
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        const failure = describeFetchFailure({ status: res.status, action: "disimpan", serverMessage: json.error });
+        const message = failure.kind === "forbidden"
+          ? "Anda tidak bisa mengubah catatan ini. Hubungi admin sekolah."
+          : failure.message;
+        setCanRetry(failure.canRetry);
         setError(message);
         toast.error(message);
         setSubmitting(false);
         return;
       }
 
-      toast.success("Catatan tersimpan");
+      toast.success(childName ? `Catatan ${childName} untuk ${formatDateShort(date)} tersimpan` : "Catatan tersimpan");
       onSaved();
       onOpenChange(false);
     } catch {
-      const message = "Gagal terhubung ke server";
+      const message = describeFetchFailure({ networkError: true, action: "disimpan" }).message;
+      setCanRetry(true);
       setError(message);
       toast.error(message);
     } finally {
@@ -211,8 +219,8 @@ export function NoteComposeDialog({
     <ResponsiveFormDialog
       open={open}
       onOpenChange={requestClose}
-      title={title ?? (mode === "create" ? "Tulis catatan" : "Edit catatan")}
-      description={audience ? AUDIENCE_HINT[audience] : undefined}
+      title={title ?? `${mode === "create" ? "Tulis catatan" : "Edit catatan"}${childName ? ` untuk ${childName}` : ""}`}
+      description={[childName ? `Anak: ${childName}.` : "", audience ? AUDIENCE_HINT[audience] : ""].filter(Boolean).join(" ") || undefined}
       size="sm"
       contentClassName="p-card"
       footer={
@@ -273,6 +281,11 @@ export function NoteComposeDialog({
             ))}
           </SelectContent>
         </Select>
+        {date && date !== today ? (
+          <p className="text-small text-muted-foreground">
+            Catatan untuk {formatDateShort(date)}, bukan hari ini.{mode === "create" ? " Pastikan tanggal sesuai kejadian." : " Tanggal catatan tetap; isi dapat diperbaiki."}
+          </p>
+        ) : null}
         {mode === "create" && dateOptions.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Catatan hanya bisa dibuat untuk tanggal hari ini atau sebelumnya.
@@ -302,10 +315,11 @@ export function NoteComposeDialog({
           className="min-w-0 max-h-48 overflow-y-auto [overflow-wrap:anywhere]"
           placeholder={placeholder ?? DEFAULT_PLACEHOLDER}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "note-save-error" : undefined}
         />
         <div className="flex items-center justify-between mt-1">
           {error ? (
-            <p className="text-xs text-destructive">{error}</p>
+            <p id="note-save-error" role="alert" className="text-xs text-destructive">{error} Isi catatan tetap ada di sini.{canRetry ? " Coba Simpan lagi setelah masalah teratasi." : ""}</p>
           ) : truncated ? (
             <p role="status" className="text-xs text-status-late-text">
               Catatan dipotong ke {MAX_LEN} karakter.

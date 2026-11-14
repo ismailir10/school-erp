@@ -13,7 +13,7 @@
  * control.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentsPage from "@/app/admin/students/page";
@@ -311,5 +311,28 @@ describe("StudentsPage — edit/create PUT and POST bodies match the pre-migrati
       expect(body[key]).toBeNull();
     }
     expect(body.status).toBe("ACTIVE");
+  });
+});
+
+
+describe("StudentsPage truthful result counts", () => {
+  it("distinguishes pending and failed initial load from an empty successful result", async () => {
+    let resolveList!: (value: unknown) => void;
+    const fallback = stubFetch();
+    let fail = true;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/students?") && fail) return new Promise((resolve) => { resolveList = resolve; });
+      return fallback(input);
+    }));
+    render(<StudentsPage />);
+    expect(screen.getByText("Memuat jumlah siswa…")).toBeInTheDocument();
+    expect(screen.queryByText("0 siswa terdaftar")).not.toBeInTheDocument();
+    await act(async () => { resolveList({ ok: false, status: 503 }); });
+    expect(await screen.findByText("Jumlah siswa belum dapat dimuat")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada siswa terdaftar")).not.toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
+    expect(await screen.findByText("0 siswa terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("Belum ada siswa terdaftar")).toBeInTheDocument();
   });
 });

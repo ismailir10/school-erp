@@ -17,6 +17,7 @@ import {
   pingDoku,
   formatDokuTimestamp,
   normalizePhoneForDoku,
+  normalizeLineItemNameForDoku,
   resolveCheckoutTarget,
 } from "../client";
 import { GatewayApiError } from "../../types";
@@ -379,7 +380,7 @@ describe("createDokuSession", () => {
       ...baseParams,
       customerEmail: "guardian@example.test",
       customerPhone: "081234567890",
-      items: [{ name: "SPP Juli", quantity: 1, price: 100000 }],
+      items: [{ name: "SPP — Juli ‘réguler’", quantity: 1, price: 100000 }],
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
 
@@ -402,8 +403,9 @@ describe("createDokuSession", () => {
     // Local guardian format is normalised to DOKU's calling-code form.
     expect(body.customer.phone).toBe("6281234567890");
     expect(body.order.line_items).toEqual([
-      { name: "SPP Juli", quantity: 1, price: 100000 },
+      { name: "SPP - Juli 'reguler'", quantity: 1, price: 100000 },
     ]);
+    expect(params.items![0].name).toBe("SPP — Juli ‘réguler’");
     // Minutes-from-now, rounded up: a 7-day `expiresAt` lands on 10080 or one
     // minute under, depending on where in the current minute the clock sits.
     expect(body.payment.payment_due_date).toBeGreaterThan(7 * 24 * 60 - 2);
@@ -916,5 +918,26 @@ describe("pingDoku", () => {
     expect(err).toBeInstanceOf(GatewayApiError);
     expect(err.code).toBe("network");
     expect(err.status).toBeNull();
+  });
+});
+
+
+describe("DOKU Unicode line-item boundary (STG-FINANCE-04)", () => {
+  it.each([
+    ["SPP — November", "SPP - November"],
+    ["Café ‘reguler’", "Cafe 'reguler'"],
+    ["Kelas / A + B, diskon=10% (2026)_1: @sekolah", "Kelas / A + B, diskon=10% (2026)_1: @sekolah"],
+    ["中文 🎒", "Biaya sekolah"],
+    ["— 🎒", "Biaya sekolah"],
+    ["Buku\n\t& seragam", "Buku seragam"],
+  ])("adapts %s to provider-safe %s", (input, expected) => {
+    expect(normalizeLineItemNameForDoku(input)).toBe(expected);
+    expect(normalizeLineItemNameForDoku(input)).toMatch(/^[a-zA-Z0-9 .\-/+,=_:'@%()]+$/);
+  });
+  it("retains DOKU's alternate message array for diagnostics, without changing the safe error code", () => {
+    const error = classifyDokuResponse(mockErrorResponse({status:400}), {message:["Invalid character", 12]});
+    expect(error.message).toBe("Invalid character");
+    expect(error.code).toBe("4xx");
+    expect(error.retriable).toBe(false);
   });
 });

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { InvoicesClient } from "../client";
+import { InvoicesClient as RealInvoicesClient } from "../client";
+import { paymentAttemptKey } from "@/lib/parent/payment-attempts";
+
+function InvoicesClient(props: React.ComponentProps<typeof RealInvoicesClient>) {
+  return <RealInvoicesClient paymentScope={{tenantId: "tenant-1", guardianId: "guardian-1"}} selectedChildId="child-1" {...props} />;
+}
 
 vi.mock("../invoice-detail-sheet", () => ({
   InvoiceDetailSheet: ({
@@ -36,6 +41,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  localStorage.clear();
   toastFn.mockClear();
   toastFn.error.mockClear();
   toastFn.success.mockClear();
@@ -272,7 +278,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(toastFn.success).not.toHaveBeenCalled();
       expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("sedang diperiksa"));
       expect(refreshFn).toHaveBeenCalled();
-      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=child-1", { scroll: false });
       expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
     });
 
@@ -303,7 +309,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(toastFn).toHaveBeenCalledWith(
         expect.stringContaining("Pembayaran belum selesai"),
       );
-      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=child-1", { scroll: false });
     });
 
     it("does nothing when invoice id is foreign / not in data", () => {
@@ -339,7 +345,7 @@ describe("InvoicesClient (cycle-4)", () => {
       mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid&child=second");
       render(<InvoicesClient data={mockInvoices} selectedChildId="second" />);
       expect(toastFn.success).not.toHaveBeenCalled();
-      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("tercatat sebagian"));
+      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("sedang diperiksa"));
       expect(screen.getByRole("button", { name: /September 2024/ })).toHaveTextContent("Dibayar sebagian");
       expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=second", { scroll: false });
     });
@@ -364,7 +370,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(toastFn).toHaveBeenCalledWith(
         expect.stringContaining("Pembayaran belum selesai"),
       );
-      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=child-1", { scroll: false });
     });
 
     it("does not call a cancelled invoice a pending payment after a paid return", () => {
@@ -389,7 +395,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(toastFn).not.toHaveBeenCalledWith(
         expect.stringContaining("Pembayaran belum selesai"),
       );
-      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=child-1", { scroll: false });
     });
 
     it("does nothing when neither paymentStatus nor xenditStatus is present", () => {
@@ -566,5 +572,157 @@ describe("InvoicesClient (cycle-4)", () => {
       // showing it as non-PAID.
       expect(toastFn.success).not.toHaveBeenCalled();
     });
+  });
+});
+
+
+describe("Payment confirmation persistence (STG-FINANCE-02)", () => {
+  const scope = { tenantId: "tenant-1", guardianId: "guardian-1", childId: "child-1" };
+  const key = paymentAttemptKey(scope, "inv-1");
+  const hint = { version: 1, totalPaid: 0, startedAt: 123, phase: "confirming" };
+
+  it("keeps the warning after reload with callback params already removed", async () => {
+    mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+    const view = render(<InvoicesClient data={mockInvoices} />);
+    expect(localStorage.getItem(key)).toContain('"confirming"');
+    view.unmount();
+    mockSearchParams = new URLSearchParams();
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).toHaveTextContent("Pembayaran sedang diperiksa");
+    await userEvent.click(screen.getByRole("button", { name: /Agustus 2024/ }));
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+  });
+
+  it.each([
+    {tenantId: "other", guardianId: "guardian-1", childId: "child-1"},
+    {tenantId: "tenant-1", guardianId: "other", childId: "child-1"},
+    {tenantId: "tenant-1", guardianId: "guardian-1", childId: "other"},
+  ])("does not reuse another tenant, account or child's hint: %j", (otherScope) => {
+    localStorage.setItem(paymentAttemptKey(otherScope, "inv-1"), JSON.stringify(hint));
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).not.toHaveTextContent("Pembayaran sedang diperiksa");
+  });
+
+  it("accepts another tab's hint but waits for its own server balance before releasing it", () => {
+    const {rerender} = render(<InvoicesClient data={mockInvoices} />);
+    act(() => {
+      localStorage.setItem(key, JSON.stringify(hint));
+      window.dispatchEvent(new StorageEvent("storage", {key, newValue: JSON.stringify(hint)}));
+    });
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).toHaveTextContent("Pembayaran sedang diperiksa");
+    act(() => {
+      localStorage.removeItem(key);
+      window.dispatchEvent(new StorageEvent("storage", {key, newValue: null}));
+    });
+    expect(refreshFn).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).toHaveTextContent("Pembayaran sedang diperiksa");
+    rerender(<InvoicesClient data={mockInvoices.map(i => i.id === "inv-1" ? {...i,totalPaid: 200000} : i)} />);
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).not.toHaveTextContent("Pembayaran sedang diperiksa");
+  });
+
+  it("adopts a newer tab's pending baseline before an earlier partial payment refresh", () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    const {rerender} = render(<InvoicesClient data={mockInvoices} />);
+    const newer = {...hint, totalPaid:300000, startedAt:456};
+    act(() => {
+      localStorage.setItem(key, JSON.stringify(newer));
+      window.dispatchEvent(new StorageEvent("storage", {key,newValue:JSON.stringify(newer)}));
+    });
+    rerender(<InvoicesClient data={mockInvoices.map(i => i.id === "inv-1" ? {...i,totalPaid:300000} : i)} />);
+    expect(screen.getByRole("button", {name:/Agustus 2024/})).toHaveTextContent("Pembayaran sedang diperiksa");
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual(newer);
+  });
+
+  it("retains the callback URL and current-tab warning when storage throws", () => {
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+    expect(replaceFn).not.toHaveBeenCalled();
+    blocked.mockRestore();
+  });
+
+  it("does not reset the baseline on a duplicate callback", () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+    const {rerender} = render(<InvoicesClient data={mockInvoices} />);
+    rerender(<InvoicesClient data={[...mockInvoices]} />);
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual(hint);
+  });
+
+  it("keeps a new payment of the remaining balance pending on a partially paid invoice", () => {
+    mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid");
+    const {rerender} = render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+    rerender(<InvoicesClient data={mockInvoices.map(i => i.id === "inv-2" ? {...i, totalPaid: 750000} : i)} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "false");
+  });
+
+  it("recognizes money already credited before return using the pre-checkout baseline", () => {
+    localStorage.setItem(paymentAttemptKey(scope, "inv-2"), JSON.stringify({...hint, phase: "checkout", totalPaid: 250000}));
+    mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid");
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "false");
+    expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("tercatat sebagian"));
+  });
+
+  it.each(["failed", "expired"])("releases a hint only after a verified %s result", async (attemptOutcome) => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ok:true, json: async () => ({code:"NO_CHANGE", status:"SENT", attemptOutcome})})));
+    await act(async () => {render(<InvoicesClient data={mockInvoices} />);});
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).not.toHaveTextContent("Pembayaran sedang diperiksa");
+  });
+
+  it("does not remove a newer stored attempt when an old check finishes before its storage event", async () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    let finish!: (value: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(resolve => { finish = resolve; })));
+    render(<InvoicesClient data={mockInvoices} />);
+    const newer = {...hint, startedAt: 456};
+    localStorage.setItem(key, JSON.stringify(newer));
+    await act(async () => { finish({ok:true,json:async () => ({code:"NO_CHANGE",status:"SENT",attemptOutcome:"failed"})}); });
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual(newer);
+    expect(screen.getByRole("button", { name: /Agustus 2024/ })).toHaveTextContent("Pembayaran sedang diperiksa");
+  });
+
+  it("does not recreate a hint when a duplicate paid callback meets a newly increased server balance", () => {
+    localStorage.setItem(paymentAttemptKey(scope, "inv-2"), JSON.stringify({...hint,totalPaid:250000}));
+    mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid");
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "false");
+    expect(localStorage.getItem(paymentAttemptKey(scope, "inv-2"))).toBeNull();
+  });
+
+  it("keeps a no-link confirmation pending when no verified provider outcome is available", async () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ok:true,json:async () => ({code:"UNAVAILABLE",status:"SENT"})})));
+    await act(async () => {render(<InvoicesClient data={mockInvoices} />);});
+    expect(localStorage.getItem(key)).not.toBeNull();
+    expect(screen.getByRole("button", {name:/Agustus 2024/})).toHaveTextContent("Pembayaran sedang diperiksa");
+  });
+
+  it("keeps a no-baseline partial capture pending when completed evidence may belong to an old attempt", async () => {
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {throw new Error("blocked");});
+    mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid");
+    vi.stubGlobal("fetch",vi.fn(async () => ({ok:true,json:async () => ({code:"NO_CHANGE",status:"PARTIALLY_PAID"})})));
+    await act(async () => {render(<InvoicesClient data={mockInvoices} />);});
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending","true");
+    expect(toastFn.success).not.toHaveBeenCalled();
+    expect(replaceFn).not.toHaveBeenCalled();
+    blocked.mockRestore();
+  });
+
+  it("does not clear an existing confirmation merely because a return says cancel", () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=cancel");
+    render(<InvoicesClient data={mockInvoices} />);
+    expect(screen.getByTestId("invoice-detail-sheet")).toHaveAttribute("data-payment-pending", "true");
+  });
+
+  it("clears persisted hints when the server cancels the invoice", () => {
+    localStorage.setItem(key, JSON.stringify(hint));
+    render(<InvoicesClient data={mockInvoices.map(i => i.id === "inv-1" ? {...i, status:"CANCELLED"} : i)} />);
+    expect(localStorage.getItem(key)).toBeNull();
   });
 });

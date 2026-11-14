@@ -42,7 +42,7 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
 
   return (
     <StatsCardsRow data-testid="dashboard-queue-tiles" cols={5} className="mb-0 auto-rows-fr">
-      {items.map((item) =>
+      {items.filter((item) => item.status === "unavailable" || item.count > 0).map((item) =>
         item.status === "unavailable" ? (
           <StatTile
             key={item.kind}

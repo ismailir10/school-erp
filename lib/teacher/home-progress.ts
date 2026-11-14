@@ -68,6 +68,8 @@ export type TeacherClassSummary = {
   sentraTag?: string;
   /** Visiting via sentra only (not assigned): attendance stays assignment-only. */
   sentraOnly?: boolean;
+  /** False only when the school calendar and existing sessions show no class today. */
+  scheduledToday?: boolean | null;
   attendanceRecorded: number | null;
   journal: JournalProgress | null;
   replies: { studentId: string; studentName: string; count: number }[] | null;

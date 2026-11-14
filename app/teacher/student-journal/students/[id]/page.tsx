@@ -348,6 +348,7 @@ export default function TeacherStudentWeekPage() {
         }}
         mode={noteDialog?.mode ?? "create"}
         studentId={studentId}
+        childName={student?.name}
         weekDates={data?.dates ?? [noteDate]}
         initialDate={noteDialog?.mode === "edit" ? noteDialog.date : noteDate}
         initialBody={noteDialog?.mode === "edit" ? noteDialog.body : undefined}

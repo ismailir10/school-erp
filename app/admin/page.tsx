@@ -78,9 +78,9 @@ export default async function AdminDashboard() {
     <PageHeader title="Perlu ditangani" description="Pekerjaan yang menunggu keputusan atau pemeriksaan Anda." actions={<p className="text-body text-muted-foreground">{formatDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>} />
     <div data-testid="dashboard-action-region" className="grid min-w-0 items-start gap-section xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="flex min-w-0 flex-col gap-section xl:gap-3">
+        <UrgentList items={urgent} total={summary.total} />
         <QueueSummaryTiles items={summary.items} />
         {finance.status !== "hidden" && <FinanceTiles data={finance} />}
-        <UrgentList items={urgent} total={summary.total} />
         {attendance.status !== "hidden" && <AttendanceTodayStrip data={attendance} />}
       </div>
       <div className="hidden space-y-field xl:block">

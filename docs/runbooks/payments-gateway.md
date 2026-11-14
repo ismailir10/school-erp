@@ -53,7 +53,16 @@ What differs from an invoice:
 
 ## Testing a payment end to end (sandbox)
 
-A sandbox Virtual Account has no bank behind it, so nothing settles on its own — fire the payment yourself from DOKU's sandbox simulator. Paste the VA number from the checkout page and submit; DOKU then sends a real `SUCCESS` notification to `/api/doku/webhook`, which is what moves the invoice to `PAID`. Without the simulator a sandbox invoice sits at `SENT` forever and looks like a bug.
+Use the [DOKU sandbox payment simulator](https://sandbox.doku.com/integration/simulator/) for staging test payments (operator-provided URL, recorded 2026-11-14). Confirm the checkout belongs to the staging sandbox; never submit production payment details here. Record the staging invoice ID/number, synthetic fixture, amount, simulator result, and resulting app payment/receipt state in the audit report so a later session can reproduce the test. A simulator success is not proof of webhook delivery or an updated app balance; verify those separately using the checks below.
+
+A sandbox Virtual Account has no bank behind it; use the simulator to settle the test payment. The BCA flow below was exercised against staging on 2026-11-14:
+
+1. Open the intended parent invoice, choose **Bayar**, and select BCA Virtual Account on the DOKU sandbox checkout.
+2. Copy that checkout's VA number. In the simulator, choose BCA, enter the VA, run **Inquiry**, verify the amount, then choose **Pay Now**.
+3. Return to the checkout and wait for its success state, then choose **Kembali ke merchant**.
+4. Verify Talib opens the correct invoice, shows the settled balance and payment breakdown, and offers its receipt. Confirm the persisted invoice/payment rows and the `WebhookEvent` outcome separately.
+
+The verified run settled a remaining sandbox balance after a manual partial payment: both amounts appeared in the parent payment history, and the receipt PDF opened. The invoice became `PAID`, and a `doku.SUCCESS` event was `PROCESSED` with no error. This confirms that staging BCA path on that date; it does not establish delivery for every channel or production configuration. If the simulator succeeds but Talib does not update, follow the notification and reconciliation checks in this runbook.
 
 Two places to watch:
 

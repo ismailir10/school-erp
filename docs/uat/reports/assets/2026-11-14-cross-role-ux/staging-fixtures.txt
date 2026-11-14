@@ -1,0 +1,142 @@
+# Staging UAT additive fixtures — 14 November 2026
+
+Prepared by audit_setup subagent under explicit user authorization for necessary seeding and root instruction. Staging Supabase project: `udbivhchbizpxoryejgz`; tenant `t_annisaa`. Five additive rows inserted in one transaction; no existing student, role, credential, history or class changed. No outbound messages.
+
+| Entity | Created ID | Context |
+|---|---|---|
+| Student | `uat20261114_student` | `UAT 14 Nov — Anak Audit`, nickname Anak Audit, DOB 2024-06-14, synthetic note |
+| StudentGuardian | `uat20261114_guardian` | Existing parent `cms41ayjp008si5x7le0o5qqb`, WALI, primary, ACTIVE |
+| StudentEnrollment | `uat20261114_enrollment` | Existing DCARE class `cms41afor001ri5x7sbppuagi`, ACTIVE, 2026-11-14 |
+| ClassSession | `uat20261114_session` | DCARE FULL_DAY 2026-11-14; teacher/default `cms41ahu9002gi5x7rf1kfhtj`; semester `cms8mpcr200006yx7pk4m6e4d` |
+| ReportCardEntry | `uat20261114_report` | Student above, term `cms8yxdyl00001ex7qvyxdsvg`, eight long synthetic narrative sections, DRAFT initially, five EMERGING levels, 20 school days |
+
+## Fixture boundaries
+
+The only available active-year semester ends 2026-09-11 and its single term is 2026-07-20–2026-09-11. The synthetic Saturday session deliberately references that existing semester while testing 2026-11-14. Its substituteReason explicitly labels this exception. The session fixture was subsequently exercised for the synthetic child only; persisted arrival, pickup, and revised pickup name are recorded below. This establishes that controlled UI/write handoff, not calendar generation or date-validity enforcement. The report also deliberately contains synthetic text for an earlier term despite a new enrolment; it proves publishing/reader geometry, not assessment aggregation.
+
+The linked parent now has a third synthetic child; the assigned teacher only teaches DCARE. Existing children Bilal/TK A 1 and Hafizh/KB 1 were untouched.
+
+## Current routes and verification status
+
+- Publish through admin UI at `/admin/report-cards`, select the UAT student and matching term; API is `POST /api/admin/report-cards/uat20261114_student/cms8yxdyl00001ex7qvyxdsvg/publish`.
+- Teacher session detail `/teacher/sessions/uat20261114_session`; synthetic-child attendance/arrival/pickup subsequently exercised; see persisted evidence below.
+- Route names verified against deployed git SHA `ee955459763f03e535e943eed4896d685f53a3db`; the old `/raport` route names belonged to the earlier local checkout.
+- Parent must choose `UAT 14 Nov — Anak Audit` after fresh navigation; caches may retain old child list briefly.
+
+## Cleanup plan (not executed)
+
+Prefer retaining fixtures through audit so the next session can reproduce. For reversible hiding: unpublish the report using its admin endpoint; mark the synthetic enrollment WITHDRAWN and student INACTIVE through app UI/API, preserving audit history. The Saturday session can remain explicitly labeled or be removed only once root has inventoried writes attached during the audit. Do not alter existing children, existing enrollment rows, existing semester, or original parent account.
+
+For exact physical cleanup later, first inspect all rows referencing `uat20261114_student` and `uat20261114_session`, including journal entries/notes/read states/audits, attendance, invoices/payments, measurements and report entries. Export the exact fixture and dependent rows, then delete only those IDs in child-before-parent order within a transaction. Abort if dependencies include non-fixture records. StudentGuardian and StudentEnrollment cascade on Student; ReportCardEntry also cascades. ClassSession deletion cascades attendance, so do not delete the session until its roster writes have been reviewed. No cleanup SQL executed here.
+
+## Deployment
+
+Staging alias resolved through Vercel at preparation time to `dpl_FDT6cx5nBNGEoZXUPYWcYzRk4Ht5`, git SHA `ee955459763f03e535e943eed4896d685f53a3db`, branch staging, READY. This differs from original report's `a0afa580`.
+
+## UI mutations reported by root
+
+- Manual invoice `cmwfyfx9q000008l2ddrq97gh` / `INV-2026-0081` for existing Bilal, created through admin UI; total Rp12,000, partial cash payment Rp3,000. Partial balance and receipt were checked, then the remaining Rp9,000 was settled successfully through DOKU sandbox; final verification is recorded below. This is a separate fixture attached to an existing child: include this exact invoice and payment IDs in any future cleanup inventory; do not delete Bilal.
+- Report `uat20261114_report` publication PASSED through admin UI and was independently verified PUBLISHED in the staging DB.
+- Parent-child linkage readback confirms all three ACTIVE guardian junctions. Parent row currently stores masked email `rightjet.hq@example.com`; app User parentId identifies same parent, and root verified Google sign-in plus three child tabs. Do not rewrite masked contact email.
+
+## DOKU simulator reference
+
+Operator supplied https://sandbox.doku.com/integration/simulator/ for staging sandbox payment tests. Canonical future-session reference saved in `docs/runbooks/payments-gateway.md` under Testing a payment end to end (sandbox). Root owns browser verification. No simulator action performed by audit_setup. Track exact invoice ID/number, amount, simulator result, webhook/reconciliation observation and app receipt separately; never use production payment details.
+
+## DOKU BCA settlement — independently verified
+
+Root's Chrome journey: parent Bayar Rp9,000 on INV-2026-0081 → DOKU sandbox BCA VA → simulator BCA Inquiry → Pay Now success → checkout success → Kembali ke merchant → Talib correct invoice Lunas Rp12,000, showing Rp9,000 VA plus Rp3,000 cash and receipt.
+
+Read-only staging database verification:
+
+- Invoice `cmwfyfx9q000008l2ddrq97gh`: PAID, totalDue 12000.00, totalPaid 12000.00, paidAt 2026-11-14 05:47:54.547 UTC (14:47:54 JST).
+- Cash payment `cmwfygi3d000408l2xetb7m4d`: 3000.00, CASH, reference UAT-20261114-PARTIAL, synthetic audit note.
+- DOKU payment `cmwfzi86c000108l6ingdkfdx`: 9000.00, DOKU, notes DOKU payment via VIRTUAL_ACCOUNT_BCA.
+- WebhookEvent `cmwfzi7z2000008l6wyk3mw3g`: provider doku, eventType doku.SUCCESS, eventId 434f013f-7c1d-4b15-b8a9-ec88f0dab6ab, PROCESSED, errorMessage null, created 05:47:54.206 UTC, processed 05:47:54.572 UTC.
+- Sandbox test VA used: 1900800000378581. Keep this fixture-specific value in the audit ledger; generate a fresh checkout VA for future tests.
+
+No money moved through a real bank; root used the DOKU sandbox simulator. Generic verified BCA steps saved in docs/runbooks/payments-gateway.md.
+
+## Journal child-list refresh observation
+
+Parent journal initially omitted the synthetic child while invoices/reports already listed it. Current deployed journal fetches `/api/parent/children` once per mount; shared helper does not filter by enrollment date, only active guardian/enrollment and non-archived year. Root hard-reloaded the journal and all three tabs appeared. No fixture linkage or enrollment date was changed. Treat this as fixture-addition freshness evidence, not proof that journal date eligibility is broken.
+
+## Journal persisted cross-role writes
+
+Read-only DB verification after root's Chrome actions:
+
+- Parent note `cmwg0bgez000107lbcw0r475h`: student uat20261114_student, effective date 2026-11-09, authorRole GUARDIAN, ACTIVE; edited text starts `UAT-20261114-PARENT — DIEDIT`. Created 2026-11-14 06:10:38.171 UTC. Saved date remains Monday despite Saturday creation; edit text explicitly notes date could not be changed.
+- Teacher reply `cmwg0dt6f000208lahg2f2loc`: same student, effective date 2026-11-13, authorRole TEACHER, ACTIVE; body starts `UAT-20261114-TEACHER` and confirms parent note and Friday home habit visible. Created 06:12:28.023 UTC.
+- HOME journal entry `cmwg0cd43000607lbf0hu6cs0`: same student, indicator `cms41ah8r002di5x7z5nmtkcr`, date 2026-11-13, scope HOME, checked true, recorded by guardian. Created 06:11:20.547 UTC.
+
+Current deployed session roster save sends only changed rows against each row's baseline (`app/teacher/sessions/[id]/client.tsx` changedRows/rowKey). Initial unpersisted rows default to PRESENT/Hadir in the page loader. Root may safely act on only the synthetic child and save `1 perubahan`; do not use bulk arrival/pickup on existing children.
+
+## Attendance and leave follow-through — verified after UI actions
+
+- Synthetic session now exercised: exactly ONE StudentAttendance row under `uat20261114_session`, id `cmwg0g7x6004d08la1m7lelvw`, student `uat20261114_student`, date 2026-11-14, PRESENT, checkIn 06:14:20.439 UTC, checkOut 06:14:42.206 UTC, pickup OTHER / `UAT Penjemput Audit — revisi sesi`.
+- Read-only query found NO Bilal attendance on 2026-11-14 after the UI's 409 no-session attempt. No other children have rows in the synthetic session.
+- Leave request `cmwg0k59v000008l5qn95e6y6`: staging teacher, ANNUAL, 2026-11-16 only, 1 day, PENDING; reason starts `UAT-20261114-LEAVE` and explicitly asks rejection as synthetic test, not real leave.
+
+## Synthetic unresolved-return fixture
+
+Added two rows only, transactionally, under root's explicit seeding instruction:
+
+- Invoice `uat20261114_pending_invoice`, number `UAT-20261114-PENDING`, student `uat20261114_student`, existing parent link, period `UAT 14 Nov — pending confirmation`, due 2026-11-30, SENT, totalDue 5000, totalPaid 0, gateway URL/session null initially.
+- Line `uat20261114_pending_line`, existing SPP component `cms41abry0009i5x74xqs9znf`, amount/finalAmount 5000, synthetic label.
+- Uses a clearly separate UAT invoice number; no production invoice sequence incremented and no gateway call/charge or credential change performed by seeding.
+
+Root will supply a synthetic paid-return URL with no actual settlement to isolate pending confirmation across reload. This is distinct from the independently successful real DOKU sandbox settlement above. Do not claim the synthetic callback proves delayed real webhook behavior. Include these exact invoice/line IDs and any subsequently generated gateway-session state in cleanup inventory.
+
+## Saturday parent attendance boundary
+
+Root observed teacher note on parent Home but the synthetic child's Saturday attendance remained 'Belum dicatat'. Current deployed Home builds only Monday–Friday dates, queries attendance for those dates, then attempts to read today's status from that result. On Saturday today was never queried. The weekly attendance screen likewise presents Nov9–13. This explains the observation; do not imply failed attendance persistence. Saturday session itself is an explicit synthetic exception outside the stale semester window, so normal calendar support requires separate verification.
+
+For an ordinary weekday handoff root can use `/teacher/class-attendance?classId=cms41afor001ri5x7sbppuagi&date=2026-11-13`, act only on the audit child, and read back the parent week. Existing Friday DCARE session `seede2e1107_cs_2026-11-13` is assigned to the staging teacher. Current roster/mark queries use ACTIVE enrollment without an enrollDate cutoff, so no enrollment mutation is required. Treat any Friday write as synthetic backdated fixture data since this audit child's enrollment start remains Nov14; do not infer enrollment-date validation or assessment correctness.
+
+## Pending fixture payment-link diagnostic
+
+Root confirmed synthetic paid-return warning disappears after reload on the unpaid Rp5,000 fixture. This is distinct from the real successful DOKU settlement.
+
+Later link creation failed; read-only Vercel logs for request `jh8xx-1794638242820-8375acc8dc34`, deployed SHA ee955459, 2026-11-14 06:37:24 UTC show DOKU HTTP400 in 135ms. Exact vendor response: `Invalid character, allowed only a-z A-Z 0-9 . - / + , = _ : ' @ % ( )`. Adapter forwards line labelSnapshot verbatim as order.line_items.name; our seeded `SPP Bulanan — synthetic pending-return audit` includes an em dash outside that allowlist. Invoice ID underscores are explicitly allowed. Root's retry took about6.65s, consistent with app6s wait-for-claim-winner after a failed creation holds its claim45s. No gateway slowness conclusion follows.
+
+At readback invoice remained SENT, totalDue5000, totalPaid0, session/URL null, paymentLinkError null. Treat new-link failure as fixture-origin compatibility pending a standard-label control; do not classify it as general payment unavailability. No normalization performed at this diagnostic stage.
+
+Normalized ONLY `uat20261114_pending_line.labelSnapshot` to standard `SPP Bulanan` under existing seeding authorization. The em dash in the extra synthetic label was outside the provider's explicit allowlist. No app code, invoice amount/status, IDs, gateway history or other records changed. Browser retry after claim expiry will provide the controlled recovery check. Until that retry, preserve the observed retry/error UX as fixture-induced, not a general product payment failure. Arbitrary fee-label validation through normal UI was not tested and is not promoted as a finding.
+
+## Pending fixture normalized retry and leave final state
+
+Root retried after label normalization: parent Bayar Rp5,000 opened DOKU sandbox checkout for the correct invoice/amount. No method or payment was chosen. After `Kembali ke Merchant` and settling, Talib resolved `/parent/invoices?child=uat20261114_student` and reopened the same unpaid Rp5,000 invoice with its generated link. A transient default Bilal shell was not the settled result; return context PASSED.
+
+Read-only DB confirms pending fixture remains SENT, totalDue5000, totalPaid0, gateway session and link now present, link expires2026-11-30 16:59:59 UTC. The standard-label retry isolates the earlier HTTP400 to the artificial line-label character. Current code supplies `/parent/invoices?invoice=<id>&paymentStatus=cancel` to DOKU callback_url/callback_url_cancel and the equivalent paid value to callback_url_result; server resolves callback invoice owner among authorized children.
+
+Leave request `cmwg0k59v000008l5qn95e6y6` now REJECTED, reviewed2026-11-14 06:20:02.405 UTC by staging admin, reviewNote `UAT-20261114-REJECT — pengujian alur selesai; bukan keputusan cuti nyata.` Employee balance fields currently annual12/sick14; no before-value was captured here, so this alone does not prove an unchanged balance.
+
+## Friday class-attendance readback
+
+Root marked ONLY the synthetic child Hadir through teacher class-attendance UI for Friday2026-11-13; reload showed Hadir1 /10 unrecorded. DB confirms row `cmwg1jimx000008l86wk2v18n`, student `uat20261114_student`, DCARE class, existing session `seede2e1107_cs_2026-11-13`, date2026-11-13, PRESENT, checkIn/checkOut null, created2026-11-14 06:44:53.914 UTC. This is classroom roll without arrival/pickup stamps. It is synthetic backdated data before the fixture's Nov14 enrollment; no enrollment-date eligibility assertion follows. No DB writes performed during this verification.
+
+## Friday attendance handoff — root browser and read-only verification
+
+- Teacher selected only Anak Audit as Hadir on 2026-11-13: initial 0/11, reload 1 Hadir / 10 belum.
+- StudentAttendance `cmwg1jimx000008l86wk2v18n`, PRESENT, existing Friday session `seede2e1107_cs_2026-11-13`, no arrival or pickup times.
+- Parent fresh login on `/parent/attendance?child=uat20261114_student`: Nov 9–13 grid has Friday Hadir, Mon–Thu Belum dicatat, teacher reply visible. 320×740 page width 320; table x=24, width=272; no page horizontal overflow.
+- Synthetic backdated fixture predates 2026-11-14 enrollment; proves handoff and visibility, not enrollment-date eligibility. Include this row in cleanup inventory; do not remove the existing Friday session.
+- Teacher direct `/admin/invoices` redirected to `/teacher` without admin content. One route smoke check, not full authorization coverage.
+
+## Future UI validation candidate (source evidence only)
+
+At deployed ee955459, `/admin/fees` exposes a free-text Label Input; create/update fee-component schemas trim and require1–120 characters but allow Unicode/em dash. Manual invoice POST copies that fee label verbatim to InvoiceLine.labelSnapshot, and sessionLineItems forwards it to DOKU order.line_items.name. Therefore the rejected character can plausibly enter through supported UI, but this audit's rejection used direct fixture seeding. Do not promote as a confirmed normal-flow regression without reproducing through UI. Future isolated repro: create a synthetic fee labeled `SPP — UAT`, create a manual invoice using it, attempt parent link creation, then compare with ASCII-label control; capture provider validation and app recovery. Do not change a fee used by existing students.
+
+## Additional cleanup inventory
+
+StudentJournalNoteRead: guardian `cmwg0b50g000007lbj6bizkzx`, teacher `cmwg0dh04000807lbxhkajh6j`.
+
+StudentJournalAudit: parent-note create `cmwg0bgf6000207lbq6lc5p20`, parent-note update `cmwg0c3zw000407lbi1d76ko7`, HOME-entry create `cmwg0cd4q000707lbqfh7hgh0`, teacher-note create `cmwg0dt6k000308lanv23og1j`.
+
+AuditLog: invoice create `cmwfyfxaw000308l2ksancq8r`, report update `cmwfyi9an000808l2kfl2y99q`, report publish `cmwfyi9il000908l2wfqekh8m`, leave reject `cmwg0njsk000108l5tzoqs4a0`.
+
+Audit logs/read-watermarks are not all FK-dependent on Student; inspect by recorded entity IDs as well as studentId before any cleanup. Preserve audit history unless explicitly authorized to remove fixtures and related history.
+
+Staging alias rechecked2026-11-14 06:51:41UTC (15:51:41JST): same deployment `dpl_FDT6cx5nBNGEoZXUPYWcYzRk4Ht5`, SHA `ee955459763f03e535e943eed4896d685f53a3db`, READY. Pending synthetic invoice still SENT/paid0 with link present.
+
+Additional verified leaves: paid-invoice lines `cmwfyfxa7000108l2qyi1svno`, `cmwfyfxa7000208l2gpk4wwws`; pending line `uat20261114_pending_line`; StudentMeasurement created by report editor `cmwfyi9ag000708l2m7c976sd`. Pending invoice has no WebhookEvent. This is an inventory of observed dependencies, not a guarantee against later writes; re-query before cleanup.

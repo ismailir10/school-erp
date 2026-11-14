@@ -19,6 +19,7 @@ describe("teacher home sentra card", () => {
   it("keeps attendance for an assigned class that also hosts the sentra", () => {
     render(<TeacherHomeClient {...base} classes={[{ ...sentra, sentraOnly: false, attendanceRecorded: 1 }]} />);
     expect(screen.getByTestId("sentra-tag")).toBeInTheDocument();
-    expect(screen.getByText("Absensi TK B")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Lanjutkan absensi · 1/3" })).toBeInTheDocument();
+    expect(screen.queryByText("Absensi TK B")).toBeNull();
   });
 });
