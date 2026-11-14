@@ -279,6 +279,30 @@ export default async function ParentDashboard() {
     ? `${attendanceStatusLabels[attendanceFocus.todayStatus]} hari ini, sesuai catatan sekolah.`
     : `${attendanceFocus?.name} belum memiliki catatan kehadiran hari ini.`;
 
+  const attendanceNotice = kids.every(kid => kid.todayStatus === "PRESENT") ? (
+    <Alert variant="success" announcement="off">
+      <CalendarDays aria-hidden="true" />
+      <AlertTitle>{kids.length === 1 ? kids[0]!.name : `${kids.length} anak`} sudah hadir.</AlertTitle>
+      <AlertDescription>Kehadiran hari ini dicatat sekolah.</AlertDescription>
+    </Alert>
+  ) : attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
+    <Alert announcement="off">
+      <CalendarDays aria-hidden="true" />
+      <AlertTitle>Tidak ada kehadiran yang perlu diperiksa</AlertTitle>
+      <AlertDescription>Anak tanpa jadwal sesi hari ini tidak perlu dicatat hadir. Catatan yang sudah tersimpan tetap terlihat di bawah.</AlertDescription>
+    </Alert>
+  ) : (
+    <TaskList>
+      <TaskRow
+        href={parentHref("/parent/attendance", attendanceFocus?.id)}
+        title={attendanceNeedsAttention.length > 0 ? `Periksa kehadiran ${attendanceFocus?.name}` : `Kehadiran ${attendanceFocus?.name} belum dicatat`}
+        description={attendanceDescription}
+        icon={<CalendarDays className="size-5" />}
+        tone="warm"
+      />
+    </TaskList>
+  );
+
   return (
     <div className="space-y-section">
       <PageHeader
@@ -297,29 +321,7 @@ export default async function ParentDashboard() {
 
       <section aria-labelledby="household-actions-heading" className="space-y-3">
         <SectionHeading as="h2" id="household-actions-heading">Hari ini</SectionHeading>
-        {kids.every(kid => kid.todayStatus === "PRESENT") ? (
-          <Alert variant="success" announcement="off">
-            <CalendarDays aria-hidden="true" />
-            <AlertTitle>{kids.length === 1 ? kids[0]!.name : `${kids.length} anak`} sudah hadir.</AlertTitle>
-            <AlertDescription>Kehadiran hari ini dicatat sekolah.</AlertDescription>
-          </Alert>
-        ) : attendanceNeedsAttention.length === 0 && attendanceUnknown.length === 0 ? (
-          <Alert announcement="off">
-            <CalendarDays aria-hidden="true" />
-            <AlertTitle>Tidak ada kehadiran yang perlu diperiksa</AlertTitle>
-            <AlertDescription>Anak tanpa jadwal sesi hari ini tidak perlu dicatat hadir. Catatan yang sudah tersimpan tetap terlihat di bawah.</AlertDescription>
-          </Alert>
-        ) : (
-          <TaskList>
-            <TaskRow
-              href={parentHref("/parent/attendance", attendanceFocus?.id)}
-              title={attendanceNeedsAttention.length > 0 ? `Periksa kehadiran ${attendanceFocus?.name}` : `Kehadiran ${attendanceFocus?.name} belum dicatat`}
-              description={attendanceDescription}
-              icon={<CalendarDays className="size-5" />}
-              tone="warm"
-            />
-          </TaskList>
-        )}
+        {attendanceNeedsAttention.length > 0 ? attendanceNotice : null}
         {unpaidTotal > 0 ? (
           <TaskList>
             {singleBill ? null : (
@@ -351,6 +353,7 @@ export default async function ParentDashboard() {
             <AlertDescription>Alhamdulillah, tidak ada tagihan tertunda.</AlertDescription>
           </Alert>
         )}
+        {attendanceNeedsAttention.length === 0 ? attendanceNotice : null}
       </section>
 
       <section aria-labelledby="children-heading">

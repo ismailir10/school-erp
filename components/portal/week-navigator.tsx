@@ -22,9 +22,9 @@ import { cn } from "@/lib/utils";
  *   forever, and the label gave no hint you had left the current year.
  * - `onToday`/`todayHref` renders the way back. Pass it only when the reader is
  *   off the current week; when it is absent nothing is rendered, so the control
- *   keeps its original shape on the surfaces that don't opt in
- *   (`/parent/attendance` and `/teacher/assessments/weekly` both deliberately
- *   allow looking ahead).
+ *   keeps its original shape on surfaces that do not opt in. Both parent
+ *   record pages stop at the current week; teacher assessment planning may
+ *   deliberately allow looking ahead.
  */
 export function WeekNavigator({
   label,

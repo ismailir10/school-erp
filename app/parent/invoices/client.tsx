@@ -100,7 +100,7 @@ export function InvoicesClient({
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState<boolean | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("due-asc");
@@ -402,6 +402,10 @@ export function InvoicesClient({
       }
       return a.inv.dueDate.localeCompare(b.inv.dueDate);
     });
+  // Pending attempts are still owed but must not be suggested for another payment.
+  const nextInvoiceId = due
+    .filter(({ inv }) => !pending(inv))
+    .sort((a, b) => a.inv.dueDate.localeCompare(b.inv.dueDate))[0]?.inv.id;
   // Riwayat — newest payment first. paidAt is the authoritative timestamp;
   // periodLabel is a freeform string ("Jan-2026" vs "Januari 2026") and
   // localeCompare on it produces alphabetic chaos. Falls back to dueDate
@@ -508,6 +512,47 @@ export function InvoicesClient({
         </Alert>
       )}
 
+      {paid.length > 0 ? (
+        <section>
+          <Collapsible open={historyOpen ?? !hasAnyOutstanding} onOpenChange={setHistoryOpen}>
+            <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-left text-sm font-semibold text-foreground focus-visible:focus-outline">
+              Riwayat pembayaran ({paid.length})
+              <ChevronRight aria-hidden="true" className={`size-4 transition-transform ${(historyOpen ?? !hasAnyOutstanding) ? "rotate-90" : ""}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <TaskList>
+                <ul aria-label="Riwayat pembayaran" className="divide-y divide-border/70">
+                  {paidVisible.map((inv) => (
+                    <InvoiceRow
+                      key={inv.id}
+                      invoice={inv}
+                      onClick={() => setSelectedInvoiceId(inv.id)}
+                      tone="paid"
+                      isOverdue={false}
+                      highlight={recentlyPaidIds.has(inv.id)}
+                    />
+                  ))}
+                </ul>
+              </TaskList>
+              {paidHasMore ? (
+                <div className="mt-3 flex justify-center">
+                  <Button variant="ghost" size="sm" onClick={() => setShowAllPaid((v) => !v)} aria-expanded={showAllPaid}>
+                    {showAllPaid ? `Tampilkan ${RIWAYAT_INITIAL} terakhir` : `Lihat semua (${paid.length} riwayat)`}
+                  </Button>
+                </div>
+              ) : null}
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+      ) : !hasAnyOutstanding && !noFilterResults ? (
+        <EmptyState
+          accent="warm"
+          icon={Receipt}
+          title="Belum ada riwayat tagihan"
+          description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
+        />
+      ) : null}
+
       {due.length > 0 && (
         <section>
           {/* Not "Belum dibayar" again — that label already heads the summary
@@ -523,6 +568,7 @@ export function InvoicesClient({
                 onClick={() => setSelectedInvoiceId(inv.id)}
                 tone="due"
                 paymentPending={!!pending(inv)}
+                nextToPay={inv.id === nextInvoiceId}
                 isOverdue={isOverdue}
               />
             ))}
@@ -595,47 +641,6 @@ export function InvoicesClient({
         />
       ) : null}
 
-      {paid.length > 0 ? (
-        <section>
-          <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-            <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-left text-sm font-semibold text-foreground focus-visible:focus-outline">
-              Riwayat pembayaran ({paid.length})
-              <ChevronRight aria-hidden="true" className={`size-4 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <TaskList>
-                <ul aria-label="Riwayat pembayaran" className="divide-y divide-border/70">
-                  {paidVisible.map((inv) => (
-                    <InvoiceRow
-                      key={inv.id}
-                      invoice={inv}
-                      onClick={() => setSelectedInvoiceId(inv.id)}
-                      tone="paid"
-                      isOverdue={false}
-                      highlight={recentlyPaidIds.has(inv.id)}
-                    />
-                  ))}
-                </ul>
-              </TaskList>
-              {paidHasMore ? (
-                <div className="mt-3 flex justify-center">
-                  <Button variant="ghost" size="sm" onClick={() => setShowAllPaid((v) => !v)} aria-expanded={showAllPaid}>
-                    {showAllPaid ? `Tampilkan ${RIWAYAT_INITIAL} terakhir` : `Lihat semua (${paid.length} riwayat)`}
-                  </Button>
-                </div>
-              ) : null}
-            </CollapsibleContent>
-          </Collapsible>
-        </section>
-      ) : !hasAnyOutstanding && !noFilterResults ? (
-        <EmptyState
-          accent="warm"
-          icon={Receipt}
-          title="Belum ada riwayat tagihan"
-          description="Tagihan akan muncul di sini setelah sekolah menerbitkannya."
-        />
-      ) : null}
-
       <InvoiceDetailSheet
         open={!!selectedInvoiceId}
         onOpenChange={(open) => !open && setSelectedInvoiceId(null)}
@@ -662,6 +667,7 @@ function InvoiceRow({
   isOverdue,
   highlight = false,
   paymentPending = false,
+  nextToPay = false,
 }: {
   invoice: InvoiceItem;
   onClick: () => void;
@@ -669,6 +675,7 @@ function InvoiceRow({
   isOverdue: boolean;
   highlight?: boolean;
   paymentPending?: boolean;
+  nextToPay?: boolean;
 }) {
   const remaining = invoice.totalDue - invoice.totalPaid;
   // In Riwayat a partly paid row shows what was received, not the full bill.
@@ -690,6 +697,7 @@ function InvoiceRow({
 
   return (
     <li>
+    {nextToPay ? <p className="px-4 pt-3 text-small font-semibold text-primary-text">Tagihan berikutnya</p> : null}
     <TaskRow
       onClick={onClick}
       title={formatInvoicePeriod(invoice.periodLabel)}

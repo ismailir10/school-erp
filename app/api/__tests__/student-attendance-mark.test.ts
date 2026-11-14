@@ -103,6 +103,7 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     const { POST } = await import("../student-attendance/mark/route");
     const res = await POST(makeReq(validBody) as never);
     expect(res.status).toBe(403);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
 
     // Verify the lookup included the tenant filter.
     expect(prisma.teachingAssignment.findFirst).toHaveBeenCalledWith({
@@ -400,5 +401,51 @@ describe("POST /api/student-attendance/mark — integrity (api-integrity T5)", (
     expect(arg.update.checkOutTime).toBeNull();
     expect(arg.create.checkInTime).toBeNull();
     expect(arg.create.checkOutTime).toBeNull();
+  });
+});
+
+
+describe("explicit class re-record after an admin void", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(["single-session", "legacy"])("restores the same %s row and retains untouched metadata", async (path) => {
+    const { prisma } = await setupLegacyPath(null);
+    const stored = { id: "att-existing", isVoided: true, status: "PRESENT", checkedInBy: "previous-employee", createdAt: new Date("2026-04-20T00:00:00Z"), notes: "Keep this note", checkInTime: new Date("2026-04-20T01:00:00Z") };
+    // Prisma leaves omitted/undefined update values intact.
+    const persist = (patch: Record<string, unknown>) => {
+      Object.assign(stored, Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)));
+      return stored;
+    };
+    const upsert = vi.fn(async ({ update }: { update: Record<string, unknown> }) => persist(update));
+    const update = vi.fn(async ({ data }: { data: Record<string, unknown> }) => persist(data));
+    const create = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) => cb({
+      $executeRaw: vi.fn(),
+      classSession: { findMany: vi.fn().mockResolvedValue(path === "single-session" ? [{ id: "sess-1" }] : []) },
+      studentAttendance: { findUnique: vi.fn().mockResolvedValue(stored), findFirst: vi.fn().mockResolvedValue(stored), upsert, update, create },
+    })) as never);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ saved: 1, total: 1 });
+    expect(stored).toEqual({ id: "att-existing", isVoided: false, status: "PRESENT", checkedInBy: "emp-1", createdAt: new Date("2026-04-20T00:00:00Z"), notes: "Keep this note", checkInTime: new Date("2026-04-20T01:00:00Z") });
+    expect(create).not.toHaveBeenCalled();
+    if (path === "single-session") {
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { studentId_sessionId: { studentId: "s-1", sessionId: "sess-1" } } }));
+    } else {
+      expect(update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "att-existing" } }));
+    }
+  });
+
+  it("does not let an admin re-record attendance in another tenant", async () => {
+    const { prisma } = await setupLegacyPath({ id: "voided-att", status: "PRESENT" });
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(makeSession("SUPER_ADMIN", "emp-admin"));
+    vi.mocked(prisma.classSection.findFirst).mockResolvedValue(null);
+    const { POST } = await import("../student-attendance/mark/route");
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(404);
+    expect(prisma.classSection.findFirst).toHaveBeenCalledWith({ where: { id: "cs-1", tenantId: "t1" }, select: { id: true } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

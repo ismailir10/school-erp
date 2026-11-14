@@ -2,7 +2,7 @@
 
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, DoorOpen, MessageCircle, Users } from "lucide-react";
@@ -55,6 +55,29 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   const [note,setNote]=useState("");
   const gpsRef=useRef<Gps|null>(null);
   const noteFormId=useId();
+  const [refreshing, startRefresh] = useTransition();
+  const lastRefreshAt = useRef<number | null>(null);
+  useEffect(() => {
+    // A refresh merges server decisions without resetting client state. Do not
+    // compete with a check-in write or interrupt the note the teacher is typing.
+    if (saving || outside !== null || refreshing) return;
+    const refreshDecisions = () => {
+      if (document.visibilityState !== "visible" || inFlight.current) return;
+      const now = Date.now();
+      // Returning to a tab commonly emits both visibilitychange and focus.
+      if (lastRefreshAt.current !== null && now - lastRefreshAt.current < 1_000) return;
+      lastRefreshAt.current = now;
+      startRefresh(() => router.refresh());
+    };
+    const timer = window.setInterval(refreshDecisions, 30_000);
+    window.addEventListener("focus", refreshDecisions);
+    document.addEventListener("visibilitychange", refreshDecisions);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshDecisions);
+      document.removeEventListener("visibilitychange", refreshDecisions);
+    };
+  }, [router, saving, outside, refreshing]);
   // Attendance is assignment-only: a sentra-only card never asks for it.
   const hasSchedule=(c:TeacherClassSummary)=>c.scheduledToday !== false && c.scheduledToday !== null;
   const attendanceOpen=(c:TeacherClassSummary)=>hasSchedule(c) && !c.sentraOnly && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount);
@@ -92,7 +115,7 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
       const data=response.ok?body:body?.record;
       if(!data)throw new FetchFailureError(describeFetchFailure({status:response.status,action:"disimpan",serverMessage:typeof body?.error==="string"?body.error:undefined}));
       if(!data.checkInTime || (action==="check-out"&&!data.checkOutTime))throw new FetchFailureError({kind:"server",canRetry:true,message:"Konfirmasi kehadiran belum tersedia. Coba lagi ya."});
-      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null,approvalStatus:typeof data.approvalStatus==="string"?data.approvalStatus:record?.approvalStatus,reviewNote:data.reviewNote??record?.reviewNote,reviewedAt:data.reviewedAt??record?.reviewedAt});setOutside(null);setNote("");setSaved(true);router.refresh();
+      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime,minutesLate:typeof data.minutesLate==="number"?data.minutesLate:record?.minutesLate??null,approvalStatus:typeof data.approvalStatus==="string"?data.approvalStatus:record?.approvalStatus,reviewNote:data.reviewNote??record?.reviewNote,reviewedAt:data.reviewedAt??record?.reviewedAt});setOutside(null);setNote("");setSaved(true);startRefresh(() => router.refresh());
     }catch(error){const failure=failureFromError(error,"disimpan");setSaveError(failure.kind==="forbidden"?"Akun Anda belum bisa mencatat kehadiran. Hubungi admin sekolah.":failure.message);setCanRetry(failure.canRetry);}
     finally{inFlight.current=false;setSaving(false);}
   }

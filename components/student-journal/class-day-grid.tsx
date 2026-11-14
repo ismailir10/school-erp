@@ -288,6 +288,8 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                             return (
                               <button
                                 key={indicator.id}
+                                type="button"
+                                aria-pressed={isChecked}
                                 onClick={() => onToggle(student.id, indicator.id)}
                                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:focus-outline ${
                                   isChecked
@@ -305,7 +307,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                                       : "bg-transparent border-muted-foreground/40"
                                   }`}
                                 >
-                                  {isChecked && <Check size={11} className="text-white" />}
+                                  {isChecked && <Check size={11} className="text-white" aria-hidden="true" />}
                                 </div>
                                 <span className="text-xs leading-snug">{indicator.label}</span>
                               </button>

@@ -55,6 +55,11 @@ test.describe("Parent attendance scoping", () => {
     // path in getParentWithChildren would land any failed-invariant session
     // back on /parent, which itself redirects to /).
     expect(page.url()).toContain("/parent/attendance");
+    await expect(page.getByRole("button", { name: "Pekan berikutnya — pekan berikutnya belum tersedia" })).toBeDisabled();
+    await expect(page.getByRole("link", { name: "Kembali ke pekan ini" })).toHaveCount(0);
+    await page.getByRole("link", { name: "Pekan sebelumnya" }).click();
+    await expect(page.getByRole("link", { name: "Kembali ke pekan ini" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Pekan berikutnya", exact: true })).toBeVisible();
   });
 
   test("fabricated ?child= param falls back to the parent's own child (no leak)", async ({ page }) => {
@@ -63,7 +68,7 @@ test.describe("Parent attendance scoping", () => {
     // must reject it and fall back to children[0]. The route must still
     // render successfully — no 500, no redirect to /, no error overlay.
     const fabricated = "cmFAKE0000fabricated0000probe";
-    await page.goto(`/parent/attendance?child=${fabricated}`);
+    await page.goto(`/parent/attendance?child=${fabricated}&week=2000-01-03`);
     await page.waitForURL("**/parent/attendance**");
 
     await expect(
@@ -79,7 +84,8 @@ test.describe("Parent attendance scoping", () => {
     // echoes the URL searchParams for client transitions); that echo is
     // framework-level, not a data-access leak.
     //
-    // Hard-assert nav links exist BEFORE reading hrefs: a future structural
+    // A historical week makes both directions available (current week stops
+    // forward navigation). Hard-assert nav links exist BEFORE reading hrefs: a future structural
     // change that removes them must fail this test loudly, not no-op via a
     // silent null skip.
     const prevHref = await page.locator('a[aria-label="Pekan sebelumnya"]').getAttribute("href");
@@ -97,7 +103,7 @@ test.describe("Parent attendance scoping", () => {
     // to children[0], render normally, never expose the probed id in
     // server-built hrefs.
     const probe = "cmABCD1234crosstenantprobe9999";
-    await page.goto(`/parent/attendance?child=${probe}`);
+    await page.goto(`/parent/attendance?child=${probe}&week=2000-01-03`);
     await page.waitForURL("**/parent/attendance**");
 
     await expect(

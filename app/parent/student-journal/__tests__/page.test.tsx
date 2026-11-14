@@ -260,6 +260,17 @@ describe("ParentStudentJournalPage", () => {
     );
   });
 
+  it("clamps a future week query to the current week before requesting records", async () => {
+    const thisWeek = weekStart(getTodayInTimezone("Asia/Jakarta"));
+    nav.params = new URLSearchParams("child=child_1&week=2999-01-01");
+    mockFetchWith({ ...baseWeekData, weekStart: thisWeek, dates: weekDates(thisWeek), homeCategories });
+    render(<ParentStudentJournalPage />);
+    await screen.findByRole("tab", { name: "Di rumah" });
+    expect(fetch).toHaveBeenCalledWith(`/api/student-journal/children/child_1/week?weekStart=${thisWeek}`);
+    expect(screen.getByRole("button", { name: "Pekan berikutnya — pekan berikutnya belum tersedia" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Kembali ke pekan ini" })).not.toBeInTheDocument();
+  });
+
   it("cannot page into a future week", async () => {
     mockFetchWith({ ...baseWeekData, homeCategories });
     render(<ParentStudentJournalPage />);

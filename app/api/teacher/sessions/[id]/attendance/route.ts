@@ -129,6 +129,9 @@ export async function POST(
           checkedInBy: session.employeeId,
         },
         update: {
+          // Explicit authorized re-recording replaces an admin-voided entry,
+          // like Gerbang. Keeping the flag would report saved but hide the row.
+          isVoided: false,
           classSectionId: classSession.classSectionId,
           date: classSession.date,
           status: row.status,

@@ -12,6 +12,19 @@ describe("parentAttendanceWeek", () => {
     expect(week.nextWeek).toBe("2026-08-17");
   });
 
+  it.each(["2026-11-14T04:00:00Z", "2026-11-15T04:00:00Z"])("recognizes the current calendar week on a weekend (%s)", (now) => {
+    const week = parentAttendanceWeek(new Date(now));
+    expect(week.days[0]).toBe("2026-11-09");
+    expect(week.isCurrentWeek).toBe(true);
+    expect(parentAttendanceWeek(new Date(now), "2026-11-02").isCurrentWeek).toBe(false);
+  });
+
+  it("clamps a future query to this week while preserving historical navigation", () => {
+    const now = new Date("2026-11-14T04:00:00Z");
+    expect(parentAttendanceWeek(now, "2027-01-01").days[0]).toBe("2026-11-09");
+    expect(parentAttendanceWeek(now, "2026-11-04").days[0]).toBe("2026-11-02");
+  });
+
   it("rejects invalid week query values without shifting from the WIB week", () => {
     expect(parentAttendanceWeek(new Date("2026-08-09T17:30:00Z"), "2026-02-30").days[0])
       .toBe("2026-08-10");

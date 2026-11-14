@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-11-14 in cycle `audit-remediation` (Home separates scheduled-but-unrecorded attendance from no session and includes actual weekend attendance). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-PARENT-INV-01: one pinned "Bayar Rp …" button in the invoice sheet; with no link it makes one and goes to checkout in one tap, with Coba lagi on failure). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
+> Last audited: 2026-11-14 in cycle `audit-eight-followups` (acceptance jobs and focused regression review for bill priority/history and current/past week navigation; new staging-browser verification pending). Prior: 2026-11-14 in cycle `audit-remediation` (Home separates scheduled-but-unrecorded attendance from no session and includes actual weekend attendance). Prior: 2026-11-14 in cycle `ui-ux-audit` (JTBD-PARENT-INV-01: one pinned "Bayar Rp …" button in the invoice sheet; with no link it makes one and goes to checkout in one tap, with Coba lagi on failure). Prior: 2026-11-08 in cycle `changelog-discovery` (added JTBD-PARENT-CHANGELOG-01 for browsing by month, module and page).
 > Prior: 2026-10-27 in cycle `journal-no-entry-day` (JTBD-PARENT-JOURNAL-01 step 5: a day the guru marked Hari tanpa buku penghubung shows its keterangan, e.g. Renang, in that day's column). Prior: 2026-10-17 in cycle `payment-link-on-demand` (JTBD-PARENT-INV-01 step 5: an unpaid tagihan whose payment link expired shows Buat link pembayaran, or a small Minta link baru under Bayar sekarang, and gives a working link on the same tagihan without calling the school). Prior: 2026-10-15 in cycle `pendaftaran-pay-after-form` (the fee is paid after the form for every link: the link opens straight on the form, Program and Day Care are chosen in it, JTBD-PARENT-ENROL-03 confirmed and updated; new JTBD-PARENT-ENROL-04: address from the kode pos, with Kelurahan / Desa, Kota / Kabupaten and Provinsi filled in). Prior: 2026-10-10 in cycle `pendaftaran-fee-payment` (new JTBD-PARENT-ENROL-03: pendaftaran fee shown at Tinjau, paid through DOKU after sending, status on `/pendaftaran/[token]/pembayaran`). Prior: 2026-10-06 in cycle `enrollment-signature-handover-and-checklist` (new `enrollment-form` area: two-parent signature handover on `/pendaftaran/[token]` and Kelengkapan Berkas upload; first user-facing jobs for the public enrollment form). Prior: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
@@ -44,6 +44,7 @@ This file is the living catalog of what a parent user can and should be able to 
   6. If it fails, an inline message appears in the footer with Coba lagi and the school contact (WhatsApp / telepon); a link that will not open can be replaced with the small Minta link baru under Bayar
   7. On staging only, use a manual invoice with a fee label such as `SPP — UAT November`. Checkout must accept the provider-safe label while Talib keeps the original Unicode label and the amount/quantity remain unchanged. Use the sandbox procedure in `docs/runbooks/payments-gateway.md`; never use production for this test.
 - **Done when:** User sees a clear success state with amount + reference. If Xendit redirect is involved, the redirect back to the portal shows the invoice as `PAID` or `PENDING_CONFIRMATION`.
+- **Supplemental check (audit-eight-followups):** The earliest outstanding bill without an unresolved payment attempt is marked **Tagihan berikutnya**. Opening it still leads to the invoice detail; there is no new direct-pay shortcut. A pending or cancelled invoice never gets that marker.
 - **Why this job matters:** Pak Budi's #1 priority. If this is slow or confusing, he stops trusting the whole ERP.
 - **Expected perf:** invoices list load <1.5s; tap "Bayar" click-to-Xendit-redirect <2s; return-to-portal reconciliation visible <3s.
 - **Known friction:** BLOCKER resolved 2026-04-17 (cycle `parent-uat-fixes`): demo invoices lacked `xenditPaymentUrl`; seed now populates deterministic placeholder. Duplicate "sedang disiapkan" message also removed. BACKFILL resolved 2026-04-18 (cycle `fix-parent-payment-backfill`): seed idempotency guard now patches existing null-URL SENT/PARTIALLY_PAID/OVERDUE rows on re-run; previously skipped them unconditionally.
@@ -70,7 +71,7 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Role:** GUARDIAN
 - **Preconditions:** Logged in as a parent with ≥2 paid invoices in the last 90 days
 - **Steps:**
-  1. Open the parent portal → Tagihan
+  1. Open the parent portal → Tagihan. **Riwayat pembayaran** sits directly below the balance summary, before unpaid rows. With unpaid bills, open it in one tap or with Enter/Space; with paid-only bills it starts expanded and can still be collapsed.
   2. When the child has more than 10 invoice/payment rows, use the search input to find a period or invoice number
   3. Use the status filter to show `LUNAS`, then use the sort control to review newest payment or largest amount ordering
   4. Confirm each paid invoice shows status `LUNAS`, paid date, and amount
@@ -93,6 +94,8 @@ This file is the living catalog of what a parent user can and should be able to 
   1. Open Home on a scheduled weekday and on a weekend with a daycare session; compare each child’s saved status with school records.
   2. A scheduled child without a record shows **Belum dicatat**. A child with no session shows **Tidak ada sesi**, without a misleading missing-attendance task. Actual saved statuses take precedence.
   3. Navigate to attendance. Confirm the weekly summary, then return to Home; the Mon–Sun Home summary includes saved weekend attendance.
+  4. On Saturday and Sunday, the current attendance week has no **Kembali ke pekan ini** action. Its next-week control is disabled, matching Jurnal. A past week offers both next and return actions, preserving the selected child.
+  5. Open a future `week` URL on Kehadiran and Jurnal: both show the current week and disable forward navigation rather than presenting an empty future week.
 - **Done when:** User can count today's status and this week's status without scrolling. Status is shown as a badge or icon, not just a word in a table.
 - **Why this job matters:** Second most common reason Pak Budi opens the app. If it takes more than 2 navigations to find this, he assumes Aisha was absent and panics.
 - **Expected perf:** home card shows today's status <1.5s after page load; weekly view load <1.5s.
@@ -142,6 +145,7 @@ This file is the living catalog of what a parent user can and should be able to 
   3. Land on the "Sekolah" tab
   4. Read each day's checklist status (what the teacher filled) and any notes the teacher wrote this week
   5. A day the class did not use the book (the guru marked it Hari tanpa buku penghubung) shows a small marker under its date and a line above the grid, e.g. "Sel 28/10 · Tanpa buku penghubung: Renang", instead of reading as a day the teacher forgot
+  6. Compare week navigation with Kehadiran: both allow current/past weeks only, including when a future `week` is supplied in the URL. A current weekend has no unnecessary return action.
 - **Done when:** Pak Budi can answer his wife's question "what did Aisha do at school this week?" without calling the teacher. Each day's indicator checklist is readable at a glance; notes are grouped by date with the author role visible as `GURU` / `WALI`.
 - **Why this job matters:** the Jurnal (Buku Penghubung, staff-side) is the primary trust artifact for PAUD/TKIT parents — they pay for visibility into the school day. If this page fails to render the teacher's daily entries, the school looks absent.
 - **Expected perf:** week grid load <1.5s; week navigation prev/next click-to-update <1s.
@@ -265,6 +269,7 @@ This file is the living catalog of what a parent user can and should be able to 
   2. Read household actions first, then each child's full identity, today's recorded attendance, and teacher-note preview as available
   3. Decide whether any action is needed (pay, message teacher, none)
 - **Done when:** The first viewport makes the household's next action clear. Compact cards remain readable while scrolling through multiple children. "Baca catatan" opens the named child's notes, and attendance/development/report/bill labels predict their destinations. A family total must not masquerade as a single child's payable amount. Missing attendance is unknown, and a guardian reply is never labeled as a teacher note or misattributed to another guardian.
+- **Supplemental check (audit-eight-followups):** With unpaid bills and neutral attendance, the bill action appears first. A genuine saved attendance exception still leads. With no unpaid bills, the all-paid state and attendance information remain visible.
 - **Why this job matters:** This is the morning glance — Pak Budi opens the app between sholat shubuh and leaving for work. If the dashboard buries any of the three signals below the fold, he gives up and asks his wife instead.
 - **Expected perf:** page full load <1.5s (SSR'd, three parallel Prisma queries via `Promise.all` in `app/parent/page.tsx` — threshold matches the global list-page rule in `SKILL.md`).
 - **Error scenarios to verify:**

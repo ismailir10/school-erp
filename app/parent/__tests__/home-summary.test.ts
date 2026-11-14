@@ -29,6 +29,21 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("parent home authoritative household summary", () => {
+  it("prioritizes unpaid bills above neutral weekend attendance", async () => {
+    mocks.scheduled.mockResolvedValue(new Set());
+    mocks.outstanding.mockResolvedValue({ count: 1, total: 100_000, nearestDue: "2026-09-01", items: [{ studentId: "child-a", dueDate: "2026-09-01", remaining: 100_000 }] });
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html.indexOf("Tagihan Alya Nur Rahma")).toBeGreaterThan(-1);
+    expect(html.indexOf("Tagihan Alya Nur Rahma")).toBeLessThan(html.indexOf("Tidak ada kehadiran yang perlu diperiksa"));
+  });
+
+  it("keeps a genuine attendance exception ahead of bills", async () => {
+    mocks.outstanding.mockResolvedValue({ count: 1, total: 100_000, nearestDue: "2026-09-01", items: [{ studentId: "child-a", dueDate: "2026-09-01", remaining: 100_000 }] });
+    mocks.attendance.mockResolvedValue([{ studentId: "child-a", date: "2026-09-25", classSectionId: "class-a", sessionId: null, notes: null, classSection: { name: "TK A" }, status: "ABSENT" }]);
+    const html = renderToStaticMarkup(await ParentDashboard());
+    expect(html.indexOf("Periksa kehadiran Alya Nur Rahma")).toBeLessThan(html.indexOf("Tagihan Alya Nur Rahma"));
+  });
+
   it("scopes all summary queries to guardian-linked children and teacher-authored active notes", async () => {
     const html = renderToStaticMarkup(await ParentDashboard());
     expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ studentId: { in: ["child-a", "child-b"] }, student: { tenantId: "tenant-a" }, isVoided: false }) }));
