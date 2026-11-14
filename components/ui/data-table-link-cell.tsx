@@ -12,8 +12,11 @@ import { cn } from "@/lib/utils";
  * viewing opens an overlay (e.g. a read-only Sheet). Edit / deactivate stay
  * in the row's `⋯` menu (DataTableRowActions).
  */
-const LINK_CLASS =
-  "inline-flex items-center rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:underline focus-visible:focus-outline [@media(pointer:coarse)]:min-h-11";
+/** Shared with `EntityLink` so every name-link looks and focuses the same. */
+export const LINK_UNDERLINE_CLASS =
+  "rounded-sm underline-offset-4 hover:underline focus-visible:underline focus-visible:focus-outline";
+export const LINK_TOUCH_CLASS = "[@media(pointer:coarse)]:min-h-11";
+const LINK_CLASS = `inline-flex items-center text-left text-sm font-medium text-foreground ${LINK_UNDERLINE_CLASS} ${LINK_TOUCH_CLASS}`;
 
 type DataTableLinkCellProps = {
   children: ReactNode;
