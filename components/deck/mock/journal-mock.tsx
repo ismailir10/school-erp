@@ -44,7 +44,7 @@ export function JournalMock() {
               <div className="flex items-stretch">
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2 p-2.5">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-white">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
                       <Check className="size-3.5" />
                     </span>
                     <div className="min-w-0">
@@ -79,7 +79,7 @@ export function JournalMock() {
                         ind.checked ? "border-primary bg-primary" : "border-muted-foreground/40",
                       )}
                     >
-                      {ind.checked ? <Check className="size-[11px] text-white" /> : null}
+                      {ind.checked ? <Check className="size-[11px] text-primary-foreground" /> : null}
                     </span>
                     <span className="truncate text-xs leading-snug">{ind.label}</span>
                   </div>
@@ -93,8 +93,8 @@ export function JournalMock() {
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span
                       className={cn(
-                        "grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white",
-                        s.tick ? "bg-primary" : "bg-muted-foreground/40",
+                        "grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold",
+                        s.tick ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
                       )}
                     >
                       {s.tick ? <Check className="size-3.5" /> : s.name.slice(0, 1) + s.name.split(" ")[1].slice(0, 1)}
@@ -154,7 +154,7 @@ export function JournalMock() {
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
           <span className="flex h-9 items-center px-3 text-sm font-medium text-muted-foreground">Batal</span>
-          <span className="flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">Simpan</span>
+          <span className="flex h-9 items-center rounded-lg bg-action px-4 text-sm font-medium text-action-foreground">Simpan</span>
         </div>
       </Float>
     </Stage>

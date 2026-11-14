@@ -82,7 +82,7 @@ const GLOBALS_BLOCKS = [/(^|\n)\s*@theme[^{]*\{/, /(^|\n)\s*:root\s*\{/];
 // documented type, radius, spacing, elevation, motion and stacking scales.
 const CORE = [
   "background", "foreground", "card", "card-foreground", "popover", "popover-foreground",
-  "primary", "primary-foreground", "primary-text", "secondary", "secondary-foreground",
+  "action", "action-foreground", "action-hover", "primary", "primary-foreground", "primary-text", "secondary", "secondary-foreground",
   "muted", "muted-foreground", "accent", "accent-foreground", "destructive", "border",
   "input", "ring", "radius", "shadow-sticky-edge",
 ].map((name) => `--${name}`);

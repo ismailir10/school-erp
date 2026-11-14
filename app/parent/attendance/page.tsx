@@ -136,13 +136,13 @@ export default async function ParentAttendancePage({
           </div>
         </section>
       ) : bannerState?.kind === "attention" && bannerState.tone === "warm" ? (
-        <section className="rounded-xl border border-status-late bg-status-late-subtle p-4">
+        <section className={`rounded-xl border p-4 ${bannerState.reason === "sick" ? "border-status-late bg-status-late-subtle" : "border-status-absent bg-status-absent-subtle"}`}>
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-lg bg-status-late-subtle text-status-late-text">
+            <div className={`grid size-10 place-items-center rounded-lg ${bannerState.reason === "sick" ? "text-status-late-text" : "text-status-absent-text"}`}>
               {bannerState.reason === "sick" ? <Thermometer size={18} /> : <CalendarClock size={18} />}
             </div>
             <div>
-              <p className="text-sm font-semibold text-status-late-text">
+              <p className={`text-sm font-semibold ${bannerState.reason === "sick" ? "text-status-late-text" : "text-status-absent-text"}`}>
                 {bannerState.line}
               </p>
               {/* Alpa leads (the parent has to act on it); get-well wishes only
@@ -213,10 +213,10 @@ export default async function ParentAttendancePage({
                     return (
                       <th
                         key={d}
-                        className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-status-present-subtle font-semibold text-primary-text" : "font-medium text-muted-foreground"}`}
+                        className={`w-[44px] min-w-[44px] py-2 px-1 text-center text-xs ${isToday ? "border-t-2 border-primary bg-secondary font-semibold text-primary-text" : "font-medium text-muted-foreground"}`}
                       >
                         <div>{DAY_LABELS[i] ?? ""}</div>
-                        <div className={`text-xs font-normal ${isToday ? "text-primary-text" : "text-muted-foreground/70"}`}>
+                        <div className={`text-xs font-normal ${isToday ? "text-primary-text" : "text-muted-foreground"}`}>
                           {shortDayMonth(d)}
                         </div>
                       </th>
@@ -236,7 +236,7 @@ export default async function ParentAttendancePage({
                     return (
                       <td
                         key={d}
-                        className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
+                        className={`p-0 text-center align-middle ${isToday ? "bg-secondary border-b-2 border-primary" : ""}`}
                       >
                         <span className="relative inline-flex size-9 items-center justify-center">
                           {status === "MIXED" ? (
@@ -246,7 +246,7 @@ export default async function ParentAttendancePage({
                             </>
                           ) : status === "PRESENT" ? (
                             <>
-                              <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-primary-text" />
+                              <Check aria-hidden="true" size={16} strokeWidth={2.5} className="text-status-present-text" />
                               <span className="sr-only">Hadir</span>
                             </>
                           ) : status === "SICK" ? (
@@ -286,7 +286,7 @@ export default async function ParentAttendancePage({
             </table>
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span><Check className="inline size-3 text-primary-text align-middle" /> Hadir</span>
+            <span><Check className="inline size-3 text-status-present-text align-middle" /> Hadir</span>
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
             <span><b className="text-status-leave-text">I</b> Izin</span>

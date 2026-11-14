@@ -54,7 +54,7 @@ export function ReportCardMock() {
             </div>
 
             <div className="mt-3 flex gap-2">
-              <span className="flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">Simpan</span>
+              <span className="flex h-8 items-center rounded-lg bg-action px-3 text-sm font-medium text-action-foreground">Simpan</span>
               <span className="flex h-8 items-center rounded-lg border border-border bg-background px-3 text-sm font-medium">Simpan &amp; Terbitkan</span>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { parentHref } from "@/lib/parent/navigation";
 import { cn } from "@/lib/utils";
 
 export type KidCardFoot = {
-  tone: "ok" | "warn" | "info";
+  tone: "ok" | "warn" | "info" | "danger";
   text: string;
 };
 
@@ -33,7 +33,7 @@ export function KidCard({ id, name, className, todayStatus, todayScheduled = tru
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <p className={cn("text-xs", foot.tone === "warn" ? "text-status-late-text" : "text-muted-foreground")}>{foot.text}</p>
+        <p className={cn("text-xs", foot.tone === "danger" ? "text-status-absent-text" : foot.tone === "warn" ? "text-status-late-text" : "text-muted-foreground")}>{foot.text}</p>
         <p className="line-clamp-2 text-sm text-foreground">
           <span className="font-semibold">Catatan guru:</span>{" "}
           {teacherNote ?? "Belum ada catatan guru terbaru."}
@@ -41,7 +41,7 @@ export function KidCard({ id, name, className, todayStatus, todayScheduled = tru
         <div className="grid grid-cols-2 gap-2">
           <Link
             href={parentHref("/parent/student-journal", id, { view: "notes" })}
-            className={cn(buttonVariants({ variant: "default", size: "lg" }), "min-h-11 text-xs")}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 text-xs")}
           >
             Baca catatan
           </Link>

@@ -268,7 +268,7 @@ function DailyStaffAttendancePageInner() {
                               key={q.status}
                               type="button"
                               size="sm"
-                              variant={active ? "default" : "outline"}
+                              variant={active ? "selection" : "outline"}
                               aria-pressed={active}
                               disabled={locked || busy || (isFuture && (q.status === "PRESENT" || q.status === "ABSENT"))}
                               onClick={() => setStatus(r, q.status)}

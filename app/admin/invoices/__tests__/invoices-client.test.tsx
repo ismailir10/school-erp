@@ -970,3 +970,26 @@ describe("InvoicesClient clear loading and billing entry", () => {
     expect(screen.queryByRole("dialog", { name: "Buat tagihan untuk siapa?" })).not.toBeInTheDocument();
   });
 });
+
+
+describe("InvoicesClient — finance emphasis", () => {
+  it.each(["SENT", "PARTIALLY_PAID", "OVERDUE"])("reserves red balances for OVERDUE, including a partly paid %s invoice", async (status) => {
+    vi.stubGlobal("fetch", stubFetch({ invoices: [{ ...invoice, status, totalPaid: 100000 }] }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const balance = await screen.findByText("Sisa: Rp 400.000");
+    expect(balance).toHaveClass(status === "OVERDUE" ? "text-destructive" : "text-foreground");
+    expect(screen.getByText("Dibayar: Rp 100.000")).toHaveClass("text-success-text");
+  });
+
+  it.each([0, 3])("shows critical overdue emphasis only when the count is positive (%s)", async (overdue) => {
+    vi.stubGlobal("fetch", stubFetch({ stats: { overdue, paid: 2, partiallyPaid: 1, pendingPaymentLink: 1, collectedThisMonth: 1250000 } }));
+    render(<InvoicesClient gatewayId="xendit" capabilities={caps} />);
+    const tile = (label: string) => screen.getByText(label, { selector: "p" }).closest("div.rounded-lg") as HTMLElement;
+    await screen.findByText("Diterima bulan ini");
+    expect(within(tile("Lewat tempo")).getByText(String(overdue))).toHaveClass(overdue > 0 ? "text-destructive" : "text-foreground");
+    expect(within(tile("Link gagal")).getByText("1")).toHaveClass("text-destructive");
+    expect(within(tile("Lunas")).getByText("2")).toHaveClass("text-foreground");
+    expect(within(tile("Dibayar sebagian")).getByText("1")).toHaveClass("text-foreground");
+    expect(within(tile("Diterima bulan ini")).getByText("Rp 1.250.000")).toHaveClass("text-foreground");
+  });
+});

@@ -8,7 +8,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default: "bg-action text-action-foreground hover:bg-action-hover disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 aria-disabled:bg-muted aria-disabled:text-muted-foreground aria-disabled:opacity-100",
+        // Selected context (filters/status choices), not a primary action.
+        selection: "bg-primary text-primary-foreground hover:bg-primary",
         outline:
           "border-border bg-background text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

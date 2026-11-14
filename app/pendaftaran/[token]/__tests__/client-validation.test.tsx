@@ -264,8 +264,8 @@ describe("PendaftaranClient: public-form polish (PAR-4, PUBX-6, PUBX-7)", () => 
     render(<PendaftaranClient initialStep={0} token="tok" programs={programs} prefill={filled} />);
     expect(screen.queryByRole("button", { name: "Kembali" })).not.toBeInTheDocument();
     expect(lanjut().className).toMatch(/\bcol-span-2\b/);
-    expect(lanjut().className).toMatch(/\bbg-primary-text\b/);
-    expect(lanjut().className).toMatch(/\btext-white\b/);
+    expect(lanjut().className).toMatch(/\bbg-action\b/);
+    expect(lanjut().className).toMatch(/\btext-action-foreground\b/);
   });
 
   it("links to Kebijakan Privasi and Ketentuan in a new tab", () => {

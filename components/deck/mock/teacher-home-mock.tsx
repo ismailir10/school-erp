@@ -1,5 +1,4 @@
 import { BookHeart, CalendarDays, ChevronRight, ClipboardCheck, ClipboardList, Home, MoreHorizontal, Presentation, School, User, Wallet, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { BottomNav, Float, Phone, PortalHeader } from "./frames";
 import { Stage } from "./stage";
 
@@ -11,19 +10,10 @@ const NAV = [
   { label: "Lainnya", icon: MoreHorizontal },
 ];
 
-type Tone = "teal" | "warm" | "purple";
-
-// Same tints as TaskRow: teal for attendance, amber for the journal, purple for assessment.
-const TONE: Record<Tone, string> = {
-  teal: "bg-secondary text-primary-text",
-  warm: "bg-status-late-subtle text-status-late-text",
-  purple: "bg-status-holiday-subtle text-status-holiday-text",
-};
-
-const TASKS: { title: string; description: string; meta?: string; icon: LucideIcon; tone: Tone }[] = [
-  { title: "Absensi TK A Al-Fatih", description: "0 dari 20 siswa tercatat", meta: "Buka", icon: CalendarDays, tone: "teal" },
-  { title: "Jurnal TK A Al-Fatih", description: "2 dari 20 siswa lengkap", meta: "Buka", icon: BookHeart, tone: "warm" },
-  { title: "Buka penilaian", description: "Penilaian pekanan · TK A Al-Fatih", icon: ClipboardList, tone: "purple" },
+const TASKS: { title: string; description: string; meta?: string; icon: LucideIcon }[] = [
+  { title: "Absensi TK A Al-Fatih", description: "0 dari 20 siswa tercatat", meta: "Buka", icon: CalendarDays },
+  { title: "Jurnal TK A Al-Fatih", description: "2 dari 20 siswa lengkap", meta: "Buka", icon: BookHeart },
+  { title: "Buka penilaian", description: "Penilaian pekanan · TK A Al-Fatih", icon: ClipboardList },
 ];
 
 const MORE: { label: string; description: string; icon: LucideIcon }[] = [
@@ -53,7 +43,7 @@ export function TeacherHomeMock() {
               <p className="text-small text-muted-foreground">20 siswa · 31 Oktober</p>
             </div>
             <h2 className="mt-1 text-h1 tracking-tight">TK A Al-Fatih</h2>
-            <div className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+            <div className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-action text-sm font-medium text-action-foreground">
               <ClipboardList className="size-4" />
               Lanjutkan absensi · 0/20
             </div>
@@ -65,7 +55,7 @@ export function TeacherHomeMock() {
               const Icon = t.icon;
               return (
                 <div key={t.title} className="flex items-center gap-3 px-3 py-1.5">
-                  <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", TONE[t.tone])}>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary-text">
                     <Icon className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">

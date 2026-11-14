@@ -23,8 +23,8 @@ const STUDENTS: { name: string; nickname: string; mark: Mark }[] = [
 
 // Same letters and colours as the real row: Sakit is the amber "late" family, Izin the blue "leave" family.
 const SELECTED: Record<string, string> = {
-  S: "border-transparent bg-status-late text-white",
-  I: "border-transparent bg-status-leave text-white",
+  S: "border-2 border-status-late-text bg-status-late-subtle text-status-late-text",
+  I: "border-2 border-status-leave-text bg-status-leave-subtle text-status-leave-text",
 };
 const ROW_TINT: Record<string, string> = { S: "bg-status-late-subtle", I: "bg-status-leave-subtle" };
 
@@ -76,7 +76,7 @@ export function ClassAttendanceMock() {
                         key={letter}
                         className={cn(
                           "grid size-8 place-items-center rounded-lg border text-sm font-semibold",
-                          selected ? SELECTED[letter] : "border-border bg-background text-muted-foreground",
+                          selected ? SELECTED[letter] : "border-input bg-background text-muted-foreground",
                         )}
                       >
                         {letter}
@@ -90,7 +90,7 @@ export function ClassAttendanceMock() {
         </div>
 
         <div className="relative z-10 border-t border-border bg-background px-4 py-2.5">
-          <div className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+          <div className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-action text-sm font-medium text-action-foreground">
             <Check className="size-4" />
             Tandai 18 siswa lainnya Hadir
           </div>

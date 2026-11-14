@@ -31,6 +31,8 @@ describe("academic admin accessibility", () => {
       "aria-pressed",
       "true",
     );
+    expect(screen.getByRole("button", { name: "Kelompok A" })).toHaveClass("bg-primary", "text-primary-foreground", "hover:bg-primary");
+    expect(screen.getByRole("button", { name: "Kelompok A" })).not.toHaveClass("bg-action");
     expect(screen.getByRole("button", { name: "Kelompok B" })).toHaveAttribute(
       "aria-pressed",
       "false",

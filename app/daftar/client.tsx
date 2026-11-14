@@ -46,9 +46,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLACEHOLDER_CLASS = "placeholder:text-muted-foreground/70";
 const INPUT_CLASS = cn("h-11 px-3 text-base md:text-base", PLACEHOLDER_CLASS);
 const SELECT_CLASS = "h-11 pl-3 text-base";
-// Primary CTA: --primary (#5DB4B8) is a fill colour that reads pale/disabled
-// with dark text; --primary-text (#2F7A7D) carries white text at >= 4.5:1.
-const CTA_CLASS = "h-12 w-full bg-primary-text px-5 text-base text-white hover:bg-primary-text/90";
+// Shared opaque action palette keeps the primary CTA readable at rest and on hover.
+const CTA_CLASS = "h-12 w-full bg-action px-5 text-base text-action-foreground hover:bg-action-hover";
 
 type SubmitOk = { id: string };
 type SubmitErr =

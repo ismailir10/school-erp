@@ -781,7 +781,7 @@ export default function InvoiceDetailPage() {
       {invoice.paymentLinkError && (
         <Card className="border-warning/40 bg-warning-subtle p-4 mb-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />
+            <AlertTriangle size={18} className="text-warning-text shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium">Link pembayaran belum berhasil dibuat</p>
               {/* Was rendering the stored "<prefix>: <vendor message>" string
@@ -834,8 +834,8 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="border-t border-border mt-3 pt-3 space-y-1">
             <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="shrink-0 whitespace-nowrap font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
-            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Dibayar</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
-            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Sisa</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
+            <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Dibayar</span><span className="shrink-0 whitespace-nowrap font-currency font-bold text-success-text">{formatRupiah(invoice.totalPaid)}</span></div>
+            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">Sisa</span><span className={cn("shrink-0 whitespace-nowrap font-currency font-bold", invoice.status === "OVERDUE" ? "text-destructive" : "text-foreground")}>{formatRupiah(remaining)}</span></div>}
           </div>
         </Card>
 
@@ -918,7 +918,7 @@ export default function InvoiceDetailPage() {
                           <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method, p.channelCode)}</Badge>
                           {reversed && <StatusBadge status="REVERSED" />}
                         </span>
-                        <span className={cn("font-currency text-sm font-bold", reversed ? "text-muted-foreground line-through" : "text-status-present")}>
+                        <span className={cn("font-currency text-sm font-bold", reversed ? "text-muted-foreground line-through" : "text-success-text")}>
                           {formatRupiah(p.amount)}
                         </span>
                       </div>

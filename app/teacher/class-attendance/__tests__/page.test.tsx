@@ -418,3 +418,29 @@ describe("ClassAttendancePage small-phone row", () => {
     }
   });
 });
+
+
+describe("attendance color hierarchy", () => {
+  it("keeps present rows quiet and makes all four selections readable with a non-color border", async () => {
+    navigation.params = new URLSearchParams();
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(ok(
+      url.includes("teaching-assignments") ? assignment : url.includes("/mark") ? { saved: 1 } : roster,
+    ))));
+    render(<ClassAttendancePage />);
+    const cases = [
+      ["Hadir", "present", "bg-card"],
+      ["Sakit", "late", "bg-status-late-subtle"],
+      ["Izin", "leave", "bg-status-leave-subtle"],
+      ["Alpa", "absent", "bg-status-absent-subtle"],
+    ];
+    for (const [label, token, rowClass] of cases) {
+      const control = await pick("Aisyah", label);
+      fireEvent.click(control);
+      await waitFor(() => expect(control).toHaveAttribute("aria-checked", "true"));
+      expect(control).toHaveClass("border-2", `border-status-${token}-text`, `bg-status-${token}-subtle`, `text-status-${token}-text`, "size-11");
+      expect(control.closest("li")).toHaveClass(rowClass);
+      expect(screen.getAllByRole("radio").filter(r => r.getAttribute("aria-checked") === "true")).toHaveLength(1);
+    }
+    expect(markRequests().map(r => r.records[0].status)).toEqual(["PRESENT", "SICK", "PERMISSION", "ABSENT"]);
+  });
+});

@@ -127,3 +127,21 @@ describe("control and keyboard focus contrast", () => {
     },
   );
 });
+
+// Actions must not inherit the softer selection fill or translucent hover.
+describe("primary action and selection contrast", () => {
+  it.each(["action", "action-hover"])("keeps white action labels AA on --%s", (surface) => {
+    expect(contrast(readToken("action-foreground"), readToken(surface))).toBeGreaterThanOrEqual(4.5);
+    expect(CSS).toContain(`--color-${surface}: var(--${surface});`);
+  });
+
+  it("keeps disabled action labels readable on their opaque neutral surface", () => {
+    expect(contrast(readToken("muted-foreground"), readToken("muted"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("preserves readable soft brand selections independently of actions", () => {
+    expect(readToken("primary")).toBe("#5DB4B8");
+    expect(readToken("action")).not.toBe(readToken("primary"));
+    expect(contrast(readToken("primary-foreground"), readToken("primary"))).toBeGreaterThanOrEqual(4.5);
+  });
+});

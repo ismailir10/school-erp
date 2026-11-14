@@ -85,7 +85,7 @@ export function PayResultMock() {
       </Phone>
 
       <Float className="left-[380px] top-[170px] w-[284px] space-y-2">
-        <div className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+        <div className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-action text-sm font-medium text-action-foreground">
           <ExternalLink size={16} />
           Bayar sekarang
         </div>

@@ -12,6 +12,8 @@
 
 | Need | Use | NEVER |
 |------|-----|-------|
+| Primary action | `bg-action text-action-foreground hover:bg-action-hover` (default Button) | Brand selection fill or translucent action hover |
+| Selected context | `Button variant="selection"` (`bg-primary text-primary-foreground`) | Deep action fill for every selected chip |
 | Success/present | `text-status-present-text`, `bg-status-present-subtle`; `bg-status-present` for a dot or bar | `text-[#00B37E]` |
 | Warning/late | `text-warning-text` on `bg-warning-subtle` | `text-[#FF8C00]`, `bg-warning/10` |
 | Error text, delete actions | `text-destructive` (AA on white) | `text-status-absent` (see below), `text-[#FF3B3B]` |
@@ -36,6 +38,10 @@ Each semantic colour has base / `-subtle` / `-text`. Base is a fill (dot, bar, i
 | `destructive` (= `status-absent` tints) | `destructive`, `destructive-subtle`, `destructive-text` | Errors, delete, overdue, absent |
 
 Contrast rules that are not obvious from the names: `destructive` (not `status-absent`) is the text and delete-action red, and on its pink tint only `destructive-text` passes AA. `status-absent` is the attendance dot/bar colour only and is never text. `holiday` and `no-checkout` have their own base / `-subtle` / `-text`. `primary-text` is the AA teal for text on light surfaces; `primary` itself is a fill that takes dark ink (`primary-foreground`).
+
+## Action and neutral hierarchy
+
+`action` / `action-foreground` is the primary action pair; `action-hover` is an opaque, darker hover surface that keeps white labels at AA. `primary` / `primary-foreground` remains the soft brand selection pair. Values belong to `app/globals.css`. Disabled primary actions use opaque `muted` with `muted-foreground`, never a faded teal fill with white labels. Soft brand glyphs use `primary-foreground`. Routine summary icons and zero values use neutral tones; semantic hues indicate actual states, not decorative categories. Ordinary outstanding balances are neutral; overdue balances may use destructive ink. Muted surfaces and structural borders share a cool neutral family; input boundaries and focus outlines retain their stronger contrast.
 
 ## Celebration tokens
 

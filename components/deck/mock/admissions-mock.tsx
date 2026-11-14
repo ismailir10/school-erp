@@ -63,7 +63,7 @@ export function AdmissionsMock() {
                 <h1 className="text-h1 tracking-tight">Pendaftaran</h1>
                 <p className="text-xs text-muted-foreground">Dari pertanyaan pertama sampai jadi siswa.</p>
               </div>
-              <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground">
+              <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-action px-3 text-xs font-medium text-action-foreground">
                 <Plus className="size-3.5" />
                 Catat Pertanyaan
               </span>
@@ -132,7 +132,7 @@ export function AdmissionsMock() {
         </div>
 
         <div className="px-4 pb-3 pt-2.5">
-          <div className="flex h-8 w-full items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground">
+          <div className="flex h-8 w-full items-center justify-center rounded-lg bg-action text-sm font-medium text-action-foreground">
             Terima &amp; Jadikan Siswa
           </div>
         </div>

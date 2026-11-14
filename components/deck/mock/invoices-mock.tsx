@@ -39,7 +39,7 @@ function HeaderButton({ icon: Icon, children, primary }: { icon?: typeof LinkIco
     <span
       className={cn(
         "flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 text-[0.8rem] font-medium",
-        primary ? "bg-primary text-primary-foreground" : "border border-border bg-background text-foreground",
+        primary ? "bg-action text-action-foreground" : "border border-border bg-background text-foreground",
       )}
     >
       {Icon && <Icon className="size-3.5" />}
@@ -131,7 +131,7 @@ export function InvoicesMock() {
               <span className="text-muted-foreground"> · Belum diingatkan</span>
             </p>
           </div>
-          <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-sm font-medium text-primary-foreground">
+          <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-action px-2.5 text-sm font-medium text-action-foreground">
             <MessageCircle className="size-4" />
             Buka WhatsApp
           </span>

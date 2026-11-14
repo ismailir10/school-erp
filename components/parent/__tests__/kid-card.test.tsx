@@ -16,6 +16,8 @@ describe("KidCard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Alya Putri" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Baca catatan" })).not.toHaveClass("bg-action");
+    expect(screen.getByRole("link", { name: "Baca catatan" })).toHaveClass("bg-background", "text-foreground");
     expect(screen.getByRole("link", { name: "Baca catatan" })).toHaveAttribute(
       "href",
       "/parent/student-journal?child=student-2&view=notes",

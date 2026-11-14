@@ -206,7 +206,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 
 **Required pieces:** `PortalHeader` · `PortalBottomNav` · clear page heading · current context and a task-first next-action area · `max-w-md` · bottom padding to clear navigation (the portal layout wrapper carries `pb-20`) · `safe-area-bottom` on bottom nav. Quick links are optional secondary navigation; do not reserve a fixed-height three-card grid above the work.
 
-**Parent-specific:** show the household's children together with each child's actionable information (see `portal.md`). Do not turn absent attendance data into a claim that the child was absent, present, or late.
+**Parent-specific:** keep repeated child-card navigation secondary and payment actions prominent. Show the household's children together with each child's actionable information (see `portal.md`). Do not turn absent attendance data into a claim that the child was absent, present, or late.
 
 ## Recipe 5 — Workflow Queue
 

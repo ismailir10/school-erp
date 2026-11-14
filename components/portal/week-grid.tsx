@@ -223,12 +223,12 @@ export function WeekGrid({
                     // yet, so tinting it green misleads admins scanning for incomplete
                     // entries into reading an empty column as done (finding F5a).
                     isToday
-                      ? "bg-primary/5 text-primary-text font-semibold border-t-2 border-primary"
+                      ? "bg-secondary text-primary-text font-semibold border-t-2 border-primary"
                       : "font-medium text-muted-foreground"
                   }`}
                 >
                   <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
-                  <div className={`text-xs ${isToday ? "text-primary-text" : "text-muted-foreground/70 font-normal"}`}>
+                  <div className={`text-xs ${isToday ? "text-primary-text" : "text-muted-foreground font-normal"}`}>
                     {formatColDate(d)}
                   </div>
                   {dayMarks?.[d] ? (
@@ -261,7 +261,7 @@ export function WeekGrid({
               <tr>
                 <td
                   colSpan={dates.length + 1}
-                  className="border-l-4 border-l-primary bg-primary/5 pl-3 py-2 text-h2 text-foreground sticky left-0"
+                  className="border-l-4 border-l-primary bg-secondary pl-3 py-2 text-h2 text-foreground sticky left-0"
                 >
                   {cat.name}
                 </td>
@@ -293,7 +293,7 @@ export function WeekGrid({
                       : isToday
                       ? checked
                         ? " bg-status-present-subtle"
-                        : " bg-primary/5"
+                        : " bg-secondary"
                       : "";
                     return (
                       <td

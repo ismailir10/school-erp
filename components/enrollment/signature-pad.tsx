@@ -126,7 +126,7 @@ export function SignaturePad({
         <Button
           type="button"
           size="sm"
-          className="min-h-11 bg-primary-text text-white hover:bg-primary-text/90 aria-disabled:pointer-events-none aria-disabled:opacity-50 sm:min-h-8"
+          className="min-h-11 bg-action text-action-foreground hover:bg-action-hover aria-disabled:pointer-events-none aria-disabled:opacity-100 aria-disabled:bg-muted aria-disabled:text-muted-foreground sm:min-h-8"
           onClick={save}
           disabled={!hasInk}
           aria-disabled={saving}

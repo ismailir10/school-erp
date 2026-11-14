@@ -301,6 +301,8 @@ See `design-system.html` §15 for the mockup and the teacher-entry / parent-view
 
 ## Class Attendance Entry
 
+Color follows state: present is green, sick amber, approved leave blue, unexplained absence red, and unknown neutral. Selected controls use readable semantic ink/fills plus a border or check. Present and unrecorded rows stay neutral; exceptions use subtle emphasis. Today uses brand context, independently of attendance completion. Routine destinations use neutral or readable teal icons; repeated child-card navigation is secondary while payment actions keep priority.
+
 Class attendance entry (`/teacher/class-attendance`) is exception-first: most children are present, so the teacher marks the exceptions and records everyone else in one tap.
 
 **Rules:**
@@ -309,7 +311,7 @@ Class attendance entry (`/teacher/class-attendance`) is exception-first: most ch
 - **State choice is explicit.** Each row offers H · S · I · A (rapor order) as a radio group; one tap selects and saves. No cycle controls — a hidden rotation made Izin four taps and one extra tap saved Alpa.
 - **Live summary** above the list: "Hadir N · Sakit N · Izin N · Alpa N · N belum", counting confirmed saves only.
 - **Save feedback matches persistence.** One page-level status line (saving / saved). A failed row shows its error and "Coba lagi" inline; a failed bulk save puts its rows back to unknown and the bulk button is the retry.
-- **Row tints** match the recorded state via `--status-*-subtle`.
+- **Row tints** are neutral for present and unrecorded children; only exceptions use `--status-*-subtle`. Selected H/S/I/A controls pair the subtle surface with readable `-text` ink and a 2px border, with a 44px touch target. Today uses `bg-secondary`, not success green.
 
 ## Portal Primitive Inventory
 

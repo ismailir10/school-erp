@@ -12,10 +12,10 @@ Figma's 13 [graphic design principles](https://www.figma.com/resource-library/gr
 
 | Principles | What it means here | Enforced by |
 |---|---|---|
-| Hierarchy, emphasis, contrast | One thing leads each screen and card; the rest is quieter | Heading tokens (`text-display` / `text-h1` / `text-h2`), one filled button per screen and per card or action group |
+| Hierarchy, emphasis, contrast | One thing leads each screen and card; the rest is quieter | Heading tokens (`text-display` / `text-h1` / `text-h2`), one leading filled action per screen; repeated child navigation stays secondary |
 | Alignment, proximity | Related things sit together on one edge | `PageHeader` / `DetailPageHeader`, `SectionCard`, `gap-field`, reading order with a back link |
 | White space, balance, proportion | Room to breathe, even weight | Spacing tokens `space-y-*` / `gap-field` / `mb-section`, breakpoints |
-| Colour | Colour carries meaning, never decoration | Semantic colour tokens only (guard rules A, B, E); red only for irreversible loss |
+| Colour | Colour carries meaning, never decoration | Semantic colour tokens only (guard rules A, B, E); red for errors, overdue states, absence, or irreversible loss |
 | Repetition, unity | The same job looks the same everywhere | Shared primitives (`StatTile`, `SectionHeading`, `Badge` / `StatusBadge`, `ConfirmDialog`) and guard rules |
 | Rhythm, movement | Steady spacing; motion explains, never decorates | Motion tokens in `lib/motion.ts` (rule F), `prefers-reduced-motion` |
 
@@ -83,6 +83,8 @@ Other docs link here for these bans; they do not repeat them.
 | Dashboard, operational list, or detail metric | `StatTile` | Compact bordered surface. Use `StatsCardsRow` to arrange operational-list metrics. A linked tile raises on hover and shows the standard keyboard outline. |
 | Inline update or issue that belongs beside a workflow | `Alert` | Neutral or semantic surface with an optional icon, title, description, and action. |
 
+Routine `StatTile` icons use a muted chip. Pass a semantic tone only for a meaningful positive, warning, or critical state; zero and routine totals stay neutral.
+
 Choose an Alert variant by meaning. Use `info` for context, `success` for completion, `warning` for something that needs attention, `destructive` for a blocking error, and `celebration` for an all-clear or milestone. Put recovery actions in `AlertAction` after the message so they can wrap below it in narrow containers. Mark decorative icons `aria-hidden`. Keep `announcement="off"` on static notices, use `announcement="polite"` for live updates, and use `announcement="assertive"` for immediate feedback. Existing alerts default to assertive.
 
 ## Rule: Shadcn FIRST. Never build custom when Shadcn has it.
@@ -112,6 +114,10 @@ Use the installed Shadcn component; do not build custom. (Talib primitives are i
 | Mobile form / create-edit | `<ResponsiveFormDialog>` (Sheet) | Dialog stuffed into narrow viewport |
 | Action dialog (approve, void, override, record payment, ...) | `<ResponsiveFormDialog>` | hand-rolled `useIsMobile` + `<Dialog>`/`<Sheet>` |
 | Transient feedback | `toast.*()` (sonner) | `alert()`, inline banner for success |
+
+## Action and selection buttons
+
+Default `Button` is the deep teal primary action. Use `variant="selection"` only for a selected context or state choice (filters, attendance status choices), paired with `aria-pressed` or the relevant selection semantics. Unselected peers use `outline`. Selection retains soft brand fill and dark ink, including opaque hover; it does not indicate the main action.
 
 ## Touch targets (phones)
 

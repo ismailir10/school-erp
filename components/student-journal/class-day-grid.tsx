@@ -157,10 +157,10 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className={`size-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                    className={`size-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                       checkedCount > 0
-                        ? "bg-primary"
-                        : "bg-muted-foreground/40"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {checkedCount > 0 ? (
@@ -307,7 +307,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet,
                                       : "bg-transparent border-muted-foreground/40"
                                   }`}
                                 >
-                                  {isChecked && <Check size={11} className="text-white" aria-hidden="true" />}
+                                  {isChecked && <Check size={11} className="text-primary-foreground" aria-hidden="true" />}
                                 </div>
                                 <span className="text-xs leading-snug">{indicator.label}</span>
                               </button>

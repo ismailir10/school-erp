@@ -263,3 +263,39 @@ describe("parent Home calendar state", () => {
     expect(html).toContain("Sakit hari ini");
   });
 });
+
+
+it.each([
+ [null, "bg-muted"], ["SICK", "bg-status-late-subtle"],
+ ["PERMISSION", "bg-status-leave-subtle"], ["ABSENT", "bg-status-absent-subtle"],
+])("uses the recorded %s meaning for the household attendance action", async (status, tone) => {
+ if (status) mocks.attendance.mockResolvedValue([{studentId:"child-a",date:"2026-09-25",classSectionId:"class-a",sessionId:null,notes:null,classSection:{name:"TK A"},status}]);
+ const html = renderToStaticMarkup(await ParentDashboard());
+ const links = html.match(/<a\b[^>]*>[\s\S]*?<\/a>/g) ?? [];
+ const action = links.find(link => link.includes(status ? "Periksa kehadiran Alya Nur Rahma" : "Kehadiran Alya Nur Rahma belum dicatat"));
+ expect(action).toContain(tone);
+ if (!status) expect(action).not.toContain("bg-status-late-subtle");
+});
+
+
+it.each([
+ ["2026-09-25", "ABSENT", "Alpa hari ini", "text-status-absent-text"],
+ ["2026-09-24", "ABSENT", "Alpa 1 pekan ini", "text-status-absent-text"],
+ ["2026-09-25", "SICK", "Sakit hari ini · semoga lekas sehat", "text-status-late-text"],
+ ["2026-09-24", "SICK", "Sakit 1 pekan ini", "text-status-late-text"],
+])("keeps %s %s child foot consistent with its recorded state", async (date, status, copy, ink) => {
+ mocks.attendance.mockResolvedValue([{studentId:"child-a",date,classSectionId:"class-a",sessionId:null,notes:null,classSection:{name:"TK A"},status}]);
+ const html = renderToStaticMarkup(await ParentDashboard());
+ const foot = (html.match(/<p\b[^>]*>[\s\S]*?<\/p>/g) ?? []).find(p => p.includes(`>${copy}</p>`));
+ expect(foot).toContain(ink);
+});
+
+it("uses absence ink for a weekly child foot that also includes sickness", async () => {
+ mocks.attendance.mockResolvedValue([
+  {studentId:"child-a",date:"2026-09-23",classSectionId:"class-a",sessionId:null,notes:null,classSection:{name:"TK A"},status:"ABSENT"},
+  {studentId:"child-a",date:"2026-09-24",classSectionId:"class-a",sessionId:null,notes:null,classSection:{name:"TK A"},status:"SICK"},
+ ]);
+ const html = renderToStaticMarkup(await ParentDashboard());
+ const foot = (html.match(/<p\b[^>]*>[\s\S]*?<\/p>/g) ?? []).find(p => p.includes("Sakit 1 · Alpa 1"));
+ expect(foot).toContain("text-status-absent-text");
+});

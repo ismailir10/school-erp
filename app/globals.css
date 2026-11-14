@@ -42,6 +42,9 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
+  --color-action-hover: var(--action-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -209,7 +212,7 @@
 /*
  * An Nisaa' Sekolahku — Revolut-style layout + school brand colors
  * Primary teal: #5DB4B8 (An Nisaa brand)
- * Accent red: #FF3B3B (CTAs, destructive)
+ * Deep teal actions; semantic red reserved for errors and destructive actions
  * Accent yellow: #F4D03F (highlights, badges)
  * Dark sidebar + clean white content
  * Font: Plus Jakarta Sans
@@ -230,12 +233,17 @@
   /* Readable teal ink on white, the canvas, and the secondary tint. */
   --primary-text: #2E7578;
 
+  /* Primary actions are distinct from soft brand selections. Opaque hover keeps AA. */
+  --action: #28777B;
+  --action-foreground: #FFFFFF;
+  --action-hover: #206468;
+
   /* Secondary */
   --secondary: #E8F5F6;
   --secondary-foreground: #1C1917;
 
   /* Muted */
-  --muted: #F0F0F3;
+  --muted: #F0F4F4;
   --muted-foreground: #57534E;
 
   /* Accent (hover states) */
@@ -253,7 +261,7 @@
   --destructive: #DC2626;
 
   /* Structural dividers, visible control boundaries, and keyboard focus. */
-  --border: #E5E2DE;
+  --border: #DFE6E6;
   --input: #89837D;
   --ring: var(--primary-foreground);
 

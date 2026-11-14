@@ -226,10 +226,9 @@ const sameIssues = (a: FormIssue[], b: FormIssue[]) =>
 // colour and ring easing. aria-disabled buttons stay put, because they read as unavailable.
 const BTN_CLASS =
   "h-11 min-w-28 px-5 text-base motion-safe:active:scale-[0.97] aria-disabled:active:scale-100";
-// The shared Button fill (#5DB4B8 + dark text) reads as disabled on a white card; --primary-text carries
-// white text at >= 4.5:1. Same pairing as the /daftar CTA.
+// Shared opaque action palette keeps labels readable at rest and on hover.
 const PRIMARY_CLASS =
-  "bg-primary-text text-white hover:bg-primary-text/90 aria-disabled:pointer-events-none aria-disabled:opacity-50";
+  "bg-action text-action-foreground hover:bg-action-hover aria-disabled:pointer-events-none";
 
 export default function PendaftaranClient({
   token,

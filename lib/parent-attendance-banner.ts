@@ -31,7 +31,8 @@ export type AttendanceBannerState =
  * which tone to use.
  *
  * - `all-present`: every weekday logged as PRESENT → celebration card.
- * - `attention` / `warm`: at least one SICK or ABSENT day → orange copy. Any
+ * - `attention` / `warm`: at least one SICK or ABSENT day → reason-based semantic ink
+ *   (amber for Sakit, red for Alpa). Any
  *   ABSENT day makes `reason: "absent"` (even alongside Sakit); the get-well
  *   line is reserved for `reason: "sick"` (Sakit, no Alpa).
  * - `attention` / `neutral`: only PERMISSION days (no SICK/ABSENT) → sky-blue "izin" copy.

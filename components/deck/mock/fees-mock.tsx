@@ -93,7 +93,7 @@ export function FeesMock() {
         </div>
         <div className="mt-2 flex items-center justify-end gap-3">
           <span className="text-small text-muted-foreground">Ada perubahan belum disimpan</span>
-          <span className="flex h-7 items-center gap-1.5 rounded-lg bg-primary px-2.5 text-[0.8rem] font-medium text-primary-foreground">
+          <span className="flex h-7 items-center gap-1.5 rounded-lg bg-action px-2.5 text-[0.8rem] font-medium text-action-foreground">
             <Save className="size-3.5" />
             Simpan harga paket
           </span>
